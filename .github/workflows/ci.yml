@@ -1,0 +1,56 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# CI (proposal §4.5, §4.6b). Every job runs the same command an agent runs locally.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash # -eo pipefail
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json # version comes from its packageManager field
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24" # current LTS line; keep in sync with engines.node
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Lint, types, unit tests, build, licences
+        run: pnpm check
+      - name: Install Playwright browser
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Headless e2e with axe
+        run: pnpm e2e
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
