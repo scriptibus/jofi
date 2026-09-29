@@ -7,7 +7,7 @@ name: Claude Code Review
 on:
   pull_request:
     # Only when a PR is ready for review, to save subscription quota (proposal §4.7).
-    types: [ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened]
 
 permissions: {}
 

@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Review lenses (proposal §4.7, ADR 0021). Each triggered lens runs as its own job with a fresh context
-# on Lucas's Claude subscription token. To save quota they run only on PRs that are ready for review.
+# on Lucas's Claude subscription token. To save quota they skip draft PRs.
 # The auto-merge gate (§4.4) that consumes the risk rating is added in M0 step 3.
 name: lenses
 
 on:
   pull_request:
-    types: [ready_for_review, synchronize, reopened]
+    types: [opened, ready_for_review, synchronize, reopened]
 
 permissions: {}
 
