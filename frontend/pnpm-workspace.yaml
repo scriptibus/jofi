@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Supply-chain settings (docs: https://pnpm.io/10.x/settings)
-# Only resolve versions that have been public for at least 24 h (minutes).
+# Only resolve versions that have been public for at least this many minutes.
 minimumReleaseAge: 10080 # 7 days, same as Renovate
 # Fail the install if a dependency has build scripts we have not reviewed.
 strictDepBuilds: true
