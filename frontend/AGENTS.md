@@ -57,9 +57,9 @@ Screenshots: `SCREENSHOT_DIR=/some/dir pnpm e2e` writes one PNG per project and 
    sleeps); rely on web-first assertions.
 7. **Verify in a headless browser.** For UI changes, run `pnpm e2e` (axe must report zero
    violations in light, dark and phone) and attach screenshots (`SCREENSHOT_DIR`) to the PR.
-8. **SPDX headers** on every source file (`// SPDX-FileCopyrightText: 2026 Jofi contributors`
-   + `// SPDX-License-Identifier: AGPL-3.0-or-later`; `/* */` in CSS, `<!-- -->` in HTML/MD).
-   JSON can't carry them.
+8. **SPDX headers** on every source file: the copyright + licence lines from the root
+   `AGENTS.md` section 4, as `//` comments in TS/JS, `/* */` in CSS and `<!-- -->` in HTML/MD.
+   JSON can't carry them (REUSE.toml covers it).
 9. **Licenses.** New dependencies must pass `pnpm run license-check`. Anything outside the
    allowlist needs human review, then an entry with a reason in
    `scripts/license-exceptions.json`.
