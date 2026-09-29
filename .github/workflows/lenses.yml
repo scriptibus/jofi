@@ -12,6 +12,10 @@ on:
 
 permissions: {}
 
+defaults:
+  run:
+    shell: bash # -eo pipefail
+
 concurrency:
   group: lenses-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -99,6 +103,13 @@ jobs:
           BLOCKING: ${{ toJSON(matrix.lens.blocking) }}
           TITLE: ${{ matrix.lens.title }}
         run: |
+          if [ -z "$RESULT" ] || ! jq -e 'has("findings")' <<<"$RESULT" >/dev/null; then
+            # The action skips itself when this workflow differs from main (e.g. a PR that edits lenses.yml),
+            # or the model returned no structured output. Either way the lens did not review: never pass silently.
+            echo "::error::Lens $TITLE produced no result. See the 'Run lens' step. PRs that change lenses.yml can only be reviewed by lenses after merge."
+            echo "## Lens: $TITLE — no result (lens did not run)" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
           {
             echo "## Lens: $TITLE"
             jq -r '.summary + (if .risk then "\n\nRisk: **\(.risk)**" else "" end)' <<<"$RESULT"

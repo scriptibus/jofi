@@ -1,33 +1,57 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:best-practices", ":semanticCommits", "security:minimumReleaseAgeNpm"],
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    "security:minimumReleaseAgeNpm"
+  ],
   "timezone": "Europe/Berlin",
-  "schedule": ["before 6am on monday"],
-  "minimumReleaseAge": "3 days",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "minimumReleaseAge": "7 days",
   "dependencyDashboard": true,
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "packageRules": [
     {
       "description": "Patch and minor updates of stable versions merge automatically once all checks are green (AGENTS.md section 8).",
-      "matchUpdateTypes": ["patch", "minor", "digest", "pin", "pinDigest"],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest",
+        "pin",
+        "pinDigest"
+      ],
       "matchCurrentVersion": "!/^0\\./",
       "automerge": true,
-      "platformAutomerge": true
+      "platformAutomerge": true,
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "Pre-release pins (see docs/adr) are only updated by hand.",
-      "matchPackageNames": ["/^dev\\.detekt/"],
-      "automerge": false
+      "matchPackageNames": [
+        "/^dev\\.detekt/"
+      ],
+      "automerge": false,
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "Group the Spring ecosystem so Boot, Modulith and AI move together.",
-      "matchPackageNames": ["/^org\\.springframework/"],
-      "groupName": "spring"
+      "matchPackageNames": [
+        "/^org\\.springframework/"
+      ],
+      "groupName": "spring",
+      "minimumReleaseAge": "7 days"
     },
     {
       "description": "Group Kotlin compiler and plugins.",
-      "matchPackageNames": ["/^org\\.jetbrains\\.kotlin/"],
-      "groupName": "kotlin"
+      "matchPackageNames": [
+        "/^org\\.jetbrains\\.kotlin/"
+      ],
+      "groupName": "kotlin",
+      "minimumReleaseAge": "7 days"
     }
   ]
 }
