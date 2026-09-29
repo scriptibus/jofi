@@ -1,0 +1,65 @@
+# detekt rules for the Jofi backend (docs/spec/04-tech-stack-proposal.md 4.2).
+# Applied on top of detekt's default config (buildUponDefaultConfig = true), so only the
+# deviations from the defaults are listed here. Any finding fails `./gradlew check`.
+# Defaults and rule names: https://github.com/detekt/detekt/blob/v2.0.0-alpha.6/detekt-core/src/main/resources/default-detekt-config.yml
+# (do not run `detektGenerateConfig`: it overwrites this file).
+
+config:
+  validation: true
+  warningsAsErrors: true
+
+complexity:
+  LongMethod:
+    active: true
+    allowedLines: 30
+  CyclomaticComplexMethod:
+    active: true
+    allowedComplexity: 10
+  LongParameterList:
+    active: true
+    allowedFunctionParameters: 5
+    # Constructors get a little more room for injected ports; data classes are exempt.
+    allowedConstructorParameters: 7
+    ignoreDataClasses: true
+  LargeClass:
+    active: true
+    allowedLines: 300
+  NestedBlockDepth:
+    active: true
+    allowedDepth: 3
+
+potential-bugs:
+  UnsafeCallOnNullableType:
+    # No `!!` anywhere, tests included.
+    active: true
+    excludes: []
+  LateinitUsage:
+    # No `lateinit` in the domain (also asserted by the Konsist architecture tests).
+    active: true
+    includes: ['**/domain/src/main/**']
+
+exceptions:
+  TooGenericExceptionCaught:
+    # Catching Exception/Throwable is only acceptable at the edges (adapters translate
+    # framework/IO failures into domain results). Domain and application must not do it.
+    active: true
+    excludes: ['**/src/test/**', '**/adapters/**', '**/bootstrap/src/main/**/adapter/**']
+
+style:
+  WildcardImport:
+    active: true
+    excludeImports: []
+  MagicNumber:
+    # Default excludes (tests, *.kts) stay in place.
+    active: true
+  ForbiddenImport:
+    # Domain and application stay framework-free (also asserted by ArchUnit).
+    active: true
+    includes: ['**/domain/src/main/**', '**/application/src/main/**']
+    forbiddenImports:
+      - value: 'org.springframework.*'
+        reason: 'domain and application must not depend on Spring'
+      - value: 'org.jooq.*'
+        reason: 'domain and application must not depend on jOOQ'
+      - value: 'jakarta.persistence.*'
+        reason: 'domain and application must not depend on JPA'
