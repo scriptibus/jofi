@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Jofi contributors
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+
 # application
 
 Owns the use cases and ports of every bounded context. Depends on `domain` only.

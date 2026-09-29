@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Jofi contributors
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+
 # bootstrap
 
 Owns the runnable Spring Boot application (`io.github.scriptibus.jofi.JofiApplication`), the

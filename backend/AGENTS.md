@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Jofi contributors
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+
 # Jofi backend: agent guide
 
 Kotlin 2.4 + Spring Boot 4.1 on JDK 25, hexagonal architecture, Gradle 9.8 (Kotlin DSL).

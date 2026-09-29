@@ -3,9 +3,11 @@
 
 /** The SPDX header Spotless enforces on every Kotlin file (sources and Gradle scripts). */
 object SpdxHeader {
+    // REUSE-IgnoreStart
     const val TEXT: String =
         "// SPDX-FileCopyrightText: 2026 Jofi contributors\n" +
             "// SPDX-License-Identifier: AGPL-3.0-or-later\n"
+    // REUSE-IgnoreEnd
 
     /**
      * Where the header ends: the first line that is not an SPDX line. Spotless's default Kotlin

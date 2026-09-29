@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Jofi contributors
+SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+
 # architecture-tests
 
 Owns the executable architecture rules. Test sources only; depends on every production module.

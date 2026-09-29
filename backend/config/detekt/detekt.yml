@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # detekt rules for the Jofi backend (docs/spec/04-tech-stack-proposal.md 4.2).
 # Applied on top of detekt's default config (buildUponDefaultConfig = true), so only the
 # deviations from the defaults are listed here. Any finding fails `./gradlew check`.
