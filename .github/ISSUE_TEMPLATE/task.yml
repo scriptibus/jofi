@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Task (agent contract)
+description: One unit of work for one agent and one PR. The issue is the agent's contract.
+labels: ["task"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be true when this is done, and why it matters. One or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable statements. Tests must exercise each one. UI criteria must be verifiable in a headless browser.
+      placeholder: |
+        - [ ] …
+        - [ ] …
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec section
+      description: Link or section number in docs/spec/03-requirements-spec.md (and ADRs if relevant).
+      placeholder: "03-requirements-spec.md §6.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      options: [M0 Foundation, M1 Tracking core, M2 Knowledge & scoring, M3 Documents, M4 Scanners, M5 Interview training, M6 Email & polish]
+    validations:
+      required: true
+  - type: checkboxes
+    id: contexts
+    attributes:
+      label: Bounded contexts in scope
+      description: The agent may only change code in these contexts (plus shared test fixtures).
+      options:
+        - label: applications
+        - label: companies
+        - label: knowledge
+        - label: documents
+        - label: scanners
+        - label: chat
+        - label: training
+        - label: tasks
+        - label: setup
+        - label: system
+        - label: shared
+        - label: frontend shell / ui library
+        - label: infrastructure (build, CI, compose)
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this issue deliberately does not cover.
+    validations:
+      required: true
+  - type: textarea
+    id: depends
+    attributes:
+      label: Depends on
+      description: Issues or PRs that must land first (e.g. the milestone's contracts issue).
+      placeholder: "#12"

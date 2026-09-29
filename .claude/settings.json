@@ -20,5 +20,84 @@
     "feature-dev@claude-plugins-official": true,
     "claude-md-management@claude-plugins-official": true,
     "example-skills@anthropic-agent-skills": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew *)",
+      "Bash(pnpm install)",
+      "Bash(pnpm check)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm e2e *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm exec biome *)",
+      "Bash(pnpm exec vitest *)",
+      "Bash(pnpm exec playwright test *)",
+      "Bash(pnpm outdated *)",
+      "Bash(pnpm view *)",
+      "Bash(npm view *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(gh issue view *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh run view *)",
+      "WebFetch(domain:docs.spring.io)",
+      "WebFetch(domain:kotlinlang.org)",
+      "WebFetch(domain:docs.gradle.org)",
+      "WebFetch(domain:repo1.maven.org)",
+      "WebFetch(domain:search.maven.org)",
+      "WebFetch(domain:plugins.gradle.org)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:registry.npmjs.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:detekt.dev)",
+      "WebFetch(domain:www.jooq.org)",
+      "WebFetch(domain:documentation.red-gate.com)",
+      "WebFetch(domain:react-spectrum.adobe.com)",
+      "WebFetch(domain:tailwindcss.com)",
+      "WebFetch(domain:vite.dev)",
+      "WebFetch(domain:vitest.dev)",
+      "WebFetch(domain:playwright.dev)",
+      "WebFetch(domain:inlang.com)",
+      "WebFetch(domain:biomejs.dev)",
+      "WebFetch(domain:tanstack.com)",
+      "WebFetch(domain:code.claude.com)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/secrets/**)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/format-and-check.sh",
+            "timeout": 300
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/.claude/hooks/affected-tests.sh",
+            "timeout": 900
+          }
+        ]
+      }
+    ]
   }
 }

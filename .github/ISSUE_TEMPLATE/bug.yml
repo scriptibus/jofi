@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Bug report
+description: Something doesn't work as the spec says.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Please don't paste real personal data, API keys or CVs. Use made-up examples.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Jofi version or commit
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Docker/Podman version, browser, AI provider (no keys).
+  - type: textarea
+    id: escaped
+    attributes:
+      label: Which check should have caught this?
+      description: Optional. Test, lint rule, architecture test or review lens that should have stopped it.

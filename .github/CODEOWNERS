@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Protected paths (AGENTS.md section 8). Changes here always need Lucas's review.
+/.github/                         @scriptibus
+/.review/                         @scriptibus
+/.claude/                         @scriptibus
+/AGENTS.md                        @scriptibus
+/CLAUDE.md                        @scriptibus
+**/AGENTS.md                      @scriptibus
+**/CLAUDE.md                      @scriptibus
+**/Dockerfile                     @scriptibus
+**/compose*.yaml                  @scriptibus
+**/db/migration/                  @scriptibus
+/backend/adapters/net/            @scriptibus
+/backend/adapters/ai/             @scriptibus
+/backend/gradle/                  @scriptibus
+/backend/build-logic/             @scriptibus
+**/*.gradle.kts                   @scriptibus
+/frontend/package.json            @scriptibus
+/frontend/pnpm-lock.yaml          @scriptibus
+/frontend/pnpm-workspace.yaml     @scriptibus
+/docs/adr/                        @scriptibus
