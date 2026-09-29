@@ -106,7 +106,8 @@ jobs:
             MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, MPL-2.0,
             LGPL-2.1-only, LGPL-2.1-or-later, LGPL-3.0-only, LGPL-3.0-or-later, EPL-2.0,
             GPL-3.0-only, GPL-3.0-or-later, AGPL-3.0-only, AGPL-3.0-or-later,
-            OFL-1.1, CC0-1.0, BlueOak-1.0.0, Unicode-3.0, Python-2.0
+            OFL-1.1, CC0-1.0, BlueOak-1.0.0, Unicode-3.0, Python-2.0,
+            Apache-2.0 WITH LLVM-exception
 
   osv-scanner:
     permissions:

@@ -3,7 +3,7 @@
 #
 # Supply-chain settings (docs: https://pnpm.io/10.x/settings)
 # Only resolve versions that have been public for at least 24 h (minutes).
-minimumReleaseAge: 1440
+minimumReleaseAge: 10080 # 7 days, same as Renovate
 # Fail the install if a dependency has build scripts we have not reviewed.
 strictDepBuilds: true
 # Install-script allowlist (replaces the deprecated onlyBuiltDependencies).
