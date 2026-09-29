@@ -46,6 +46,13 @@ kotlin {
 }
 
 dependencies {
+    // Security overrides from the version catalog (see its "Security overrides" section).
+    constraints {
+        listOf("security-tomcat-embed-core", "security-jackson3-databind").forEach { alias ->
+            implementation(libs.findLibrary(alias).get())
+            testImplementation(libs.findLibrary(alias).get())
+        }
+    }
     testImplementation(platform(libs.findLibrary("junit-bom").get()))
     testImplementation(libs.findLibrary("junit-jupiter").get())
     testImplementation(libs.findLibrary("kotest-assertions-core").get())

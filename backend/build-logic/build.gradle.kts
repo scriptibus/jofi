@@ -39,4 +39,10 @@ val conventionPlugins =
 
 dependencies {
     conventionPlugins.forEach { implementation(it.asMarker()) }
+    // Security overrides for plugin dependencies (see the catalog's "Security overrides" section).
+    constraints {
+        with(libs) {
+            listOf(security.commons.lang3, security.plexus.utils, security.freemarker, security.jackson3.databind)
+        }.forEach { implementation(it) }
+    }
 }

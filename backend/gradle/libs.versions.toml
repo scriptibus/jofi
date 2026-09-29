@@ -20,7 +20,20 @@ ktlint = "1.8.0"
 kover = "0.9.11"
 licensee = "1.14.1"
 
+# Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
+# Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
+tomcat-patched = "11.0.26"
+jackson3-patched = "3.1.7"
+commons-lang3-patched = "3.21.0"
+plexus-utils-patched = "3.6.2"
+freemarker-patched = "2.3.35"
+
 [libraries]
+security-tomcat-embed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcat-patched" }
+security-jackson3-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson3-patched" }
+security-commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3-patched" }
+security-plexus-utils = { module = "org.codehaus.plexus:plexus-utils", version.ref = "plexus-utils-patched" }
+security-freemarker = { module = "org.freemarker:freemarker", version.ref = "freemarker-patched" }
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
