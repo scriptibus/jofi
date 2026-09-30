@@ -134,6 +134,15 @@ domain enums (`JobSeniority` for `Seniority`, ...), mapped with `mapByName` and 
 Amounts are gross, JSON numbers with at most two decimals; scores numbers with one decimal. DTOs holding
 notes, reasons, pay amounts or an estimate basis print none of them.
 
+`applications.adapter.web.ApplicationSourceController` (#78, ADR-0046) under `/api/applications/{id}`:
+`POST /sources` (201; kind, original link, discovery time, optional text at discovery), `POST
+/sources/{sourceId}/snapshots` (record the current text by hand, reason `MANUAL`; `added` says whether it was a
+new version), `GET /sources/{sourceId}/snapshots` (versions without texts), `GET /snapshots/{snapshotId}` (one
+version with its text) and `GET /description-diff?from=&to=`. Contract only: `501` until #86 and #96. None takes
+`basedOnVersion` (sources and snapshots are no version of the application) and none deletes. An unknown source
+or snapshot is 404 `source-not-found` / `snapshot-not-found`. `ApplicationResponse.sources` lists the sources.
+Posting texts are untrusted (render sanitised) and links may carry tracking parameters: these DTOs print neither.
+
 ## Documented problem responses (ADR-0041)
 
 Annotate a handler with `@ProblemResponses(ProblemKind.INVALID_INPUT, NOT_FOUND, CONFLICT)`

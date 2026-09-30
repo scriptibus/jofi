@@ -224,6 +224,21 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `application_contact_contact_fk` to `ContactNotFound` by name.
 - Portal notes, reasons and offer text are the user's free text: changelog entries name the changed
   fields, never the text (#52). User data: **covered by export/import** (#26, #134).
+- `application_source` (#78, ADR-0046): where a job was found, deleted with its application
+  (`application_source_application_fk`, `ON DELETE CASCADE`): `kind` (`SCANNER`/`URL`/`MANUAL_CHAT`), `original_url`
+  (as `company.website`; required for `URL`, `application_source_url_matches_kind`), `discovered_at`,
+  `offline_since` (NULL while online, not before discovery). Not unique per link (a careers page can list several
+  jobs); `application_source_original_url_idx` is a **hash** index for the URL import's lookup (#97), since a
+  btree row could exceed its size limit. The 50-sources limit stays in the domain. Written only by
+  `ApplicationSourceRepositoryPort` (#86, #96), read with the application; adding one is no new version.
+- `application_description_snapshot` (#78, ADR-0046): one row per version of a source's description, deleted with
+  its source. `description` is untrusted posting text (at most 100,000 characters), `content_hash` must equal
+  `encode(sha256(convert_to(description, 'UTF8')), 'hex')` (`..._content_hash_matches`, what `ContentHash`
+  computes), `reason` (`DISCOVERY`/`CHANGE_DETECTED`/`MANUAL`), `captured_at`, `frozen_at` (set once, not before
+  capture). The trigger `application_description_snapshot_immutable` rejects every `UPDATE` but freezing an
+  unfrozen row with nothing else changing; it raises with that name as its constraint. Repositories never log
+  the text, and changelog entries never hold it. `ApplicationSourceSchemaTest` proves the constraints, the
+  limits, the hash, the trigger and both cascades. User data: **covered by export/import**.
 
 ## Changelog entity types
 
@@ -238,6 +253,8 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 | `ai_model_assignment` | `setup.domain.ModelAssignment`, one entity per task (id = task name) | `ModelAssignment.ENTITY_TYPE` |
 | `ai_monthly_budget` | `setup.domain.MonthlyBudget`, a single entity (id `monthly`) | `MonthlyBudget.ENTITY_TYPE` |
 | `application` | `applications.domain.Application` | `ApplicationId.ENTITY_TYPE` |
+| `application_source` | `applications.domain.ApplicationSource` | `SourceId.ENTITY_TYPE` |
+| `description_snapshot` | `applications.domain.DescriptionSnapshot` (recorded and frozen) | `SnapshotId.ENTITY_TYPE` |
 
 ## Tests
 

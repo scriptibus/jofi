@@ -22,6 +22,8 @@ object ApplicationProblems {
     const val INVALID = "urn:jofi:problem:applications:invalid-application"
     const val INVALID_SEARCH = "urn:jofi:problem:applications:invalid-search"
     const val NOT_FOUND = "urn:jofi:problem:applications:application-not-found"
+    const val SOURCE_NOT_FOUND = "urn:jofi:problem:applications:source-not-found"
+    const val SNAPSHOT_NOT_FOUND = "urn:jofi:problem:applications:snapshot-not-found"
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:applications:storage-unavailable"
@@ -38,8 +40,9 @@ object ApplicationProblems {
                 )
             }
 
-            ApplicationResult.NotFound -> {
-                problem(HttpStatus.NOT_FOUND, NOT_FOUND, "No application with this id")
+            ApplicationResult.NotFound, ApplicationResult.SourceNotFound, ApplicationResult.SnapshotNotFound -> {
+                val (type, detail) = NOT_FOUND_PROBLEMS.getValue(failure)
+                problem(HttpStatus.NOT_FOUND, type, detail)
             }
 
             ApplicationResult.VersionConflict -> {
@@ -79,6 +82,14 @@ object ApplicationProblems {
     /** The request field a violation belongs to, e.g. `payBand.max`, so clients can show it there. */
     fun apiName(field: ApplicationField): String = API_NAMES.getValue(field)
 
+    private val NOT_FOUND_PROBLEMS: Map<ApplicationResult.Failure, Pair<String, String>> =
+        mapOf(
+            ApplicationResult.NotFound to (NOT_FOUND to "No application with this id"),
+            ApplicationResult.SourceNotFound to (SOURCE_NOT_FOUND to "The application has no source with this id"),
+            ApplicationResult.SnapshotNotFound to
+                (SNAPSHOT_NOT_FOUND to "The application has no description with this id"),
+        )
+
     private val API_NAMES: Map<ApplicationField, String> =
         mapOf(
             ApplicationField.TITLE to "title",
@@ -103,6 +114,10 @@ object ApplicationProblems {
             ApplicationField.CONTACTS to "contactIds",
             ApplicationField.STATUS_REASON to "reason",
             ApplicationField.DECLINE_CATEGORY to "declineCategory",
+            ApplicationField.SOURCES to "sources",
+            ApplicationField.SOURCE_URL to "originalUrl",
+            ApplicationField.DISCOVERED_AT to "discoveredAt",
+            ApplicationField.DESCRIPTION to "description",
         )
 
     private fun problem(

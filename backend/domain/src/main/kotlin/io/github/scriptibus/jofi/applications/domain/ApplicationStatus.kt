@@ -40,6 +40,13 @@ enum class ApplicationStatus {
     /** Ended, not in the pipeline; still reopenable (ADR-0044). */
     val isTerminal: Boolean get() = this !in PIPELINE
 
+    /**
+     * The user has applied in this status. `DECLINED` has not: the user may decline before applying. Moving
+     * from a status that has not into one that has freezes the job descriptions
+     * ([ApplicationStatusChanged.freezesDescriptions]).
+     */
+    val impliesApplied: Boolean get() = this in APPLIED_OR_LATER
+
     /** A move here needs a [DeclineReason] (a category, the text optional), which the application then holds. */
     val takesDeclineReason: Boolean get() = this == DECLINED || this == REJECTED
 
@@ -67,6 +74,7 @@ enum class ApplicationStatus {
         val INITIAL = DISCOVERED
 
         private val PIPELINE = setOf(DISCOVERED, SHORTLISTED, PREPARING, APPLIED, INTERVIEWING, OFFER)
+        private val APPLIED_OR_LATER = setOf(APPLIED, INTERVIEWING, OFFER, ACCEPTED, REJECTED, WITHDRAWN, GHOSTED)
     }
 }
 
@@ -186,7 +194,8 @@ sealed interface StatusTransition {
 
 /**
  * Domain event: [actor] moved [application] [from] one status [to] another at [occurredAt] (the Ghosted
- * suggestion, #85, and the views react to it). It carries no reason, since reasons are free text.
+ * suggestion, #85, the description freeze, #86, and the views react to it). It carries no reason, since
+ * reasons are free text.
  */
 data class ApplicationStatusChanged(
     val application: ApplicationId,
@@ -194,4 +203,11 @@ data class ApplicationStatusChanged(
     val to: ApplicationStatus,
     val actor: Actor,
     val occurredAt: Instant,
-)
+) {
+    /**
+     * The move is the application being applied to (or a later stage skipped to), so the newest description
+     * snapshot of each source captured by [occurredAt] is frozen (spec §6.1, ADR-0046). Reopening within the
+     * applied stages freezes nothing new.
+     */
+    val freezesDescriptions: Boolean get() = !from.impliesApplied && to.impliesApplied
+}

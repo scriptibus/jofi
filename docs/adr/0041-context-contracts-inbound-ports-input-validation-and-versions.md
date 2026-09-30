@@ -8,7 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130, amended by #74
-  (contacts), #76 (applications) and #88 (company use cases); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
+  (contacts), #76 (applications), #88 (company use cases) and #78 (sources and description snapshots); AGENTS.md §1
+  "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
 
 ## Context
 
@@ -182,6 +183,25 @@ Further rules the applications contract adds:
 - **Changelog** entries name changed detail fields with values; research notes and preference reasons
   are free text, so the description only says they changed. A company delete records the company (with
   its name) and one entry per cascaded contact (ids only, description "Deleted with its company").
+
+Further rules the sources and description snapshots contract adds (#78, decisions in ADR-0046):
+
+- **Child entities others record** (sources, snapshots) are written through a port of their own and are not
+  a version of the aggregate: adding one keeps `version` and `updatedAt`, like read/unread, so imports and
+  scanners never make the user's next save a `409`. The aggregate reads them (`Application.sources`) and
+  enforces their limit; each is its own changelog entity.
+- **Derived columns are checked against the domain's own computation** (`content_hash` equals the SHA-256
+  of the stored text), never against a looser or different rule, so the check is exactly as strict as the domain.
+- **Immutable rows** (frozen snapshots) are enforced by a `BEFORE UPDATE` row trigger that allows only the
+  one permitted change and raises with `CONSTRAINT = '<name>'` (and the name in its message), so repositories
+  and schema tests treat it like a named constraint. Restores (`TRUNCATE`, `COPY`) are unaffected.
+- **Lengths:** the domain counts UTF-16 units (`String.length`), `char_length` counts code points, so a text
+  with characters outside the BMP is shorter for the database: the database stays at most as strict.
+- **Links** in every context use `shared.domain.text.WebAddress` (the companies context keeps its own copy
+  until it is next touched). A link another party gave us is stored, never fetched outside the SSRF guard, and
+  left out of `toString()` and changelog entries, since it may carry personal tracking parameters.
+- **Untrusted text** (postings) is stored as found after the text rules (NFC, trimmed, line breaks as `\n`,
+  no U+0000, a length limit) and never printed by `toString()`.
 
 ## Consequences
 

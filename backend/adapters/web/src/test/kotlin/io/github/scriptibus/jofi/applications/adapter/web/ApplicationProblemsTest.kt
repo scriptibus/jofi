@@ -31,6 +31,8 @@ class ApplicationProblemsTest {
                     ApplicationViolation(ApplicationField.PAY_MAX, ApplicationProblem.MIN_ABOVE_MAX),
                     ApplicationViolation(ApplicationField.OFFER_SALARY_CURRENCY, ApplicationProblem.INVALID_CURRENCY),
                     ApplicationViolation(ApplicationField.CONTACTS, ApplicationProblem.TOO_MANY),
+                    ApplicationViolation(ApplicationField.SOURCE_URL, ApplicationProblem.INVALID_URL),
+                    ApplicationViolation(ApplicationField.DESCRIPTION, ApplicationProblem.TOO_LONG),
                 ),
             )
 
@@ -45,6 +47,8 @@ class ApplicationProblemsTest {
                 FieldViolation("payBand.max", "MIN_ABOVE_MAX"),
                 FieldViolation("offer.salary.currency", "INVALID_CURRENCY"),
                 FieldViolation("contactIds", "TOO_MANY"),
+                FieldViolation("originalUrl", "INVALID_URL"),
+                FieldViolation("description", "TOO_LONG"),
             )
     }
 
@@ -56,6 +60,8 @@ class ApplicationProblemsTest {
     @Test
     fun `each other failure has its status and problem type`() {
         expect(ApplicationResult.NotFound, HttpStatus.NOT_FOUND, ApplicationProblems.NOT_FOUND)
+        expect(ApplicationResult.SourceNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.SOURCE_NOT_FOUND)
+        expect(ApplicationResult.SnapshotNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.SNAPSHOT_NOT_FOUND)
         expect(ApplicationResult.VersionConflict, HttpStatus.CONFLICT, ApplicationProblems.VERSION_CONFLICT)
         expect(
             ApplicationResult.InvalidTransition(ApplicationStatus.DISCOVERED, ApplicationStatus.ACCEPTED),
