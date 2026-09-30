@@ -189,7 +189,9 @@ that lens.
   again. A lens that produced no result is never recorded, so it runs again on the next event.
 - Nothing about the required checks changes: every event still gives a full run with `lens (…)`, `gate` and
   `result` for the head commit, and `merge-gate.yml` still decides and sets `merge-gate` for it.
-- A manual re-run (*Re-run jobs*, `run_attempt > 1`) never reuses: it is the way to retry a lens.
+- A manual re-run (*Re-run all jobs* or *Re-run failed jobs*, `run_attempt > 1`) never reuses: it is the way
+  to retry a lens. Both `select` and each `lens` job check the attempt, because re-running only the failed
+  jobs keeps the first attempt's `select` outputs.
 - `edited` without a base change keeps the fingerprint and replays; a base change reruns. An edit while a
   run is still in progress cancels that run (concurrency), so its unfinished lenses run again.
 - Drafts run no lenses and record nothing.

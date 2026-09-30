@@ -125,14 +125,15 @@ jobs:
         lens: ${{ fromJSON(needs.select.outputs.lenses) }}
     name: lens (${{ matrix.lens.name }})
     steps:
-      # A reused lens skips everything up to the evaluation, which replays the recorded result.
-      - if: ${{ !matrix.lens.reused_result }}
+      # A reused lens skips everything up to the evaluation, which replays the recorded result. Checked here
+      # too because "Re-run failed jobs" keeps the outputs of the first attempt's `select`.
+      - if: ${{ github.run_attempt > 1 || !matrix.lens.reused_result }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Collect PR context
-        if: ${{ !matrix.lens.reused_result }}
+        if: ${{ github.run_attempt > 1 || !matrix.lens.reused_result }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -161,7 +162,7 @@ jobs:
         id: context
       - name: Run lens
         id: lens
-        if: ${{ !matrix.lens.reused_result }}
+        if: ${{ github.run_attempt > 1 || !matrix.lens.reused_result }}
         uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7 # v1.0.237
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -172,8 +173,8 @@ jobs:
             --json-schema '${{ steps.context.outputs.schema }}'
       - name: Evaluate findings
         env:
-          RESULT: ${{ matrix.lens.reused_result || steps.lens.outputs.structured_output }}
-          REUSED_RUN: ${{ matrix.lens.reused_run }}
+          RESULT: ${{ github.run_attempt == 1 && matrix.lens.reused_result || steps.lens.outputs.structured_output }}
+          REUSED_RUN: ${{ github.run_attempt == 1 && matrix.lens.reused_run || '' }}
           BLOCKING: ${{ toJSON(matrix.lens.blocking) }}
           TITLE: ${{ matrix.lens.title }}
         run: |
@@ -202,7 +203,7 @@ jobs:
       - name: Save result for the merge gate
         if: always()
         env:
-          RESULT: ${{ matrix.lens.reused_result || steps.lens.outputs.structured_output }}
+          RESULT: ${{ github.run_attempt == 1 && matrix.lens.reused_result || steps.lens.outputs.structured_output }}
         run: printf '%s' "$RESULT" > "$RUNNER_TEMP/lens-result.json"
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
