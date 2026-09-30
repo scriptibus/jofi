@@ -7,6 +7,8 @@
 export type { LucideIcon as Icon } from "lucide-react";
 export {
   ArchiveRestore as RestoreIcon,
+  ArrowLeft as BackIcon,
+  Ban as BlacklistedIcon,
   Briefcase as ApplicationsIcon,
   Building as CompaniesIcon,
   ChevronDown as ChevronDownIcon,
@@ -22,8 +24,10 @@ export {
   Pencil as EditIcon,
   Plus as AddIcon,
   RefreshCw as RefreshIcon,
+  Search as SearchIcon,
   Settings as SettingsIcon,
   Share2 as ShareIcon,
+  Star as FavouriteIcon,
   Trash2 as DeleteIcon,
   TriangleAlert as ErrorIcon,
   Upload as UploadIcon,

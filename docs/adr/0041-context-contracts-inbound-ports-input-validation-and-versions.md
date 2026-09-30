@@ -8,8 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130, amended by #74
-  (contacts), #76 (applications), #88 (company use cases), #89 (contact use cases) and #78 (sources and
-  description snapshots); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
+  (contacts), #76 (applications), #88 (company use cases), #89 (contact use cases), #78 (sources and
+  description snapshots) and #82 (application use cases); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
 
 ## Context
 
@@ -227,6 +227,29 @@ Further rules the sources and description snapshots contract adds (#78, decision
   prints only the host (use `value` for the link).
 - **Untrusted text** (postings) is stored as found after the text rules (NFC, trimmed, line breaks as `\n`,
   no U+0000, a length limit) and never printed by `toString()`.
+
+### Application use cases (#82)
+
+- **Changelog with values only where they are not personal**: detail edits record `FieldChange`s for title,
+  company, location, remote share, employment type, seniority, deadline, how applied and language & tone;
+  portal notes, the pay band and the offer are only named in the description (`Edited application; also
+  changed: pay band`), never as values (free text and pay are personal, #52). Read/unread records
+  `FieldChange("unread", before, after)` without a new version; the delete keeps the title, as the company
+  delete keeps the name.
+- **The delete's effect counts what cascades** with the application, read in the delete's transaction:
+  `ConfirmationEffect("application", <title>, {"contactLinks", "statusChanges", "sources", "snapshots"})`, so
+  a new link, source or snapshot or a status change between the steps voids the token. Contracts that add
+  dependants (interviews, tasks) add their counts. After the delete the use case publishes `ApplicationDeleted` (ids and
+  actor only) for the contexts that keep their own references to applications.
+- **A missing company** is found by `application_company_fk` on insert and on a detail edit (the company is a
+  detail) and answered as `Invalid` (COMPANY, NOT_FOUND), a 400 on `companyId`; a missing contact likewise by
+  `application_contact_contact_fk` (CONTACTS, NOT_FOUND). The use cases do not read the company first: the
+  foreign key is the one check that cannot race.
+- **Shared persistence code**: the status history stores its actor like the changelog, so persistence adapters
+  of every context may use the kernel's persistence helpers in `shared.adapter.persistence` (`ActorColumns`,
+  `violatedConstraint()`, which moved there from the companies adapter), not only the generated jOOQ code.
+  `AdapterRules.adaptersAreIndependent` allows exactly that package to persistence adapters; web adapters
+  using it are still rejected (fixtures).
 
 ## Consequences
 

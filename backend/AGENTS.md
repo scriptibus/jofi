@@ -41,8 +41,9 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
 - `adapters/<kind>`: framework code (web, persistence, net, crypto, jobs, ai, backup, ...); depends on `application`.
   Adapters never depend on each other (two exemptions: persistence adapters of every context use
-  the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032; web adapters use the shared
-  web conventions in `shared.adapter.web`, ADR-0041).
+  the shared persistence code in `shared.adapter.persistence` (the generated jOOQ code, `ActorColumns`,
+  `violatedConstraint()`), ADR-0032; web adapters use the shared web conventions in `shared.adapter.web`,
+  ADR-0041).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
   adapters that belong nowhere else (e.g. build info).
 - `architecture-tests`: ArchUnit, Konsist and Spring Modulith rules over all production code.
@@ -61,8 +62,9 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
 `tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
 providers, per-task models, capabilities, costs, budget), `companies` (companies with their use cases, #88; contacts with
-theirs, #89), `applications` (contracts: the application aggregate, its status pipeline, ADR-0044, and its
-sources with their description snapshots, ADR-0046) and `shared` exist.
+theirs, #89), `applications` (the application aggregate with create, read, edit, read/unread and delete, #82;
+list, status pipeline, ADR-0044, contact links and sources with their description snapshots, ADR-0046, as
+contracts) and `shared` exist.
 The only class allowed directly in the base package is the application class; the only class
 allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 

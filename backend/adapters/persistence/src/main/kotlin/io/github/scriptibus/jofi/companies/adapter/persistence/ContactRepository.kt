@@ -13,6 +13,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT_CHANNEL
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.ContactChannelRecord
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.ContactRecord
+import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import org.jooq.DSLContext
 import org.slf4j.Logger
