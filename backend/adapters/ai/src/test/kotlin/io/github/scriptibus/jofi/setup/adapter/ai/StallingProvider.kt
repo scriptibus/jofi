@@ -43,9 +43,10 @@ class StallingProvider(
     }
 
     private fun serve(connection: Socket) {
+        // Counted on arrival, so a client that aborts mid-request still pairs with its hang-up.
+        requests.incrementAndGet()
         try {
             readRequest(connection.getInputStream())
-            requests.incrementAndGet()
             answer?.let { json ->
                 respond(connection, "application/json", json, "Content-Length: ${json.toByteArray().size}\r\n")
                 return

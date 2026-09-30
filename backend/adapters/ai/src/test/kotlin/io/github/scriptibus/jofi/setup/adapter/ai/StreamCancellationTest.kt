@@ -91,10 +91,9 @@ class StreamCancellationTest {
                 AiResult.Cancelled
         }
 
-        // A request cancelled before it connected never reaches the provider; every one that did
-        // must have been hung up once the delayed headers were due.
-        Thread.sleep(Duration.ofSeconds(2))
-        provider.hangUps.get() shouldBe provider.requests.get()
+        // A request cancelled before it connected never reaches the provider; every connection that
+        // did must be hung up once the delayed headers were due.
+        awaitHangUps(provider, expected = provider.requests.get())
         provider.answerAnd { adapter.complete(stub.target(ProviderKind.ANTHROPIC), request()) }
     }
 
