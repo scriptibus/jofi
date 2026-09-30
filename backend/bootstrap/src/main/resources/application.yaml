@@ -35,9 +35,14 @@ server:
   # the compose port mapping, which is localhost-only unless JOFI_BIND_ADDRESS says otherwise.
   address: ${JOFI_SERVER_ADDRESS:127.0.0.1}
   # Behind a TLS-terminating proxy (Caddy, Tailscale serve) the request counts as HTTPS, so session
-  # and CSRF cookies get the Secure flag. Tomcat only trusts these headers from private addresses.
+  # and CSRF cookies get the Secure flag. X-Forwarded-* is trusted only from the proxies listed in
+  # JOFI_TRUSTED_PROXIES (CIDRs, default loopback only): Tomcat's default trusts every private range,
+  # which would let LAN clients fake their address and dodge the per-client login backoff.
   # The session cookie flags are set in SecurityConfiguration (HttpOnly, SameSite=Lax, Secure on HTTPS).
   forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: ${JOFI_TRUSTED_PROXIES:127.0.0.0/8, ::1/128}
 
 jofi:
   # The data volume: master keyset and setup token (owner-only files), later knowledge and documents.

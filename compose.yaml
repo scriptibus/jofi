@@ -23,6 +23,9 @@ x-jofi-service: &jofi-service
     # Where the published port is bound. Beyond loopback, first run needs the setup token from the
     # data volume (ADR-0035). Keep it in sync with the port binding of `app` below.
     JOFI_BIND_ADDRESS: ${JOFI_BIND_ADDRESS:-127.0.0.1}
+    # CIDRs of a TLS proxy in front of Jofi (e.g. the https profile's Caddy); only these may set
+    # X-Forwarded-* (ADR-0035). Default: loopback only.
+    JOFI_TRUSTED_PROXIES: ${JOFI_TRUSTED_PROXIES:-127.0.0.0/8, ::1/128}
   volumes:
     - jofi-data:/data
   # Also set in the Dockerfile; repeated here because Podman's default OCI image format drops it.

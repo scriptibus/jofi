@@ -169,12 +169,7 @@ class AuthControllerTest(
             .shouldNotBeNull()
     }
 
-    @Test
-    fun `a password change keeps the asking session and maps its failures`() {
-        val session = MockHttpSession(null, "session-42")
-        val request = slot<PasswordChangeRequest>()
-        every { changePassword.execute(capture(request)) } returns PasswordChangeResult.Changed
-
+    private fun putPassword(session: MockHttpSession) =
         mvc
             .put()
             .uri("/api/auth/password")
@@ -182,22 +177,36 @@ class AuthControllerTest(
             .content("""{"currentPassword":"old","newPassword":"new"}""")
             .session(session)
             .assertThat()
-            .hasStatus(204)
+
+    @Test
+    fun `a password change keeps the asking session`() {
+        val session = MockHttpSession(null, "session-42")
+        val request = slot<PasswordChangeRequest>()
+        every { changePassword.execute(capture(request)) } returns PasswordChangeResult.Changed
+
+        putPassword(session).hasStatus(204)
+
         request.captured.session.value shouldBe "session-42"
         request.captured.currentPassword shouldBe "old"
+    }
 
-        every { changePassword.execute(any()) } returns PasswordChangeResult.WrongCurrentPassword
-        mvc
-            .put()
-            .uri("/api/auth/password")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""{"currentPassword":"x","newPassword":"y"}""")
-            .session(session)
-            .assertThat()
-            .hasStatus(403)
-            .bodyJson()
-            .extractingPath("$.type")
-            .isEqualTo(AuthProblems.INVALID_CREDENTIALS)
+    @Test
+    fun `password change failures are problem details, surviving sessions included`() {
+        val session = MockHttpSession(null, "session-42")
+        val cases =
+            mapOf(
+                PasswordChangeResult.ChangedButOtherSessionsRemain to (500 to AuthProblems.OTHER_SESSIONS_REMAIN),
+                PasswordChangeResult.WrongCurrentPassword to (403 to AuthProblems.INVALID_CREDENTIALS),
+                PasswordChangeResult.NotSetUp to (409 to AuthProblems.NOT_SET_UP),
+                PasswordChangeResult.WeakPassword(PasswordPolicyCheck.TooShort(15)) to
+                    (422 to AuthProblems.WEAK_PASSWORD),
+            )
+        cases.forEach { (result, expected) ->
+            every { changePassword.execute(any()) } returns result
+
+            val response = putPassword(session).hasStatus(expected.first)
+            response.bodyJson().extractingPath("$.type").isEqualTo(expected.second)
+        }
     }
 
     @Test

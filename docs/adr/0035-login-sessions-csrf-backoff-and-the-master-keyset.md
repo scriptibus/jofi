@@ -33,11 +33,16 @@ instance is reachable from a network, where the master key lives and how it can 
   cleared); the logout filter itself is off.
 - **Sessions in PostgreSQL** (Spring Session JDBC 4.1, tables from our Flyway migration), so they
   survive restarts; idle timeout `JOFI_SESSION_TIMEOUT`, default 7 days (a personal app on a phone).
-  A password change ends every other session of the user.
+  A password change ends every other session of the user; if that fails, the change is reported
+  as `500 other-sessions-remain`, never as success.
 - **Cookies:** `SESSION` is `HttpOnly`, `SameSite=Lax`, `Secure` when the request arrived over HTTPS.
   The serializer is configured in code because Spring Boot applies `server.servlet.session.cookie.*`
-  only with an embedded server. `server.forward-headers-strategy=native` makes Tomcat trust
-  `X-Forwarded-*` from private addresses, so Caddy or Tailscale in front mark the cookies `Secure`.
+  only with an embedded server. `server.forward-headers-strategy=native` lets a TLS proxy in front
+  (Caddy, Tailscale serve) mark requests as HTTPS, but only proxies listed in `JOFI_TRUSTED_PROXIES`
+  (CIDRs, default loopback only) are believed: Tomcat's default trusts every private range, so any LAN
+  client could fake its address (and dodge the per-client backoff) or fake HTTPS. Behind the default
+  Docker port mapping all clients may share the gateway address; the per-client backoff then acts
+  like a second global one, which is safe but can delay the owner while someone guesses.
 
 ### CSRF
 

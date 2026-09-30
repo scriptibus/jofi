@@ -29,6 +29,7 @@ object AuthProblems {
     const val INVALID_SETUP_TOKEN = "${PREFIX}invalid-setup-token"
     const val WEAK_PASSWORD = "${PREFIX}weak-password"
     const val UNAVAILABLE = "${PREFIX}auth-unavailable"
+    const val OTHER_SESSIONS_REMAIN = "${PREFIX}other-sessions-remain"
 
     /** The problem for a failed login; the failure is logged without password or client address. */
     fun of(failure: LoginResult): ErrorResponseException =
@@ -94,6 +95,15 @@ object AuthProblems {
 
             is PasswordChangeResult.Throttled -> {
                 throttled(failure.retryAfter)
+            }
+
+            PasswordChangeResult.ChangedButOtherSessionsRemain -> {
+                logger.error("Password changed, but ending the other sessions failed")
+                problem(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    OTHER_SESSIONS_REMAIN,
+                    "The password was changed, but other sessions could not be ended; change it again",
+                )
             }
 
             PasswordChangeResult.StorageFailure, PasswordChangeResult.Changed -> {

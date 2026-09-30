@@ -9,6 +9,7 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
+import java.util.UUID
 
 /**
  * Key material in the data volume: files readable by the Jofi user only (0600, directories 0700).
@@ -28,21 +29,30 @@ internal object OwnerOnlyFiles {
     ): Boolean {
         ensureDirectory(target.parent)
         if (Files.exists(target)) return false
-        val temporary = target.resolveSibling(".${target.fileName}.${ProcessHandle.current().pid()}.tmp")
+        // Random, not the PID: in containers both processes are PID 1 and share the volume.
+        val temporary = target.resolveSibling(".${target.fileName}.${UUID.randomUUID()}.tmp")
         return try {
-            Files.deleteIfExists(temporary)
             Files
                 .newOutputStream(temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
                 .use { it.write(content) }
             restrict(temporary)
-            Files.createLink(target, temporary)
-            true
-        } catch (_: FileAlreadyExistsException) {
-            false
+            linkIntoPlace(target, temporary)
         } finally {
             removeTemporary(temporary)
         }
     }
+
+    /** `false` when the other process linked its file first; the caller then reads that one. */
+    private fun linkIntoPlace(
+        target: Path,
+        temporary: Path,
+    ): Boolean =
+        try {
+            Files.createLink(target, temporary)
+            true
+        } catch (_: FileAlreadyExistsException) {
+            false
+        }
 
     private fun removeTemporary(temporary: Path) {
         Files.deleteIfExists(temporary)

@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
+import org.springframework.core.env.Environment
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -52,6 +53,7 @@ class AuthSecurityTest(
     @param:Autowired private val dsl: DSLContext,
     @param:Autowired private val changelog: ChangelogPort,
     @param:Autowired private val dataSource: DataSource,
+    @param:Autowired private val environment: Environment,
     @param:Autowired @param:Qualifier("requestMappingHandlerMapping")
     private val mappings: RequestMappingHandlerMapping,
 ) {
@@ -90,6 +92,11 @@ class AuthSecurityTest(
 
         open shouldContainExactlyInAnyOrder SecurityConfiguration.PUBLIC_API
         apiEndpoints() shouldContain (HttpMethod.GET to "/api/system/info")
+    }
+
+    @Test
+    fun `forwarded headers are trusted from loopback proxies only by default`() {
+        environment.getProperty("server.tomcat.remoteip.internal-proxies") shouldBe "127.0.0.0/8, ::1/128"
     }
 
     @Test

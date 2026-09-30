@@ -77,6 +77,12 @@ sealed interface PasswordChangeResult {
     /** Changed; every other session of the user has ended. */
     data object Changed : PasswordChangeResult
 
+    /**
+     * Changed, but other sessions could not be ended and may still be valid (e.g. a stolen one).
+     * The user has to retry or end them otherwise; this is never reported as success.
+     */
+    data object ChangedButOtherSessionsRemain : PasswordChangeResult
+
     data object WrongCurrentPassword : PasswordChangeResult
 
     data class WeakPassword(

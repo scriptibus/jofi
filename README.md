@@ -34,7 +34,8 @@ and `jofi-data`; `docker compose down` keeps them, `docker compose down --volume
 To expose it on your network, set `JOFI_BIND_ADDRESS=0.0.0.0` (or one interface's address) in `.env`.
 Every API call needs a login. While no password is set, an exposed Jofi asks for a one-time setup token
 at first run: `docker compose exec app cat /data/secrets/setup-token`. For phone access prefer
-[Tailscale](https://tailscale.com/) over opening ports, so the login travels over HTTPS.
+[Tailscale](https://tailscale.com/) over opening ports, so the login travels over HTTPS; a TLS proxy in front
+of Jofi must be listed in `JOFI_TRUSTED_PROXIES` (CIDRs) for its `X-Forwarded-*` headers to count.
 API keys are encrypted with a master key generated into the `jofi-data` volume: back up both volumes.
 The database is never published on the host.
 

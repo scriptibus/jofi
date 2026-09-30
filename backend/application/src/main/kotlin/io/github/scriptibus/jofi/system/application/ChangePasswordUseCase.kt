@@ -9,10 +9,12 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.PasswordHasherPort
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
 import io.github.scriptibus.jofi.system.application.port.UserSessionsPort
+import io.github.scriptibus.jofi.system.domain.AuthSideEffectResult
 import io.github.scriptibus.jofi.system.domain.Password
 import io.github.scriptibus.jofi.system.domain.PasswordChangeRequest
 import io.github.scriptibus.jofi.system.domain.PasswordChangeResult
 import io.github.scriptibus.jofi.system.domain.PasswordPolicyCheck
+import io.github.scriptibus.jofi.system.domain.SessionRef
 import io.github.scriptibus.jofi.system.domain.ThrottleDecision
 import io.github.scriptibus.jofi.system.domain.UserAccount
 import io.github.scriptibus.jofi.system.domain.UserAccountStoreResult
@@ -57,10 +59,16 @@ class ChangePasswordUseCase(
             return PasswordChangeResult.WrongCurrentPassword
         }
         throttle.resetFor(request.client)
-        return change(account, request.newPassword, now).also {
-            if (it == PasswordChangeResult.Changed) sessions.endAllExcept(request.session)
-        }
+        val changed = change(account, request.newPassword, now)
+        return if (changed == PasswordChangeResult.Changed) endOtherSessions(request.session) else changed
     }
+
+    // The change protects against a stolen session, so a session that survives it is not a success.
+    private fun endOtherSessions(keep: SessionRef): PasswordChangeResult =
+        when (sessions.endAllExcept(keep)) {
+            AuthSideEffectResult.Success -> PasswordChangeResult.Changed
+            AuthSideEffectResult.Failure -> PasswordChangeResult.ChangedButOtherSessionsRemain
+        }
 
     private fun change(
         account: UserAccount,

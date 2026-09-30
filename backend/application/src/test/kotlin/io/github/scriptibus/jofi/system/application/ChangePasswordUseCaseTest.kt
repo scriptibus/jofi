@@ -89,6 +89,14 @@ class ChangePasswordUseCaseTest {
     }
 
     @Test
+    fun `other sessions that could not be ended are reported, not success`() {
+        every { sessions.endAllExcept(any()) } returns AuthSideEffectResult.Failure
+
+        change() shouldBe PasswordChangeResult.ChangedButOtherSessionsRemain
+        users.account?.passwordHash shouldBe FakeHasher.hashOf(newPassword)
+    }
+
+    @Test
     fun `failures of the store are reported`() {
         users.account = null
         change() shouldBe PasswordChangeResult.NotSetUp

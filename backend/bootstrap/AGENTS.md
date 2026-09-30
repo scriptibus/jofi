@@ -25,7 +25,8 @@ Rules:
   drives the real flow with `Browser` (cookies + CSRF header like the SPA).
 - Environment: `JOFI_DATA_DIR` (data volume: master keyset, setup token), `JOFI_SERVER_ADDRESS`
   (bind address of the server, default `127.0.0.1`), `JOFI_BIND_ADDRESS` (where Jofi is reachable;
-  not loopback = first run needs the setup token), `JOFI_SESSION_TIMEOUT` (default `7d`). Tests get a
+  not loopback = first run needs the setup token), `JOFI_TRUSTED_PROXIES` (CIDRs allowed to send
+  `X-Forwarded-*`, default loopback), `JOFI_SESSION_TIMEOUT` (default `7d`). Tests get a
   data directory under the test task's temporary directory.
 - `InMemoryLoginThrottleAdapter` (backoff counts) and `SpringSessionUserSessionsAdapter` (ending
   sessions) are framework-bound adapters here.
