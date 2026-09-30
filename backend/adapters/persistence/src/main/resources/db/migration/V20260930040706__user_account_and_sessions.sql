@@ -1,12 +1,15 @@
 -- SPDX-FileCopyrightText: 2026 Jofi contributors
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 
--- Single-user login (ADR-0017): the one account and the login sessions (#16).
+-- Single-user login (ADR-0017, ADR-0035): the one account, the login sessions and the check value of
+-- the master keyset (#16).
 
 -- The one Jofi user: at most one row (the primary key can only be TRUE). No user name; the password
--- is stored as an argon2id hash only (PHC string format with parameters and salt).
+-- is stored as an argon2id hash only (PHC string format with parameters and salt). account_id is drawn
+-- anew at every first run; sessions carry it, so a reset account ends every session of the old one.
 CREATE TABLE user_account (
     singleton           boolean     PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    account_id          uuid        NOT NULL,
     password_hash       text        NOT NULL CHECK (password_hash LIKE '$argon2id$%'),
     created_at          timestamptz NOT NULL,
     password_changed_at timestamptz NOT NULL,
@@ -38,4 +41,13 @@ CREATE TABLE spring_session_attributes (
     CONSTRAINT spring_session_attributes_pk PRIMARY KEY (session_primary_id, attribute_name),
     CONSTRAINT spring_session_attributes_fk FOREIGN KEY (session_primary_id)
         REFERENCES spring_session (primary_id) ON DELETE CASCADE
+);
+
+-- Proof of which master keyset (data volume, never in the database) encrypted the rows of `secret`: a
+-- Tink AES-GCM ciphertext of a fixed text. At startup the keyset must decrypt it, so a lost or swapped
+-- keyset is refused instead of silently replaced (ADR-0035). At most one row.
+CREATE TABLE master_key_check (
+    singleton   boolean     PRIMARY KEY DEFAULT TRUE CHECK (singleton),
+    check_value bytea       NOT NULL CHECK (octet_length(check_value) > 0),
+    recorded_at timestamptz NOT NULL
 );

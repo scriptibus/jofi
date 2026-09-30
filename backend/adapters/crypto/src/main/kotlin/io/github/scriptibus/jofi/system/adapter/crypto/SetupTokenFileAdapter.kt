@@ -10,7 +10,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.io.IOException
-import java.net.InetAddress
 import java.nio.file.Files
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
@@ -19,27 +18,23 @@ import java.security.SecureRandom
 import java.util.Base64
 
 /**
- * The one-time setup token in `<data-dir>/secrets/setup-token` (owner-only). Required while Jofi is
- * bound to a non-loopback address ([bindAddress], from `JOFI_BIND_ADDRESS`; ADR-0029): then only
- * someone who can read the data volume can choose the first password. The token itself is never
- * logged, only where to find it.
+ * The one-time setup token in `<data-dir>/secrets/setup-token` (owner-only), required by every first
+ * run (ADR-0035): only someone who can read the data volume can choose the first password. The token
+ * itself is never logged, only how to read it.
  */
 @Component
 class SetupTokenFileAdapter(
-    @Value("\${jofi.data-dir}") dataDirectory: Path,
-    @Value("\${jofi.auth.bind-address}") private val bindAddress: String,
+    @Value("\${jofi.data-dir}") dataDirectory: String,
 ) : SetupTokenPort {
-    private val tokenFile: Path = dataDirectory.resolve(SECRETS_DIRECTORY).resolve(TOKEN_FILE)
+    private val tokenFile: Path = DataDirectory.of(dataDirectory).resolve(SECRETS_DIRECTORY).resolve(TOKEN_FILE)
     private val random = SecureRandom()
-
-    override fun isRequired(): Boolean = !isLoopback(bindAddress.trim().removePrefix("[").removeSuffix("]"))
 
     override fun issue(): AuthSideEffectResult =
         guarded("issue") {
             OwnerOnlyFiles.createIfAbsent(tokenFile, newToken().toByteArray(Charsets.US_ASCII))
             logger.warn(
-                "Jofi is exposed on {} and no password is set: first run needs the setup token in {}",
-                bindAddress,
+                "No password is set yet. First run needs the one-time setup token: " +
+                    "`docker compose exec app cat /data/secrets/setup-token` (outside Docker: {})",
                 tokenFile,
             )
         }
@@ -74,6 +69,9 @@ class SetupTokenFileAdapter(
         try {
             work()
             AuthSideEffectResult.Success
+        } catch (exception: DataVolumeException) {
+            logger.error(exception.message)
+            AuthSideEffectResult.Failure
         } catch (exception: IOException) {
             logger.error("Setup token {} failed: {}", operation, exception.javaClass.name)
             AuthSideEffectResult.Failure
@@ -84,14 +82,5 @@ class SetupTokenFileAdapter(
         const val SECRETS_DIRECTORY = "secrets"
         const val TOKEN_FILE = "setup-token"
         const val TOKEN_BYTES = 32
-
-        /** Literal addresses only: a host name other than `localhost` counts as exposed (no DNS lookup). */
-        fun isLoopback(address: String): Boolean =
-            address.equals("localhost", ignoreCase = true) ||
-                try {
-                    InetAddress.ofLiteral(address).isLoopbackAddress
-                } catch (_: IllegalArgumentException) {
-                    false
-                }
     }
 }

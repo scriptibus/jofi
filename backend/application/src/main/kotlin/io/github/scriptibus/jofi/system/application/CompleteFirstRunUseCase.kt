@@ -9,6 +9,7 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.PasswordHasherPort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
+import io.github.scriptibus.jofi.system.domain.AccountId
 import io.github.scriptibus.jofi.system.domain.FirstRunResult
 import io.github.scriptibus.jofi.system.domain.Password
 import io.github.scriptibus.jofi.system.domain.PasswordPolicyCheck
@@ -18,10 +19,11 @@ import io.github.scriptibus.jofi.system.domain.UserAccount
 import io.github.scriptibus.jofi.system.domain.UserAccountStoreResult
 import java.time.Clock
 import java.time.Instant
+import java.util.UUID
 
 /**
- * First run: sets the password while none exists. When Jofi is exposed on a network it also needs
- * the setup token from the data volume. Afterwards first run answers [FirstRunResult.AlreadySetUp].
+ * First run: sets the password while none exists. It always needs the one-time setup token from the
+ * data volume (ADR-0035). Afterwards first run answers [FirstRunResult.AlreadySetUp].
  */
 class CompleteFirstRunUseCase(
     private val users: UserAccountPort,
@@ -45,8 +47,8 @@ class CompleteFirstRunUseCase(
         return when {
             existing !is UserAccountStoreResult.Success -> FirstRunResult.StorageFailure
             existing.value != null -> FirstRunResult.AlreadySetUp
-            setupToken.isRequired() && (token == null || !setupToken.matches(token)) -> FirstRunResult.InvalidSetupToken
-            else -> setUp(chosenPassword, now).also { if (it == FirstRunResult.Completed) finish(client) }
+            token == null || !setupToken.matches(token) -> FirstRunResult.InvalidSetupToken
+            else -> setUp(chosenPassword, now).also { if (it is FirstRunResult.Completed) finish(client) }
         }
     }
 
@@ -59,12 +61,13 @@ class CompleteFirstRunUseCase(
                 is PasswordPolicyCheck.Accepted -> check.password
                 is PasswordPolicyCheck.Violation -> return FirstRunResult.WeakPassword(check)
             }
-        val account = UserAccount(hasher.hash(password), createdAt = now, passwordChangedAt = now)
-        return transactions.inTransaction({ it == FirstRunResult.Completed }) {
+        // A new id per account: sessions of an earlier (reset) account never match this one.
+        val account = UserAccount(AccountId(UUID.randomUUID()), hasher.hash(password), now, now)
+        return transactions.inTransaction({ it is FirstRunResult.Completed }) {
             when (users.create(account)) {
                 is UserAccountStoreResult.Success -> {
                     if (changelog.recordPasswordChange("Set the login password (first run)", now)) {
-                        FirstRunResult.Completed
+                        FirstRunResult.Completed(account.accountId)
                     } else {
                         FirstRunResult.StorageFailure
                     }

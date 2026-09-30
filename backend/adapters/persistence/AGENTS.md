@@ -63,8 +63,11 @@ The generator lives in the `codegen` source set and has its own locked classpath
 - `secret`: Tink AES-GCM ciphertext per `SecretId`, written by `SecretRepository` (`SecretStorePort`)
   through `SecretCipherPort`; the key is the master keyset in the data volume (ADR-0035). Never store
   or log a key in clear text anywhere else; provider configs reference a secret id.
-- `user_account` (#16): the single user, at most one row, argon2id hash only (`UserAccountRepository`).
-  Covered by export/import.
+- `user_account` (#16): the single user, at most one row, argon2id hash only, plus the `account_id`
+  sessions are bound to (`UserAccountRepository`). Covered by export/import.
+- `master_key_check` (#16): at most one row, a Tink ciphertext of a fixed text proving which master
+  keyset encrypted `secret` (`MasterKeyRecordRepository`, ADR-0035). Covered by export/import; it
+  must travel with `secret` and the keyset.
 - `spring_session`, `spring_session_attributes`: login sessions, managed by Spring Session JDBC (schema
   copied from spring-session-jdbc 4.1.1). Ephemeral bearer credentials: **excluded from export/import**
   (#26), a restore starts logged out. Never log their ids.

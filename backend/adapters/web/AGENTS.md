@@ -34,5 +34,8 @@ Rules:
 - `SecurityProblemHandler` answers the filter chain's 401/403 as problem details; `AuthProblems`
   maps the auth use cases' failures (types `urn:jofi:problem:system:*`, `Retry-After` on 429).
 - Request DTOs that carry passwords or tokens override `toString()` so debug logs stay clean.
+- `SessionValidityFilter` (added to the chain in bootstrap) ends a session that belongs to another
+  `account_id` or is older than `jofi.auth.session-max-age`; `ClientAddress` turns the peer address
+  into the throttle key (IPv6 by /64).
 - Slice tests run without the filter chain (`@AutoConfigureMockMvc(addFilters = false)`); the
   security behaviour is tested end to end in bootstrap.

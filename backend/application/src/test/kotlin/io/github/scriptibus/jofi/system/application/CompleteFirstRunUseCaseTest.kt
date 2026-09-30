@@ -15,7 +15,9 @@ import io.github.scriptibus.jofi.system.domain.ThrottleDecision
 import io.github.scriptibus.jofi.system.domain.UserAccount
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -29,8 +31,7 @@ class CompleteFirstRunUseCaseTest {
     private val transactions = FakeTransactions(users, changelog)
     private val setupToken =
         mockk<SetupTokenPort> {
-            every { isRequired() } returns false
-            every { matches(any()) } answers { firstArg<String>() == "the-token" }
+            every { matches(any()) } answers { firstArg<String>() == TOKEN }
             every { discard() } returns AuthSideEffectResult.Success
         }
     private val useCase =
@@ -38,9 +39,11 @@ class CompleteFirstRunUseCaseTest {
 
     @Test
     fun `first run stores the hashed password and records it as the user's change`() {
-        useCase.execute(PASSWORD, null, client) shouldBe FirstRunResult.Completed
+        val result = useCase.execute(PASSWORD, TOKEN, client)
 
-        users.account shouldBe UserAccount(FakeHasher.hashOf(PASSWORD), NOW, NOW)
+        val account = users.account.shouldNotBeNull()
+        result shouldBe FirstRunResult.Completed(account.accountId)
+        account shouldBe UserAccount(account.accountId, FakeHasher.hashOf(PASSWORD), NOW, NOW)
         changelog.entries.single().let {
             it.entity shouldBe UserAccount.ENTITY
             it.actor shouldBe Actor.User
@@ -54,23 +57,21 @@ class CompleteFirstRunUseCaseTest {
     fun `once a password exists first run is over`() {
         users.account = AuthFixtures.account("an earlier password!")
 
-        useCase.execute(PASSWORD, null, client) shouldBe FirstRunResult.AlreadySetUp
+        useCase.execute(PASSWORD, TOKEN, client) shouldBe FirstRunResult.AlreadySetUp
         users.account shouldBe AuthFixtures.account("an earlier password!")
     }
 
     @Test
-    fun `when exposed the setup token must be given and match`() {
-        every { setupToken.isRequired() } returns true
-
+    fun `the setup token must always be given and match`() {
         useCase.execute(PASSWORD, null, client) shouldBe FirstRunResult.InvalidSetupToken
         useCase.execute(PASSWORD, "guess", client) shouldBe FirstRunResult.InvalidSetupToken
         users.account.shouldBeNull()
-        useCase.execute(PASSWORD, "the-token", client) shouldBe FirstRunResult.Completed
+        useCase.execute(PASSWORD, TOKEN, client).shouldBeInstanceOf<FirstRunResult.Completed>()
     }
 
     @Test
     fun `a weak password is refused without storing anything`() {
-        useCase.execute("too short", null, client) shouldBe
+        useCase.execute("too short", TOKEN, client) shouldBe
             FirstRunResult.WeakPassword(PasswordPolicyCheck.TooShort(15))
 
         users.account.shouldBeNull()
@@ -81,7 +82,7 @@ class CompleteFirstRunUseCaseTest {
     fun `attempts are throttled like logins`() {
         throttle.throttled = ThrottleDecision.Throttled(Duration.ofSeconds(3))
 
-        useCase.execute(PASSWORD, null, client) shouldBe FirstRunResult.Throttled(Duration.ofSeconds(3))
+        useCase.execute(PASSWORD, TOKEN, client) shouldBe FirstRunResult.Throttled(Duration.ofSeconds(3))
         users.account.shouldBeNull()
     }
 
@@ -89,7 +90,7 @@ class CompleteFirstRunUseCaseTest {
     fun `without its changelog entry the account is rolled back`() {
         changelog.failing = true
 
-        useCase.execute(PASSWORD, null, client) shouldBe FirstRunResult.StorageFailure
+        useCase.execute(PASSWORD, TOKEN, client) shouldBe FirstRunResult.StorageFailure
 
         transactions.rolledBack shouldBe true
         users.account.shouldBeNull()
@@ -100,6 +101,10 @@ class CompleteFirstRunUseCaseTest {
     fun `a storage failure is reported as such`() {
         users.failing = true
 
-        useCase.execute(PASSWORD, null, client) shouldBe FirstRunResult.StorageFailure
+        useCase.execute(PASSWORD, TOKEN, client) shouldBe FirstRunResult.StorageFailure
+    }
+
+    private companion object {
+        const val TOKEN = "the-token"
     }
 }

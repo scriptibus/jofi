@@ -7,5 +7,3 @@ build/
 .idea/
 *.iml
 out/
-# Local data volume of bootRun / bootTestRun (keyset, setup token): never commit.
-/bootstrap/data/

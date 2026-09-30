@@ -9,7 +9,12 @@ import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogLimit
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.system.application.ResetPasswordUseCase
+import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
+import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.config.SecurityConfiguration
+import io.github.scriptibus.jofi.system.domain.PasswordResetResult
+import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.github.scriptibus.jofi.system.domain.UserAccount
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -25,6 +30,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Import
 import org.springframework.core.env.Environment
 import org.springframework.http.HttpMethod
@@ -38,6 +44,7 @@ import org.springframework.session.jdbc.JdbcIndexedSessionRepository
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import javax.sql.DataSource
 
@@ -54,13 +61,25 @@ class AuthSecurityTest(
     @param:Autowired private val changelog: ChangelogPort,
     @param:Autowired private val dataSource: DataSource,
     @param:Autowired private val environment: Environment,
+    @param:Autowired private val context: ApplicationContext,
     @param:Autowired @param:Qualifier("requestMappingHandlerMapping")
     private val mappings: RequestMappingHandlerMapping,
 ) {
+    private val setupToken: SetupTokenPort get() = context.getBean(SetupTokenPort::class.java)
+    private val throttle: LoginThrottlePort get() = context.getBean(LoginThrottlePort::class.java)
+    private val resetPassword: ResetPasswordUseCase get() = context.getBean(ResetPasswordUseCase::class.java)
+
     @BeforeEach
     fun startWithoutUser() {
         dsl.deleteFrom(SPRING_SESSION).execute()
         dsl.deleteFrom(USER_ACCOUNT).execute()
+        throttle.reset(ThrottleKey.Everyone)
+        setupToken.issue()
+    }
+
+    private fun firstRun(password: String = PASSWORD): String {
+        val token = SetupTokens.read()
+        return """{"password":"$password","setupToken":"$token"}"""
     }
 
     private fun browser(https: Boolean = false) =
@@ -68,7 +87,7 @@ class AuthSecurityTest(
 
     private fun loggedIn(): Browser =
         browser().also {
-            it.post("/api/auth/first-run", """{"password":"$PASSWORD"}""").response.status shouldBe 204
+            it.post("/api/auth/first-run", firstRun()).response.status shouldBe 204
         }
 
     @Test
@@ -110,7 +129,7 @@ class AuthSecurityTest(
         val browser = browser()
         browser.cookies.keys shouldContain Browser.CSRF_COOKIE
 
-        browser.post("/api/auth/first-run", """{"password":"$PASSWORD"}""").response.status shouldBe 204
+        browser.post("/api/auth/first-run", firstRun()).response.status shouldBe 204
         browser.get("/api/system/info").response.status shouldBe 200
         browser.get("/api/auth/session").response.contentAsString shouldBe
             """{"setUp":true,"authenticated":true,"setupTokenRequired":false}"""
@@ -124,20 +143,34 @@ class AuthSecurityTest(
     }
 
     @Test
+    fun `first run always needs the setup token from the data volume`() {
+        val browser = browser()
+
+        browser.get("/api/auth/session").response.contentAsString shouldContain "\"setupTokenRequired\":true"
+        browser.post("/api/auth/first-run", """{"password":"$PASSWORD"}""").response.status shouldBe 403
+        val guessed = """{"password":"$PASSWORD","setupToken":"guess"}"""
+        browser.post("/api/auth/first-run", guessed).response.status shouldBe 403
+        browser.post("/api/auth/first-run", firstRun()).response.status shouldBe 204
+
+        SetupTokens.exists() shouldBe false
+    }
+
+    @Test
     fun `first run is recorded as the user's change and is gone afterwards`() {
         val browser = loggedIn()
 
         val entries = changelog.listByEntity(UserAccount.ENTITY, ChangelogLimit(1)) as ChangelogResult.Success
         entries.value.single().actor shouldBe Actor.User
-        browser.post("/api/auth/first-run", """{"password":"$PASSWORD"}""").response.status shouldBe 404
-        browser().post("/api/auth/first-run", """{"password":"$PASSWORD"}""").response.status shouldBe 404
+        val late = """{"password":"$PASSWORD","setupToken":"no longer issued"}"""
+        browser.post("/api/auth/first-run", late).response.status shouldBe 404
+        browser().post("/api/auth/first-run", late).response.status shouldBe 404
     }
 
     @Test
     fun `unsafe requests without the CSRF token are refused, also before login`() {
         val browser = browser()
 
-        val refused = browser.post("/api/auth/first-run", """{"password":"$PASSWORD"}""", csrf = null)
+        val refused = browser.post("/api/auth/first-run", firstRun(), csrf = null)
 
         refused.response.status shouldBe 403
         refused.response.contentAsString shouldContain "urn:jofi:problem:system:csrf"
@@ -152,7 +185,7 @@ class AuthSecurityTest(
     @Test
     fun `the session cookie is HttpOnly and SameSite, the CSRF cookie readable by the SPA`() {
         val browser = browser()
-        val response = browser.post("/api/auth/first-run", """{"password":"$PASSWORD"}""").response
+        val response = browser.post("/api/auth/first-run", firstRun()).response
 
         val session = browser.lastSetCookies.single { it.startsWith("${Browser.SESSION_COOKIE}=") }
         session shouldContain "HttpOnly"
@@ -205,6 +238,78 @@ class AuthSecurityTest(
         throttled.response.getHeader("Retry-After").shouldNotBeNull()
         throttled.response.contentAsString shouldContain "urn:jofi:problem:system:login-throttled"
         browser().post("/api/auth/login", """{"password":"$PASSWORD"}""").response.status shouldBe 204
+    }
+
+    @Test
+    fun `a throttled client cannot keep the global backoff armed and lock the owner out`() {
+        loggedIn()
+        val attacker = browser()
+
+        val statuses = (1..60).map { attacker.post("/api/auth/login", """{"password":"guess $it"}""").response.status }
+
+        (statuses.count { it == 429 } >= 50) shouldBe true
+        browser().post("/api/auth/login", """{"password":"$PASSWORD"}""").response.status shouldBe 204
+    }
+
+    @Test
+    fun `many addresses together run into the global backoff`() {
+        loggedIn()
+
+        repeat(51) { browser().post("/api/auth/login", """{"password":"guess $it"}""").response.status shouldBe 401 }
+
+        browser().post("/api/auth/login", """{"password":"$PASSWORD"}""").response.status shouldBe 429
+    }
+
+    @Test
+    fun `IPv6 clients of one 64-bit network share their backoff`() {
+        loggedIn()
+        repeat(6) {
+            Browser(mvc, "2001:db8:1:2::${it + 1}").open().post("/api/auth/login", """{"password":"guess $it"}""")
+        }
+
+        val sameNetwork = Browser(mvc, "2001:db8:1:2::ff").open()
+        sameNetwork.post("/api/auth/login", """{"password":"$PASSWORD"}""").response.status shouldBe 429
+    }
+
+    @Test
+    fun `a password reset ends every session, also the ones it could not delete`() {
+        val phone = loggedIn()
+        val laptop = browser().also { it.post("/api/auth/login", """{"password":"$PASSWORD"}""") }
+
+        resetPassword.execute() shouldBe PasswordResetResult.Reset
+
+        phone.get("/api/system/info").response.status shouldBe 401
+        dsl.fetchCount(SPRING_SESSION) shouldBe 0
+        // A session the reset missed (e.g. restored from a backup) belongs to the old account.
+        val restored = laptop.cookies.getValue(Browser.SESSION_COOKIE)
+        browser().post("/api/auth/first-run", firstRun()).response.status shouldBe 204
+        Browser(mvc, "203.0.113.20")
+            .also { it.cookies[Browser.SESSION_COOKIE] = restored }
+            .get("/api/system/info")
+            .response.status shouldBe 401
+    }
+
+    @Test
+    fun `a session of a deleted and recreated account is ended on its next request`() {
+        val old = loggedIn()
+        dsl.deleteFrom(USER_ACCOUNT).execute()
+        setupToken.issue()
+        browser().post("/api/auth/first-run", firstRun()).response.status shouldBe 204
+
+        old.get("/api/system/info").response.status shouldBe 401
+    }
+
+    @Test
+    fun `a session ends after its absolute lifetime, however active`() {
+        val browser = loggedIn()
+        val sessionId = browser.sessionId.shouldNotBeNull()
+        dsl
+            .update(SPRING_SESSION)
+            .set(SPRING_SESSION.CREATION_TIME, SPRING_SESSION.CREATION_TIME.minus(Duration.ofDays(31).toMillis()))
+            .where(SPRING_SESSION.SESSION_ID.eq(sessionId))
+            .execute()
+
+        browser.get("/api/system/info").response.status shouldBe 401
     }
 
     @Test

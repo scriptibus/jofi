@@ -16,4 +16,7 @@ interface UserAccountPort {
 
     /** Replaces the stored account; [UserAccountStoreResult.NotFound] before first run. */
     fun update(account: UserAccount): UserAccountStoreResult<Unit>
+
+    /** Removes the account (password reset); [UserAccountStoreResult.NotFound] when there is none. */
+    fun delete(): UserAccountStoreResult<Unit>
 }

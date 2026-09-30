@@ -9,8 +9,8 @@ import io.github.scriptibus.jofi.system.domain.AuthSideEffectResult
 import io.github.scriptibus.jofi.system.domain.UserAccountStoreResult
 
 /**
- * Runs at startup: while no password is set and Jofi is exposed on a network, issues the one-time
- * setup token into the data volume; once a password exists, removes a leftover token.
+ * Runs at startup: while no password is set, issues the one-time setup token into the data volume;
+ * once a password exists, removes a leftover token.
  */
 class PrepareFirstRunUseCase(
     private val users: UserAccountPort,
@@ -21,8 +21,7 @@ class PrepareFirstRunUseCase(
         return when {
             account !is UserAccountStoreResult.Success -> AuthSideEffectResult.Failure
             account.value != null -> setupToken.discard()
-            setupToken.isRequired() -> setupToken.issue()
-            else -> AuthSideEffectResult.Success
+            else -> setupToken.issue()
         }
     }
 }

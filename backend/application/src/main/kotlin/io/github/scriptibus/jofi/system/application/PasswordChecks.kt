@@ -16,15 +16,16 @@ import io.github.scriptibus.jofi.system.domain.UserAccount
 import java.time.Instant
 
 /**
- * Lets a password check of [client] run, or says how long to wait. All clients together are asked
- * first, so a throttled crowd does not also raise one client's count.
+ * Lets a password check of [client] run, or says how long to wait. The client is asked first and the
+ * count of all clients is charged only for attempts the client's own backoff lets through: a single
+ * throttled client can then never keep the global backoff armed and lock the owner out (ADR-0035).
  */
 internal fun LoginThrottlePort.attemptFor(
     client: ThrottleKey.Client,
     now: Instant,
 ): ThrottleDecision {
-    val everyone = attempt(ThrottleKey.Everyone, LoginThrottling.EVERYONE, now)
-    return if (everyone is ThrottleDecision.Throttled) everyone else attempt(client, LoginThrottling.PER_CLIENT, now)
+    val own = attempt(client, LoginThrottling.PER_CLIENT, now)
+    return if (own is ThrottleDecision.Throttled) own else attempt(ThrottleKey.Everyone, LoginThrottling.EVERYONE, now)
 }
 
 /** Clears the counts after a correct password. */

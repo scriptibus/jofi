@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.system.application.ChangePasswordUseCase
 import io.github.scriptibus.jofi.system.application.CompleteFirstRunUseCase
 import io.github.scriptibus.jofi.system.application.GetAuthStatusUseCase
 import io.github.scriptibus.jofi.system.application.LogInUseCase
+import io.github.scriptibus.jofi.system.domain.AccountId
 import io.github.scriptibus.jofi.system.domain.AuthStatus
 import io.github.scriptibus.jofi.system.domain.AuthStatusResult
 import io.github.scriptibus.jofi.system.domain.FirstRunResult
@@ -35,6 +36,7 @@ import org.springframework.mock.web.MockHttpSession
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import java.time.Duration
+import java.util.UUID
 
 /**
  * How the auth endpoints map use-case results to HTTP. The security filter chain itself (401, CSRF,
@@ -91,7 +93,7 @@ class AuthControllerTest(
 
     @Test
     fun `a right password starts a session holding the owner`() {
-        every { logIn.execute("pw", ThrottleKey.Client("127.0.0.1")) } returns LoginResult.LoggedIn
+        every { logIn.execute("pw", ThrottleKey.Client("127.0.0.1")) } returns LoginResult.LoggedIn(ACCOUNT)
 
         val result = post("/api/auth/login", """{"password":"pw"}""").exchange()
 
@@ -99,6 +101,8 @@ class AuthControllerTest(
         result.request.session
             .getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY)
             .shouldNotBeNull()
+        result.request.session
+            .getAttribute(SessionSecurity.ACCOUNT_ATTRIBUTE) shouldBe ACCOUNT.value.toString()
     }
 
     @Test
@@ -155,7 +159,7 @@ class AuthControllerTest(
 
     @Test
     fun `completed first run starts a session and passes the setup token on`() {
-        every { firstRun.execute("a long enough password", "tok", any()) } returns FirstRunResult.Completed
+        every { firstRun.execute("a long enough password", "tok", any()) } returns FirstRunResult.Completed(ACCOUNT)
 
         val result =
             post(
@@ -237,5 +241,9 @@ class AuthControllerTest(
         val printed = "${LoginRequest("pw1")} ${FirstRunRequest("pw2", "tok")} ${ChangePasswordRequest("pw3", "pw4")}"
 
         listOf("pw1", "pw2", "tok", "pw3", "pw4").forEach { (it in printed) shouldBe false }
+    }
+
+    private companion object {
+        val ACCOUNT = AccountId(UUID.fromString("00000000-0000-0000-0000-0000000000ac"))
     }
 }

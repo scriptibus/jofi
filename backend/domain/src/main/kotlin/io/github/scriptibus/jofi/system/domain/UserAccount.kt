@@ -5,12 +5,23 @@ package io.github.scriptibus.jofi.system.domain
 
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import java.time.Instant
+import java.util.UUID
+
+/**
+ * Identifies one incarnation of the account. A new one is drawn at every first run, so sessions of a
+ * deleted or reset account never match the account that follows (ADR-0035).
+ */
+@JvmInline
+value class AccountId(
+    val value: UUID,
+)
 
 /**
  * The one Jofi user (single-user app, ADR-0017): only a password, no user name. It exists once the
  * first-run setup has chosen the password.
  */
 data class UserAccount(
+    val accountId: AccountId,
     val passwordHash: PasswordHash,
     val createdAt: Instant,
     val passwordChangedAt: Instant,

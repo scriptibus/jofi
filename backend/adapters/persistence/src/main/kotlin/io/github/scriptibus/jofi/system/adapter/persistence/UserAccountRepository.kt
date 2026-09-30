@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.system.adapter.persistence
 
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.USER_ACCOUNT
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
+import io.github.scriptibus.jofi.system.domain.AccountId
 import io.github.scriptibus.jofi.system.domain.PasswordHash
 import io.github.scriptibus.jofi.system.domain.UserAccount
 import io.github.scriptibus.jofi.system.domain.UserAccountStoreResult
@@ -23,6 +24,7 @@ class UserAccountRepository(
         guarded("find") {
             dsl.selectFrom(USER_ACCOUNT).fetchOne()?.let { record ->
                 UserAccount(
+                    accountId = AccountId(record.accountId),
                     passwordHash = PasswordHash(record.passwordHash),
                     createdAt = record.createdAt.toInstant(),
                     passwordChangedAt = record.passwordChangedAt.toInstant(),
@@ -35,12 +37,18 @@ class UserAccountRepository(
             val inserted =
                 dsl
                     .insertInto(USER_ACCOUNT)
+                    .set(USER_ACCOUNT.ACCOUNT_ID, account.accountId.value)
                     .set(USER_ACCOUNT.PASSWORD_HASH, account.passwordHash.encoded)
                     .set(USER_ACCOUNT.CREATED_AT, account.createdAt.atOffset(ZoneOffset.UTC))
                     .set(USER_ACCOUNT.PASSWORD_CHANGED_AT, account.passwordChangedAt.atOffset(ZoneOffset.UTC))
                     .onConflictDoNothing()
                     .execute()
             if (inserted == 0) return UserAccountStoreResult.AlreadyExists
+        }
+
+    override fun delete(): UserAccountStoreResult<Unit> =
+        guarded("delete") {
+            if (dsl.deleteFrom(USER_ACCOUNT).execute() == 0) return UserAccountStoreResult.NotFound
         }
 
     override fun update(account: UserAccount): UserAccountStoreResult<Unit> =

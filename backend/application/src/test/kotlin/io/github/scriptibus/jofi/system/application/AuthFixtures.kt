@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.PasswordHasherPort
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
+import io.github.scriptibus.jofi.system.domain.AccountId
 import io.github.scriptibus.jofi.system.domain.LoginBackoff
 import io.github.scriptibus.jofi.system.domain.Password
 import io.github.scriptibus.jofi.system.domain.PasswordHash
@@ -22,6 +23,7 @@ import io.github.scriptibus.jofi.system.domain.UserAccountStoreResult
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.UUID
 
 /** Hand-written fakes for the auth use cases: they record what happened instead of mocking it. */
 object AuthFixtures {
@@ -30,8 +32,10 @@ object AuthFixtures {
     val client = ThrottleKey.Client("192.0.2.10")
     const val PASSWORD = "correct horse battery staple"
 
+    val ACCOUNT_ID = AccountId(UUID.fromString("00000000-0000-0000-0000-0000000000ac"))
+
     fun account(password: String = PASSWORD) =
-        UserAccount(FakeHasher.hashOf(password), NOW.minusSeconds(3600), NOW.minusSeconds(3600))
+        UserAccount(ACCOUNT_ID, FakeHasher.hashOf(password), NOW.minusSeconds(3600), NOW.minusSeconds(3600))
 }
 
 /** "Hashes" by prefixing, so tests can see which password a stored hash belongs to. */
@@ -58,6 +62,13 @@ class FakeUsers(
         this.account = account
         return UserAccountStoreResult.Success(Unit)
     }
+
+    override fun delete(): UserAccountStoreResult<Unit> =
+        when {
+            failing -> UserAccountStoreResult.StorageFailure("delete")
+            account == null -> UserAccountStoreResult.NotFound
+            else -> UserAccountStoreResult.Success(Unit).also { account = null }
+        }
 
     override fun update(account: UserAccount): UserAccountStoreResult<Unit> {
         if (this.account == null) return UserAccountStoreResult.NotFound

@@ -50,6 +50,6 @@ class LogInUseCase(
         val password = Password.submitted(submittedPassword)
         if (password == null || !hasher.matches(password, account.passwordHash)) return LoginResult.InvalidCredentials
         throttle.resetFor(client)
-        return LoginResult.LoggedIn
+        return LoginResult.LoggedIn(account.accountId)
     }
 }

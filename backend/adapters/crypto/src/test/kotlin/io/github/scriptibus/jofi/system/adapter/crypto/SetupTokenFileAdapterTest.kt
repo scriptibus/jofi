@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.system.adapter.crypto
 
 import io.github.scriptibus.jofi.system.domain.AuthSideEffectResult
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldMatch
 import org.junit.jupiter.api.Test
@@ -18,17 +19,7 @@ class SetupTokenFileAdapterTest {
 
     private fun tokenFile() = dataDirectory.resolve("secrets/setup-token")
 
-    private fun adapter(bindAddress: String = "0.0.0.0") = SetupTokenFileAdapter(dataDirectory, bindAddress)
-
-    @Test
-    fun `the token is required only when Jofi is bound beyond loopback`() {
-        listOf("127.0.0.1", "127.0.0.2", "::1", "[::1]", "localhost", " LOCALHOST ").forEach {
-            adapter(it).isRequired() shouldBe false
-        }
-        listOf("0.0.0.0", "::", "192.168.1.20", "fd00::1", "jofi.example.org").forEach {
-            adapter(it).isRequired() shouldBe true
-        }
-    }
+    private fun adapter() = SetupTokenFileAdapter(dataDirectory.toString())
 
     @Test
     fun `issuing writes a random owner-only token once and keeps it`() {
@@ -59,5 +50,10 @@ class SetupTokenFileAdapterTest {
         Files.exists(tokenFile()) shouldBe false
         adapter.matches(token) shouldBe false
         adapter.discard() shouldBe AuthSideEffectResult.Success
+    }
+
+    @Test
+    fun `a relative data directory is refused`() {
+        shouldThrow<IllegalArgumentException> { SetupTokenFileAdapter("data") }
     }
 }

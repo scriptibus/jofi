@@ -13,7 +13,6 @@ import io.github.scriptibus.jofi.system.domain.LoginResult
 import io.github.scriptibus.jofi.system.domain.PasswordChangeRequest
 import io.github.scriptibus.jofi.system.domain.PasswordChangeResult
 import io.github.scriptibus.jofi.system.domain.SessionRef
-import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpStatus
@@ -66,8 +65,8 @@ class AuthController(
         response: HttpServletResponse,
     ) {
         val result = completeFirstRun.execute(body.password, body.setupToken, client(request))
-        if (result != FirstRunResult.Completed) throw AuthProblems.of(result)
-        SessionSecurity.startSession(request, response)
+        if (result !is FirstRunResult.Completed) throw AuthProblems.of(result)
+        SessionSecurity.startSession(request, response, result.accountId)
     }
 
     /** Starts a session when the password is right. */
@@ -79,8 +78,8 @@ class AuthController(
         response: HttpServletResponse,
     ) {
         val result = logIn.execute(body.password, client(request))
-        if (result != LoginResult.LoggedIn) throw AuthProblems.of(result)
-        SessionSecurity.startSession(request, response)
+        if (result !is LoginResult.LoggedIn) throw AuthProblems.of(result)
+        SessionSecurity.startSession(request, response, result.accountId)
     }
 
     /** Ends this session: invalidates it and clears the CSRF cookie (Spring Security's logout handlers). */
@@ -104,5 +103,5 @@ class AuthController(
         if (result != PasswordChangeResult.Changed) throw AuthProblems.of(result)
     }
 
-    private fun client(request: HttpServletRequest) = ThrottleKey.Client(request.remoteAddr)
+    private fun client(request: HttpServletRequest) = ClientAddress.throttleKey(request.remoteAddr)
 }

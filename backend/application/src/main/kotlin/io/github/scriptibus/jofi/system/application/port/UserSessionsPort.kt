@@ -10,4 +10,7 @@ import io.github.scriptibus.jofi.system.domain.SessionRef
 interface UserSessionsPort {
     /** Ends every session of the user except [keep], e.g. after a password change. */
     fun endAllExcept(keep: SessionRef): AuthSideEffectResult
+
+    /** Ends every session of the user, e.g. after a password reset. */
+    fun endAll(): AuthSideEffectResult
 }

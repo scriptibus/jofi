@@ -21,13 +21,17 @@ import org.springframework.stereotype.Component
 class SpringSessionUserSessionsAdapter(
     private val sessionStore: ObjectProvider<FindByIndexNameSessionRepository<*>>,
 ) : UserSessionsPort {
-    override fun endAllExcept(keep: SessionRef): AuthSideEffectResult {
+    override fun endAll(): AuthSideEffectResult = endSessions { true }
+
+    override fun endAllExcept(keep: SessionRef): AuthSideEffectResult = endSessions { it != keep.value }
+
+    private fun endSessions(selected: (String) -> Boolean): AuthSideEffectResult {
         val sessions = sessionStore.ifAvailable ?: return AuthSideEffectResult.Success
         return try {
             sessions
                 .findByPrincipalName(UserAccount.PRINCIPAL)
                 .keys
-                .filter { it != keep.value }
+                .filter(selected)
                 .forEach(sessions::deleteById)
             AuthSideEffectResult.Success
         } catch (exception: RuntimeException) {

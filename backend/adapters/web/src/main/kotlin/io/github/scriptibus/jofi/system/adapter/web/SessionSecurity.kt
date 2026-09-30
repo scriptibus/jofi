@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.system.adapter.web
 
+import io.github.scriptibus.jofi.system.domain.AccountId
 import io.github.scriptibus.jofi.system.domain.UserAccount
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -46,10 +47,17 @@ object SessionSecurity {
             setCookieCustomizer { cookie -> cookie.sameSite("Lax") }
         }
 
-    /** Logs the single user in on this request: new session id, new CSRF token, stored context. */
+    /** The session attribute naming the account the session belongs to (`SessionValidityFilter`). */
+    const val ACCOUNT_ATTRIBUTE = "jofi.accountId"
+
+    /**
+     * Logs the single user in on this request: new session id, new CSRF token, stored context, and the
+     * [accountId] the session belongs to.
+     */
     fun startSession(
         request: HttpServletRequest,
         response: HttpServletResponse,
+        accountId: AccountId,
     ) {
         val authentication =
             UsernamePasswordAuthenticationToken.authenticated(
@@ -62,6 +70,7 @@ object SessionSecurity {
         val context = holder.createEmptyContext().apply { this.authentication = authentication }
         holder.context = context
         contexts.saveContext(context, request, response)
+        request.getSession(true).setAttribute(ACCOUNT_ATTRIBUTE, accountId.value.toString())
         issueCsrfToken(request)
     }
 

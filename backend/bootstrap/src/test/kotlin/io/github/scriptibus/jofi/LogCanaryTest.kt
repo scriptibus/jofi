@@ -11,6 +11,7 @@ import io.github.scriptibus.jofi.shared.domain.secret.SecretResult
 import io.github.scriptibus.jofi.shared.domain.secret.SecretValue
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -31,14 +32,12 @@ import java.nio.file.Path
 import java.util.UUID
 
 /**
- * Jofi exposed on a network (bound beyond loopback, ADR-0029): first run needs the one-time setup
- * token from the data volume. The same run proves, with verbose framework logging, that no password,
- * token, secret or key material reaches the logs (threat model T4).
+ * With verbose framework logging, no password, setup token, session id, CSRF token, secret or key
+ * material reaches the logs (threat model T4).
  */
 @ExtendWith(OutputCaptureExtension::class)
 @SpringBootTest(
     properties = [
-        "jofi.auth.bind-address=0.0.0.0",
         "logging.level.org.springframework.security=DEBUG",
         "logging.level.org.springframework.web=DEBUG",
         "logging.level.org.springframework.session=DEBUG",
@@ -48,15 +47,13 @@ import java.util.UUID
 )
 @AutoConfigureMockMvc
 @Import(PostgresTestConfiguration::class)
-class ExposedInstanceTest(
+class LogCanaryTest(
     @param:Autowired private val mvc: MockMvcTester,
     @param:Autowired private val dsl: DSLContext,
     @param:Autowired private val setupToken: SetupTokenPort,
     @param:Autowired private val secrets: SecretStorePort,
     @param:Value("\${jofi.data-dir}") private val dataDirectory: Path,
 ) {
-    private val tokenFile: Path get() = dataDirectory.resolve("secrets/setup-token")
-
     @BeforeEach
     fun freshInstance() {
         dsl.deleteFrom(SPRING_SESSION).execute()
@@ -65,37 +62,16 @@ class ExposedInstanceTest(
     }
 
     @Test
-    fun `first run needs the setup token from the data volume and removes it`() {
-        val browser = Browser(mvc, "192.0.2.50").open()
-        browser.get("/api/auth/session").response.contentAsString shouldContain "\"setupTokenRequired\":true"
-
-        browser.post("/api/auth/first-run", """{"password":"$PASSWORD"}""").response.status shouldBe 403
-        browser
-            .post(
-                "/api/auth/first-run",
-                """{"password":"$PASSWORD","setupToken":"guess"}""",
-            ).response.status shouldBe
-            403
-        val token = Files.readString(tokenFile)
-        browser
-            .post(
-                "/api/auth/first-run",
-                """{"password":"$PASSWORD","setupToken":"$token"}""",
-            ).response.status shouldBe
-            204
-
-        Files.exists(tokenFile) shouldBe false
-        browser.get("/api/system/info").response.status shouldBe 200
-    }
-
-    @Test
-    fun `no password, setup token, secret or key material reaches the logs`(output: CapturedOutput) {
-        val token = Files.readString(tokenFile)
+    fun `no password, token, session id, secret or key material reaches the logs`(output: CapturedOutput) {
+        val token = SetupTokens.read()
         val browser = Browser(mvc, "192.0.2.51").open()
         browser.post("/api/auth/first-run", """{"password":"$PASSWORD","setupToken":"$token"}""")
         browser.post("/api/auth/login", """{"password":"$WRONG_PASSWORD"}""")
         browser.post("/api/auth/login", """{"password":"$PASSWORD"}""")
         browser.put("/api/auth/password", """{"currentPassword":"$PASSWORD","newPassword":"$NEW_PASSWORD"}""")
+        val sessionId = browser.sessionId.shouldNotBeNull()
+        val csrfToken = browser.cookies.getValue(Browser.CSRF_COOKIE)
+        browser.get("/api/system/info").response.status shouldBe 200
         val id = SecretId(UUID.randomUUID())
         secrets.put(id, SecretValue(API_KEY))
         secrets.get(id) shouldBe SecretResult.Success(SecretValue(API_KEY))
@@ -103,7 +79,9 @@ class ExposedInstanceTest(
         // The capture works and the verbose loggers ran: the request bodies are logged, redacted.
         output.all shouldContain "Login failed: wrong password"
         output.all shouldContain "LoginRequest(password=***)"
-        listOf(PASSWORD, WRONG_PASSWORD, NEW_PASSWORD, token, API_KEY).forEach { output.all shouldNotContain it }
+        listOf(PASSWORD, WRONG_PASSWORD, NEW_PASSWORD, token, API_KEY, sessionId, csrfToken).forEach {
+            output.all shouldNotContain it
+        }
         keyMaterial().shouldNotBeEmpty().forEach { output.all shouldNotContain it }
         output.all shouldNotContain "generated security password"
     }

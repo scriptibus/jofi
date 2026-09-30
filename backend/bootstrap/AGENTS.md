@@ -23,10 +23,14 @@ Rules:
   call needs a session except `PUBLIC_API`, SPA CSRF, problem-details 401/403, session cookie flags).
   Tests that call protected endpoints without logging in use `@WithMockUser`; `AuthSecurityTest`
   drives the real flow with `Browser` (cookies + CSRF header like the SPA).
-- Environment: `JOFI_DATA_DIR` (data volume: master keyset, setup token), `JOFI_SERVER_ADDRESS`
-  (bind address of the server, default `127.0.0.1`), `JOFI_BIND_ADDRESS` (where Jofi is reachable;
-  not loopback = first run needs the setup token), `JOFI_TRUSTED_PROXIES` (CIDRs allowed to send
-  `X-Forwarded-*`, default loopback), `JOFI_SESSION_TIMEOUT` (default `7d`). Tests get a
-  data directory under the test task's temporary directory.
+- Environment: `JOFI_DATA_DIR` (data volume: master keyset, setup token; required, absolute),
+  `JOFI_SERVER_ADDRESS` (bind address of the server, default `127.0.0.1`), `JOFI_TRUSTED_PROXIES`
+  (CIDRs allowed to send `X-Forwarded-*`, default loopback), `JOFI_SESSION_TIMEOUT` (idle, default
+  `7d`), `JOFI_SESSION_MAX_AGE` (absolute, default `30d`), `JOFI_RESET_PASSWORD` (password
+  recovery at startup), `JOFI_ACCEPT_SECRET_LOSS` (accept a lost master keyset). Tests get a data
+  directory under the test task's temporary directory; `bootRun` needs `JOFI_DATA_DIR` set.
+- `system.config.AuthStartup` (a runner, web apps only) checks the master keyset against the
+  database and refuses to start on a mismatch, applies `JOFI_RESET_PASSWORD`, then issues or removes
+  the setup token. `StartupSafetyTest` starts the app on its own databases to prove each case.
 - `InMemoryLoginThrottleAdapter` (backoff counts) and `SpringSessionUserSessionsAdapter` (ending
   sessions) are framework-bound adapters here.

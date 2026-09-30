@@ -21,9 +21,9 @@ class LogInUseCaseTest {
 
     @Test
     fun `the right password logs in and clears the failure counts`() {
-        useCase.execute(PASSWORD, client) shouldBe LoginResult.LoggedIn
+        useCase.execute(PASSWORD, client) shouldBe LoginResult.LoggedIn(AuthFixtures.ACCOUNT_ID)
 
-        throttle.attempts shouldContainExactly listOf(ThrottleKey.Everyone, client)
+        throttle.attempts shouldContainExactly listOf(client, ThrottleKey.Everyone)
         throttle.resets shouldContainExactly listOf(client, ThrottleKey.Everyone)
     }
 
@@ -37,11 +37,11 @@ class LogInUseCaseTest {
     }
 
     @Test
-    fun `a throttled attempt is refused before the password is looked at`() {
+    fun `a throttled client is refused before the password is looked at and does not charge everyone`() {
         throttle.throttled = ThrottleDecision.Throttled(Duration.ofSeconds(8))
 
         useCase.execute(PASSWORD, client) shouldBe LoginResult.Throttled(Duration.ofSeconds(8))
-        throttle.attempts shouldContainExactly listOf(ThrottleKey.Everyone)
+        throttle.attempts shouldContainExactly listOf(client)
     }
 
     @Test

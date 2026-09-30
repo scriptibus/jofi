@@ -3,7 +3,9 @@
 
 package io.github.scriptibus.jofi.system.adapter.crypto
 
+import java.io.IOException
 import java.nio.file.FileAlreadyExistsException
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
@@ -15,8 +17,9 @@ import java.util.UUID
  * Key material in the data volume: files readable by the Jofi user only (0600, directories 0700).
  * `app` and `worker` share the volume and may start together, so a file is written completely under
  * a temporary name and then hard-linked into place, which fails instead of replacing a file the
- * other process created first. Filesystems without POSIX permissions (some NAS shares) keep their
- * own access rules.
+ * other process created first. The data volume must therefore support hard links (local disks and
+ * Docker/Podman volumes do; some NAS/SMB mounts do not, see [DataVolumeException]). Filesystems
+ * without POSIX permissions keep their own access rules.
  */
 internal object OwnerOnlyFiles {
     private val FILE = PosixFilePermissions.fromString("rw-------")
@@ -52,6 +55,10 @@ internal object OwnerOnlyFiles {
             true
         } catch (_: FileAlreadyExistsException) {
             false
+        } catch (_: UnsupportedOperationException) {
+            throw DataVolumeException(target.parent)
+        } catch (exception: FileSystemException) {
+            if (Files.exists(target)) false else throw DataVolumeException(target.parent, exception)
         }
 
     private fun removeTemporary(temporary: Path) {
@@ -70,5 +77,29 @@ internal object OwnerOnlyFiles {
     private fun ensureDirectory(directory: Path) {
         if (!Files.isDirectory(directory)) Files.createDirectories(directory)
         restrict(directory)
+    }
+}
+
+/**
+ * The data volume cannot hold key material safely because it does not support hard links. The
+ * message only names the directory, so it is safe to log.
+ */
+internal class DataVolumeException(
+    directory: Path,
+    cause: Throwable? = null,
+) : IOException(
+        "The data volume at $directory does not support hard links, which Jofi needs to write key files " +
+            "atomically. Use a local disk or a Docker/Podman volume for JOFI_DATA_DIR, not an SMB/CIFS share.",
+        cause,
+    )
+
+/** Resolves `jofi.data-dir`: it must be an absolute path, so a working directory never decides where keys go. */
+internal object DataDirectory {
+    fun of(value: String): Path {
+        val path = Path.of(value.trim())
+        require(value.isNotBlank() && path.isAbsolute) {
+            "JOFI_DATA_DIR must be the absolute path of the data volume (e.g. /data in the container), not '$value'"
+        }
+        return path
     }
 }

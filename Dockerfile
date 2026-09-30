@@ -72,21 +72,21 @@ COPY --chmod=755 backend/docker/healthcheck.sh /usr/local/bin/jofi-healthcheck
 # Training run for the JDK AOT cache (JEP 483/514/515): starts the context, then exits on refresh.
 # It must run on this exact JVM and the extracted jar layout, so it happens in the runtime stage.
 # No database exists at build time: Flyway is off and the datasource gets a placeholder URL and
-# password (the pool connects lazily; startup refuses a missing password). The cache only records
-# which classes were loaded and linked.
+# password (the pool connects lazily; startup refuses a missing password). The data directory must be
+# set (it has no default), but nothing is written there: keys are created after the refresh. The cache
+# only records which classes were loaded and linked.
 RUN java -XX:AOTCacheOutput=app.aot \
       -Dspring.context.exit=onRefresh \
       -Dspring.flyway.enabled=false \
       -DJOFI_DB_URL=jdbc:postgresql://localhost:5432/aot-training \
       -DJOFI_DB_PASSWORD=aot-training-placeholder \
+      -DJOFI_DATA_DIR=/data \
       -jar app.jar
 
 # Inside the container the server listens on all interfaces; how far it is reachable is decided by the
-# published port. Without a compose file saying otherwise, assume it is exposed (first run then needs
-# the setup token from /data). The data volume holds the master keyset (ADR-0035).
+# published port. The data volume holds the master keyset and the setup token (ADR-0035).
 ENV JOFI_DATA_DIR=/data \
-    JOFI_SERVER_ADDRESS=0.0.0.0 \
-    JOFI_BIND_ADDRESS=0.0.0.0
+    JOFI_SERVER_ADDRESS=0.0.0.0
 
 VOLUME ["/data"]
 # Numeric so the non-root check works without resolving names (jofi:jofi).

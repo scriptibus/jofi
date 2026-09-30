@@ -5,15 +5,21 @@ package io.github.scriptibus.jofi.system.config
 
 import io.github.scriptibus.jofi.system.adapter.web.SecurityProblemHandler
 import io.github.scriptibus.jofi.system.adapter.web.SessionSecurity
+import io.github.scriptibus.jofi.system.adapter.web.SessionValidityFilter
+import io.github.scriptibus.jofi.system.application.GetSessionAccountUseCase
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
 import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.session.web.http.DefaultCookieSerializer
 import tools.jackson.databind.json.JsonMapper
+import java.time.Clock
+import java.time.Duration
 
 /**
  * The security filter chain of the single-user login (ADR-0017, threat model T5). Every request
@@ -21,7 +27,8 @@ import tools.jackson.databind.json.JsonMapper
  * ([PUBLIC_API]); health stays open for the container healthcheck. The SPA shell and its assets are
  * public, since they hold no data. Every unsafe request needs the CSRF token (cookie + header).
  * Login and logout are REST endpoints (`AuthController`), so form login, HTTP basic and the logout
- * filter are off; `request.logout()` still runs the configured logout handlers.
+ * filter are off; `request.logout()` still runs the configured logout handlers. `SessionValidityFilter`
+ * ends sessions of a reset account and sessions older than `jofi.auth.session-max-age`.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
@@ -30,9 +37,15 @@ class SecurityConfiguration {
     fun securityFilterChain(
         http: HttpSecurity,
         json: JsonMapper,
+        sessionAccount: GetSessionAccountUseCase,
+        clock: Clock,
+        @Value("\${jofi.auth.session-max-age}") sessionMaxAge: Duration,
     ): SecurityFilterChain {
         val problems = SecurityProblemHandler(json)
+        // Not a bean: as one, Spring Boot would also register it outside the security filter chain.
+        val sessionValidity = SessionValidityFilter(sessionAccount, sessionMaxAge, clock)
         http
+            .addFilterBefore(sessionValidity, AnonymousAuthenticationFilter::class.java)
             .authorizeHttpRequests { requests ->
                 PUBLIC_API.forEach { (method, path) -> requests.requestMatchers(method, path).permitAll() }
                 requests.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()

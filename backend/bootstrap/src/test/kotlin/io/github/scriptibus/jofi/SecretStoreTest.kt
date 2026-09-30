@@ -18,6 +18,7 @@ import io.github.scriptibus.jofi.shared.domain.secret.SecretId
 import io.github.scriptibus.jofi.shared.domain.secret.SecretResult
 import io.github.scriptibus.jofi.shared.domain.secret.SecretValue
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
+import io.github.scriptibus.jofi.system.domain.AccountId
 import io.github.scriptibus.jofi.system.domain.PasswordHash
 import io.github.scriptibus.jofi.system.domain.UserAccount
 import io.github.scriptibus.jofi.system.domain.UserAccountStoreResult
@@ -108,7 +109,7 @@ class SecretStoreTest(
 
         val result =
             transactions.inTransaction({ false }) {
-                users.create(UserAccount(PasswordHash("\$argon2id\$rollback"), now, now))
+                users.create(UserAccount(AccountId(UUID.randomUUID()), PasswordHash("\$argon2id\$rollback"), now, now))
                 changelog.append(ChangelogEntry(entity, Actor.User, now, ChangeSummary("Rolled back")))
             }
 

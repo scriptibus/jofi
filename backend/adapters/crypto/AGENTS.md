@@ -11,12 +11,14 @@ is reviewed by Lucas. Package: `io.github.scriptibus.jofi.system.adapter.crypto`
 | Class | Port | What |
 |---|---|---|
 | `Argon2PasswordHasherAdapter` | `PasswordHasherPort` | argon2id, OWASP parameters m = 19 MiB, t = 2, p = 1; at most 2 hashes at once |
-| `TinkSecretCipherAdapter` | `SecretCipherPort` | Tink AES-256-GCM under the master keyset, associated data `jofi:secret:<id>` |
-| `SetupTokenFileAdapter` | `SetupTokenPort` | one-time first-run token while Jofi is bound beyond loopback |
-| `OwnerOnlyFiles` | – | `0600` files / `0700` directories, written atomically (temp file + hard link) |
+| `TinkSecretCipherAdapter` | `SecretCipherPort`, `MasterKeyPort` | Tink AES-256-GCM under the master keyset, associated data `jofi:secret:<id>`; generates a keyset only on request, plus its check value |
+| `SetupTokenFileAdapter` | `SetupTokenPort` | one-time token every first run needs |
+| `OwnerOnlyFiles` | – | `0600` files / `0700` directories, written atomically (random temp file + hard link) |
 
-Files live in the data volume (`jofi.data-dir`, `JOFI_DATA_DIR`, `/data` in the image):
-`secrets/master-keyset.json` and `secrets/setup-token`.
+Files live in the data volume (`jofi.data-dir`, `JOFI_DATA_DIR`: required and absolute, `/data` in the
+image): `secrets/master-keyset.json` and `secrets/setup-token`. The volume must support **hard links**
+(local disks and Docker/Podman volumes do); on an SMB/CIFS share without them `DataVolumeException`
+explains the problem instead of failing obscurely.
 
 Rules:
 - Never log, return or put into an exception message a password, token, key, plaintext or
@@ -32,4 +34,4 @@ Rules:
   row through `SecretStorePort.put`, then drop the old key (ADR-0035).
 - Tests: unit tests with `@TempDir` data directories cover round trips, tampering, moved
   ciphertexts, foreign keysets and file permissions; the app-level tests are in `bootstrap`
-  (`SecretStoreTest`, `ExposedInstanceTest`).
+  (`SecretStoreTest`, `LogCanaryTest`, `StartupSafetyTest`).

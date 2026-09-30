@@ -11,6 +11,7 @@ import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.util.UUID
 
 class PasswordTest {
     private val clearText = "correct horse battery staple"
@@ -68,12 +69,14 @@ class PasswordTest {
     @Test
     fun `an account keeps its creation time when the password changes`() {
         val created = Instant.parse("2026-09-30T10:00:00Z")
-        val account = UserAccount(PasswordHash("old"), created, created)
+        val account = UserAccount(AccountId(UUID(0, 1)), PasswordHash("old"), created, created)
         val changed = account.withPassword(PasswordHash("new"), created.plusSeconds(60))
 
         changed.createdAt shouldBe created
         changed.passwordChangedAt shouldBe created.plusSeconds(60)
         changed.passwordHash shouldBe PasswordHash("new")
-        shouldThrow<IllegalArgumentException> { UserAccount(PasswordHash("x"), created, created.minusSeconds(1)) }
+        shouldThrow<IllegalArgumentException> {
+            UserAccount(AccountId(UUID(0, 1)), PasswordHash("x"), created, created.minusSeconds(1))
+        }
     }
 }

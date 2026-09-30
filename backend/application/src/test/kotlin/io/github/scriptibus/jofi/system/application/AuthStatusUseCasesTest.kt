@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.system.application
 
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
+import io.github.scriptibus.jofi.system.domain.AccountLookup
 import io.github.scriptibus.jofi.system.domain.AuthSideEffectResult
 import io.github.scriptibus.jofi.system.domain.AuthStatus
 import io.github.scriptibus.jofi.system.domain.AuthStatusResult
@@ -17,35 +18,29 @@ class AuthStatusUseCasesTest {
     private val users = FakeUsers()
     private val setupToken =
         mockk<SetupTokenPort> {
-            every { isRequired() } returns true
             every { issue() } returns AuthSideEffectResult.Success
             every { discard() } returns AuthSideEffectResult.Success
         }
-    private val status = GetAuthStatusUseCase(users, setupToken)
+    private val status = GetAuthStatusUseCase(users)
     private val prepare = PrepareFirstRunUseCase(users, setupToken)
+    private val sessionAccount = GetSessionAccountUseCase(users)
 
     @Test
-    fun `before first run the status asks for the setup token when exposed`() {
+    fun `before first run the status always asks for the setup token`() {
         status.execute() shouldBe AuthStatusResult.Success(AuthStatus(setUp = false, setupTokenRequired = true))
-
-        every { setupToken.isRequired() } returns false
-        status.execute() shouldBe AuthStatusResult.Success(AuthStatus(setUp = false, setupTokenRequired = false))
     }
 
     @Test
-    fun `after first run no token is ever required`() {
+    fun `after first run no token is required`() {
         users.account = AuthFixtures.account()
 
         status.execute() shouldBe AuthStatusResult.Success(AuthStatus(setUp = true, setupTokenRequired = false))
     }
 
     @Test
-    fun `startup issues the token only while no password exists and Jofi is exposed`() {
+    fun `startup issues the token while no password exists`() {
         prepare.execute() shouldBe AuthSideEffectResult.Success
-        verify(exactly = 1) { setupToken.issue() }
 
-        every { setupToken.isRequired() } returns false
-        prepare.execute() shouldBe AuthSideEffectResult.Success
         verify(exactly = 1) { setupToken.issue() }
     }
 
@@ -56,6 +51,17 @@ class AuthStatusUseCasesTest {
         prepare.execute() shouldBe AuthSideEffectResult.Success
         verify { setupToken.discard() }
         verify(exactly = 0) { setupToken.issue() }
+    }
+
+    @Test
+    fun `sessions are checked against the current account`() {
+        sessionAccount.execute() shouldBe AccountLookup.None
+
+        users.account = AuthFixtures.account()
+        sessionAccount.execute() shouldBe AccountLookup.Found(AuthFixtures.ACCOUNT_ID)
+
+        users.failing = true
+        sessionAccount.execute() shouldBe AccountLookup.StorageFailure
     }
 
     @Test

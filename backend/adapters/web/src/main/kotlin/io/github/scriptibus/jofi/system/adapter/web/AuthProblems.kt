@@ -47,7 +47,7 @@ object AuthProblems {
                 throttled(failure.retryAfter)
             }
 
-            LoginResult.StorageFailure, LoginResult.LoggedIn -> {
+            LoginResult.StorageFailure, is LoginResult.LoggedIn -> {
                 unavailable()
             }
         }
@@ -72,7 +72,7 @@ object AuthProblems {
                 throttled(failure.retryAfter)
             }
 
-            FirstRunResult.StorageFailure, FirstRunResult.Completed -> {
+            FirstRunResult.StorageFailure, is FirstRunResult.Completed -> {
                 unavailable()
             }
         }
