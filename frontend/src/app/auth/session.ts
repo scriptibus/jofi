@@ -56,7 +56,11 @@ export function safeRedirect(value: unknown): string | undefined {
     const url = new URL(value, window.location.origin);
     if (url.origin !== window.location.origin) return undefined;
     if (url.pathname === "/login" || url.pathname === "/first-run") return undefined;
-    return `${url.pathname}${url.search}${url.hash}`;
+    // Check the normalised result too: dot segments turn "/.//evil.example" or "/a/..//evil.example"
+    // into the protocol-relative "//evil.example".
+    const path = `${url.pathname}${url.search}${url.hash}`;
+    if (path.startsWith("//") || path.includes("\\")) return undefined;
+    return path;
   } catch {
     return undefined;
   }

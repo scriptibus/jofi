@@ -85,5 +85,11 @@ class SpaRoutingTest(
             .assertThat()
             .hasStatus(HttpStatus.UNAUTHORIZED)
             .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+        // Other spellings are not API routes, but must not answer 200 with the SPA either.
+        mvc
+            .get()
+            .uri("/API/x")
+            .assertThat()
+            .hasStatus(HttpStatus.NOT_FOUND)
     }
 }

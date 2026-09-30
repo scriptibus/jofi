@@ -48,6 +48,17 @@ test("login with a wrong then the right password, expired session, logout", asyn
   await expect(page).toHaveURL(/\/login/);
 });
 
+test("a crafted redirect after login stays inside the app", async ({ page, baseURL }) => {
+  // Dot segments normalise to the protocol-relative "//evil.example".
+  await page.goto("/login?redirect=%2F.%2F%2Fevil.example");
+  await logIn(page, E2E_PASSWORD);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Let the donkey do the donkey work." }),
+  ).toBeVisible();
+  expect(new URL(page.url()).origin).toBe(new URL(baseURL ?? "").origin);
+  expect(new URL(page.url()).pathname).toBe("/");
+});
+
 test("password change: wrong current password, then change and change back", async ({ page }) => {
   await page.goto("/settings");
   await logIn(page, E2E_PASSWORD);

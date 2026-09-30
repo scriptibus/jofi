@@ -35,6 +35,10 @@ describe("safeRedirect", () => {
       "https://evil.example/",
       "//evil.example/x",
       "/\\evil.example",
+      // Dot segments that normalise to a protocol-relative "//evil.example".
+      "/.//evil.example",
+      "/%2e//evil.example",
+      "/a/..//evil.example",
       "javascript:alert(1)",
       "/login",
       "/first-run?x=1",

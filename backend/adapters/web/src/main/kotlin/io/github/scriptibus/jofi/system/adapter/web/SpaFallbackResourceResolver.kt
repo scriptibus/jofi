@@ -26,7 +26,8 @@ open class SpaFallbackResourceResolver : PathResourceResolver() {
 
         /** Whether [resourcePath] (relative, without a leading slash) is a route of the SPA. */
         fun isClientRoute(resourcePath: String): Boolean {
-            val path = resourcePath.trimStart('/')
+            // Case-insensitive, so `/API/x` stays a 404 instead of answering 200 with the SPA.
+            val path = resourcePath.trimStart('/').lowercase()
             val isServerPath = SERVER_PREFIXES.any { path.startsWith(it) } || path == "api" || path == "actuator"
             return !isServerPath && !path.substringAfterLast('/').contains('.')
         }
