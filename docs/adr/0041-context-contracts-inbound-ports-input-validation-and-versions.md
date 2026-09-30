@@ -8,7 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130, amended by #74
-  (contacts), #76 (applications), #88 (company use cases), #89 (contact use cases) and #82 (application use cases); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
+  (contacts), #76 (applications), #88 (company use cases), #89 (contact use cases), #78 (sources and
+  description snapshots) and #82 (application use cases); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
 
 ## Context
 
@@ -206,6 +207,27 @@ Further rules the applications contract adds:
   `DataAccessException`. Repositories read the PSQL error's constraint wherever it is in the chain; #89
   fixed `CompanyRepository`'s `application_company_fk` mapping, which only looked at jOOQ's exception.
 
+Further rules the sources and description snapshots contract adds (#78, decisions in ADR-0046):
+
+- **Child entities others record** (sources, snapshots) are written through a port of their own and are not
+  a version of the aggregate: adding one keeps `version` and `updatedAt`, like read/unread, so imports and
+  scanners never make the user's next save a `409`. The aggregate reads them (`Application.sources`) and
+  enforces their limit; each is its own changelog entity.
+- **Derived columns are checked against the domain's own computation** (`content_hash` equals the SHA-256
+  of the stored text), never against a looser or different rule, so the check is exactly as strict as the domain.
+- **Immutable rows** (frozen snapshots) are enforced by a `BEFORE UPDATE` row trigger that allows only the
+  one permitted change and raises with `CONSTRAINT = '<name>'` (and the name in its message), so repositories
+  and schema tests treat it like a named constraint. Restores (`TRUNCATE`, `COPY`) are unaffected; a migration
+  that must rewrite such rows disables and re-enables the trigger within itself (ADR-0046).
+- **Lengths:** the domain counts UTF-16 units (`String.length`), `char_length` counts code points, so a text
+  with characters outside the BMP is shorter for the database: the database stays at most as strict.
+- **Links** in every context use `shared.domain.text.WebAddress` (the companies context keeps its own copy
+  until it is next touched). A link another party gave us is stored, never fetched outside the SSRF guard, and
+  left out of changelog entries, since it may carry personal tracking parameters; `WebAddress.toString()`
+  prints only the host (use `value` for the link).
+- **Untrusted text** (postings) is stored as found after the text rules (NFC, trimmed, line breaks as `\n`,
+  no U+0000, a length limit) and never printed by `toString()`.
+
 ### Application use cases (#82)
 
 - **Changelog with values only where they are not personal**: detail edits record `FieldChange`s for title,
@@ -215,9 +237,9 @@ Further rules the applications contract adds:
   `FieldChange("unread", before, after)` without a new version; the delete keeps the title, as the company
   delete keeps the name.
 - **The delete's effect counts what cascades** with the application, read in the delete's transaction:
-  `ConfirmationEffect("application", <title>, {"contactLinks": n, "statusChanges": m})`, so a new link or a
-  status change between the steps voids the token. Contracts that add dependants (sources and snapshots,
-  interviews, tasks) add their counts. After the delete the use case publishes `ApplicationDeleted` (ids and
+  `ConfirmationEffect("application", <title>, {"contactLinks", "statusChanges", "sources", "snapshots"})`, so
+  a new link, source or snapshot or a status change between the steps voids the token. Contracts that add
+  dependants (interviews, tasks) add their counts. After the delete the use case publishes `ApplicationDeleted` (ids and
   actor only) for the contexts that keep their own references to applications.
 - **A missing company** is found by `application_company_fk` on insert and on a detail edit (the company is a
   detail) and answered as `Invalid` (COMPANY, NOT_FOUND), a 400 on `companyId`; a missing contact likewise by

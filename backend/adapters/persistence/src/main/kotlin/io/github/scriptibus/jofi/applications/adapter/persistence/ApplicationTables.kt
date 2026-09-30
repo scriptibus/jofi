@@ -5,13 +5,19 @@ package io.github.scriptibus.jofi.applications.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.SourceId
+import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_CONTACT
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_DESCRIPTION_SNAPSHOT
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_SOURCE
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_STATUS_CHANGE
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.ApplicationRecord
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import org.jooq.DSLContext
 
 /** The statements `ApplicationRepository` combines, in the caller's transaction; they throw, the repository maps. */
@@ -87,4 +93,32 @@ internal class ApplicationTables(
             .orderBy(APPLICATION_STATUS_CHANGE.ID)
             .fetch()
             .map(StatusChangeRecords::toDomain)
+
+    /** The sources of [id], oldest first (their own port writes them, #78). */
+    fun sourcesOf(id: ApplicationId): List<ApplicationSource> =
+        dsl
+            .selectFrom(APPLICATION_SOURCE)
+            .where(APPLICATION_SOURCE.APPLICATION_ID.eq(id.value))
+            .orderBy(APPLICATION_SOURCE.DISCOVERED_AT, APPLICATION_SOURCE.ID)
+            .fetch { source ->
+                ApplicationSource(
+                    SourceId(source.id),
+                    id,
+                    SourceKind.valueOf(source.kind),
+                    source.originalUrl?.let(::WebAddress),
+                    source.discoveredAt.toInstant(),
+                    source.offlineSince?.toInstant(),
+                )
+            }
+
+    /** The description snapshots of all sources of [id]. */
+    fun snapshotCount(id: ApplicationId): Int =
+        dsl.fetchCount(
+            dsl
+                .select(APPLICATION_DESCRIPTION_SNAPSHOT.ID)
+                .from(APPLICATION_DESCRIPTION_SNAPSHOT)
+                .join(APPLICATION_SOURCE)
+                .on(APPLICATION_SOURCE.ID.eq(APPLICATION_DESCRIPTION_SNAPSHOT.SOURCE_ID))
+                .where(APPLICATION_SOURCE.APPLICATION_ID.eq(id.value)),
+        )
 }

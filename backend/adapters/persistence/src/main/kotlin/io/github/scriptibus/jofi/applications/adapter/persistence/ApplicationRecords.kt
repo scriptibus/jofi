@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.applications.adapter.persistence.DetailColumns.
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
@@ -76,6 +77,7 @@ internal object ApplicationRecords {
     fun toDomain(
         record: ApplicationRecord,
         contacts: Set<ContactRef>,
+        sources: List<ApplicationSource>,
     ): Application =
         Application(
             id = ApplicationId(record.id),
@@ -90,6 +92,7 @@ internal object ApplicationRecords {
             version = record.version,
             createdAt = record.createdAt.toInstant(),
             updatedAt = record.updatedAt.toInstant(),
+            sources = sources,
         )
 
     private fun ApplicationRecord.writeStatus(application: Application) {

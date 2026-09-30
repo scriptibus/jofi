@@ -218,6 +218,27 @@ internal class InputChecks {
         maxLength: Int,
     ): String? = text(field, raw, maxLength).also { if (raw.isBlank()) report(field, ApplicationProblem.REQUIRED) }
 
+    /** A job description in its stored form ([DescriptionText.normalize]); blank is absent unless [required]. */
+    fun description(
+        raw: String,
+        required: Boolean,
+    ): DescriptionText? {
+        val text = DescriptionText.normalize(raw)
+        if (text.isEmpty()) {
+            return null.also {
+                if (required) {
+                    report(
+                        ApplicationField.DESCRIPTION,
+                        ApplicationProblem.REQUIRED,
+                    )
+                }
+            }
+        }
+        val problem = ApplicationRules.textProblemOf(text, DescriptionText.MAX_LENGTH)
+        report(ApplicationField.DESCRIPTION, problem)
+        return if (problem == null) DescriptionText(text) else null
+    }
+
     fun remoteShare(
         field: ApplicationField,
         percent: Int?,

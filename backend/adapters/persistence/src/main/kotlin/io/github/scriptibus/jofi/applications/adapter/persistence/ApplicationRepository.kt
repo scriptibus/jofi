@@ -91,13 +91,29 @@ class ApplicationRepository(
         storeCall("findById") {
             dsl
                 .fetchOne(APPLICATION, APPLICATION.ID.eq(id.value))
-                ?.let { ApplicationStoreResult.Success(ApplicationRecords.toDomain(it, tables.linksOf(id))) }
+                ?.let {
+                    ApplicationStoreResult.Success(
+                        ApplicationRecords.toDomain(it, tables.linksOf(id), tables.sourcesOf(id)),
+                    )
+                }
                 ?: ApplicationStoreResult.NotFound
         }
 
     /** The list with its filters and ranking is #83; until then its endpoint answers 501 and nothing calls this. */
     override fun search(search: ApplicationSearch): ApplicationStoreResult<ApplicationPage<Application>> =
         ApplicationStoreResult.StorageFailure("search")
+
+    override fun snapshotCount(id: ApplicationId): ApplicationStoreResult<Int> =
+        storeCall("snapshotCount") {
+            if (tables.exists(
+                    id,
+                )
+            ) {
+                ApplicationStoreResult.Success(tables.snapshotCount(id))
+            } else {
+                ApplicationStoreResult.NotFound
+            }
+        }
 
     override fun delete(
         id: ApplicationId,

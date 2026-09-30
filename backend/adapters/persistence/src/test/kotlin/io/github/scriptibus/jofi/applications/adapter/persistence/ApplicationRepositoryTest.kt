@@ -27,6 +27,7 @@ import io.github.scriptibus.jofi.applications.domain.PaySource
 import io.github.scriptibus.jofi.applications.domain.RemoteShare
 import io.github.scriptibus.jofi.applications.domain.Score
 import io.github.scriptibus.jofi.applications.domain.Seniority
+import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.applications.domain.StatusChangeRequest
 import io.github.scriptibus.jofi.applications.domain.StatusTransition
@@ -35,8 +36,10 @@ import io.github.scriptibus.jofi.setup.adapter.persistence.ConfirmedProofs
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_CONTACT
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_DESCRIPTION_SNAPSHOT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_STATUS_CHANGE
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -47,6 +50,7 @@ import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
@@ -128,6 +132,25 @@ class ApplicationRepositoryTest {
             ApplicationStoreResult.Success(Unit)
 
         read(application.id) shouldBe application
+    }
+
+    @Test
+    fun `an application reads back with its sources, oldest first, and counts their snapshots`() {
+        val application = stored()
+        val later = source(application.id, "SCANNER", null, LATER)
+        val first = source(application.id, "URL", "https://jobs.example/1?ref=me", CREATED)
+        snapshot(later)
+        snapshot(first)
+        snapshot(first)
+
+        val read = read(application.id)
+
+        read.sources.map { it.id.value } shouldContainExactly listOf(first, later)
+        read.sources.first().originalUrl shouldBe WebAddress("https://jobs.example/1?ref=me")
+        read.sources.first().kind shouldBe SourceKind.URL
+        repository.snapshotCount(application.id) shouldBe ApplicationStoreResult.Success(3)
+        repository.snapshotCount(stored().id) shouldBe ApplicationStoreResult.Success(0)
+        repository.snapshotCount(ApplicationId(UUID.randomUUID())) shouldBe ApplicationStoreResult.NotFound
     }
 
     @Test
@@ -248,6 +271,7 @@ class ApplicationRepositoryTest {
     fun `a confirmed delete removes the application with its links and history`() {
         val application = stored()
         rows.link(application.id.value, contact().value)
+        snapshot(source(application.id, "MANUAL_CHAT", null, CREATED))
         val other = stored("Frontend Engineer")
 
         repository.delete(application.id, proofFor(application.id)) shouldBe ApplicationStoreResult.Success(Unit)
@@ -255,6 +279,7 @@ class ApplicationRepositoryTest {
         repository.findById(application.id) shouldBe ApplicationStoreResult.NotFound
         dsl.fetchCount(APPLICATION_CONTACT) shouldBe 0
         dsl.fetchCount(APPLICATION_STATUS_CHANGE) shouldBe 1
+        dsl.fetchCount(APPLICATION_DESCRIPTION_SNAPSHOT) shouldBe 0
         repository.delete(application.id, proofFor(application.id)) shouldBe ApplicationStoreResult.NotFound
         read(other.id) shouldBe other
     }
@@ -279,6 +304,35 @@ class ApplicationRepositoryTest {
 
         repository.add(application, StatusChange.initial(application, Actor.User)) shouldBe
             ApplicationStoreResult.StorageFailure("add")
+    }
+
+    private fun source(
+        application: ApplicationId,
+        kind: String,
+        url: String?,
+        discovered: Instant,
+    ): UUID {
+        val id = UUID.randomUUID()
+        dsl.execute(
+            "insert into application_source (id, application_id, kind, original_url, discovered_at) " +
+                "values (?, ?, ?, ?, ?::timestamptz)",
+            id,
+            application.value,
+            kind,
+            url,
+            discovered.atOffset(ZoneOffset.UTC),
+        )
+        return id
+    }
+
+    private fun snapshot(source: UUID) {
+        dsl.execute(
+            "insert into application_description_snapshot " +
+                "(id, source_id, description, content_hash, reason, captured_at) values " +
+                "(?, ?, 'Job', encode(sha256(convert_to('Job', 'UTF8')), 'hex'), 'DISCOVERY', now())",
+            UUID.randomUUID(),
+            source,
+        )
     }
 
     /** The physical rows of the links: a rewrite gives them new ones even for the same values. */

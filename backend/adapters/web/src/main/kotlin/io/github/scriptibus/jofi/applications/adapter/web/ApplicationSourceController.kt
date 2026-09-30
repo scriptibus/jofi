@@ -1,0 +1,82 @@
+// SPDX-FileCopyrightText: 2026 Jofi contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+package io.github.scriptibus.jofi.applications.adapter.web
+
+import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
+import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
+import org.springframework.http.HttpStatus
+import org.springframework.http.ProblemDetail
+import org.springframework.web.ErrorResponseException
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
+
+/**
+ * Where an application's job was found and the history of its description (spec §6.1, ADR-0046). The
+ * contract only (#78): every operation answers `501 Not Implemented` until #86 (snapshots, diff) and #96 (adding
+ * sources) inject their use cases and map each `ApplicationResult.Failure` with [ApplicationProblems.of]. The
+ * sources themselves come with the application (`ApplicationResponse.sources`).
+ */
+@Suppress("UnusedParameter")
+@RestController
+@RequestMapping("/api/applications/{id}")
+class ApplicationSourceController {
+    /** Adds a place the job was found, with the posting's text there as its first description version. */
+    @PostMapping("/sources")
+    @ResponseStatus(HttpStatus.CREATED)
+    @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.NOT_FOUND)
+    fun addApplicationSource(
+        @PathVariable id: UUID,
+        @RequestBody request: AddApplicationSourceRequest,
+    ): ApplicationSourceResponse = throw notImplemented()
+
+    /**
+     * Records the posting's current text as a new version of the source's description; the same text again
+     * adds nothing (`added` false) and answers the newest version.
+     */
+    @PostMapping("/sources/{sourceId}/snapshots")
+    @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.NOT_FOUND)
+    fun recordDescriptionSnapshot(
+        @PathVariable id: UUID,
+        @PathVariable sourceId: UUID,
+        @RequestBody request: RecordDescriptionSnapshotRequest,
+    ): DescriptionSnapshotRecordedResponse = throw notImplemented()
+
+    /** The versions of the source's description, oldest first, without their texts. */
+    @GetMapping("/sources/{sourceId}/snapshots")
+    @ProblemResponses(ProblemKind.NOT_FOUND)
+    fun listDescriptionSnapshots(
+        @PathVariable id: UUID,
+        @PathVariable sourceId: UUID,
+    ): DescriptionSnapshotListResponse = throw notImplemented()
+
+    /** One version of a description with its full text. */
+    @GetMapping("/snapshots/{snapshotId}")
+    @ProblemResponses(ProblemKind.NOT_FOUND)
+    fun getDescriptionSnapshot(
+        @PathVariable id: UUID,
+        @PathVariable snapshotId: UUID,
+    ): DescriptionSnapshotResponse = throw notImplemented()
+
+    /** What changed from one version of the application's descriptions to another (of any of its sources). */
+    @GetMapping("/description-diff")
+    @ProblemResponses(ProblemKind.NOT_FOUND)
+    fun diffDescriptionSnapshots(
+        @PathVariable id: UUID,
+        @RequestParam from: UUID,
+        @RequestParam to: UUID,
+    ): DescriptionDiffResponse = throw notImplemented()
+
+    private fun notImplemented(): ErrorResponseException {
+        val problem =
+            ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Job descriptions are not available yet")
+        return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
+    }
+}

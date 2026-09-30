@@ -154,6 +154,7 @@ class ApplicationControllerTest(
         every { ports.applications.setUnread(any(), any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.applications.statusHistory(stored.id) } returns
             ApplicationStoreResult.Success(listOf(StatusChange.initial(stored, Actor.User)))
+        every { ports.applications.snapshotCount(stored.id) } returns ApplicationStoreResult.Success(2)
         every { ports.applications.delete(any(), any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.changelog.append(any()) } returns ChangelogResult.Success(Unit)
         every { ports.events.publish(any()) } returns true
@@ -258,7 +259,8 @@ class ApplicationControllerTest(
         val problem = json.readTree(first.response.contentAsString)
         problem["type"].asString() shouldBe Confirmations.REQUIRED
         problem["effect"].toString() shouldBe
-            """{"kind":"application","name":"Backend Engineer","counts":{"contactLinks":1,"statusChanges":1}}"""
+            """{"kind":"application","name":"Backend Engineer","counts":""" +
+            """{"contactLinks":1,"snapshots":2,"sources":0,"statusChanges":1}}"""
         verify(exactly = 0) { ports.applications.delete(any(), any()) }
 
         val token = problem["confirmationToken"].asString()

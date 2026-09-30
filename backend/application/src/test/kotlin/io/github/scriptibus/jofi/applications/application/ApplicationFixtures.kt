@@ -47,6 +47,9 @@ class ApplicationFixtures {
     var failingEvents = false
     var failingStore = false
 
+    /** Description snapshots per application, which the delete cascades to. */
+    val snapshots = mutableMapOf<ApplicationId, Int>()
+
     /** A version another client stored between this use case's read and its write (the update race). */
     var concurrentVersion: Long? = null
 
@@ -128,6 +131,13 @@ class ApplicationFixtures {
 
             override fun search(search: ApplicationSearch): ApplicationStoreResult<ApplicationPage<Application>> =
                 error("Not used by these use cases")
+
+            override fun snapshotCount(id: ApplicationId): ApplicationStoreResult<Int> =
+                if (id in applications) {
+                    ApplicationStoreResult.Success(snapshots[id] ?: 0)
+                } else {
+                    ApplicationStoreResult.NotFound
+                }
 
             override fun delete(
                 id: ApplicationId,

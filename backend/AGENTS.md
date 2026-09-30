@@ -63,7 +63,8 @@ Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `ch
 `tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
 providers, per-task models, capabilities, costs, budget), `companies` (companies with their use cases, #88; contacts with
 theirs, #89), `applications` (the application aggregate with create, read, edit, read/unread and delete, #82;
-list, status pipeline and contact links as contracts, ADR-0044) and `shared` exist.
+list, status pipeline, ADR-0044, contact links and sources with their description snapshots, ADR-0046, as
+contracts) and `shared` exist.
 The only class allowed directly in the base package is the application class; the only class
 allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 

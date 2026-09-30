@@ -62,6 +62,13 @@ internal fun <T> ApplicationStoreResult<T>.toResult(): ApplicationResult<T> =
             notFound(ApplicationField.CONTACTS)
         }
 
+        // Only the source port answers it (#96): the application has as many sources as it may.
+        ApplicationStoreResult.SourceLimitReached -> {
+            ApplicationResult.Invalid(
+                listOf(ApplicationViolation(ApplicationField.SOURCES, ApplicationProblem.TOO_MANY)),
+            )
+        }
+
         // Only a proof for another target gets here, a bug of the use case; nothing was deleted.
         ApplicationStoreResult.NotConfirmed -> {
             ApplicationResult.StorageFailure("delete without matching proof")

@@ -8,12 +8,14 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationInput
 import io.github.scriptibus.jofi.applications.domain.ApplicationPage
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.applications.domain.CurrencyCode
 import io.github.scriptibus.jofi.applications.domain.DeclineCategory
 import io.github.scriptibus.jofi.applications.domain.DeclineReason
+import io.github.scriptibus.jofi.applications.domain.DiffOperation
 import io.github.scriptibus.jofi.applications.domain.EmploymentType
 import io.github.scriptibus.jofi.applications.domain.EstimateConfidence
 import io.github.scriptibus.jofi.applications.domain.FormOfAddress
@@ -33,7 +35,11 @@ import io.github.scriptibus.jofi.applications.domain.PaySourceKind
 import io.github.scriptibus.jofi.applications.domain.RemoteShare
 import io.github.scriptibus.jofi.applications.domain.Score
 import io.github.scriptibus.jofi.applications.domain.Seniority
+import io.github.scriptibus.jofi.applications.domain.SnapshotReason
+import io.github.scriptibus.jofi.applications.domain.SourceId
+import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.Tone
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
@@ -51,6 +57,7 @@ class ApplicationDtosTest {
     private val uuid = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
     private val companyUuid = UUID.fromString("00000000-0000-0000-0000-00000000000c")
     private val contactUuid = UUID.fromString("00000000-0000-0000-0000-0000000000c1")
+    private val sourceUuid = UUID.fromString("00000000-0000-0000-0000-0000000000d1")
 
     @ParameterizedTest
     @MethodSource("enumPairs")
@@ -143,6 +150,26 @@ class ApplicationDtosTest {
             version = 2,
             createdAt = at,
             updatedAt = at.plusSeconds(60),
+            sources =
+                listOf(
+                    ApplicationSource(
+                        SourceId(sourceUuid),
+                        ApplicationId(uuid),
+                        SourceKind.URL,
+                        WebAddress("https://jobs.example/1?utm=secret"),
+                        at,
+                        at.plusSeconds(30),
+                    ),
+                ),
+        )
+    private val sourceResponse =
+        ApplicationSourceResponse(
+            sourceUuid,
+            PostingSourceKind.URL,
+            "https://jobs.example/1?utm=secret",
+            at,
+            online = false,
+            offlineSince = at.plusSeconds(30),
         )
 
     @Test
@@ -173,9 +200,14 @@ class ApplicationDtosTest {
                 version = 2,
                 createdAt = at,
                 updatedAt = at.plusSeconds(60),
+                sources = listOf(sourceResponse),
             )
+    }
+
+    @Test
+    fun `a page of applications keeps its paging`() {
         ApplicationPageResponse.from(ApplicationPage(listOf(application), total = 5), 0, 1) shouldBe
-            ApplicationPageResponse(listOf(response), page = 0, size = 1, total = 5)
+            ApplicationPageResponse(listOf(ApplicationResponse.from(application)), page = 0, size = 1, total = 5)
     }
 
     @Test
@@ -228,6 +260,9 @@ class ApplicationDtosTest {
                 Arguments.of(WritingTone::class, Tone::class),
                 Arguments.of(DeclineReasonCategory::class, DeclineCategory::class),
                 Arguments.of(PipelineStatus::class, ApplicationStatus::class),
+                Arguments.of(PostingSourceKind::class, SourceKind::class),
+                Arguments.of(SnapshotCaptureReason::class, SnapshotReason::class),
+                Arguments.of(DiffSegmentOperation::class, DiffOperation::class),
             )
     }
 }

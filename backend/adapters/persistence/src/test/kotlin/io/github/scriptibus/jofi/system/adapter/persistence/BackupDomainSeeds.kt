@@ -82,6 +82,50 @@ internal class BackupDomainSeeds(
         )
         dsl.execute("insert into application_contact (application_id, contact_id) values (?, ?)", application, contact)
         seedStatusHistory(application)
+        seedSources(application)
+    }
+
+    // A link with a query and an IDN host, an offline source without a link, and descriptions with quotes,
+    // commas, line breaks, Markdown and non-ASCII text; one snapshot frozen. The hash is the database's own.
+    private fun seedSources(application: UUID) {
+        val found = UUID.fromString("00000000-0000-0000-0000-0000000000d1")
+        val gone = UUID.fromString("00000000-0000-0000-0000-0000000000d2")
+        dsl.execute(
+            "insert into application_source (id, application_id, kind, original_url, discovered_at, offline_since) " +
+                "values (?, ?, 'URL', 'https://jobs.bücher.example/stellen?id=1,2&q=\"x\"#top', ?::timestamptz, " +
+                "null), (?, ?, 'MANUAL_CHAT', null, ?::timestamptz, ?::timestamptz)",
+            found,
+            application,
+            at,
+            gone,
+            application,
+            at,
+            at,
+        )
+        seedSnapshots(found, gone)
+    }
+
+    private fun seedSnapshots(
+        found: UUID,
+        gone: UUID,
+    ) {
+        listOf(
+            Triple(found, "# Backend \"Kotlin\"\n\nBerlin, Mitte;\nüber 5 Jahre ☕", null),
+            Triple(found, "# Backend \"Kotlin\"\n\nBerlin, Mitte;\nüber 6 Jahre", at),
+            Triple(gone, "Pasted, from a mail", null),
+        ).forEachIndexed { index, (source, text, frozenAt) ->
+            dsl.execute(
+                "insert into application_description_snapshot (id, source_id, description, content_hash, reason, " +
+                    "captured_at, frozen_at) values (?, ?, ?, encode(sha256(convert_to(?, 'UTF8')), 'hex'), " +
+                    "'DISCOVERY', ?::timestamptz, ?::timestamptz)",
+                UUID.fromString("00000000-0000-0000-0000-0000000000e$index"),
+                source,
+                text,
+                text,
+                at,
+                frozenAt,
+            )
+        }
     }
 
     // The first entry (no from status), a scanner with a quoted name, a rejection with CR/LF in its reason.

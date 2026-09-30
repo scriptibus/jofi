@@ -24,11 +24,11 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import java.time.Clock
 
 /**
- * Deletes an application in two steps (ADR-0039). The application and its status history are read in the
- * transaction of the delete, and the confirmation effect (title, number of contact links and status
- * changes that go with it by `ON DELETE CASCADE`) is built from that read, so an edit of the title, a new
- * link or a status change between the steps voids the token. After the delete it writes the changelog
- * entry and publishes `ApplicationDeleted`.
+ * Deletes an application in two steps (ADR-0039). The application, its status history and its snapshot
+ * count are read in the transaction of the delete, and the confirmation effect (title, number of contact
+ * links, status changes, sources and description snapshots that go with it by `ON DELETE CASCADE`) is built
+ * from that read, so an edit of the title, a new link, source or snapshot or a status change between the
+ * steps voids the token. After the delete it writes the changelog entry and publishes `ApplicationDeleted`.
  */
 class DeleteApplicationUseCase(
     private val applications: ApplicationRepositoryPort,
@@ -45,19 +45,31 @@ class DeleteApplicationUseCase(
     ): ApplicationResult<Unit> =
         transactions.inApplicationTransaction {
             applications.findById(id).toResult().then { application ->
-                applications.statusHistory(id).toResult().then { history ->
-                    confirmThenDelete(application, history.size, requester, token)
-                }
+                cascadeCounts(application).then { confirmThenDelete(application, it, requester, token) }
+            }
+        }
+
+    /** What goes with [application] by `ON DELETE CASCADE`, counted from the reads of this transaction. */
+    private fun cascadeCounts(application: Application): ApplicationResult<Map<String, Int>> =
+        applications.statusHistory(application.id).toResult().then { history ->
+            applications.snapshotCount(application.id).toResult().then { snapshots ->
+                ApplicationResult.Success(
+                    mapOf(
+                        CONTACT_LINKS to application.contacts.size,
+                        STATUS_CHANGES to history.size,
+                        SOURCES to application.sources.size,
+                        SNAPSHOTS to snapshots,
+                    ),
+                )
             }
         }
 
     private fun confirmThenDelete(
         application: Application,
-        statusChanges: Int,
+        counts: Map<String, Int>,
         requester: ConfirmationRequester,
         token: ConfirmationToken?,
     ): ApplicationResult<Unit> {
-        val counts = mapOf(CONTACT_LINKS to application.contacts.size, STATUS_CHANGES to statusChanges)
         val effect = ConfirmationEffect(ApplicationId.ENTITY_TYPE, application.details.title, counts)
         val action = ConfirmableAction(Application.DELETE_OPERATION, listOf(application.id.value.toString()), effect)
         return when (val outcome = confirmation.execute(ConfirmationRequest(requester, action, token))) {
@@ -87,5 +99,7 @@ class DeleteApplicationUseCase(
         // The effect's counts of what goes with the application (ADR-0041); the UI names them.
         const val CONTACT_LINKS = "contactLinks"
         const val STATUS_CHANGES = "statusChanges"
+        const val SOURCES = "sources"
+        const val SNAPSHOTS = "snapshots"
     }
 }

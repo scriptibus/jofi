@@ -10,8 +10,11 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationDeleted
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.SourceId
+import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.FieldChange
@@ -48,10 +51,19 @@ class DeleteApplicationUseCaseTest {
         return result.outcome.shouldBeInstanceOf<ConfirmationResult.Required>()
     }
 
-    /** An application with two linked contacts and one status change after its first entry. */
+    /**
+     * An application with two linked contacts, one status change after its first entry and one source with
+     * three description snapshots.
+     */
     private fun appliedWithContacts(): Application {
         val stored = fixtures.application("Backend Engineer")
-        val linked = stored.copy(contacts = setOf(ContactRef(UUID.randomUUID()), ContactRef(UUID.randomUUID())))
+        val source = ApplicationSource(SourceId(UUID.randomUUID()), stored.id, SourceKind.MANUAL_CHAT, null, NOW)
+        val linked =
+            stored.copy(
+                contacts = setOf(ContactRef(UUID.randomUUID()), ContactRef(UUID.randomUUID())),
+                sources = listOf(source),
+            )
+        fixtures.snapshots[stored.id] = 3
         fixtures.applications[stored.id] = linked
         fixtures.history +=
             StatusChange(stored.id, stored.status, ApplicationStatus.APPLIED, null, null, Actor.User, NOW)
@@ -67,7 +79,11 @@ class DeleteApplicationUseCaseTest {
         required.action.operation shouldBe Application.DELETE_OPERATION
         required.action.targets shouldBe listOf(application.id.value.toString())
         required.action.effect shouldBe
-            ConfirmationEffect("application", "Backend Engineer", mapOf("contactLinks" to 2, "statusChanges" to 2))
+            ConfirmationEffect(
+                "application",
+                "Backend Engineer",
+                mapOf("contactLinks" to 2, "statusChanges" to 2, "sources" to 1, "snapshots" to 3),
+            )
         fixtures.applications.size shouldBe 1
         fixtures.entries.shouldBeEmpty()
         fixtures.events.shouldBeEmpty()
@@ -118,6 +134,16 @@ class DeleteApplicationUseCaseTest {
         val token = firstStep(application.id).token
         fixtures.history +=
             StatusChange(application.id, application.status, ApplicationStatus.APPLIED, null, null, Actor.User, NOW)
+
+        rejected(delete.execute(application.id, user, token))
+        fixtures.applications.size shouldBe 1
+    }
+
+    @Test
+    fun `a new description snapshot between the steps voids the token`() {
+        val application = fixtures.application()
+        val token = firstStep(application.id).token
+        fixtures.snapshots[application.id] = 1
 
         rejected(delete.execute(application.id, user, token))
         fixtures.applications.size shouldBe 1

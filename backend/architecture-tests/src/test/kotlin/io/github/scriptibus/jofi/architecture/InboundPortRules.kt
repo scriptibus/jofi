@@ -26,6 +26,11 @@ object InboundPortRules {
             "LinkApplicationContactsPort" to "#90",
             "ChangeApplicationStatusPort" to "#84",
             "GetApplicationStatusHistoryPort" to "#84",
+            "AddApplicationSourcePort" to "#96",
+            "RecordDescriptionSnapshotPort" to "#86",
+            "ListDescriptionSnapshotsPort" to "#86",
+            "GetDescriptionSnapshotPort" to "#86",
+            "DiffDescriptionSnapshotsPort" to "#86",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */
