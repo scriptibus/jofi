@@ -85,7 +85,9 @@ The generator lives in the `codegen` source set and has its own locked classpath
 - `ai_provider_config`, `ai_model_assignment`, `ai_model_capability`, `ai_monthly_budget`,
   `ai_cost_entry` (#11, repositories in `setup.adapter.persistence` since #20, ADR-0043): read by the
   AI gateway on every call. `ai_cost_entry` is append-only; `cost_micros` NULL means the cost is
-  unknown (no list price, or no usage reported), and sums skip it. A provider with assignments
+  unknown (no list price, or no usage reported), and sums skip it. The cost reports (#24) aggregate in SQL
+  over `ai_cost_entry_occurred_at_idx`: per task, provider kind and model, and per UTC month
+  (`to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM')`, independent of the session's time zone). A provider with assignments
   cannot be deleted (`InUse`).
 - `spring_session`, `spring_session_attributes`: login sessions, managed by Spring Session JDBC (schema
   copied from spring-session-jdbc 4.1.1). Ephemeral bearer credentials: **excluded from export/import**
@@ -188,6 +190,7 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 | `contact` | `companies.domain.Contact` | `ContactId.ENTITY_TYPE` |
 | `ai_provider` | `setup.domain.ProviderConfig` (also its models' capability corrections and refreshes) | `ProviderId.ENTITY_TYPE` |
 | `ai_model_assignment` | `setup.domain.ModelAssignment`, one entity per task (id = task name) | `ModelAssignment.ENTITY_TYPE` |
+| `ai_monthly_budget` | `setup.domain.MonthlyBudget`, a single entity (id `monthly`) | `MonthlyBudget.ENTITY_TYPE` |
 
 ## Tests
 

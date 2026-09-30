@@ -71,6 +71,9 @@ object SetupProblems {
             SetupField.API_KEY -> "apiKey"
             SetupField.MODEL -> "model"
             SetupField.CONTEXT_WINDOW -> "contextWindowTokens"
+            SetupField.MONTHLY_CAP -> "capMicros"
+            SetupField.MONTH -> "month"
+            SetupField.MONTHS -> "months"
         }
 
     // The provider is a server of the user's choosing, so its failures are a bad gateway, not ours.

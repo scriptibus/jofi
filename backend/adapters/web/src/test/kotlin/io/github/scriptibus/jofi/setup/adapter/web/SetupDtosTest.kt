@@ -35,7 +35,7 @@ class SetupDtosTest {
     @Test
     fun `every field has a request name and every provider failure a problem type`() {
         SetupField.entries.map(SetupProblems::apiName) shouldBe
-            listOf("displayName", "baseUrl", "apiKey", "model", "contextWindowTokens")
+            listOf("displayName", "baseUrl", "apiKey", "model", "contextWindowTokens", "capMicros", "month", "months")
         val types =
             listOf(
                 AiResult.RateLimited(Duration.ofSeconds(1)),

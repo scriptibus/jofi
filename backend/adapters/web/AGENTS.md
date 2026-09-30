@@ -96,6 +96,20 @@ key or its secret id; request DTOs hide the key in `toString()` and mark it `@Wr
 `Actor.User`; the use cases refuse every other actor (`403 urn:jofi:problem:setup:forbidden`), so MCP
 and AI tools must never be given these use cases. `SetupProblems.of` maps each `SetupResult.Failure`.
 
+## AI costs and monthly budget (#24)
+
+`setup.adapter.web.AiCostController`: `GET /api/setup/costs?month=YYYY-MM` (default the current UTC month; a
+future month or one before 2000 is `400 invalid-input` on `month`): totals plus `byTask`, `byProviderKind`
+(the kind recorded with each call, so a deleted provider's costs still count) and `byModel`, each with calls,
+tokens, `knownCostMicros` and `unknownCostCalls` (calls without a price are counted, never priced); only the
+current month carries `budget`, since the cap has no history. `GET /api/setup/costs/history?months=` (1-24,
+default 12): one entry per month up to the current one, oldest first, empty months as zero.
+`MonthlyBudgetController`: `GET /api/setup/budget` (cap, spent, remaining, `state`, `pausedTasks`, `pausedUntil`
+= next UTC month) and `PUT /api/setup/budget` with `capMicros` (1 micro to 1,000,000 USD) or `null` to remove
+the cap. The cap is changed with `PUT`, not `DELETE`: removing it destroys nothing, so it needs no
+confirmation, but it is a user-only setup mutation (`SetupRules`) with a changelog entry. Amounts are integer
+USD micros everywhere.
+
 ## Documented problem responses (ADR-0041)
 
 Annotate a handler with `@ProblemResponses(ProblemKind.INVALID_INPUT, NOT_FOUND, CONFLICT)`

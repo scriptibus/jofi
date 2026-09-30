@@ -99,7 +99,7 @@ meters the cost, and calls `AiProviderPort` (`setup.application.port`), which Sp
 in `setup.adapter.ai` (#19, ADR-0040, ADR-0043). Only the gateway implements `LlmPort`/`EmbeddingPort`
 and calls `AiProviderPort`; nothing outside `setup.adapter.ai` may use `AiProviderPort` (architecture
 tests). The setup use cases (#23: providers, keys, model refresh, capability corrections, task
-assignments) accept only `Actor.User`, since the provider config decides where prompts go and feeds
+assignments; #24: the monthly budget cap) accept only `Actor.User`, since the provider config decides where prompts go and feeds
 the AI transport's allowlist; never expose them as MCP or AI tools. `SetupRules` (architecture tests)
 enforces it: only `setup.adapter.web` (and `setup.config`) may depend on the mutating setup use cases and
 inbound ports, and only `..adapter.web..` may name `Actor.User` (reviewed allowlist in `SetupRules`). Mark text copied from a stored

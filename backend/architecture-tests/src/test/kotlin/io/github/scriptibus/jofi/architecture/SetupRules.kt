@@ -13,14 +13,16 @@ import io.github.scriptibus.jofi.setup.application.CorrectModelCapabilitiesUseCa
 import io.github.scriptibus.jofi.setup.application.CreateProviderUseCase
 import io.github.scriptibus.jofi.setup.application.DeleteProviderUseCase
 import io.github.scriptibus.jofi.setup.application.RefreshProviderModelsUseCase
+import io.github.scriptibus.jofi.setup.application.SetMonthlyBudgetUseCase
 import io.github.scriptibus.jofi.setup.application.UpdateProviderUseCase
 import io.github.scriptibus.jofi.shared.domain.Actor
 
 /**
  * Who may change the AI provider setup (#20 security review, #23). The provider config decides where
  * prompts go and feeds the AI transport's allowlist, so only the user's REST API may reach the
- * mutating setup use cases, and only web adapters may speak as the user. The use cases refuse every
- * other actor as well; these rules keep an MCP or chat tool from being wired to them at all.
+ * mutating setup use cases (and the monthly budget cap, #24), and only web adapters may speak as the
+ * user. The use cases refuse every other actor as well; these rules keep an MCP or chat tool from
+ * being wired to them at all.
  */
 object SetupRules {
     private val MUTATING_SETUP_USE_CASES =
@@ -31,6 +33,8 @@ object SetupRules {
             RefreshProviderModelsUseCase::class.java,
             CorrectModelCapabilitiesUseCase::class.java,
             AssignTaskModelUseCase::class.java,
+            // The AI or a scanner must not lift the cap that pauses its own work (#24).
+            SetMonthlyBudgetUseCase::class.java,
         )
 
     /** The setup inbound ports; their implementations live in setup.application. */
