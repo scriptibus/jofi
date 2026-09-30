@@ -8,7 +8,6 @@ import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCa
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
-import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
@@ -16,7 +15,6 @@ import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapsh
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
-import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
@@ -95,9 +93,6 @@ class ApplicationControllerTest(
 
         @Bean
         fun get(ports: Ports) = GetApplicationUseCase(ports.applications)
-
-        @Bean
-        fun search(ports: Ports) = SearchApplicationsUseCase(ports.applications)
 
         @Bean
         fun update(ports: Ports) =
@@ -314,7 +309,6 @@ class ApplicationControllerTest(
 
     @Test
     fun `requests that break the contract are rejected`() {
-        badRequest(mvc.get().uri("/api/applications?companyId=acme"))
         badRequest(mvc.get().uri("/api/applications/not-a-uuid"))
         badRequest(json(mvc.post().uri("/api/applications"), """{"title":"Backend Engineer"}"""))
         badRequest(
@@ -326,22 +320,6 @@ class ApplicationControllerTest(
         badRequest(json(mvc.put().uri("$path/status"), """{"status":"APPLIED"}"""))
         badRequest(json(mvc.put().uri("$path/status"), """{"status":"HIRED","basedOnVersion":1}"""))
         verify(exactly = 0) { ports.changelog.append(any()) }
-    }
-
-    @Test
-    fun `search parameters out of range are a 400 naming them`() {
-        mvc
-            .get()
-            .uri("/api/applications?page=-1&size=${ApplicationSearch.MAX_SIZE + 1}")
-            .assertThat()
-            .hasStatus(400)
-            .bodyJson()
-            .isLenientlyEqualTo(
-                """
-                {"type":"${ApplicationProblems.INVALID_SEARCH}",
-                 "violations":[{"field":"page","problem":"OUT_OF_RANGE"},{"field":"size","problem":"OUT_OF_RANGE"}]}
-                """.trimIndent(),
-            )
     }
 
     private fun deleteStored(

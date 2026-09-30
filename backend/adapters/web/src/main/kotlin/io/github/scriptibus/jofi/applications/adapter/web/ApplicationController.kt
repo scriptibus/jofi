@@ -8,13 +8,10 @@ import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCa
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
-import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
-import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
-import io.github.scriptibus.jofi.applications.domain.SearchValidation
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
@@ -31,16 +28,16 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * Applications (spec §6.1), for the logged-in user. Create, read, edit, read/unread and delete (#82), the list
- * (#83) and the status change with its history (#84) call their use case and map its `ApplicationResult.Failure`
- * with [ApplicationProblems.of]. The contact links (#90) are still the contract only and answer
- * `501 Not Implemented`; their parameters only declare it, hence the suppressed unused-parameter rule.
+ * Applications (spec §6.1), for the logged-in user. Create, read, edit, read/unread and delete (#82) and the
+ * status change with its history (#84) call their use case and map its `ApplicationResult.Failure`
+ * with [ApplicationProblems.of]; the list (#83) is [ApplicationListController]. The contact links (#90) are
+ * still the contract only and answer `501 Not Implemented`; their parameters only declare it, hence the
+ * suppressed unused-parameter rule.
  */
 @Suppress("UnusedParameter")
 @RestController
@@ -51,29 +48,9 @@ class ApplicationController(
     private val updateApplication: UpdateApplicationUseCase,
     private val setUnread: SetApplicationUnreadUseCase,
     private val deleteApplication: DeleteApplicationUseCase,
-    private val searchApplications: SearchApplicationsUseCase,
     private val changeStatus: ChangeApplicationStatusUseCase,
     private val statusHistory: GetApplicationStatusHistoryUseCase,
 ) {
-    /** One page of the list with its filters and order (see [ApplicationListQuery]); 400 names bad parameters. */
-    @GetMapping
-    @ProblemResponses(ProblemKind.INVALID_INPUT)
-    fun searchApplications(
-        query: ApplicationListQuery,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "${ApplicationSearch.DEFAULT_SIZE}") size: Int,
-    ): ApplicationPageResponse =
-        when (val validation = query.toInput(page, size).validate()) {
-            is SearchValidation.Invalid -> {
-                throw ApplicationProblems.invalidSearch(validation.violations)
-            }
-
-            is SearchValidation.Valid -> {
-                val search = validation.search
-                ApplicationPageResponse.from(searchApplications.execute(search).orThrow(), search.page, search.size)
-            }
-        }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @ProblemResponses(ProblemKind.INVALID_INPUT)

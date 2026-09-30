@@ -201,7 +201,7 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "application-controller" ]
+        "tags" : [ "application-list-controller" ]
       },
       "post" : {
         "operationId" : "createApplication",

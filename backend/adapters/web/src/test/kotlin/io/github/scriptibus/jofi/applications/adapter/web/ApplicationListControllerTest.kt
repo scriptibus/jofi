@@ -3,6 +3,8 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
+import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -23,13 +25,16 @@ import io.github.scriptibus.jofi.applications.domain.TimeRange
 import io.kotest.matchers.shouldBe
 import io.mockk.clearMocks
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.assertj.MockMvcTester
@@ -40,13 +45,22 @@ import java.util.UUID
  * `GET /api/applications` (#83) over the real use case with a mocked repository: every query parameter
  * reaches the search, bad ones are a 400 naming them, a store failure is a 503.
  */
-@WebMvcTest(ApplicationController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
+@WebMvcTest(ApplicationListController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
-@Import(ApplicationControllerTest.UseCases::class)
+@Import(ApplicationListControllerTest.UseCases::class)
 class ApplicationListControllerTest(
     @param:Autowired private val mvc: MockMvcTester,
-    @param:Autowired private val ports: ApplicationControllerTest.Ports,
+    @param:Autowired private val applications: ApplicationRepositoryPort,
 ) {
+    @TestConfiguration
+    class UseCases {
+        @Bean
+        fun applications() = mockk<ApplicationRepositoryPort>()
+
+        @Bean
+        fun search(applications: ApplicationRepositoryPort) = SearchApplicationsUseCase(applications)
+    }
+
     private val company = UUID.fromString("00000000-0000-0000-0000-00000000000c")
     private val contact = UUID.fromString("00000000-0000-0000-0000-0000000000c1")
     private val application =
@@ -60,8 +74,8 @@ class ApplicationListControllerTest(
 
     @BeforeEach
     fun storeOne() {
-        clearMocks(ports.applications)
-        every { ports.applications.search(capture(searched)) } returns
+        clearMocks(applications)
+        every { applications.search(capture(searched)) } returns
             ApplicationStoreResult.Success(ApplicationPage(listOf(application), total = 3))
     }
 
@@ -148,12 +162,19 @@ class ApplicationListControllerTest(
                   {"field":"page","problem":"OUT_OF_RANGE"},{"field":"size","problem":"OUT_OF_RANGE"}]}
                 """.trimIndent(),
             )
-        verify(exactly = 0) { ports.applications.search(any()) }
+        verify(exactly = 0) { applications.search(any()) }
     }
 
     @Test
     fun `values of the wrong type are a 400`() {
-        for (query in listOf("status=HIRED", "sourceKind=EMAIL", "createdFrom=yesterday", "unread=maybe", "page=x")) {
+        for (query in listOf(
+            "companyId=acme",
+            "status=HIRED",
+            "sourceKind=EMAIL",
+            "createdFrom=yesterday",
+            "unread=maybe",
+            "page=x",
+        )) {
             mvc
                 .get()
                 .uri("/api/applications?$query")
@@ -161,12 +182,12 @@ class ApplicationListControllerTest(
                 .hasStatus(400)
                 .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
         }
-        verify(exactly = 0) { ports.applications.search(any()) }
+        verify(exactly = 0) { applications.search(any()) }
     }
 
     @Test
     fun `a store that cannot answer is a 503`() {
-        every { ports.applications.search(any()) } returns ApplicationStoreResult.StorageFailure("search")
+        every { applications.search(any()) } returns ApplicationStoreResult.StorageFailure("search")
 
         mvc
             .get()
