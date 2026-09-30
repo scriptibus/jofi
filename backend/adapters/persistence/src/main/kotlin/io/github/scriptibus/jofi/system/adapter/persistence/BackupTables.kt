@@ -29,6 +29,8 @@ internal object BackupTables {
             "company",
             "contact",
             "contact_channel",
+            "application",
+            "application_contact",
         )
 
     val EXCLUDED: Map<String, String> =
