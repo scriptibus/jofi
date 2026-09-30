@@ -16,8 +16,8 @@
       "zeroDataRetention": {
         "status": "ON_REQUEST",
         "summary": {
-          "en": "Available on request through Anthropic's sales team, enabled per organization. Without it, API inputs and outputs are deleted within 30 days; flagged content may be kept up to 2 years. Claude Fable 5/5.1 and Mythos 5/5.1 always need 30-day retention.",
-          "de": "Auf Anfrage über den Vertrieb von Anthropic, pro Organisation freigeschaltet. Ohne ZDR werden API-Ein- und -Ausgaben innerhalb von 30 Tagen gelöscht; markierte Inhalte bis zu 2 Jahre aufbewahrt. Claude Fable 5/5.1 und Mythos 5/5.1 brauchen immer 30 Tage Aufbewahrung."
+          "en": "Available on request through Anthropic's sales team, enabled per organization. Without it, API inputs and outputs are deleted within 30 days; flagged content may be kept up to 2 years. Claude Fable 5/5.1 and Mythos 5/5.1 require 30-day retention and are not available under ZDR unless Anthropic expressly authorizes it.",
+          "de": "Auf Anfrage über den Vertrieb von Anthropic, pro Organisation freigeschaltet. Ohne ZDR werden API-Ein- und -Ausgaben innerhalb von 30 Tagen gelöscht; markierte Inhalte bis zu 2 Jahre aufbewahrt. Claude Fable 5/5.1 und Mythos 5/5.1 verlangen 30 Tage Aufbewahrung und sind ohne ausdrückliche Erlaubnis von Anthropic nicht mit ZDR nutzbar."
         },
         "evidence": [
           {
@@ -132,6 +132,10 @@
           {
             "source": "https://developers.openai.com/api/docs/guides/your-data",
             "quote": "If you select a region that supports regional processing, as specifically identified below, the services will perform inference for your Customer Content in the selected region as well."
+          },
+          {
+            "source": "https://developers.openai.com/api/docs/guides/your-data",
+            "quote": "Europe (EEA + Switzerland)"
           }
         ]
       }
@@ -170,6 +174,10 @@
           {
             "source": "https://ai.google.dev/gemini-api/terms",
             "quote": "When you use Paid Services, including, for example, the paid quota of the Gemini API, Google doesn't use your prompts (including associated system instructions, cached content, and files such as images, videos, or documents) or responses to improve our products"
+          },
+          {
+            "source": "https://ai.google.dev/gemini-api/terms",
+            "quote": "To help with quality and improve our products, human reviewers may read, annotate, and process your API input and output."
           },
           {
             "source": "https://ai.google.dev/gemini-api/terms",
