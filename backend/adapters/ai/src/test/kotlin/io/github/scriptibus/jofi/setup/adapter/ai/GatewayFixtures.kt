@@ -9,7 +9,10 @@ import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCapabilityPort
 import io.github.scriptibus.jofi.setup.application.port.MonthlyBudgetPort
 import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
+import io.github.scriptibus.jofi.setup.domain.BillingMonth
 import io.github.scriptibus.jofi.setup.domain.CostEntry
+import io.github.scriptibus.jofi.setup.domain.CostGroup
+import io.github.scriptibus.jofi.setup.domain.CostTotals
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
 import io.github.scriptibus.jofi.setup.domain.ModelCapabilityProfile
 import io.github.scriptibus.jofi.setup.domain.ModelName
@@ -127,6 +130,18 @@ class InMemorySetup(
                         .mapNotNull { it.estimatedCost }
                         .fold(Money.usd(0), Money::plus),
                 )
+
+            // The gateway only appends and sums; the reports have their own tests.
+            override fun summarizeBetween(
+                from: Instant,
+                until: Instant,
+            ): SetupStoreResult<List<CostGroup>> = SetupStoreResult.StorageFailure("not used by the gateway")
+
+            override fun totalsByMonth(
+                first: BillingMonth,
+                last: BillingMonth,
+            ): SetupStoreResult<Map<BillingMonth, CostTotals>> =
+                SetupStoreResult.StorageFailure("not used by the gateway")
         }
 }
 

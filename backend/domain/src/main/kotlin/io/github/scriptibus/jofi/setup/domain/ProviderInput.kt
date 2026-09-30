@@ -9,7 +9,7 @@ import java.net.URISyntaxException
 import java.text.Normalizer
 
 /** The request field a setup violation belongs to. */
-enum class SetupField { DISPLAY_NAME, BASE_URL, API_KEY, MODEL, CONTEXT_WINDOW }
+enum class SetupField { DISPLAY_NAME, BASE_URL, API_KEY, MODEL, CONTEXT_WINDOW, MONTHLY_CAP, MONTH, MONTHS }
 
 enum class SetupViolationKind {
     /** The field is required but empty. */
@@ -26,6 +26,9 @@ enum class SetupViolationKind {
 
     /** The number is outside its range. */
     OUT_OF_RANGE,
+
+    /** The text is not in the expected format (e.g. a month that is not `YYYY-MM`). */
+    INVALID_FORMAT,
 }
 
 data class SetupViolation(

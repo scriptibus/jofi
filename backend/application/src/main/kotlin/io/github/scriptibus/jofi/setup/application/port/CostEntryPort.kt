@@ -3,7 +3,10 @@
 
 package io.github.scriptibus.jofi.setup.application.port
 
+import io.github.scriptibus.jofi.setup.domain.BillingMonth
 import io.github.scriptibus.jofi.setup.domain.CostEntry
+import io.github.scriptibus.jofi.setup.domain.CostGroup
+import io.github.scriptibus.jofi.setup.domain.CostTotals
 import io.github.scriptibus.jofi.setup.domain.Money
 import io.github.scriptibus.jofi.setup.domain.SetupStoreResult
 import java.time.Instant
@@ -29,4 +32,22 @@ interface CostEntryPort {
         from: Instant,
         until: Instant,
     ): SetupStoreResult<Money>
+
+    /**
+     * The entries with `from <= occurredAt < until`, summed in the store per task, provider kind and
+     * model. Unknown costs add nothing to a group's cost but count as calls with an unknown cost.
+     */
+    fun summarizeBetween(
+        from: Instant,
+        until: Instant,
+    ): SetupStoreResult<List<CostGroup>>
+
+    /**
+     * The totals per UTC month from [first] through [last], summed in the store. Months without entries
+     * are left out.
+     */
+    fun totalsByMonth(
+        first: BillingMonth,
+        last: BillingMonth,
+    ): SetupStoreResult<Map<BillingMonth, CostTotals>>
 }
