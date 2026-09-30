@@ -19,10 +19,11 @@ import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
 import { useConfirmation } from "../useConfirmation";
 import { ApplicationLoadFailure } from "./ApplicationLoadFailure";
-import { ApplicationOverview, CompanyLink, StatusBadge } from "./ApplicationOverview";
+import { ApplicationOverview, CompanyLink } from "./ApplicationOverview";
 import { DELETE_OPERATION } from "./application";
 import { forgetDeletedApplication, storeSavedApplication } from "./applicationCache";
 import { describeApplicationError } from "./applicationProblems";
+import { StatusBadge } from "./StatusBadge";
 import { type ApplicationTab, TABS, tabLabels } from "./tabs";
 
 const route = getRouteApi("/_app/applications/$applicationId");
@@ -69,17 +70,18 @@ export function ApplicationDetailPage() {
  */
 function useMarkReadWhenOpened(application: ApplicationResponse | undefined) {
   const queryClient = useQueryClient();
-  const { mutate } = useSetApplicationUnread();
+  // On the mutation, not on `mutate`: the user may leave before the answer arrives (back to the list), and
+  // `mutate`'s own callbacks do not run once the page is gone, so the list would keep the unread dot.
+  const { mutate } = useSetApplicationUnread({
+    mutation: { onSuccess: (saved) => storeSavedApplication(queryClient, saved) },
+  });
   const seen = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (application === undefined || seen.current === application.id) return;
     seen.current = application.id;
     if (!application.unread) return;
-    mutate(
-      { id: application.id, data: { unread: false } },
-      { onSuccess: (saved) => storeSavedApplication(queryClient, saved) },
-    );
-  }, [application, mutate, queryClient]);
+    mutate({ id: application.id, data: { unread: false } });
+  }, [application, mutate]);
 }
 
 function ApplicationDetail({ application }: { application: ApplicationResponse }) {

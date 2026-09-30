@@ -8,6 +8,7 @@ import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.Architectures.layeredArchitecture
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 import io.github.scriptibus.jofi.architecture.JofiPackages.ADAPTER
+import io.github.scriptibus.jofi.architecture.JofiPackages.API_METADATA
 import io.github.scriptibus.jofi.architecture.JofiPackages.APPLICATION
 import io.github.scriptibus.jofi.architecture.JofiPackages.BASE
 import io.github.scriptibus.jofi.architecture.JofiPackages.CONFIG
@@ -37,6 +38,8 @@ class LayerDependencyTest {
             .resideInAnyPackage(DOMAIN, APPLICATION)
             .and()
             .haveNameNotMatching(SPI_METADATA)
+            .and()
+            .doNotHaveFullyQualifiedName(API_METADATA)
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(*FRAMEWORK_PACKAGES)
@@ -45,14 +48,17 @@ class LayerDependencyTest {
     }
 
     /**
-     * The one exception to the rule above: the `ModuleMetadata` (in bootstrap) that makes the companies
-     * or applications SPI package a Spring Modulith named interface (ADR-0041) may use Spring Modulith, nothing else.
+     * The exceptions to the rule above: the `ModuleMetadata` (in bootstrap) that makes the companies and
+     * applications SPI packages (ADR-0041) and the applications API package (#85) Spring Modulith named
+     * interfaces may use Spring Modulith, nothing else.
      */
     @Test
     fun `named interface metadata only uses Spring Modulith`() {
         classes()
             .that()
             .haveNameMatching(SPI_METADATA)
+            .or()
+            .haveFullyQualifiedName(API_METADATA)
             .should()
             .onlyDependOnClassesThat()
             .resideInAnyPackage("org.springframework.modulith..", "java..", "kotlin..", "org.jetbrains.annotations..")

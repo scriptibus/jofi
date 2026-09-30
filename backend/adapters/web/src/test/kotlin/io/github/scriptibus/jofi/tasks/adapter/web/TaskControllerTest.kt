@@ -15,7 +15,9 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.DismissTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.ListSuggestedTasksUseCase
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.UpdateTaskUseCase
@@ -55,8 +57,8 @@ import java.util.UUID
 
 /**
  * The task endpoints over the real use cases (#93, #94) with a mocked repository: mapping, problem details, the
- * grouped list in the viewer's zone and the two-step delete. The suggestions (#95) still answer `501`. Security
- * (session, CSRF) is the filter chain's job, tested in bootstrap.
+ * grouped list in the viewer's zone and the two-step delete; the suggestions are in [TaskSuggestionControllerTest].
+ * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(TaskController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
@@ -100,6 +102,13 @@ class TaskControllerTest(
 
         @Bean
         fun reopen(ports: Ports) = ReopenTaskUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
+
+        @Bean
+        fun listSuggestions(ports: Ports) = ListSuggestedTasksUseCase(ports.tasks)
+
+        @Bean
+        fun dismiss(ports: Ports) =
+            DismissTaskSuggestionUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
 
         @Bean
         fun delete(ports: Ports) =
@@ -359,14 +368,6 @@ class TaskControllerTest(
     }
 
     @Test
-    fun `the suggestions are not implemented yet`() {
-        notImplemented(mvc.get().uri("/api/tasks/suggestions"))
-        listOf("accept", "dismiss").forEach {
-            notImplemented(json(mvc.post().uri("$path/$it"), """{"basedOnVersion":0}"""))
-        }
-    }
-
-    @Test
     fun `requests that break the contract are rejected`() {
         badRequest(json(mvc.post().uri("/api/tasks"), """{"timing":{"timeZone":"UTC","bucket":"TODAY"}}"""))
         badRequest(json(mvc.post().uri("/api/tasks"), """{"title":"x","timing":{"timeZone":"UTC","bucket":"SOON"}}"""))
@@ -398,10 +399,6 @@ class TaskControllerTest(
         request: MockMvcTester.MockMvcRequestBuilder,
         body: String,
     ): MockMvcTester.MockMvcRequestBuilder = request.contentType(MediaType.APPLICATION_JSON).content(body)
-
-    private fun notImplemented(request: MockMvcTester.MockMvcRequestBuilder) {
-        request.assertThat().hasStatus(501).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
-    }
 
     private fun badRequest(request: MockMvcTester.MockMvcRequestBuilder) {
         request.assertThat().hasStatus(400).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)

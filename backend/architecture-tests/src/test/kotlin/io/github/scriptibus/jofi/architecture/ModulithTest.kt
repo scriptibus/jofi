@@ -4,8 +4,10 @@
 package io.github.scriptibus.jofi.architecture
 
 import io.github.scriptibus.jofi.JofiApplication
-import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
+import io.github.scriptibus.jofi.applications.application.port.inbound.ChangeApplicationStatusPort
 import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
+import io.github.scriptibus.jofi.applications.domain.ApplicationSettings
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
@@ -98,12 +100,15 @@ class ModulithTest {
     }
 
     @Test
-    fun `applications exposes only its SPI to the tasks context, which depends on it (ADR-0041)`() {
+    fun `applications exposes only its API and SPI to the tasks context, which depends on it (#85, #87)`() {
         val applications = module("applications")
 
+        applications.namedInterfaces.getByName("api").isPresent shouldBe true
         applications.namedInterfaces.getByName("spi").isPresent shouldBe true
+        applications.isExposed(FindGhostedCandidatesPort::class.java) shouldBe true
         applications.isExposed(LinkedTasksPort::class.java) shouldBe true
-        applications.isExposed(ApplicationRepositoryPort::class.java) shouldBe false
+        applications.isExposed(ApplicationSettings::class.java) shouldBe false
+        applications.isExposed(ChangeApplicationStatusPort::class.java) shouldBe false
         module("tasks").getDirectDependencies(modules).containsModuleNamed("applications") shouldBe true
         applications.getDirectDependencies(modules).containsModuleNamed("tasks") shouldBe false
     }

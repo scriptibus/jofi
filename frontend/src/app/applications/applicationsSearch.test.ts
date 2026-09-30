@@ -7,6 +7,7 @@ import {
   daysAgo,
   isFiltered,
   parseApplicationsSearch,
+  parseNewApplicationSearch,
   sortedBy,
   toSearchParams,
   withFilter,
@@ -170,5 +171,13 @@ describe("changing filters", () => {
   it("leaves page 0 out of the URL", () => {
     expect(withPage({ page: 2, unread: true }, 0)).toEqual({ unread: true });
     expect(withPage({}, 1)).toEqual({ page: 1 });
+  });
+});
+
+describe("new application search in the URL", () => {
+  it("keeps a valid company to preselect and drops anything else", () => {
+    expect(parseNewApplicationSearch({ company: COMPANY, page: 2 })).toEqual({ company: COMPANY });
+    expect(parseNewApplicationSearch({ company: "not-an-id" })).toEqual({});
+    expect(parseNewApplicationSearch({})).toEqual({});
   });
 });

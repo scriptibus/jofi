@@ -18,7 +18,10 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
-/** The task use cases: create, read, edit, complete, reopen and delete (#93), the grouped list (#94). */
+/**
+ * The task use cases: create, read, edit, complete, reopen and delete (#93), the grouped list (#94); the suggestions
+ * are wired in [TaskSuggestionsConfiguration].
+ */
 @Configuration(proxyBeanMethods = false)
 class TasksConfiguration {
     @Bean

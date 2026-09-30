@@ -3824,7 +3824,7 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "task-controller" ]
+        "tags" : [ "task-suggestion-controller" ]
       }
     },
     "/api/tasks/{id}" : {
@@ -4068,7 +4068,7 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "task-controller" ]
+        "tags" : [ "task-suggestion-controller" ]
       }
     },
     "/api/tasks/{id}/complete" : {
@@ -4202,7 +4202,7 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "task-controller" ]
+        "tags" : [ "task-suggestion-controller" ]
       }
     },
     "/api/tasks/{id}/reopen" : {

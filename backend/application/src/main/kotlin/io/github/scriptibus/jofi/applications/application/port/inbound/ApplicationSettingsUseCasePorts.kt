@@ -11,9 +11,10 @@ import io.github.scriptibus.jofi.shared.domain.Actor
 // Inbound ports for the application settings (#81), implemented by the use cases of the same name (#85).
 
 /**
- * The settings, [ApplicationSettings.DEFAULT] until the user changes them. Reads only. The Ghosted suggestion job
- * (#85) and the follow-up suggestions of the tasks context (#95) read their periods here; #95 reaches it through a
- * named interface of this context, since contexts never use each other's internals.
+ * The settings, [ApplicationSettings.DEFAULT] until the user changes them. Reads only. Other contexts never use it:
+ * the Ghosted suggestion (#85) gets its candidates, period applied, through the named interface `api`
+ * (`FindGhostedCandidatesPort`), and the follow-up suggestions of the tasks context (#95) reach their period through
+ * that named interface as well, since contexts never use each other's internals.
  */
 interface GetApplicationSettingsPort {
     fun execute(): ApplicationResult<ApplicationSettings>

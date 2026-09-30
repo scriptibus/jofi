@@ -97,6 +97,11 @@ export function parseApplicationsSearch(search: Record<string, unknown>): Applic
   return result;
 }
 
+/** `?company=` for a new application: the company to preselect (from a company's page or a filtered list). */
+export function parseNewApplicationSearch(search: Record<string, unknown>): { company?: string } {
+  return typeof search.company === "string" && UUID.test(search.company) ? { company: search.company } : {};
+}
+
 /** Midnight (local time) `days` days before `now`: stable all day, so the query key does not churn. */
 export function daysAgo(days: number, now: Date): string {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
