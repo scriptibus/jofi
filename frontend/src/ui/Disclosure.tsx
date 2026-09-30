@@ -10,6 +10,9 @@ export interface DisclosureProps {
   label: string;
   /** Open on first render (e.g. when something inside is already set). */
   defaultExpanded?: boolean;
+  /** Open or closed, when the caller keeps the state (e.g. to render heavy content only while open). */
+  isExpanded?: boolean;
+  onExpandedChange?: (isExpanded: boolean) => void;
   children: ReactNode;
 }
 
@@ -17,9 +20,21 @@ export interface DisclosureProps {
  * A section that opens and closes with a button (React Aria Disclosure: `aria-expanded`, the panel
  * linked with `aria-controls`). For secondary content such as less-used filters.
  */
-export function Disclosure({ label, defaultExpanded = false, children }: DisclosureProps) {
+export function Disclosure({
+  label,
+  defaultExpanded = false,
+  isExpanded,
+  onExpandedChange,
+  children,
+}: DisclosureProps) {
+  const controlled = isExpanded === undefined ? {} : { isExpanded };
   return (
-    <AriaDisclosure defaultExpanded={defaultExpanded} className="group flex flex-col">
+    <AriaDisclosure
+      defaultExpanded={defaultExpanded}
+      {...controlled}
+      {...(onExpandedChange ? { onExpandedChange } : {})}
+      className="group flex flex-col"
+    >
       <Button
         slot="trigger"
         className={

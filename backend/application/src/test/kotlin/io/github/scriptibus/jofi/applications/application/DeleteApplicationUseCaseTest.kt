@@ -13,6 +13,11 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.Interview
+import io.github.scriptibus.jofi.applications.domain.InterviewDetails
+import io.github.scriptibus.jofi.applications.domain.InterviewId
+import io.github.scriptibus.jofi.applications.domain.InterviewTime
+import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
@@ -28,6 +33,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
+import java.time.ZoneId
 import java.util.UUID
 
 class DeleteApplicationUseCaseTest {
@@ -35,6 +41,7 @@ class DeleteApplicationUseCaseTest {
     private val delete =
         DeleteApplicationUseCase(
             fixtures.repository,
+            fixtures.interviewPort,
             fixtures.confirmation,
             fixtures.eventPort,
             fixtures.changelog,
@@ -52,8 +59,8 @@ class DeleteApplicationUseCaseTest {
     }
 
     /**
-     * An application with two linked contacts, one status change after its first entry and one source with
-     * three description snapshots.
+     * An application with two linked contacts, one status change after its first entry, one source with
+     * three description snapshots and two interviews.
      */
     private fun appliedWithContacts(): Application {
         val stored = fixtures.application("Backend Engineer")
@@ -67,11 +74,19 @@ class DeleteApplicationUseCaseTest {
         fixtures.applications[stored.id] = linked
         fixtures.history +=
             StatusChange(stored.id, stored.status, ApplicationStatus.APPLIED, null, null, Actor.User, NOW)
+        repeat(2) { interview(stored.id) }
         return linked
     }
 
+    private fun interview(application: ApplicationId): Interview {
+        val details = InterviewDetails(InterviewType.HR, InterviewTime(NOW, ZoneId.of("Europe/Berlin")))
+        val interview = Interview.log(InterviewId(UUID.randomUUID()), application, details, Actor.User, NOW).interview
+        fixtures.interviews[interview.id] = interview
+        return interview
+    }
+
     @Test
-    fun `the first call only asks, counting the contact links and status changes that go with it`() {
+    fun `the first call only asks, counting the links, status changes, sources, snapshots and interviews`() {
         val application = appliedWithContacts()
 
         val required = firstStep(application.id)
@@ -82,7 +97,7 @@ class DeleteApplicationUseCaseTest {
             ConfirmationEffect(
                 "application",
                 "Backend Engineer",
-                mapOf("contactLinks" to 2, "statusChanges" to 2, "sources" to 1, "snapshots" to 3),
+                mapOf("contactLinks" to 2, "statusChanges" to 2, "sources" to 1, "snapshots" to 3, "interviews" to 2),
             )
         fixtures.applications.size shouldBe 1
         fixtures.entries.shouldBeEmpty()
@@ -98,6 +113,7 @@ class DeleteApplicationUseCaseTest {
 
         fixtures.applications.size shouldBe 0
         fixtures.history.shouldBeEmpty()
+        fixtures.interviews.size shouldBe 0
         val entry = fixtures.entries.single()
         entry.entity shouldBe application.id.toEntityRef()
         entry.actor shouldBe Actor.Ai
@@ -144,6 +160,16 @@ class DeleteApplicationUseCaseTest {
         val application = fixtures.application()
         val token = firstStep(application.id).token
         fixtures.snapshots[application.id] = 1
+
+        rejected(delete.execute(application.id, user, token))
+        fixtures.applications.size shouldBe 1
+    }
+
+    @Test
+    fun `a new interview between the steps voids the token`() {
+        val application = fixtures.application()
+        val token = firstStep(application.id).token
+        interview(application.id)
 
         rejected(delete.execute(application.id, user, token))
         fixtures.applications.size shouldBe 1

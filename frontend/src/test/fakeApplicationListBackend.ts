@@ -5,10 +5,16 @@
 // handlers to put before `fakeCompanyBackend` (which answers the company names). It filters by status,
 // company, unread, language, source and title (a case-insensitive substring; the real fuzzy search runs
 // in the e2e suite), sorts by title, deadline (none last) or update, and pages. It records every request's
-// query string, so tests can check what the UI asked for.
+// query string, so tests can check what the UI asked for. Status changes (for the board) follow the
+// backend: 409 for an old `basedOnVersion` or a move the matrix does not allow.
 
 import { HttpResponse, http } from "msw";
-import type { ApplicationResponse, ApplicationUnreadRequest } from "../api/generated/jofi";
+import type {
+  ApplicationResponse,
+  ApplicationUnreadRequest,
+  ChangeApplicationStatusRequest,
+} from "../api/generated/jofi";
+import { canMoveTo } from "../app/applications/statusMatrix";
 
 const origin = () => window.location.origin;
 
@@ -41,7 +47,17 @@ export interface FakeApplicationListState {
   searches: URLSearchParams[];
   /** Answer every list request with this status instead (a 4xx: no retries). */
   failWith: number | null;
+  /** Every accepted `PUT …/status` body, in order. */
+  statusChanges: ChangeApplicationStatusRequest[];
+  /** While set, a status change waits for this promise before it answers (to see the optimistic move). */
+  statusGate: Promise<void> | null;
 }
+
+const problem = (status: number, code: string) =>
+  HttpResponse.json(
+    { type: `urn:jofi:problem:applications:${code}`, title: "Problem", status, detail: code },
+    { status, headers: { "Content-Type": "application/problem+json" } },
+  );
 
 type Compare = (a: ApplicationResponse, b: ApplicationResponse) => number;
 
@@ -79,7 +95,14 @@ function sorted(applications: ApplicationResponse[], params: URLSearchParams): A
 }
 
 export function fakeApplicationListBackend(initial: Partial<FakeApplicationListState> = {}) {
-  const state: FakeApplicationListState = { applications: [], searches: [], failWith: null, ...initial };
+  const state: FakeApplicationListState = {
+    applications: [],
+    searches: [],
+    failWith: null,
+    statusChanges: [],
+    statusGate: null,
+    ...initial,
+  };
 
   const handlers = [
     http.get(`${origin()}/api/applications`, ({ request }) => {
@@ -105,6 +128,22 @@ export function fakeApplicationListBackend(initial: Partial<FakeApplicationListS
       if (!application) return HttpResponse.json({ status: 404 }, { status: 404 });
       application.unread = unread;
       return HttpResponse.json(application);
+    }),
+    http.put(`${origin()}/api/applications/:id/status`, async ({ request, params }) => {
+      const body = (await request.json()) as ChangeApplicationStatusRequest;
+      await state.statusGate;
+      const index = state.applications.findIndex((candidate) => candidate.id === params.id);
+      const application = state.applications[index];
+      if (!application) return problem(404, "application-not-found");
+      if (body.basedOnVersion !== application.version) return problem(409, "version-conflict");
+      if (!canMoveTo(application.status, body.status)) return problem(409, "invalid-transition");
+      state.statusChanges.push(body);
+      const declineReason = body.declineCategory
+        ? { category: body.declineCategory, text: body.reason ?? null }
+        : null;
+      const saved = { ...application, status: body.status, declineReason, version: application.version + 1 };
+      state.applications[index] = saved;
+      return HttpResponse.json(saved);
     }),
   ];
 

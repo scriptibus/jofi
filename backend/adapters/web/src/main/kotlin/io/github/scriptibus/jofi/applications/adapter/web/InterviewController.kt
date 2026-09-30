@@ -3,9 +3,17 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.DeleteInterviewUseCase
+import io.github.scriptibus.jofi.applications.application.GetInterviewUseCase
+import io.github.scriptibus.jofi.applications.application.ListInterviewsUseCase
+import io.github.scriptibus.jofi.applications.application.LogInterviewUseCase
+import io.github.scriptibus.jofi.applications.application.UpdateInterviewUseCase
+import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
+import io.github.scriptibus.jofi.shared.domain.Actor
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
@@ -23,20 +31,25 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * Interviews and calls of an application (spec §6.1, ADR-0048). The contract only (#79): every operation answers
- * `501 Not Implemented` until #91 (log, edit, read, list, delete) and #92 (upcoming) inject their use cases and map
- * each `ApplicationResult.Failure` with [ApplicationProblems.of]. None of them changes the application's version.
+ * Interviews and calls of an application (spec §6.1, ADR-0048), for the logged-in user. Log, edit, read, list and
+ * delete (#91) call their use case and map its `ApplicationResult.Failure` with [ApplicationProblems.of]; the list of
+ * upcoming ones answers `501 Not Implemented` until #92. None of them changes the application's version.
  */
-@Suppress("UnusedParameter")
 @RestController
 @RequestMapping("/api")
-class InterviewController {
+class InterviewController(
+    private val logInterview: LogInterviewUseCase,
+    private val updateInterview: UpdateInterviewUseCase,
+    private val getInterview: GetInterviewUseCase,
+    private val listInterviews: ListInterviewsUseCase,
+    private val deleteInterview: DeleteInterviewUseCase,
+) {
     /** The application's interviews and calls in the order they start. */
     @GetMapping("/applications/{id}/interviews")
     @ProblemResponses(ProblemKind.NOT_FOUND)
     fun listInterviews(
         @PathVariable id: UUID,
-    ): InterviewListResponse = throw notImplemented()
+    ): InterviewListResponse = InterviewListResponse.from(listInterviews.execute(ApplicationId(id)).orThrow())
 
     /** Logs an interview or call, before or after it took place. */
     @PostMapping("/applications/{id}/interviews")
@@ -45,14 +58,16 @@ class InterviewController {
     fun logInterview(
         @PathVariable id: UUID,
         @RequestBody request: InterviewRequest,
-    ): InterviewResponse = throw notImplemented()
+    ): InterviewResponse =
+        InterviewResponse.from(logInterview.execute(ApplicationId(id), request.toInput(), Actor.User).orThrow())
 
     @GetMapping("/applications/{id}/interviews/{interviewId}")
     @ProblemResponses(ProblemKind.NOT_FOUND)
     fun getInterview(
         @PathVariable id: UUID,
         @PathVariable interviewId: UUID,
-    ): InterviewResponse = throw notImplemented()
+    ): InterviewResponse =
+        InterviewResponse.from(getInterview.execute(ApplicationId(id), InterviewId(interviewId)).orThrow())
 
     /** Replaces all details (anything left out is cleared); 409 if `basedOnVersion` is stale. */
     @PutMapping("/applications/{id}/interviews/{interviewId}")
@@ -61,7 +76,17 @@ class InterviewController {
         @PathVariable id: UUID,
         @PathVariable interviewId: UUID,
         @RequestBody request: UpdateInterviewRequest,
-    ): InterviewResponse = throw notImplemented()
+    ): InterviewResponse =
+        InterviewResponse.from(
+            updateInterview
+                .execute(
+                    ApplicationId(id),
+                    InterviewId(interviewId),
+                    request.details.toInput(),
+                    request.basedOnVersion,
+                    Actor.User,
+                ).orThrow(),
+        )
 
     /** Two steps (ADR-0039): the first call answers 428 with a token, the repeat with it deletes. */
     @DeleteMapping("/applications/{id}/interviews/{interviewId}")
@@ -72,14 +97,23 @@ class InterviewController {
         @PathVariable interviewId: UUID,
         @RequestHeader(Confirmations.HEADER, required = false) confirmation: String?,
         request: HttpServletRequest,
-    ): Unit = throw notImplemented()
+    ) {
+        deleteInterview
+            .execute(
+                ApplicationId(id),
+                InterviewId(interviewId),
+                Confirmations.requester(request),
+                Confirmations.token(confirmation),
+            ).orThrow()
+    }
 
-    /** The interviews and calls still to come across all applications, soonest first (at most 100). */
+    /** The interviews and calls still to come across all applications, soonest first (at most 100); #92. */
     @GetMapping("/interviews/upcoming")
     fun listUpcomingInterviews(): UpcomingInterviewListResponse = throw notImplemented()
 
     private fun notImplemented(): ErrorResponseException {
-        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Interviews are not available yet")
+        val problem =
+            ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Upcoming interviews are not available yet")
         return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
     }
 }

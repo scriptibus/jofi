@@ -35,6 +35,7 @@ const CASCADE: readonly [key: string, words: (inputs: { count: number }) => stri
   ["statusChanges", m.application_delete_status_changes],
   ["sources", m.application_delete_sources],
   ["snapshots", m.application_delete_snapshots],
+  ["interviews", m.application_delete_interviews],
 ];
 
 /** What goes with the application, e.g. "2 sources and 1 status change"; undefined for nothing. */

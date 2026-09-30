@@ -4,16 +4,19 @@
 import { describe, expect, it } from "vitest";
 import {
   currentOrder,
+  currentView,
   daysAgo,
   isFiltered,
   parseApplicationsSearch,
   parseNewApplicationSearch,
   sortedBy,
+  toBoardSearchParams,
   toSearchParams,
   withFilter,
   withOrder,
   withoutFilters,
   withPage,
+  withView,
 } from "./applicationsSearch";
 
 const COMPANY = "0b7c8f2e-3a41-4d6e-9f10-2c3d4e5f6a7b";
@@ -166,6 +169,36 @@ describe("changing filters", () => {
     expect(withoutFilters(search)).toEqual({ sort: "TITLE", dir: "DESCENDING" });
     expect(isFiltered(search)).toBe(true);
     expect(isFiltered({ sort: "TITLE", page: 2 })).toBe(false);
+  });
+
+  it("keeps the board view in the URL, with the filters and order, but without a page", () => {
+    expect(parseApplicationsSearch({ view: "board", status: "APPLIED" })).toEqual({
+      view: "board",
+      status: ["APPLIED"],
+    });
+    expect(parseApplicationsSearch({ view: "table" })).toEqual({});
+    expect(parseApplicationsSearch({ view: "kanban" })).toEqual({});
+    const search = { q: "x", sort: "TITLE" as const, page: 2 };
+    expect(withView(search, "board")).toEqual({ q: "x", sort: "TITLE", view: "board" });
+    expect(withView({ q: "x", view: "board" }, "table")).toEqual({ q: "x" });
+    expect(currentView({ view: "board" })).toBe("board");
+    expect(currentView({})).toBe("table");
+    expect(isFiltered({ view: "board" })).toBe(false);
+    expect(withoutFilters({ view: "board", unread: true, sort: "TITLE" })).toEqual({
+      view: "board",
+      sort: "TITLE",
+    });
+  });
+
+  it("asks the server for the board's first 200 matches with the same filters and order", () => {
+    const now = new Date(2026, 8, 30, 15, 0);
+    expect(toBoardSearchParams({ status: ["OFFER"], sort: "TITLE", page: 3, view: "board" }, now)).toEqual({
+      page: 0,
+      size: 200,
+      status: ["OFFER"],
+      sort: "TITLE",
+      direction: "ASCENDING",
+    });
   });
 
   it("leaves page 0 out of the URL", () => {

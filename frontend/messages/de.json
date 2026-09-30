@@ -97,6 +97,27 @@
   "applications_source_manual": "Von Hand",
   "applications_mark_read": "{title} als gelesen markieren",
   "applications_mark_unread": "{title} als ungelesen markieren",
+  "applications_view_label": "Ansicht",
+  "applications_view_table": "Tabelle",
+  "applications_view_board": "Board",
+  "applications_board_ended": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Beendet ({count} Bewerbung)",
+        "countPlural=other": "Beendet ({count} Bewerbungen)"
+      }
+    }
+  ],
+  "applications_board_empty_column": "Nichts hier",
+  "applications_board_drag": "{title} ziehen",
+  "applications_board_move": "{title} verschieben nach …",
+  "applications_board_moved": "{title} ist jetzt in {status}.",
+  "applications_board_move_failed": "Nicht verschoben",
+  "applications_board_conflict": "{title} wurde inzwischen anderswo geändert und deshalb nicht verschoben. Das Board zeigt wieder den aktuellen Stand.",
+  "applications_board_invalid": "{title} kann nicht von {from} nach {to} wechseln. Vielleicht wurde die Bewerbung anderswo geändert; das Board zeigt wieder den aktuellen Stand.",
+  "applications_board_truncated": "Das Board zeigt die ersten {shown} von {total} Bewerbungen. Grenze die Filter ein, um den Rest zu sehen.",
   "companies_empty": "Noch keine Firmen. Lege die erste mit „Neue Firma“ an.",
   "tasks_empty": "Gerade gibt es nichts zu tun. Lege oben eine Aufgabe an; Nachfassen und Erinnerungen tauchen hier auf.",
   "chat_empty": "Der Chat mit Jofi kommt bald. Er kennt deine Bewerbungen und hilft beim nächsten Schritt.",
@@ -781,6 +802,16 @@
       "match": {
         "countPlural=one": "{count} Quelle",
         "countPlural=other": "{count} Quellen"
+      }
+    }
+  ],
+  "application_delete_interviews": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Gespräch oder Telefonat",
+        "countPlural=other": "{count} Gespräche und Telefonate"
       }
     }
   ],
