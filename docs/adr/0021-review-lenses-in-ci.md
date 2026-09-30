@@ -20,3 +20,18 @@ Each lens is one narrow prompt in `.review/lenses/` (trigger paths, bad/good exa
 ## Consequences
 
 Lens runs share Lucas's subscription limits. Lenses are protected paths, so agents can't weaken their reviewers.
+
+## Amendment 2026-09-30: reuse results while the diff is unchanged (#72)
+
+Rebases, "update branch" merges and title/body edits reran every lens although nothing they review had changed,
+which used up quota. A lens now runs again only when a fingerprint of its input changes: the PR's diff from the
+merge base (only blob ids removed; hunk positions, gitlinks and attributes from the base commit included), the
+base branch name, the shared review setup and reuse rules on the base commit, and the lens's own definition.
+Otherwise the recorded structured output is replayed through the same evaluation, so failures stay failures and
+every event still produces `result` and `merge-gate` for the head commit. Records are written only by main's
+`lens-record.yml`, which recomputes the fingerprint itself; lenses accept no record from any other workflow. A
+manual re-run never reuses. Details: `.review/README.md`, "Reusing lens results".
+
+Trade-off: after a rebase a lens doesn't see newer versions of files outside the diff, and description edits no
+longer trigger a review. A push or a manual re-run gets a fresh one. A rebase over main commits that shift lines
+in a file the PR changes reruns the lenses: placement is part of what was reviewed.

@@ -1,0 +1,104 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Records the lens results of a finished lenses run under a fingerprint of its diff, so that a later run with
+# the same diff (rebase, "update branch", title edit) replays them instead of calling Claude
+# (.review/lens_reuse.py, .review/README.md "Reusing lens results", ADR 0021).
+# workflow_run always runs main's definition of this file, so no PR can change it. lenses.yml accepts a record
+# only from a run of this workflow. Everything taken from the lenses run is untrusted data: the fingerprint is
+# recomputed here from the head commit in GitHub's payload, so a run can't file its results under another diff.
+# Its own workflow (not a job in merge-gate.yml), so that recording never holds up or replaces a pending
+# merge-gate run in that workflow's concurrency group.
+name: lens-record
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] no PR code is checked out or run; see header
+    workflows: [lenses]
+    types: [completed]
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash # -eo pipefail
+
+concurrency:
+  group: lens-record-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  record:
+    if: >-
+      github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.path == '.github/workflows/lenses.yml'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read # download the lens results of the lenses run
+      contents: read # fetch the head commit to recompute the fingerprint
+    steps:
+      # Download before checking out, into $RUNNER_TEMP: the checkout then replaces the workspace, so even a
+      # zip entry that escaped its directory could not change the code that runs afterwards.
+      - name: Download the run's fingerprint (untrusted)
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: review-fingerprint
+          path: ${{ runner.temp }}/untrusted/fingerprint
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Download the lens results (untrusted)
+        # gh, not download-artifact: with a pattern it always extracts each artifact into its own directory
+        # named after it (download-artifact extracts a single match directly), and it rejects path traversal.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: gh run download "$RUN_ID" --repo "$REPO" --pattern 'lens-*' --dir "$RUNNER_TEMP/untrusted/lenses"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full clone of main (a sparse checkout would be blobless): the claimed base must be on its history.
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Record
+        id: record
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          # One PR per run is the normal case; anything else is simply not recorded.
+          if [ "$(jq 'length' <<<"$RUN_PRS")" != "1" ]; then
+            echo "Run lists $(jq 'length' <<<"$RUN_PRS") PRs: nothing recorded."
+            exit 0
+          fi
+          pr=$(jq -r '.[0].number | select(type == "number")' <<<"$RUN_PRS")
+          base_ref=$(jq -r '.[0].base.ref // ""' <<<"$RUN_PRS")
+          [ -n "$pr" ] || { echo "No PR number in the payload: nothing recorded."; exit 0; }
+          # Only git objects, never checked out or run: the diff is hashed with external drivers disabled
+          # and .gitattributes read from the base commit.
+          if ! git fetch --no-tags --quiet origin "$HEAD_SHA"; then
+            echo "::warning::Could not fetch $HEAD_SHA: nothing recorded."
+            exit 0
+          fi
+          name=$(python3 .review/lens_reuse.py record --claim "$RUNNER_TEMP/untrusted/fingerprint/fingerprint.json" \
+            --lens-dir "$RUNNER_TEMP/untrusted/lenses" --pr "$pr" --head-sha "$HEAD_SHA" --base-ref "$base_ref" \
+            --run-id "$RUN_ID" --out "$RUNNER_TEMP/record.json")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          if [ -n "$name" ]; then
+            jq -r '"Recorded \(.lenses | keys | join(", ")) for fingerprint `\(.fingerprint)`."' \
+              "$RUNNER_TEMP/record.json" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No lens result of this run can be recorded." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.record.outputs.name != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.record.outputs.name }}
+          path: ${{ runner.temp }}/record.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
