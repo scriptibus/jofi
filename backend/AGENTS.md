@@ -39,7 +39,7 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
-- `adapters/<kind>`: framework code (web, persistence, later ai, net, ...); depends on `application`.
+- `adapters/<kind>`: framework code (web, persistence, net, later ai, ...); depends on `application`.
   Adapters never depend on each other (one exemption: persistence adapters of every context use
   the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
@@ -78,7 +78,7 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 |---|---|---|
 | `ChangelogPort` | the audit trail of every mutation | `adapters/persistence` |
 | `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | the AI gateway (`setup.adapter.ai`, module `adapters/ai`, #20) |
-| `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (#18) |
+| `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (ADR-0034) |
 | `JobSchedulerPort` | background jobs (ids-only arguments) | `adapters/jobs` (#17) |
 | `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | Tink, #16 |
 
@@ -105,7 +105,8 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
   layers only point inwards; adapters independent; no cycles between contexts; classes in
   `application` end in `UseCase`, have exactly one public method; ports are interfaces named
   `*Port`; port implementations end in `Adapter`/`Repository`; `@RestController`s end in
-  `Controller`, receive only use cases and never touch ports/adapters/repositories; domain data
+  `Controller`, receive only use cases and never touch ports/adapters/repositories; only
+  `shared.adapter.net` uses HTTP clients, sockets or `URL.openConnection` (ADR-0034); domain data
   and value classes only have `val`s; no `lateinit` in domain; Spring Modulith `verify()`.
 - Coverage (Kover): `domain` and `application` >= 70 % lines.
 - Licenses (licensee): only MIT, Apache-2.0, BSD-2/3, ISC, MPL-2.0, LGPL-2.1/3.0, EPL-2.0,
@@ -124,6 +125,9 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
   (or `...Repository`). New adapter kinds get a new Gradle module under `adapters/` using
   `id("jofi.spring-conventions")`, added to `settings.gradle.kts` and to `bootstrap` and
   `architecture-tests` dependencies.
+- **An outbound HTTP call**: inject `OutboundHttpPort` (fetches of user/posting/page URLs). The AI
+  adapter gets the guarded `aiHttpRequestFactory` bean instead. Never create an HTTP client
+  elsewhere; see `adapters/net/AGENTS.md`.
 - **A table or migration**: see `adapters/persistence/AGENTS.md` (timestamp versions, one open
   migration PR at a time, jOOQ codegen, export/import coverage, changelog on every mutation).
 - **A mutation**: append a `ChangelogEntry` with the acting `Actor` through `ChangelogPort` in the

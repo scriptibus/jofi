@@ -6,6 +6,8 @@ package io.github.scriptibus.jofi.architecture
 import com.tngtech.archunit.base.DescribedPredicate
 import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
+import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
+import com.tngtech.archunit.core.domain.JavaMethodCall
 import com.tngtech.archunit.lang.ArchRule
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
@@ -47,6 +49,77 @@ object AdapterRules {
             .dependOnClassesThat()
             .belongToAnyOf(AiProviderPort::class.java)
             .because("callers use the task-based LlmPort/EmbeddingPort behind the AI gateway")
+
+    /** The SSRF guard (threat model T1, ADR-0034). */
+    const val NET_ADAPTER = "$BASE.shared.adapter.net.."
+
+    /**
+     * Only `adapters/net` may use an HTTP client or open a connection, so every outbound request
+     * passes the SSRF guard. The `ClientHttpRequestFactory` interface stays usable: that is how the
+     * guarded client is handed to the AI adapter; its implementations (which would create unguarded
+     * clients) are not.
+     */
+    val onlyTheNetAdapterMakesOutboundHttpCalls: ArchRule =
+        noClasses()
+            .that()
+            .resideOutsideOfPackage(NET_ADAPTER)
+            .should()
+            .dependOnClassesThat(isHttpClient())
+            .orShould()
+            .callMethodWhere(opensAUrlConnection())
+            .because("adapters/net is the only outbound HTTP client (SSRF guard, threat model T1)")
+
+    private val HTTP_CLIENT_PACKAGES =
+        arrayOf(
+            "java.net.http..",
+            "org.apache.hc..",
+            "org.apache.http..",
+            "okhttp3..",
+            "io.ktor.client..",
+            "org.eclipse.jetty.client..",
+            "reactor.netty.http.client..",
+            "io.netty.handler.codec.http..",
+            "org.springframework.web.client..",
+            "org.springframework.web.reactive.function.client..",
+            "org.springframework.http.client.reactive..",
+            "org.springframework.boot.http.client..",
+            "org.springframework.boot.restclient..",
+            "org.springframework.boot.webclient..",
+        )
+
+    private val CONNECTION_CLASSES =
+        setOf(
+            "java.net.URLConnection",
+            "java.net.HttpURLConnection",
+            "javax.net.ssl.HttpsURLConnection",
+            "java.net.Socket",
+            "java.nio.channels.SocketChannel",
+            "javax.net.SocketFactory",
+            "javax.net.ssl.SSLSocketFactory",
+        )
+
+    private fun isHttpClient(): DescribedPredicate<JavaClass> =
+        DescribedPredicate.describe("HTTP clients or sockets") { javaClass ->
+            resideInAnyPackage(*HTTP_CLIENT_PACKAGES).test(javaClass) ||
+                javaClass.name in CONNECTION_CLASSES ||
+                isSpringRequestFactoryImplementation(javaClass)
+        }
+
+    private fun isSpringRequestFactoryImplementation(javaClass: JavaClass): Boolean =
+        javaClass.packageName == "org.springframework.http.client" &&
+            javaClass.simpleName.endsWith("RequestFactory") &&
+            !javaClass.isInterface
+
+    /** `URL.openConnection/openStream/getContent` and Kotlin's `URL.readText()`/`readBytes()`. */
+    private fun opensAUrlConnection(): DescribedPredicate<JavaMethodCall> =
+        DescribedPredicate.describe("a method that opens a URL connection") { call ->
+            val target = call.target
+            val owner = target.owner.name
+            val opensUrl = owner == "java.net.URL" && target.name in setOf("openConnection", "openStream", "getContent")
+            val readsUrl =
+                owner == "kotlin.io.TextStreamsKt" && target.rawParameterTypes.any { it.name == "java.net.URL" }
+            opensUrl || readsUrl
+        }
 
     private fun isTheProviderPort(): DescribedPredicate<JavaClass> =
         DescribedPredicate.describe("AiProviderPort itself") { it.isEquivalentTo(AiProviderPort::class.java) }

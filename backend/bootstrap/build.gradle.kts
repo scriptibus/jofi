@@ -11,6 +11,7 @@ dependencies {
     implementation(project(":application"))
     implementation(project(":adapters:web"))
     implementation(project(":adapters:persistence"))
+    implementation(project(":adapters:net"))
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.jackson.module.kotlin)

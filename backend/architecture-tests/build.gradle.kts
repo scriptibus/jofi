@@ -12,6 +12,7 @@ dependencies {
     testImplementation(project(":application"))
     testImplementation(project(":adapters:web"))
     testImplementation(project(":adapters:persistence"))
+    testImplementation(project(":adapters:net"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))

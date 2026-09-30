@@ -10,7 +10,8 @@ Owns the executable architecture rules. Test sources only; depends on every prod
 - `LayerDependencyTest` (ArchUnit, compiled classes): package convention, framework-free core,
   inward-only layers, independent adapters, no cycles between contexts.
 - `AdapterRulesTest` (ArchUnit): controller/adapter naming, controllers only use use cases,
-  ports are interfaces, only `setup.adapter.ai` uses `AiProviderPort` (ADR-0032).
+  ports are interfaces, only `setup.adapter.ai` uses `AiProviderPort` (ADR-0032), only
+  `shared.adapter.net` uses HTTP clients, sockets or `URL` connections (ADR-0034).
 - `AdapterRules`: rules shared with `AdapterRulesFixtureTest`, which evaluates them against
   known-bad and known-good fixture classes in `io.github.scriptibus.jofi.fixture` (test sources,
   never part of the production import). Adapter independence has one narrow exemption:

@@ -65,6 +65,11 @@ class AdapterRulesTest {
     }
 
     @Test
+    fun `only adapters net makes outbound HTTP calls`() {
+        AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.check(classes)
+    }
+
+    @Test
     fun `ports are interfaces`() {
         classes()
             .that()

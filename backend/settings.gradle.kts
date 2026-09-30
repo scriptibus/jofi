@@ -39,6 +39,7 @@ include(
     "application",
     "adapters:web",
     "adapters:persistence",
+    "adapters:net",
     "bootstrap",
     "architecture-tests",
 )
