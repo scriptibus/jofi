@@ -4,6 +4,10 @@
     "Apache-2.0 WITH LLVM-exception": "Apache-2.0 plus the LLVM exception, which only grants extra permissions. Currently build-time only (@bytecodealliance/* via the Paraglide/inlang toolchain)."
   },
   "packages": {
+    "argparse": {
+      "license": "Python-2.0",
+      "reason": "PSF License 2.0 (permissive, GPL-compatible per the FSF). JavaScript port of Python's argparse, via js-yaml via orval. Build-time only (API client generation), never shipped."
+    },
     "@lix-js/sdk-*": {
       "license": "Unknown",
       "reason": "Per-platform native binaries of @lix-js/sdk (MIT). Their package.json lacks a license field; the upstream repo github.com/opral/lix is MIT. Build-time only (Paraglide/inlang)."

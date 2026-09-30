@@ -60,6 +60,16 @@ class AdapterRulesTest {
     }
 
     @Test
+    fun `only setup adapter ai uses the provider-facing AI port`() {
+        AdapterRules.onlyTheAiAdapterUsesAiProviderPort.check(classes)
+    }
+
+    @Test
+    fun `only adapters net makes outbound HTTP calls`() {
+        AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.check(classes)
+    }
+
+    @Test
     fun `ports are interfaces`() {
         classes()
             .that()

@@ -4,6 +4,15 @@
 spring:
   application:
     name: jofi
+  autoconfigure:
+    # Jofi has its own login (AuthController); Boot's fallback in-memory user would log a generated
+    # password at startup.
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
+  # Every error response is RFC 9457 problem details (application/problem+json), the one error
+  # schema of the API contract (api/openapi.json, ADR-0016).
+  mvc:
+    problemdetails:
+      enabled: true
   threads:
     virtual:
       enabled: true
@@ -15,6 +24,49 @@ spring:
     password: ${JOFI_DB_PASSWORD}
   jooq:
     sql-dialect: postgres
+  # Login sessions live in PostgreSQL (tables from the Flyway migration), so they survive restarts.
+  session:
+    # Idle timeout; the absolute lifetime since login is jofi.auth.session-max-age.
+    timeout: ${JOFI_SESSION_TIMEOUT:7d}
+    jdbc:
+      initialize-schema: never
+
+server:
+  # Localhost only by default (ADR-0029). The container image binds to all interfaces and relies on
+  # the compose port mapping, which is localhost-only unless JOFI_BIND_ADDRESS (compose) says otherwise.
+  address: ${JOFI_SERVER_ADDRESS:127.0.0.1}
+  # Behind a TLS-terminating proxy (Caddy, Tailscale serve) the request counts as HTTPS, so session
+  # and CSRF cookies get the Secure flag. X-Forwarded-* is trusted only from the proxies listed in
+  # JOFI_TRUSTED_PROXIES (CIDRs, default loopback only): Tomcat's default trusts every private range,
+  # which would let LAN clients fake their address and dodge the per-client login backoff.
+  # The session cookie flags are set in SecurityConfiguration (HttpOnly, SameSite=Lax, Secure on HTTPS).
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: ${JOFI_TRUSTED_PROXIES:127.0.0.0/8, ::1/128}
+
+jofi:
+  # The data volume: master keyset and setup token (owner-only files), later knowledge and documents.
+  # Must be an absolute path; no default, so a working directory never decides where keys go
+  # (/data in the container image).
+  data-dir: ${JOFI_DATA_DIR:}
+  auth:
+    # Absolute lifetime of a login session, however active it is.
+    session-max-age: ${JOFI_SESSION_MAX_AGE:30d}
+    # Password recovery: `true` deletes the account at startup, ends every session and issues a new
+    # setup token. Remove it again afterwards, or every restart resets the password.
+    reset-password: ${JOFI_RESET_PASSWORD:false}
+  secrets:
+    # `true` accepts that a lost or different master keyset makes the stored secrets unreadable.
+    accept-loss: ${JOFI_ACCEPT_SECRET_LOSS:false}
+
+# Apache HttpClient logs request lines, headers and bodies at DEBUG; those can hold API keys and
+# personal data (threat model T4), so they stay off even when the root level is lowered.
+logging:
+  level:
+    org.apache.hc.client5.http: info
+    org.apache.hc.client5.http.headers: "off"
+    org.apache.hc.client5.http.wire: "off"
 
 management:
   endpoints:

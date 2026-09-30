@@ -1,0 +1,9 @@
+{
+  "description": "The provider rejects the key (AiResult.AuthenticationFailed).",
+  "error": {
+    "status": 401,
+    "type": "invalid_request_error",
+    "code": "invalid_api_key",
+    "message": "Incorrect API key provided (fake AI)."
+  }
+}

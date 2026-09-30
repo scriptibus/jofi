@@ -1,0 +1,4 @@
+{
+  "description": "Deterministic unit vectors derived from each text's SHA-256.",
+  "dimensions": 16
+}

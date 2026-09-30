@@ -1,0 +1,9 @@
+{
+  "description": "The answer hits the output limit (FinishReason.MAX_TOKENS).",
+  "turns": [
+    {
+      "text": "This answer stops in the middle of a",
+      "finishReason": "length"
+    }
+  ]
+}

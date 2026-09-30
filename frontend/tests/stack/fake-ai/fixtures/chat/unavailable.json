@@ -1,0 +1,8 @@
+{
+  "description": "The provider fails on its side (AiResult.Unavailable).",
+  "error": {
+    "status": 503,
+    "type": "server_error",
+    "message": "The fake AI is overloaded."
+  }
+}

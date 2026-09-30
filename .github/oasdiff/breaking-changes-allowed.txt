@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Breaking API changes a human has approved (ADR-0033). Comment lines are stripped before the file is
+# passed to `oasdiff breaking --err-ignore`; every other line is a live ignore rule.
+#
+# The `api-breaking-changes` CI job reads this file from the PR's BASE branch, so a PR can never approve
+# its own breaking change. To approve one:
+#   1. Lucas lands the entry on main: the method, path and message from the failing job log on one line,
+#      e.g. <METHOD> <path> removed the required property `name` from the response with the `200` status
+#   2. The breaking PR is rebased (its job now passes) and deletes the entry again in the same PR.
+# Entries MUST be deleted by the PR that uses them: the job fails a PR that changes api/openapi.json
+# while its copy of this file still has entries, and a push to main that changes api/openapi.json with
+# entries left here fails too. This file is a protected path (CODEOWNERS); agents never add entries.

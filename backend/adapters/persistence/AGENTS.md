@@ -58,6 +58,31 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `TRUNCATE`. Before/after values can hold personal data; until erasure/redaction exists (#52),
   keep large or sensitive free text (CV bodies, notes) out of `FieldChange` values.
 
+## Secrets and `setup` tables
+
+- `secret`: Tink AES-GCM ciphertext per `SecretId`, written by `SecretRepository` (`SecretStorePort`)
+  through `SecretCipherPort`; the key is the master keyset in the data volume (ADR-0035). Never store
+  or log a key in clear text anywhere else; provider configs reference a secret id.
+- `user_account` (#16): the single user, at most one row, argon2id hash only, plus the `account_id`
+  sessions are bound to (`UserAccountRepository`). Covered by export/import.
+- `master_key_check` (#16): at most one row, a Tink ciphertext of a fixed text proving which master
+  keyset encrypted `secret` (`MasterKeyRecordRepository`, ADR-0035). Covered by export/import; it
+  must travel with `secret` and the keyset.
+- `spring_session`, `spring_session_attributes`: login sessions, managed by Spring Session JDBC (schema
+  copied from spring-session-jdbc 4.1.1). Ephemeral bearer credentials: **excluded from export/import**
+  (#26), a restore starts logged out. Never log their ids.
+- `TransactionAdapter` (`TransactionPort`): Spring's JDBC transaction around several repository calls;
+  jOOQ joins it.
+- `ai_provider_config` (base URL without credentials, query or fragment; one secret per provider),
+  `ai_model_capability` (per provider + model, deleted with the provider), `ai_model_assignment`
+  (one row per `AiTask`: provider + model only), `ai_cost_entry` (append-only by trigger, integer
+  micros in USD, provider kind snapshot, no FK to the provider so history survives its deletion),
+  `ai_monthly_budget` (single row, USD). Check constraints mirror the `setup` domain invariants and
+  enum names; `SetupSchemaTest` proves them. Repositories come with the use cases (#19, #23, #24).
+- Other contexts' repositories live in `<context>.adapter.persistence` and may use the generated
+  jOOQ code in `shared.adapter.persistence.jooq` (the one exemption from adapter independence,
+  ADR-0032).
+
 ## Tests
 
 Plain JUnit against a real PostgreSQL (`PostgresTestDatabase`: one container per test JVM, Flyway
