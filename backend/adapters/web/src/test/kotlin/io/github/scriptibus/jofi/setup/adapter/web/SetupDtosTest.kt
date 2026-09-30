@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.setup.adapter.web
 
 import io.github.scriptibus.jofi.setup.domain.CapabilityName
+import io.github.scriptibus.jofi.setup.domain.PrivacyClaimStatus
 import io.github.scriptibus.jofi.setup.domain.ProviderKind
 import io.github.scriptibus.jofi.setup.domain.SetupField
 import io.github.scriptibus.jofi.setup.domain.SetupResult
@@ -23,6 +24,9 @@ class SetupDtosTest {
         AiTaskType.entries.size shouldBe AiTask.entries.size
         CapabilityName.entries.map { ModelFeature.from(it).toDomain() } shouldBe CapabilityName.entries
         ModelFeature.entries.size shouldBe CapabilityName.entries.size
+        PrivacyClaimStatus.entries.map { PrivacyStatus.from(it).name } shouldBe
+            PrivacyClaimStatus.entries.map { it.name }
+        PrivacyStatus.entries.size shouldBe PrivacyClaimStatus.entries.size
     }
 
     @Test

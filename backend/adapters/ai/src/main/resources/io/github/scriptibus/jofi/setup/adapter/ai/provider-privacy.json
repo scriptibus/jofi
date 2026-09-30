@@ -1,0 +1,321 @@
+{
+  "description": "Privacy info per AI provider kind for the setup wizard (spec §3.2, #138): zero data retention, the promise not to train on API data, and where data is processed. API terms only; the providers' consumer apps have other terms. Every claim rests on short verbatim quotes from the provider's official pages, read on checkedOn. Never write a fact from memory: what the pages do not say is UNKNOWN, or the summary says 'not stated'.",
+  "howToRefresh": "Re-read every source page (and look for newer official pages on retention, training, data residency). Update status, summaries and quotes to what the pages say today, set each entry's checkedOn and the top-level checkedOn to the day you read them, and list every URL in the PR. The UI flags entries older than staleAfterMonths; refresh before they get there. ProviderPrivacyFileTest checks the file's shape.",
+  "schemaVersion": 1,
+  "checkedOn": "2026-09-30",
+  "staleAfterMonths": 6,
+  "disclaimer": {
+    "key": "setup_provider_privacy_disclaimer",
+    "en": "This is a summary of the provider's published terms as of the date shown, not legal advice. Terms change: check the linked pages and your own contract with the provider before you send personal data.",
+    "de": "Dies ist eine Zusammenfassung der veröffentlichten Bedingungen des Anbieters zum angegebenen Datum, keine Rechtsberatung. Bedingungen ändern sich: Prüfe die verlinkten Seiten und deinen eigenen Vertrag mit dem Anbieter, bevor du personenbezogene Daten sendest."
+  },
+  "providers": [
+    {
+      "provider": "ANTHROPIC",
+      "checkedOn": "2026-09-30",
+      "zeroDataRetention": {
+        "status": "ON_REQUEST",
+        "summary": {
+          "en": "Available on request through Anthropic's sales team, enabled per organization. Without it, API inputs and outputs are deleted within 30 days; flagged content may be kept up to 2 years. Claude Fable 5/5.1 and Mythos 5/5.1 always need 30-day retention.",
+          "de": "Auf Anfrage über den Vertrieb von Anthropic, pro Organisation freigeschaltet. Ohne ZDR werden API-Ein- und -Ausgaben innerhalb von 30 Tagen gelöscht; markierte Inhalte bis zu 2 Jahre aufbewahrt. Claude Fable 5/5.1 und Mythos 5/5.1 brauchen immer 30 Tage Aufbewahrung."
+        },
+        "evidence": [
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention",
+            "quote": "Under a ZDR arrangement, Anthropic does not store customer prompts or responses at rest after the API response is returned. To request ZDR for your organization, contact the Anthropic sales team."
+          },
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention",
+            "quote": "Even with ZDR or HIPAA arrangements in place, Anthropic may retain data where required by law or where it has been flagged by Anthropic's automated trust and safety systems. As a result, if a chat or session is flagged, Anthropic may retain inputs and outputs for up to 2 years."
+          },
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention",
+            "quote": "These models require 30-day data retention and are not available under ZDR unless expressly authorized by Anthropic."
+          },
+          {
+            "source": "https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data",
+            "quote": "For Anthropic API users, we automatically delete inputs and outputs on our backend within 30 days of receipt or generation"
+          }
+        ]
+      },
+      "noTraining": {
+        "status": "YES",
+        "summary": {
+          "en": "The Commercial Terms (which cover the API) say Anthropic may not train models on customer content; retained data is never used for training without your express permission.",
+          "de": "Die Commercial Terms (sie gelten für die API) verbieten Anthropic, Modelle mit Kundeninhalten zu trainieren; aufbewahrte Daten werden ohne deine ausdrückliche Erlaubnis nie zum Training genutzt."
+        },
+        "evidence": [
+          {
+            "source": "https://www.anthropic.com/legal/commercial-terms",
+            "quote": "Anthropic may not train models on Customer Content from Services."
+          },
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/api-and-data-retention",
+            "quote": "Retained data is never used for model training without your express permission."
+          }
+        ]
+      },
+      "dataLocation": {
+        "status": "CONDITIONAL",
+        "summary": {
+          "en": "By default inference may run in any geography. Per request or workspace it can be limited to the US (Claude 4.6 and later, 1.1x price). Data at rest: the US is the only workspace geo. No EU option is stated.",
+          "de": "Standardmäßig kann die Verarbeitung in jeder Region laufen. Pro Anfrage oder Workspace lässt sie sich auf die USA beschränken (ab Claude 4.6, 1,1-facher Preis). Gespeicherte Daten: einzige Workspace-Region sind die USA. Eine EU-Option wird nicht genannt."
+        },
+        "evidence": [
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/data-residency",
+            "quote": "Default. Inference may run in any available geography for optimal performance and availability."
+          },
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/data-residency",
+            "quote": "Inference geo: Only \"us\" and \"global\" are available."
+          },
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/data-residency",
+            "quote": "Workspace geo: Only \"us\" is currently available. Workspace geo can't be changed after workspace creation."
+          },
+          {
+            "source": "https://platform.claude.com/docs/en/manage-claude/data-residency",
+            "quote": "US-only inference (inference_geo: \"us\") is priced at 1.1x the standard rate across all token pricing categories"
+          }
+        ]
+      }
+    },
+    {
+      "provider": "OPENAI",
+      "checkedOn": "2026-09-30",
+      "zeroDataRetention": {
+        "status": "ON_REQUEST",
+        "summary": {
+          "en": "Zero Data Retention and Modified Abuse Monitoring need prior approval by OpenAI (ask sales). Without them, abuse monitoring logs keep prompts and responses for up to 30 days; some endpoints also store application state.",
+          "de": "Zero Data Retention und Modified Abuse Monitoring brauchen eine vorherige Freigabe durch OpenAI (Vertrieb fragen). Ohne sie bleiben Prompts und Antworten bis zu 30 Tage in Missbrauchs-Logs; manche Endpunkte speichern zusätzlich Anwendungsdaten."
+        },
+        "evidence": [
+          {
+            "source": "https://developers.openai.com/api/docs/guides/your-data",
+            "quote": "By default, abuse monitoring logs are generated for all API feature usage and retained for up to 30 days, unless longer retention is required by law, or is reasonably necessary to protect our services or any third party from harm."
+          },
+          {
+            "source": "https://developers.openai.com/api/docs/guides/your-data",
+            "quote": "Currently, these controls are subject to prior approval by OpenAI and acceptance of additional requirements."
+          },
+          {
+            "source": "https://developers.openai.com/api/docs/guides/your-data",
+            "quote": "Get in touch with our sales team to learn more about these offerings and inquire about eligibility."
+          }
+        ]
+      },
+      "noTraining": {
+        "status": "YES",
+        "summary": {
+          "en": "Since March 1, 2023, data sent to the API is not used to train or improve OpenAI's models unless you explicitly opt in.",
+          "de": "Seit dem 1. März 2023 werden an die API gesendete Daten nicht zum Training oder zur Verbesserung der OpenAI-Modelle genutzt, außer du stimmst ausdrücklich zu."
+        },
+        "evidence": [
+          {
+            "source": "https://developers.openai.com/api/docs/guides/your-data",
+            "quote": "As of March 1, 2023, data sent to the OpenAI API is not used to train or improve OpenAI models (unless you explicitly opt in to share data with us)."
+          }
+        ]
+      },
+      "dataLocation": {
+        "status": "ON_REQUEST",
+        "summary": {
+          "en": "Data residency is a per-project option for eligible customers (ask sales); regions include Europe (EEA + Switzerland) with storage and processing in the region. The default location without it is not stated. Newer models cost 10% more with it.",
+          "de": "Datenresidenz ist eine Projekt-Option für berechtigte Kunden (Vertrieb fragen); zu den Regionen gehört Europa (EWR + Schweiz) mit Speicherung und Verarbeitung in der Region. Wo Daten ohne sie liegen, wird nicht genannt. Neuere Modelle kosten damit 10 % mehr."
+        },
+        "evidence": [
+          {
+            "source": "https://developers.openai.com/api/docs/guides/your-data",
+            "quote": "Contact our sales team to see if you’re eligible for using data residency controls. Data residency endpoints are charged a 10% uplift for models released on or after March 5, 2026, that are eligible for data residency."
+          },
+          {
+            "source": "https://developers.openai.com/api/docs/guides/your-data",
+            "quote": "If you select a region that supports regional processing, as specifically identified below, the services will perform inference for your Customer Content in the selected region as well."
+          }
+        ]
+      }
+    },
+    {
+      "provider": "GEMINI",
+      "checkedOn": "2026-09-30",
+      "zeroDataRetention": {
+        "status": "NO",
+        "summary": {
+          "en": "Not guaranteed on the Gemini Developer API: prompts and responses are kept 55 days for abuse monitoring, and Google points to Vertex AI (not supported by Jofi) for guaranteed zero data retention. Grounding with Google Search or Maps stores data for 30 days.",
+          "de": "In der Gemini Developer API nicht garantiert: Prompts und Antworten werden 55 Tage zur Missbrauchserkennung aufbewahrt, und für garantierte Zero Data Retention verweist Google auf Vertex AI (von Jofi nicht unterstützt). Grounding mit Google Search oder Maps speichert Daten 30 Tage."
+        },
+        "evidence": [
+          {
+            "source": "https://ai.google.dev/gemini-api/docs/usage-policies",
+            "quote": "Google retains the following data for fifty-five (55) days for the purposes of detecting and preventing violations of the Prohibited Use Policy"
+          },
+          {
+            "source": "https://ai.google.dev/gemini-api/docs/zdr",
+            "quote": "If your workload requires guaranteed zero data retention or enterprise data processing agreements, use Vertex AI."
+          },
+          {
+            "source": "https://ai.google.dev/gemini-api/docs/zdr",
+            "quote": "Google stores prompts, contextual information, and generated output for thirty (30) days for the purposes of creating grounded results and search suggestions."
+          }
+        ]
+      },
+      "noTraining": {
+        "status": "CONDITIONAL",
+        "summary": {
+          "en": "Only for Paid Services (API through a Cloud project with active billing). Unpaid use is used to improve Google's products and may be read by human reviewers, except in the EEA, Switzerland and the UK, where the paid terms apply to all use.",
+          "de": "Nur für Paid Services (API über ein Cloud-Projekt mit aktiver Abrechnung). Unbezahlte Nutzung dient der Verbesserung von Google-Produkten und kann von Menschen gelesen werden, außer im EWR, in der Schweiz und im Vereinigten Königreich, wo die Bedingungen der Paid Services für jede Nutzung gelten."
+        },
+        "evidence": [
+          {
+            "source": "https://ai.google.dev/gemini-api/terms",
+            "quote": "When you use Paid Services, including, for example, the paid quota of the Gemini API, Google doesn't use your prompts (including associated system instructions, cached content, and files such as images, videos, or documents) or responses to improve our products"
+          },
+          {
+            "source": "https://ai.google.dev/gemini-api/terms",
+            "quote": "Your access to Gemini API is a \"Paid Service\" only when accessing the API through a Cloud Project associated with an active billing account."
+          },
+          {
+            "source": "https://ai.google.dev/gemini-api/terms",
+            "quote": "If you're in the European Economic Area, Switzerland, or the United Kingdom, the terms under \"How Google uses Your Data\" in \"Paid Services\" apply to all Services, including Google AI Studio and unpaid quota in the Gemini API, even though they are offered free of charge."
+          }
+        ]
+      },
+      "dataLocation": {
+        "status": "NO",
+        "summary": {
+          "en": "No region choice is stated for the Gemini Developer API; logged data may be stored or cached in any country where Google or its agents have facilities.",
+          "de": "Für die Gemini Developer API wird keine Regionswahl genannt; protokollierte Daten können in jedem Land gespeichert oder zwischengespeichert werden, in dem Google oder seine Beauftragten Einrichtungen haben."
+        },
+        "evidence": [
+          {
+            "source": "https://ai.google.dev/gemini-api/terms",
+            "quote": "This data may be stored transiently or cached in any country in which Google or its agents maintain facilities."
+          }
+        ]
+      }
+    },
+    {
+      "provider": "MISTRAL",
+      "checkedOn": "2026-09-30",
+      "zeroDataRetention": {
+        "status": "ON_REQUEST",
+        "summary": {
+          "en": "Pay-as-you-go only, for stateless endpoints such as chat completions and embeddings: request it with a legitimate reason, and Mistral approves or denies it. Without it, API inputs and outputs are kept 30 rolling days for abuse monitoring.",
+          "de": "Nur mit Pay-as-you-go, für zustandslose Endpunkte wie Chat Completions und Embeddings: mit berechtigtem Grund beantragen, Mistral genehmigt oder lehnt ab. Ohne ZDR werden API-Ein- und -Ausgaben 30 rollierende Tage zur Missbrauchserkennung aufbewahrt."
+        },
+        "evidence": [
+          {
+            "source": "https://help.mistral.ai/en/articles/347612-can-i-activate-zero-data-retention-zdr",
+            "quote": "Zero Data Retention (ZDR) is available only with pay-as-you-go and only for stateless API calls."
+          },
+          {
+            "source": "https://help.mistral.ai/en/articles/347612-can-i-activate-zero-data-retention-zdr",
+            "quote": "As part of this request, you must provide sufficient detail of your legitimate reasons for requesting Zero Data Retention. We will review your request and, at our discretion, approve or deny it."
+          },
+          {
+            "source": "https://docs.mistral.ai/admin/monitor-comply/zero-data-retention",
+            "quote": "When ZDR is enabled, Mistral does not store or log inputs and outputs for supported API requests longer than required to generate the output."
+          },
+          {
+            "source": "https://legal.mistral.ai/terms/privacy-policy",
+            "quote": "Except for specific APIs, we keep your Input and Output for the period necessary to generate the Output and then for thirty (30) rolling days to monitor abuse (unless zero data retention is activated)."
+          }
+        ]
+      },
+      "noTraining": {
+        "status": "CONDITIONAL",
+        "summary": {
+          "en": "Mistral does not train on API data once you switch off the training toggle (Admin panel > Privacy); the default for pay-as-you-go is not stated. In Free mode your data may be used for training until you opt out. Feedback you give is always used.",
+          "de": "Mistral trainiert nicht mit API-Daten, sobald du den Trainings-Schalter ausschaltest (Admin-Panel > Privacy); die Voreinstellung für Pay-as-you-go wird nicht genannt. Im Free-Modus können deine Daten bis zum Widerspruch zum Training genutzt werden. Abgegebenes Feedback wird immer genutzt."
+        },
+        "evidence": [
+          {
+            "source": "https://legal.mistral.ai/terms/commercial-terms-of-service",
+            "quote": "Mistral AI will not use Customer Data or Outputs to train its artificial intelligence models except (a) when you (i) opted-in to training on a Mistral AI Product set to opt-out by default or (ii) have not opted-out of training on a Mistral AI Product set to opt-in by default, (b) when Customer or an End User provides Feedback to Mistral AI"
+          },
+          {
+            "source": "https://help.mistral.ai/en/articles/455207-can-i-opt-out-of-my-input-or-output-data-being-used-for-training",
+            "quote": "Under the Anonymous improvement data section, disable the toggle to prevent API calls and related data from being used to improve Mistral’s services."
+          },
+          {
+            "source": "https://help.mistral.ai/en/articles/323757-do-you-use-my-user-data-to-train-your-artificial-intelligence-models",
+            "quote": "As stated during subscription, we may use your data (input and output) to train our artificial intelligence models."
+          }
+        ]
+      },
+      "dataLocation": {
+        "status": "YES",
+        "summary": {
+          "en": "Hosted in the EU by default; only if you explicitly use the US API endpoint is data hosted in the US. Depending on the feature, data can be transferred temporarily to the subprocessors listed in Mistral's Trust Center.",
+          "de": "Standardmäßig in der EU gehostet; nur wenn du ausdrücklich den US-API-Endpunkt nutzt, liegen die Daten in den USA. Je nach Funktion können Daten vorübergehend zu den im Trust Center von Mistral genannten Unterauftragnehmern übertragen werden."
+        },
+        "evidence": [
+          {
+            "source": "https://help.mistral.ai/en/articles/347629-where-do-you-store-my-data-or-my-organization-s-data",
+            "quote": "By default, your data is hosted in the European Union. You may, however, explicitely use our US API endpoint and in such a case your data is hosted in the United States."
+          },
+          {
+            "source": "https://help.mistral.ai/en/articles/347629-where-do-you-store-my-data-or-my-organization-s-data",
+            "quote": "Depending on the feature you use, your data can be temporarily transferred outside of the European Union, to the locations listed in the “Subprocessors” tab of our Trust Center."
+          }
+        ]
+      }
+    },
+    {
+      "provider": "OPENAI_COMPATIBLE",
+      "checkedOn": "2026-09-30",
+      "zeroDataRetention": {
+        "status": "DEPENDS_ON_ENDPOINT",
+        "summary": {
+          "en": "Depends on the endpoint you configure. A local server such as Ollama or LM Studio keeps your data on your machine; a hosted service (OpenRouter, a cloud vLLM, ...) has its own terms, so read them.",
+          "de": "Hängt vom konfigurierten Endpunkt ab. Ein lokaler Server wie Ollama oder LM Studio behält deine Daten auf deinem Rechner; ein gehosteter Dienst (OpenRouter, ein vLLM in der Cloud, ...) hat eigene Bedingungen, lies sie."
+        },
+        "evidence": [
+          {
+            "source": "https://docs.ollama.com/faq",
+            "quote": "Ollama runs locally. We don’t see your prompts or data when you run locally."
+          },
+          {
+            "source": "https://lmstudio.ai/docs/app/offline",
+            "quote": "Requests to LM Studio use OpenAI endpoints and return OpenAI-like response objects, but stay local."
+          }
+        ]
+      },
+      "noTraining": {
+        "status": "DEPENDS_ON_ENDPOINT",
+        "summary": {
+          "en": "Depends on the endpoint you configure. Models running on your own machine send nothing to anyone. Hosted endpoints decide themselves; Ollama, for example, says it never trains on the content of its cloud-hosted models.",
+          "de": "Hängt vom konfigurierten Endpunkt ab. Modelle auf deinem eigenen Rechner senden niemandem etwas. Gehostete Endpunkte entscheiden selbst; Ollama etwa sagt, es trainiere nie mit den Inhalten seiner Cloud-Modelle."
+        },
+        "evidence": [
+          {
+            "source": "https://docs.ollama.com/faq",
+            "quote": "When using cloud-hosted models, we process your prompts and responses to provide the service but do not store or log that content and never train on it."
+          },
+          {
+            "source": "https://lmstudio.ai/docs/app/offline",
+            "quote": "Nothing you enter into LM Studio when chatting with LLMs leaves your device."
+          }
+        ]
+      },
+      "dataLocation": {
+        "status": "DEPENDS_ON_ENDPOINT",
+        "summary": {
+          "en": "Wherever the endpoint runs: on your own machine for a local Ollama or LM Studio, otherwise where the service's operator processes it.",
+          "de": "Dort, wo der Endpunkt läuft: auf deinem eigenen Rechner bei lokalem Ollama oder LM Studio, sonst dort, wo der Betreiber des Dienstes die Daten verarbeitet."
+        },
+        "evidence": [
+          {
+            "source": "https://docs.ollama.com/faq",
+            "quote": "Ollama runs locally. We don’t see your prompts or data when you run locally."
+          },
+          {
+            "source": "https://lmstudio.ai/docs/app/offline",
+            "quote": "Nothing you enter into LM Studio when chatting with LLMs leaves your device."
+          }
+        ]
+      }
+    }
+  ]
+}
