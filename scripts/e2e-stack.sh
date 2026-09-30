@@ -11,9 +11,9 @@
 #   scripts/e2e-stack.sh up                       build, start, seed and check; leaves the stack running
 #   scripts/e2e-stack.sh seed | check | logs | down
 #
-# Env: SKIP_BUILD=1 reuses localhost/jofi:local; E2E_KEEP_STACK=1 keeps the stack after `test`;
-# E2E_REUSE_STACK=1 skips build and start when the stack already answers (and then leaves it running); COMPOSE / CONTAINER as in
-# scripts/compose-smoke-test.sh (e.g. COMPOSE=podman-compose CONTAINER=podman).
+# Env: SKIP_BUILD=1 reuses the localhost/jofi:e2e image; E2E_KEEP_STACK=1 keeps the stack after `test`;
+# E2E_REUSE_STACK=1 skips build and start when the stack already answers (and then leaves it running);
+# COMPOSE / CONTAINER as in scripts/compose-smoke-test.sh (e.g. COMPOSE=podman-compose CONTAINER=podman).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,15 +27,15 @@ timeout_seconds="${E2E_TIMEOUT_SECONDS:-300}"
 seed_provider="00000000-0000-4000-8000-0000000e2e01"
 log_file="${repo_root}/frontend/test-results/e2e-stack.log"
 reused_stack=0
+setup_token=""
 
-# The e2e stack never uses the values of a local .env: a throwaway database password, and loopback
-# binding so first run needs no setup token (#16).
+# A throwaway database password. `--env-file /dev/null` below keeps a developer's .env out entirely.
 export JOFI_DB_PASSWORD="jofi-e2e-throwaway-database-password"
 export JOFI_DB_USERNAME="jofi"
-export JOFI_BIND_ADDRESS="127.0.0.1"
 
 compose() {
-  "${compose_command[@]}" --project-name "${project}" -f compose.yaml -f compose.e2e.yaml --profile e2e "$@"
+  "${compose_command[@]}" --env-file /dev/null --project-name "${project}" \
+    -f compose.yaml -f compose.e2e.yaml --profile e2e "$@"
 }
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "ok: $*"; }
@@ -61,6 +61,9 @@ up() {
     done
     pass "app is healthy behind edge at ${base_url}"
   fi
+  # First run (#16) always needs the one-time setup token from the data volume, the way a user gets it.
+  # Absent before login exists and after first run (the file is removed then); the seed step copes.
+  setup_token="$(compose exec -T app cat /data/secrets/setup-token 2>/dev/null || true)"
   seed
   check
 }
@@ -75,6 +78,31 @@ sql() {
     --command "$1" | tr -d '[:space:]'
 }
 
+# Connection probes from inside a container, printing `connected` or the error. Bash's /dev/tcp for the
+# JVM images, Node for the Node images. Each negative probe has a positive control on the same path.
+probe_bash() {
+  compose exec -T "$1" timeout 5 bash -c "exec 3<>/dev/tcp/$2/$3 && echo connected" 2>&1 || true
+}
+node_probe_script="const socket = require('node:net').connect(Number(process.argv[2]), process.argv[1]);
+socket.on('connect', () => { console.log('connected'); process.exit(0); });
+socket.on('error', (error) => { console.log(error.code); process.exit(1); });
+setTimeout(() => { console.log('TIMEOUT'); process.exit(1); }, 5000);"
+probe_node() {
+  compose exec -T "$1" node -e "${node_probe_script}" "$2" "$3" 2>&1 || true
+}
+unreachable='ENETUNREACH|EHOSTUNREACH|Network is unreachable|No route to host'
+
+# $1 service, $2 probe function, $3 internal host:port that must connect.
+expect_isolated() {
+  local service="$1" probe="$2" output
+  output="$("${probe}" "${service}" "${3%:*}" "${3#*:}")"
+  [[ "${output}" == *connected* ]] || fail "${service} cannot reach ${3} (positive control): ${output}"
+  # A public address, no DNS needed: the internal network has no route to it.
+  output="$("${probe}" "${service}" 1.1.1.1 443)"
+  [[ "${output}" =~ ${unreachable} ]] || fail "${service} to 1.1.1.1:443 must be unreachable, got: ${output}"
+  pass "${service} reaches ${3} but not the internet (${BASH_REMATCH[0]})"
+}
+
 # Assertions on the running stack: the seed is complete and idempotent, the fake AI is reachable from
 # the app, and nothing on the internal network reaches the internet.
 check() {
@@ -86,19 +114,9 @@ check() {
   [[ "${changelog}" == "1" ]] || fail "seeding twice must log the provider once, found ${changelog} entries"
   pass "seed is complete and idempotent (9 model assignments, 1 changelog entry)"
 
-  compose exec -T app bash -c 'exec 3<>/dev/tcp/fake-ai/8080' || fail "app cannot reach fake-ai:8080"
-  pass "app reaches the fake AI provider"
-
-  # A public address, no DNS needed: the internal network has no route to it.
-  if compose exec -T app timeout 5 bash -c 'exec 3<>/dev/tcp/1.1.1.1/443' 2>/dev/null; then
-    fail "app reaches the internet; the e2e network must be internal"
-  fi
-  if compose exec -T fake-ai node -e \
-    "require('node:net').connect(443, '1.1.1.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1)); setTimeout(() => process.exit(1), 5000)" \
-    2>/dev/null; then
-    fail "fake-ai reaches the internet; the e2e network must be internal"
-  fi
-  pass "app and fake-ai have no internet access"
+  expect_isolated app probe_bash fake-ai:8080
+  expect_isolated worker probe_bash db:5432
+  expect_isolated fake-ai probe_node app:8080
 }
 
 logs() {
@@ -125,7 +143,8 @@ run_tests() {
   }
   trap finish EXIT
   up
-  (cd frontend && JOFI_E2E_BASE_URL="${base_url}" pnpm exec playwright test "$@")
+  (cd frontend && JOFI_E2E_BASE_URL="${base_url}" JOFI_E2E_SETUP_TOKEN="${setup_token}" \
+    pnpm exec playwright test "$@")
 }
 
 command="${1:-}"

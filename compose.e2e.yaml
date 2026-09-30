@@ -6,7 +6,7 @@
 # deployment runs `docker compose up` on compose.yaml alone, which has no e2e service, network or setting
 # (scripts/e2e-isolation-test.sh proves it in CI).
 #
-#   docker compose -f compose.yaml -f compose.e2e.yaml --profile e2e up -d   (what the script runs)
+#   docker compose --env-file /dev/null -f compose.yaml -f compose.e2e.yaml --profile e2e up -d  (as the script does)
 #
 # The production services app, worker and db keep their definitions (image, hardening, healthchecks)
 # and move to `e2e-internal`, a network without a route to the internet. The fake AI provider and
@@ -25,11 +25,14 @@ x-e2e-node: &e2e-node
     - no-new-privileges:true
 
 services:
+  # Their own tag, so the e2e build never overwrites or stands in for a deployment's localhost/jofi:local.
   app:
+    image: localhost/jofi:e2e
     ports: !reset []
     networks: [e2e-internal]
 
   worker:
+    image: localhost/jofi:e2e
     networks: [e2e-internal]
 
   db:

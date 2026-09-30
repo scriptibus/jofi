@@ -38,23 +38,31 @@ the e2e user must exist once login lands (#16) without a back door in the app.
   invalid fixtures stop the fake at startup. It refuses to start unless `JOFI_FAKE_AI=e2e`, which only
   the e2e overlay sets.
 - **The stack** is `compose.yaml` plus the overlay `compose.e2e.yaml`, whose extra services carry the
-  `e2e` profile (`scripts/e2e-stack.sh`, `pnpm e2e`). The production `app`, `worker` and `db`
-  definitions are reused unchanged except for their network: `e2e-internal` (`internal: true`, no route
-  out), shared with `fake-ai` and WireMock 3.13.2 (placeholder stubs for the M4 scanner sources).
-  Compose cannot publish a port from an internal network, so `edge`, a 30-line TCP forwarder on both
-  networks, publishes `127.0.0.1:8180`. Tests run on the host against it.
-- **Seeding** has two formats, both idempotent. API steps (`tests/stack/seed/api.ts`, run by the Playwright
-  setup project `seed`, which every browser project depends on) use only the public API: first run and login (#16) with a fixed e2e password, saving the
-  session as Playwright storage state; before #16 the step detects that `/api/auth/session` is absent and
-  does nothing. SQL steps (`tests/stack/seed/db/*.sql`, applied in one transaction each by the one-shot
-  `seed` service) cover data that has no API yet, here the fake provider, its model assignments and
-  capabilities, with one `SYSTEM`/`e2e-seed` changelog entry. SQL steps move to the API as endpoints
-  appear (#23 for providers).
-- **Isolation is tested**, not assumed: `scripts/e2e-stack.sh` checks on every run that the seed is
-  complete and idempotent, that the app reaches `fake-ai`, and that the app and the fake cannot reach a
-  public address; `scripts/e2e-isolation-test.sh` checks that `compose.yaml` (with or without
-  `--profile e2e`) defines only `app`, `worker` and `db` and mentions no e2e part, and that no file name or
-  application-jar entry of the production image contains an e2e marker.
+  `e2e` profile (`scripts/e2e-stack.sh`, `pnpm e2e`, always with `--env-file /dev/null` so a developer's
+  `.env` never leaks in). The production `app`, `worker` and `db` definitions are reused unchanged
+  except for their network and image tag: `e2e-internal` (`internal: true`, no route out), shared with
+  `fake-ai` and WireMock 3.13.2 (placeholder stubs for the M4 scanner sources), and `localhost/jofi:e2e`
+  (same Dockerfile, so an e2e build never replaces a deployment's `localhost/jofi:local`). Compose
+  cannot publish a port from an internal network, so `edge`, a 30-line TCP forwarder on both networks,
+  publishes `127.0.0.1:8180`. Tests run on the host against it.
+- **Seeding** has two formats, both idempotent. API steps (`tests/stack/seed/api.ts`, run by the
+  Playwright setup project `seed`, which every browser project depends on) use only the public API:
+  first run and login (#16) with a fixed e2e password, saving the session as Playwright storage state.
+  First run always needs the one-time setup token (#16); the script reads it from
+  `/data/secrets/setup-token` in the app container, as a user would, and the step sends it as
+  `setupToken` (it fails loudly only when first run is due and no token was found). Before #16 the step
+  detects that `/api/auth/session` is absent and does nothing. SQL steps (`tests/stack/seed/db/*.sql`,
+  applied in one transaction each by the one-shot `seed` service) cover data that has no API yet, here
+  the fake provider, its model assignments and capabilities, with one `SYSTEM`/`e2e-seed` changelog
+  entry. SQL steps move to the API as endpoints appear (#23 for providers).
+- **Isolation is tested**, not assumed. `scripts/e2e-stack.sh` checks on every run that the seed is
+  complete and idempotent, and that `app`, `worker` and `fake-ai` each reach an internal service (a
+  positive control on the same probe) but get "network unreachable" for a public address.
+  `scripts/e2e-isolation-test.sh` checks that `compose.yaml` defines only `app`, `worker` and `db`,
+  declares no profiles and mentions no e2e marker; that every marker occurs in the e2e sources (so the
+  check cannot pass vacuously); and that no file name or decompressed entry of any jar in the image
+  (`app.jar` and `lib/`) contains one. `.dockerignore` keeps `frontend/tests/` and
+  `frontend/playwright/` out of the build context altogether.
 - **CI**: the `e2e` job builds the image, runs `pnpm e2e` (light, dark, phone, axe) and the isolation
   test, and uploads the HTML report, traces, screenshots and container logs on failure. The frontend job
   no longer runs Playwright against `vite preview`; `pnpm e2e:preview` still does locally.
@@ -66,10 +74,9 @@ Docs consulted: Compose file reference (profiles, merge and `!reset`,
 https://docs.docker.com/reference/compose-file/profiles/, https://docs.docker.com/reference/compose-file/merge/),
 Docker bridge and port publishing (https://docs.docker.com/engine/network/port-publishing/),
 the OpenAI chat completion, stream chunk, embedding and model-list responses recorded for #19 (its
-`adapters/ai` test fixtures; platform.openai.com refused automated reads), Playwright setup projects and authentication
-(https://playwright.dev/docs/test-global-setup-teardown, https://playwright.dev/docs/auth, which recommends
-a setup project over `globalSetup`), WireMock
-Docker image (https://wiremock.org/docs/standalone/docker/), Node.js type stripping
+`adapters/ai` test fixtures; platform.openai.com refused automated reads), Playwright setup projects and
+authentication (https://playwright.dev/docs/test-global-setup-teardown, https://playwright.dev/docs/auth,
+which recommends a setup project over `globalSetup`), WireMock Docker image (https://wiremock.org/docs/standalone/docker/), Node.js type stripping
 (https://nodejs.org/docs/latest-v24.x/api/typescript.html), and the OpenAI response fixtures recorded for #19.
 
 ## Consequences
@@ -81,3 +88,6 @@ Docker image (https://wiremock.org/docs/standalone/docker/), Node.js type stripp
   possible follow-up. The nightly full e2e is #28.
 - `edge` itself has outbound access (it must publish a port); it runs only the forwarder.
 - Before #16 the stack runs without login; after it, the seed step logs in with no change here.
+- The app sees every request from the one `edge` address, never loopback. #16's per-client login backoff
+  therefore treats all tests as one client: a test that enters wrong passwords must run on its own
+  stack (or reset the throttle), or it slows down every later login in the run.

@@ -18,6 +18,9 @@
 **/test-results/
 **/*.tsbuildinfo
 frontend/src/paraglide/
+# Tests and the e2e stack (fake AI, fixtures, seed, e2e password, Playwright auth state) never enter the image.
+frontend/tests/
+frontend/playwright/
 frontend/src/api/generated/
 **/.env
 **/.env.*

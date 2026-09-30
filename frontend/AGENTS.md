@@ -35,7 +35,7 @@ the npm tarball, which Corepack verifies); `pnpm-lock.yaml` records the same ver
 
 First e2e run on a machine: `pnpm exec playwright install chromium`.
 Screenshots: `SCREENSHOT_DIR=/some/dir pnpm e2e` writes one PNG per project and step.
-On Podman: `COMPOSE=podman-compose CONTAINER=podman pnpm e2e`; `SKIP_BUILD=1` reuses `localhost/jofi:local`.
+On Podman: `COMPOSE=podman-compose CONTAINER=podman pnpm e2e`; `SKIP_BUILD=1` reuses the `localhost/jofi:e2e` image.
 
 ## Rules
 
@@ -89,7 +89,7 @@ On Podman: `COMPOSE=podman-compose CONTAINER=podman pnpm e2e`; `SKIP_BUILD=1` re
 `pnpm e2e` runs `../scripts/e2e-stack.sh test`: `compose.yaml` + `compose.e2e.yaml` with the `e2e`
 profile. `app`, `worker` and `db` are the production services on an internal network without internet,
 next to `fake-ai` and `wiremock`; `edge` publishes the app on `http://127.0.0.1:8180` (`JOFI_E2E_PORT`).
-The script seeds, checks the stack (seed idempotent, fake AI reachable, no internet), runs Playwright
+The script ignores `.env`, seeds, checks the stack (seed idempotent, fake AI reachable, no internet), runs Playwright
 with `JOFI_E2E_BASE_URL`, and on failure writes the container logs to `test-results/e2e-stack.log`.
 Nothing here ships in the image; `../scripts/e2e-isolation-test.sh` proves it in CI (job `e2e`).
 
@@ -97,8 +97,11 @@ Nothing here ships in the image; `../scripts/e2e-isolation-test.sh` proves it in
 
 - **API steps** (preferred): functions in `tests/stack/seed/api.ts`, called from the `seed` setup
   project (`tests/stack/seed.setup.ts`), which every browser project depends on. They call Jofi's
-  public API like a user. Today: first run + login (#16) with `E2E_PASSWORD`, saved as storage state
-  (`playwright/.auth/e2e.json`), so every test starts logged in. Make each step safe to repeat (check
+  public API like a user. Today: first run + login (#16) with `E2E_PASSWORD` and the one-time setup
+  token (the script reads `/data/secrets/setup-token` from the app container and passes it as
+  `JOFI_E2E_SETUP_TOKEN`), saved as storage state (`playwright/.auth/e2e.json`), so every test starts
+  logged in. All requests reach the app from the one `edge` address, so the login backoff sees one
+  client: tests that enter wrong passwords need their own stack. Make each step safe to repeat (check
   before create).
 - **SQL steps** for data without an API yet: `tests/stack/seed/db/NNNN-<name>.sql`, applied in name order,
   each in one transaction, by the `seed` service after Flyway ran. Use fixed ids and
