@@ -125,8 +125,13 @@ The repository-root `Dockerfile` builds the frontend, then `:bootstrap:bootJar` 
 `classpath:/static/`), and creates the JDK AOT cache (ADR-0003) in a training run that starts the
 Spring context and exits on refresh (`-Dspring.context.exit=onRefresh`). That run has **no database
 or network**: startup code must not need them (Flyway is switched off there, `JOFI_DB_URL` gets a
-placeholder). If you add a bean that connects at startup, make it skip the training run too, or the
-image build fails. Build and smoke-test the stack from the repository root with
+placeholder, and so does `JOFI_DB_PASSWORD`, without which startup fails). If you add a bean that
+connects at startup, make it skip the training run too, or the image build fails.
+The image build has **no Docker daemon**, so build-time tasks cannot use Testcontainers. jOOQ codegen
+therefore uses an external database when `JOFI_CODEGEN_JDBC_URL` (+ `_USER`, `_PASSWORD`) is set:
+the backend build stage is the pinned pgvector image with the JDK copied in, and its single Gradle
+`RUN` starts that PostgreSQL on loopback, builds, and stops it. Keep the image digest there in sync
+with `jofi.postgresImage`. Build and smoke-test the stack from the repository root with
 `cp .env.example .env && scripts/compose-smoke-test.sh` (heavy: one build at a time).
 
 ## Documented exceptions

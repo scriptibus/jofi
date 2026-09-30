@@ -30,8 +30,9 @@ tests and `bootTestRun`. Bump tag and digest together.
 
 ## jOOQ code generation
 
-`generateJooq` (runs before compilation) starts the pinned PostgreSQL in Testcontainers, runs all
-migrations from zero with Flyway, and generates Java code into
+`generateJooq` (runs before compilation) starts the pinned PostgreSQL in Testcontainers (or uses the
+empty database named by `JOFI_CODEGEN_JDBC_URL`/`_USER`/`_PASSWORD`, as the container image build
+does), runs all migrations from zero with Flyway, and generates Java code into
 `build/generated-sources/jooq` (package `io.github.scriptibus.jofi.shared.adapter.persistence.jooq`).
 The code is never committed: it always matches the migrations, and a repository that uses a
 column the migrations no longer have does not compile. `MigrationsTest` also compares the generated
