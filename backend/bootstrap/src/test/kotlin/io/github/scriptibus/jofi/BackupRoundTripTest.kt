@@ -43,6 +43,7 @@ import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.json.JsonMapper
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -78,6 +79,12 @@ class BackupRoundTripTest(
         dsl.deleteFrom(USER_ACCOUNT).execute()
         context.getBean(LoginThrottlePort::class.java).reset(ThrottleKey.Everyone)
         context.getBean(SetupTokenPort::class.java).issue()
+        // Every test starts from the same data volume, whatever ran before it.
+        listOf("knowledge", "documents").map(dataDirectory::resolve).filter { it.exists() }.forEach {
+            Files.walk(it).use { paths -> paths.sorted(reverseOrder()).forEach(Files::delete) }
+        }
+        profile.parent.createDirectories()
+        profile.writeText("in the backup")
     }
 
     private fun owner(): Browser =
