@@ -134,7 +134,9 @@ test("filter by company and status, sort by deadline, keep it all in the URL", a
   await page.reload();
   await expect(page.getByText("2 applications match")).toBeVisible();
   await expect(titles(page, ours)).toHaveText([/^Platform/, /^Data/]);
-  await expect(page.getByRole("button", { name: /Applied, Offer.*Status$/ })).toBeVisible();
+  const status = page.getByRole("button", { name: /. Status$/ });
+  await expect(status).toContainText("Applied");
+  await expect(status).toContainText("Offer");
 
   await pick(page, "Application language", "English");
   await expect(page.getByText("1 application matches")).toBeVisible();
