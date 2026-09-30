@@ -10,23 +10,29 @@ import io.github.scriptibus.jofi.shared.domain.ChangelogEntry
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.domain.LoginThrottling
+import io.github.scriptibus.jofi.system.domain.ThrottleCheck
 import io.github.scriptibus.jofi.system.domain.ThrottleDecision
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.github.scriptibus.jofi.system.domain.UserAccount
 import java.time.Instant
 
 /**
- * Lets a password check of [client] run, or says how long to wait. The client is asked first and the
- * count of all clients is charged only for attempts the client's own backoff lets through: a single
- * throttled client can then never keep the global backoff armed and lock the owner out (ADR-0035).
+ * Lets a password check of [client] run, or says how long to wait. The client's counter and the count
+ * of all clients are checked together and charged only when both let the attempt through: a throttled
+ * client never keeps the global backoff armed, and a global backoff never adds to the owner's own
+ * count (ADR-0035).
  */
 internal fun LoginThrottlePort.attemptFor(
     client: ThrottleKey.Client,
     now: Instant,
-): ThrottleDecision {
-    val own = attempt(client, LoginThrottling.PER_CLIENT, now)
-    return if (own is ThrottleDecision.Throttled) own else attempt(ThrottleKey.Everyone, LoginThrottling.EVERYONE, now)
-}
+): ThrottleDecision =
+    attempt(
+        listOf(
+            ThrottleCheck(client, LoginThrottling.PER_CLIENT),
+            ThrottleCheck(ThrottleKey.Everyone, LoginThrottling.EVERYONE),
+        ),
+        now,
+    )
 
 /** Clears the counts after a correct password. */
 internal fun LoginThrottlePort.resetFor(client: ThrottleKey.Client) {

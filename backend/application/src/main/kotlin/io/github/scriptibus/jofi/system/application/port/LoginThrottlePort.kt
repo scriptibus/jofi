@@ -3,7 +3,7 @@
 
 package io.github.scriptibus.jofi.system.application.port
 
-import io.github.scriptibus.jofi.system.domain.LoginBackoff
+import io.github.scriptibus.jofi.system.domain.ThrottleCheck
 import io.github.scriptibus.jofi.system.domain.ThrottleDecision
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import java.time.Instant
@@ -11,12 +11,12 @@ import java.time.Instant
 /** Counts failed password checks per [ThrottleKey] (threat model T5). Implementations never throw. */
 interface LoginThrottlePort {
     /**
-     * Atomically decides whether an attempt of [key] at [now] may run under [policy]. An allowed
-     * attempt counts as failed right away (see `FailedAttempts`) until [reset] clears the key.
+     * Atomically decides whether an attempt at [now] passes all [checks]. If any counter is in
+     * backoff, the attempt is refused with the longest wait and **no** counter is charged; otherwise
+     * every counter counts it as failed right away (see `FailedAttempts`) until [reset] clears it.
      */
     fun attempt(
-        key: ThrottleKey,
-        policy: LoginBackoff,
+        checks: List<ThrottleCheck>,
         now: Instant,
     ): ThrottleDecision
 

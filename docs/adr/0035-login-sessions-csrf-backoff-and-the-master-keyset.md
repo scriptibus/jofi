@@ -68,9 +68,9 @@ calls `GET /api/auth/session` again afterwards. Refusals are `403` problem detai
 
 Every password check (login, first run, password change) passes two counters, kept in memory:
 per client 5 free failures, then 1 s doubling up to 15 min; for all clients together 50 free
-failures, then up to 1 min. The client's own counter is asked first, and only attempts it lets
-through are charged to the global one: a single throttled client can therefore never keep the
-global backoff armed and lock the owner out. An attempt counts as failed as soon as it is let
+failures, then up to 1 min. Both counters are checked together, atomically, and charged only when
+both let the attempt through: a single throttled client can never keep the global backoff armed and
+lock the owner out, and a global backoff armed by many addresses never adds to the owner's own count. An attempt counts as failed as soon as it is let
 through, so parallel guesses cannot slip past, and a success resets both. A throttled attempt
 answers `429` with `Retry-After` before any hashing. Failed attempts are logged without password or
 client address. There is no permanent lockout: an attacker could otherwise lock the only user out.

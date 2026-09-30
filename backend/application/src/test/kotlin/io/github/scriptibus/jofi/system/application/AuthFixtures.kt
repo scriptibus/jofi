@@ -13,9 +13,9 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.PasswordHasherPort
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
 import io.github.scriptibus.jofi.system.domain.AccountId
-import io.github.scriptibus.jofi.system.domain.LoginBackoff
 import io.github.scriptibus.jofi.system.domain.Password
 import io.github.scriptibus.jofi.system.domain.PasswordHash
+import io.github.scriptibus.jofi.system.domain.ThrottleCheck
 import io.github.scriptibus.jofi.system.domain.ThrottleDecision
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.github.scriptibus.jofi.system.domain.UserAccount
@@ -84,11 +84,10 @@ class FakeThrottle(
     val resets = mutableListOf<ThrottleKey>()
 
     override fun attempt(
-        key: ThrottleKey,
-        policy: LoginBackoff,
+        checks: List<ThrottleCheck>,
         now: Instant,
     ): ThrottleDecision {
-        attempts += key
+        attempts += checks.map { it.key }
         return throttled ?: ThrottleDecision.Allowed
     }
 

@@ -62,15 +62,24 @@ data class FailedAttempts(
         return if (now.isBefore(next)) {
             this to ThrottleDecision.Throttled(Duration.between(now, next))
         } else {
-            FailedAttempts(count + 1, now) to ThrottleDecision.Allowed
+            counted(now) to ThrottleDecision.Allowed
         }
     }
+
+    /** One more attempt at [now], counted as failed until a success resets the key. */
+    fun counted(now: Instant): FailedAttempts = FailedAttempts(count + 1, now)
 
     companion object {
         /** A key without failures (yet) at [now]. */
         fun none(now: Instant): FailedAttempts = FailedAttempts(0, now)
     }
 }
+
+/** One counter an attempt has to pass, with its policy. */
+data class ThrottleCheck(
+    val key: ThrottleKey,
+    val policy: LoginBackoff,
+)
 
 /** Whose attempts are counted: one client address, or all attempts together. */
 sealed interface ThrottleKey {

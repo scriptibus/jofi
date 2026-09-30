@@ -37,11 +37,11 @@ class LogInUseCaseTest {
     }
 
     @Test
-    fun `a throttled client is refused before the password is looked at and does not charge everyone`() {
+    fun `a throttled attempt is refused before the password is looked at`() {
         throttle.throttled = ThrottleDecision.Throttled(Duration.ofSeconds(8))
 
         useCase.execute(PASSWORD, client) shouldBe LoginResult.Throttled(Duration.ofSeconds(8))
-        throttle.attempts shouldContainExactly listOf(client)
+        throttle.attempts shouldContainExactly listOf(client, ThrottleKey.Everyone)
     }
 
     @Test
