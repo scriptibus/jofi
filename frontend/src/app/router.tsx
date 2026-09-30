@@ -15,6 +15,8 @@ import { m } from "../paraglide/messages.js";
 import { SetupWizard } from "./ai/SetupWizard";
 import { parseSetupStep, type SetupStep, shouldOpenSetupGuide } from "./ai/setupGuide";
 import { ApplicationDetailPage } from "./applications/ApplicationDetailPage";
+import { ApplicationsPage } from "./applications/ApplicationsPage";
+import { parseApplicationsSearch } from "./applications/applicationsSearch";
 import { EditApplicationPage } from "./applications/EditApplicationPage";
 import { parseApplicationSearch } from "./applications/tabs";
 import { FirstRunPage } from "./auth/FirstRunPage";
@@ -137,8 +139,15 @@ const dashboardRoute = createRoute({
     </PlaceholderPage>
   ),
 });
-const applicationsRoute = placeholder("applications", m.nav_applications, m.applications_empty);
-// Applications (spec §6.3): the detail page with its tabs (`?tab=`) and the edit page. The list is #100.
+// Applications (spec §6.3): the list with its filters, order and page in the URL; the detail page with
+// its tabs (`?tab=`) and the edit page.
+const applicationsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "applications",
+  validateSearch: parseApplicationsSearch,
+  component: ApplicationsPage,
+});
+
 const applicationRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "applications/$applicationId",

@@ -18,6 +18,7 @@ export {
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
 export { Dialog, type DialogProps } from "./Dialog";
+export { Disclosure, type DisclosureProps } from "./Disclosure";
 export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { FilePicker, type FilePickerProps } from "./FilePicker";
@@ -31,7 +32,22 @@ export {
   type SegmentedControlProps,
   type SegmentedOption,
 } from "./SegmentedControl";
-export { Select, type SelectGroup, type SelectOption, type SelectProps } from "./Select";
+export {
+  MultiSelect,
+  type MultiSelectProps,
+  Select,
+  type SelectGroup,
+  type SelectOption,
+  type SelectProps,
+} from "./Select";
+export {
+  type SortDirection,
+  Table,
+  TableCell,
+  type TableColumn,
+  type TableProps,
+  type TableSort,
+} from "./Table";
 export { type TabDefinition, Tabs, type TabsProps } from "./Tabs";
 export { TextArea, type TextAreaProps } from "./TextArea";
 export { TextField, type TextFieldProps } from "./TextField";

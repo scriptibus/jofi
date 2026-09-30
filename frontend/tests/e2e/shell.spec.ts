@@ -9,7 +9,7 @@ test.skip(!onStack, "Needs the full stack: run `pnpm e2e`.");
 
 // `placeholder`: the area shows the "Nothing here yet" empty state until its feature exists.
 const AREAS = [
-  { link: "Applications", heading: "Applications", path: "/applications", placeholder: true },
+  { link: "Applications", heading: "Applications", path: "/applications", placeholder: false },
   { link: "Companies", heading: "Companies", path: "/companies", placeholder: false },
   { link: "Tasks", heading: "Tasks", path: "/tasks", placeholder: true },
   { link: "Chat", heading: "Chat", path: "/chat", placeholder: true },

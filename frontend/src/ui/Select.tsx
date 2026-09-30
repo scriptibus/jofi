@@ -15,7 +15,7 @@ import {
   SelectValue,
   Text,
 } from "react-aria-components";
-import { ChevronDownIcon } from "./icons";
+import { CheckIcon, ChevronDownIcon } from "./icons";
 
 export interface SelectOption {
   id: string;
@@ -45,6 +45,8 @@ export interface SelectProps {
   className?: string;
 }
 
+const fieldClass = (className?: string) => ["flex flex-col gap-1.5", className].filter(Boolean).join(" ");
+
 /**
  * A single choice from a list in a popover, grouped under headings (React Aria Select): a button
  * showing the choice, arrow keys and type-ahead in the list. Use `SegmentedControl` for a handful of
@@ -70,8 +72,51 @@ export function Select({
       placeholder={placeholder}
       isDisabled={isDisabled ?? false}
       {...(name ? { name } : {})}
-      className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}
+      className={fieldClass(className)}
     >
+      <SelectParts label={label} groups={groups} description={description} />
+    </AriaSelect>
+  );
+}
+
+export interface MultiSelectProps extends Omit<SelectProps, "value" | "onChange" | "name"> {
+  /** The chosen options' ids; empty shows the placeholder. */
+  value: readonly string[];
+  onChange: (ids: string[]) => void;
+}
+
+/**
+ * Any number of choices from a list in a popover (React Aria Select with multiple selection): each
+ * option toggles and shows a check mark, the button lists the choices. For filters such as "any of
+ * these statuses".
+ */
+export function MultiSelect({
+  label,
+  groups,
+  value,
+  onChange,
+  placeholder,
+  description,
+  isDisabled,
+  className,
+}: MultiSelectProps) {
+  return (
+    <AriaSelect
+      selectionMode="multiple"
+      value={[...value]}
+      onChange={(ids) => onChange(ids.filter((id): id is string => typeof id === "string"))}
+      placeholder={placeholder}
+      isDisabled={isDisabled ?? false}
+      className={fieldClass(className)}
+    >
+      <SelectParts label={label} groups={groups} description={description} />
+    </AriaSelect>
+  );
+}
+
+function SelectParts({ label, groups, description }: Pick<SelectProps, "label" | "groups" | "description">) {
+  return (
+    <>
       <Label className="font-semibold text-body">{label}</Label>
       <Button
         className={
@@ -104,17 +149,27 @@ export function Select({
                   id={option.id}
                   textValue={option.label}
                   className={
-                    "cursor-default rounded px-2 py-1.5 text-body outline-none " +
+                    "flex cursor-default items-center gap-2 rounded px-2 py-1.5 text-body outline-none " +
                     "data-focused:bg-sunken data-selected:font-semibold"
                   }
                 >
-                  {option.label}
+                  {({ isSelected, selectionMode }) => (
+                    <>
+                      {selectionMode === "multiple" ? (
+                        <CheckIcon
+                          className={`size-4 shrink-0 text-accent ${isSelected ? "" : "invisible"}`}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      {option.label}
+                    </>
+                  )}
                 </ListBoxItem>
               ))}
             </ListBoxSection>
           ))}
         </ListBox>
       </Popover>
-    </AriaSelect>
+    </>
   );
 }
