@@ -184,17 +184,43 @@ jobs:
           runtime: node@24 # current LTS line; keep in sync with engines.node
           cache: true
           require-lockfile: true
-      - name: Lint, types, unit tests, build, licences
+      # Playwright runs in the `e2e` job, against the full stack.
+      - name: Lint, types, unit tests (incl. the fake AI provider), build, licences
         run: pnpm check
+
+  e2e:
+    # Playwright (light, dark, phone, axe) against the full stack: the e2e compose profile with the fake AI
+    # provider, WireMock and seeded data on a network without internet (issue #21, ADR-0027, ADR-0036).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          working-directory: frontend
+          runtime: node@24 # current LTS line; keep in sync with engines.node
+          cache: true
+          require-lockfile: true
       - name: Install Playwright browser
+        working-directory: frontend
         run: pnpm exec playwright install --with-deps chromium
-      - name: Headless e2e with axe
+      - name: Build the image, start and seed the e2e stack, check its isolation, run Playwright
+        working-directory: frontend
         run: pnpm e2e
+      - name: Nothing from the e2e stack reaches the production compose file or image
+        run: scripts/e2e-isolation-test.sh
       - if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: playwright-report
-          path: frontend/playwright-report
+          name: e2e-report
+          # HTML report, traces and screenshots of failed tests, and the stack's container logs.
+          path: |
+            frontend/playwright-report
+            frontend/test-results
           retention-days: 7
 
   compose:

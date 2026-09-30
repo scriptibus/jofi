@@ -1,0 +1,8 @@
+{
+  "description": "Language and tone of a posting.",
+  "turns": [
+    {
+      "text": "{\"language\": \"de\", \"tone\": \"informal\", \"addressing\": \"du\"}"
+    }
+  ]
+}

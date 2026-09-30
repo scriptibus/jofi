@@ -1,0 +1,8 @@
+{
+  "description": "Pre-scoring of a posting (untrusted input, no tools).",
+  "turns": [
+    {
+      "text": "{\"score\": 72, \"reasons\": [\"Kotlin and Spring Boot match\", \"Hybrid work in Berlin\"]}"
+    }
+  ]
+}

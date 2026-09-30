@@ -1,0 +1,8 @@
+{
+  "description": "A generated cover letter paragraph.",
+  "turns": [
+    {
+      "text": "Dear hiring team,\n\nI build reliable backend systems with Kotlin and Spring Boot, and I would love to do that at ACME GmbH."
+    }
+  ]
+}

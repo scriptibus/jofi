@@ -1,0 +1,18 @@
+{
+  "description": "The model calls find_company first, then answers from the tool result.",
+  "turns": [
+    {
+      "toolCalls": [
+        {
+          "name": "find_company",
+          "arguments": {
+            "name": "ACME GmbH"
+          }
+        }
+      ]
+    },
+    {
+      "text": "ACME GmbH is the demo company from the e2e seed data."
+    }
+  ]
+}

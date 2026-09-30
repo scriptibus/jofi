@@ -43,3 +43,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0032](0032-cross-context-ports-in-an-open-shared-kernel.md) | Cross-context ports live in an open `shared` kernel | accepted |
 | [0033](0033-api-contract-pipeline-committed-spec-generated-client.md) | API contract pipeline: committed spec, build-time client, oasdiff with a human override | accepted |
 | [0034](0034-ssrf-guard-with-pinned-dns-and-an-allowlist-for-ai-endpoints.md) | SSRF guard with pinned DNS, and an allowlist for AI endpoints | accepted |
+| [0036](0036-e2e-stack-with-a-wire-level-fake-ai-provider.md) | e2e stack with a wire-level fake AI provider | accepted |

@@ -1,0 +1,14 @@
+{
+  "request": {
+    "method": "GET",
+    "urlPath": "/placeholder-source/jobs"
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "jobs": [] }
+  },
+  "metadata": {
+    "description": "Placeholder for the scanner sources (M4). Each source gets its own mappings file here."
+  }
+}

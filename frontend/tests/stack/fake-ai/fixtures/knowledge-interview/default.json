@@ -1,0 +1,8 @@
+{
+  "description": "The knowledge interview asks the next question.",
+  "turns": [
+    {
+      "text": "Tell me about a project you are proud of. What was your part in it?"
+    }
+  ]
+}

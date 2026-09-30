@@ -1,0 +1,8 @@
+{
+  "description": "The interview trainer's next question.",
+  "turns": [
+    {
+      "text": "Why do you want to work for ACME GmbH?"
+    }
+  ]
+}

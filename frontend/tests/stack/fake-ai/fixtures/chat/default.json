@@ -1,0 +1,8 @@
+{
+  "description": "A plain chat answer, streamed word by word when the client streams.",
+  "turns": [
+    {
+      "text": "Hi, I am Jofi's fake AI. I give the same answer to the same question, every time."
+    }
+  ]
+}

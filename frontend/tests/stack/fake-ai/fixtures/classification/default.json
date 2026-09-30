@@ -1,0 +1,8 @@
+{
+  "description": "Classification of a document or message.",
+  "turns": [
+    {
+      "text": "{\"category\": \"job-posting\", \"confidence\": 0.9}"
+    }
+  ]
+}
