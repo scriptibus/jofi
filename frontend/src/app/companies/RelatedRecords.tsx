@@ -98,7 +98,7 @@ export function CompanyContacts({ companyId }: { companyId: string }) {
   );
 }
 
-/** The company's applications, each linking to its page. */
+/** The company's applications, each linking to its page, and the way to add one for this company. */
 export function CompanyApplications({ companyId, count }: { companyId: string; count: number }) {
   const applications = useSearchApplications({ companyId, size: RELATED_PAGE_SIZE }, { query: quietly });
   return (
@@ -117,6 +117,16 @@ export function CompanyApplications({ companyId, count }: { companyId: string; c
         ),
         secondary: application.location,
       }))}
+      action={
+        <TextLink
+          to="/applications/new"
+          search={{ company: companyId }}
+          className="inline-flex items-center gap-2 self-start"
+        >
+          <AddIcon className="size-4" aria-hidden="true" />
+          {m.applications_new()}
+        </TextLink>
+      }
     />
   );
 }

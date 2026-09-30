@@ -6,7 +6,9 @@ import {
   type ApplicationResponse,
   getGetApplicationQueryKey,
   getGetApplicationStatusHistoryQueryKey,
+  getGetCompanyQueryKey,
   getSearchApplicationsQueryKey,
+  getSearchCompaniesQueryKey,
 } from "../../api/generated/jofi";
 
 /** After a save or a read/unread change: the cache holds the answer, and every list asks again. */
@@ -19,6 +21,16 @@ export function storeSavedApplication(queryClient: QueryClient, application: App
 export function storeStatusChange(queryClient: QueryClient, application: ApplicationResponse) {
   storeSavedApplication(queryClient, application);
   void queryClient.invalidateQueries({ queryKey: getGetApplicationStatusHistoryQueryKey(application.id) });
+}
+
+/**
+ * After a create: as after a save, and the company's page and the companies list ask again too, since
+ * they count the company's applications.
+ */
+export function storeCreatedApplication(queryClient: QueryClient, application: ApplicationResponse) {
+  storeSavedApplication(queryClient, application);
+  void queryClient.invalidateQueries({ queryKey: getGetCompanyQueryKey(application.companyId) });
+  void queryClient.invalidateQueries({ queryKey: getSearchCompaniesQueryKey() });
 }
 
 /** After a delete: the application is gone from the cache, and every list (a company's too) asks again. */
