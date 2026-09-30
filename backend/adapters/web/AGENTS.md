@@ -95,6 +95,11 @@ key or its secret id; request DTOs hide the key in `toString()` and mark it `@Wr
 (`writeOnly`, `format: password` in the contract). Controllers always act as
 `Actor.User`; the use cases refuse every other actor (`403 urn:jofi:problem:setup:forbidden`), so MCP
 and AI tools must never be given these use cases. `SetupProblems.of` maps each `SetupResult.Failure`.
+`ProviderPrivacyController`: `GET /api/setup/providers/privacy` (read-only, #138): one entry per provider
+kind with `zeroDataRetention`, `noTraining` and `dataLocation` (each a `status`, a `summary` in `en`/`de`
+and `evidence` quotes with their https `source`), the entry's `checkedOn` and `stale` (older than
+`staleAfterMonths`), plus the `disclaimer` (`key` for Paraglide and its `en`/`de` text) that the UI must
+show with every entry. The data comes from `provider-privacy.json` in `adapters/ai`.
 
 ## AI costs and monthly budget (#24)
 

@@ -53,3 +53,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0042](0042-backup-archive-format-restore-and-the-master-keyset.md) | Backup archive format, restore, and the master keyset in backups | accepted |
 | [0043](0043-ai-gateway-never-send-filter-and-cost-meter.md) | The AI gateway, the "never send to AI" filter and the cost meter | accepted |
 | [0044](0044-application-status-pipeline-transition-matrix-and-history.md) | Application status pipeline: transition matrix, decline reason and history | accepted |
+| [0045](0045-dated-provider-privacy-info.md) | Dated provider privacy info with quoted sources | accepted |

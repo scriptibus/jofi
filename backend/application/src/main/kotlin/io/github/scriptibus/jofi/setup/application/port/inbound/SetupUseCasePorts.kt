@@ -9,6 +9,7 @@ import io.github.scriptibus.jofi.setup.domain.ProviderConfig
 import io.github.scriptibus.jofi.setup.domain.ProviderId
 import io.github.scriptibus.jofi.setup.domain.ProviderInput
 import io.github.scriptibus.jofi.setup.domain.ProviderKind
+import io.github.scriptibus.jofi.setup.domain.ProviderPrivacyOverview
 import io.github.scriptibus.jofi.setup.domain.SetupResult
 import io.github.scriptibus.jofi.setup.domain.TaskAssignmentView
 import io.github.scriptibus.jofi.shared.domain.Actor
@@ -85,6 +86,14 @@ interface CorrectModelCapabilitiesPort {
 /** Every task, with its assignment and the capability warnings for it. */
 interface ListTaskAssignmentsPort {
     fun execute(): SetupResult<List<TaskAssignmentView>>
+}
+
+/**
+ * The dated privacy info of every provider kind with the "verify these terms yourself" disclaimer
+ * (spec §3.2); entries older than the catalog allows are flagged stale. Read-only.
+ */
+interface ListProviderPrivacyInfoPort {
+    fun execute(): ProviderPrivacyOverview
 }
 
 /** Assigns a model to a task; answers with the warnings, but a weaker model is still allowed. */
