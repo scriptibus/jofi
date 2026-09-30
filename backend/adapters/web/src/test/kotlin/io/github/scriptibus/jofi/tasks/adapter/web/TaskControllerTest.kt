@@ -18,6 +18,7 @@ import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DismissTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.ListSuggestedTasksUseCase
+import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.UpdateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
@@ -50,20 +51,16 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * The task endpoints over the real use cases (#93) with a mocked repository: mapping, problem details and the
- * two-step delete; listing and dismissing suggestions (#85, [TaskSuggestionController]). The grouped list (#94)
- * and accepting a suggestion (#95) still answer `501`. Security (session, CSRF) is the filter chain's job, tested
- * in bootstrap.
+ * The task endpoints over the real use cases (#93, #94) with a mocked repository: mapping, problem details, the
+ * grouped list in the viewer's zone and the two-step delete; the suggestions are in [TaskSuggestionControllerTest].
+ * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
-@WebMvcTest(
-    TaskController::class,
-    TaskSuggestionController::class,
-    properties = ["spring.mvc.problemdetails.enabled=true"],
-)
+@WebMvcTest(TaskController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
 @Import(TaskControllerTest.UseCases::class)
 class TaskControllerTest(
@@ -93,6 +90,9 @@ class TaskControllerTest(
 
         @Bean
         fun get(ports: Ports) = GetTaskUseCase(ports.tasks)
+
+        @Bean
+        fun listGroups(ports: Ports) = ListTaskGroupsUseCase(ports.tasks, CLOCK)
 
         @Bean
         fun update(ports: Ports) = UpdateTaskUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
@@ -313,57 +313,59 @@ class TaskControllerTest(
     }
 
     @Test
-    fun `the suggestions are listed newest first with their rule`() {
-        val older = suggested("follow-up", Instant.parse("2026-09-01T08:00:00Z"))
-        val newer = suggested("ghosted-suggestion", Instant.parse("2026-09-02T08:00:00Z"))
-        every { ports.tasks.listByState(TaskState.SUGGESTED) } returns TaskStoreResult.Success(listOf(older, newer))
+    fun `the grouped list shows the open tasks on the calendar of the zone the request names`() {
+        // 00:30 on Thursday in Berlin, still Wednesday (today) in UTC.
+        val afterMidnightInBerlin =
+            TaskTiming.Exact(Instant.parse("2026-09-30T22:30:00Z"), ZoneId.of("Europe/Berlin"))
+        val task = stored.copy(details = stored.details.copy(timing = afterMidnightInBerlin))
+        every { ports.tasks.listByState(TaskState.OPEN) } returns TaskStoreResult.Success(listOf(task))
+        val groups =
+            """[{"group":"OVERDUE"},{"group":"TODAY"},{"group":"THIS_WEEK"},{"group":"NEXT_WEEK"},""" +
+                """{"group":"THIS_MONTH"},{"group":"LATER"},{"group":"SOMEDAY"}]"""
 
+        val utc =
+            mvc
+                .get()
+                .uri("/api/tasks?timeZone=UTC")
+                .assertThat()
+                .hasStatus(200)
+                .bodyJson()
+        utc.isLenientlyEqualTo("""{"groups":$groups}""")
+        utc.extractingPath("groups[1].tasks[0].id").isEqualTo(task.id.value.toString())
+        utc.extractingPath("groups[2].tasks").asArray().isEmpty()
+        val berlin =
+            mvc
+                .get()
+                .uri("/api/tasks?timeZone=Europe/Berlin")
+                .assertThat()
+                .hasStatus(200)
+                .bodyJson()
+        berlin.extractingPath("groups[1].tasks").asArray().isEmpty()
+        berlin.extractingPath("groups[2].tasks[0].timing.localDue").isEqualTo("2026-10-01T00:30:00")
+    }
+
+    @Test
+    fun `an unknown zone for the grouped list is a 400 naming the query parameter`() {
         mvc
             .get()
-            .uri("/api/tasks/suggestions")
+            .uri("/api/tasks?timeZone=Mars/Olympus")
             .assertThat()
-            .hasStatusOk()
+            .hasStatus(400)
             .bodyJson()
             .isLenientlyEqualTo(
                 """
-                {"tasks":[{"id":"${newer.id.value}","suggestionRule":"ghosted-suggestion","status":"SUGGESTED"},
-                          {"id":"${older.id.value}","suggestionRule":"follow-up","status":"SUGGESTED"}]}
+                {"type":"${TaskProblems.INVALID}","violations":[{"field":"timeZone","problem":"INVALID_TIME_ZONE"}]}
                 """.trimIndent(),
             )
-    }
+        verify(exactly = 0) { ports.tasks.listByState(any()) }
 
-    @Test
-    fun `dismissing a suggestion records it as the user, but an open task cannot be dismissed`() {
-        every { ports.tasks.findById(stored.id) } returns
-            TaskStoreResult.Success(suggested("ghosted-suggestion", Instant.parse("2026-09-01T08:00:00Z"), stored.id))
-
-        json(mvc.post().uri("$path/dismiss"), """{"basedOnVersion":0}""")
+        every { ports.tasks.listByState(any()) } returns TaskStoreResult.StorageFailure("listByState")
+        mvc
+            .get()
+            .uri("/api/tasks?timeZone=UTC")
             .assertThat()
-            .hasStatusOk()
-            .bodyJson()
-            .isLenientlyEqualTo("""{"status":"DISMISSED","version":1}""")
-        verify { ports.changelog.append(match { it.actor == Actor.User }) }
-
-        every { ports.tasks.findById(stored.id) } returns TaskStoreResult.Success(stored)
-        json(mvc.post().uri("$path/dismiss"), """{"basedOnVersion":0}""")
-            .assertThat()
-            .hasStatus(409)
-            .bodyJson()
-            .extractingPath("type")
-            .isEqualTo(TaskProblems.INVALID_TRANSITION)
+            .hasStatus(503)
     }
-
-    @Test
-    fun `the grouped list and accepting a suggestion are not implemented yet`() {
-        notImplemented(mvc.get().uri("/api/tasks?timeZone=Europe/Berlin"))
-        notImplemented(json(mvc.post().uri("$path/accept"), """{"basedOnVersion":0}"""))
-    }
-
-    private fun suggested(
-        rule: String,
-        at: Instant,
-        id: TaskId = TaskId(UUID.randomUUID()),
-    ): Task = Task.suggest(id, stored.details, TaskOrigin.Suggested(rule, "application:$id"), at)
 
     @Test
     fun `requests that break the contract are rejected`() {
@@ -397,10 +399,6 @@ class TaskControllerTest(
         request: MockMvcTester.MockMvcRequestBuilder,
         body: String,
     ): MockMvcTester.MockMvcRequestBuilder = request.contentType(MediaType.APPLICATION_JSON).content(body)
-
-    private fun notImplemented(request: MockMvcTester.MockMvcRequestBuilder) {
-        request.assertThat().hasStatus(501).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
-    }
 
     private fun badRequest(request: MockMvcTester.MockMvcRequestBuilder) {
         request.assertThat().hasStatus(400).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)

@@ -11,15 +11,15 @@ import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.UpdateTaskUseCase
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
+import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
-import org.springframework.http.ProblemDetail
-import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -36,16 +36,15 @@ import java.util.UUID
 /**
  * Tasks with exact or rough timing (spec §10.2, ADR-0049), for the logged-in user. Create, read, edit, complete,
  * reopen and delete (#93) call their use case as `Actor.User` (tasks created here are `Manual`) and map each
- * `TaskResult.Failure` with [TaskProblems.of]. The suggestions have their own [TaskSuggestionController]. The grouped
- * list (#94) is still the contract only and answers `501 Not Implemented`; its parameter only declares it, hence the
- * suppressed unused-parameter rule.
+ * `TaskResult.Failure` with [TaskProblems.of]; so does the grouped list (#94). The suggestions have their own
+ * [TaskSuggestionController].
  */
-@Suppress("UnusedParameter", "TooManyFunctions")
 @RestController
 @RequestMapping("/api/tasks")
 class TaskController(
     private val createTask: CreateTaskUseCase,
     private val getTask: GetTaskUseCase,
+    private val listTaskGroups: ListTaskGroupsUseCase,
     private val updateTask: UpdateTaskUseCase,
     private val completeTask: CompleteTaskUseCase,
     private val reopenTask: ReopenTaskUseCase,
@@ -53,13 +52,16 @@ class TaskController(
 ) {
     /**
      * The open tasks grouped by when they are due, as seen on the calendar of [timeZone] (the viewer's zone, e.g.
-     * `Europe/Berlin`; weeks start on Monday).
+     * `Europe/Berlin` or `+02:00`; weeks start on Monday). An unknown zone is a 400 naming `timeZone`.
      */
     @GetMapping
     @ProblemResponses(ProblemKind.INVALID_INPUT)
     fun listTaskGroups(
         @RequestParam timeZone: String,
-    ): TaskGroupListResponse = throw notImplemented()
+    ): TaskGroupListResponse {
+        val zone = TaskTiming.zoneOf(timeZone) ?: throw TaskProblems.invalidViewerZone()
+        return TaskGroupListResponse.from(listTaskGroups.execute(zone).orThrow())
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -111,11 +113,6 @@ class TaskController(
         request: HttpServletRequest,
     ) {
         deleteTask.execute(TaskId(id), Confirmations.requester(request), Confirmations.token(confirmation)).orThrow()
-    }
-
-    private fun notImplemented(): ErrorResponseException {
-        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Tasks are not available yet")
-        return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
     }
 }
 

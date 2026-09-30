@@ -29,7 +29,6 @@ object InboundPortRules {
             "ListInterviewsPort" to "#91",
             "DeleteInterviewPort" to "#91",
             "ListUpcomingInterviewsPort" to "#92",
-            "ListTaskGroupsPort" to "#94",
             "AcceptTaskSuggestionPort" to "#95",
             "CreateCountdownPort" to "#112",
             "UpdateCountdownPort" to "#112",
