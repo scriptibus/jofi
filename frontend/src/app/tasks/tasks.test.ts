@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "vitest";
+import { getLocale, overwriteGetLocale } from "../../paraglide/runtime.js";
 import { aTask } from "../../test/fakeTaskBackend";
-import { currentBucket, describeTiming, formValues, todayIn, toTaskRequest } from "./task";
+import { currentBucket, describeTiming, formValues, taskTitle, todayIn, toTaskRequest } from "./task";
 
 // Wednesday, 30 September 2026.
 const TODAY = "2026-09-30";
@@ -135,5 +136,41 @@ describe("describeTiming", () => {
     expect(describeTiming({ span: "DAY", startsOn: TODAY }, "Pacific/Honolulu", "de-DE")).toBe(
       "Due 30.09.2026",
     );
+  });
+});
+
+describe("taskTitle", () => {
+  const suggestion = (suggestionRule: string, title: string) => ({ suggestionRule, title });
+
+  it("puts each rule's title in the user's language", () => {
+    const original = getLocale;
+    overwriteGetLocale(() => "de");
+    try {
+      expect(taskTitle(suggestion("follow-up", "Follow up: Platform Engineer"))).toBe(
+        "Nachfassen: Platform Engineer",
+      );
+      expect(taskTitle(suggestion("interview-preparation", "Prepare for the interview: SRE"))).toBe(
+        "Auf das Vorstellungsgespräch vorbereiten: SRE",
+      );
+      expect(taskTitle(suggestion("offer-answer", "Answer the offer: SRE"))).toBe(
+        "Auf das Angebot antworten: SRE",
+      );
+      expect(taskTitle(suggestion("ghosted-suggestion", "Mark as Ghosted: SRE"))).toBe(
+        "Als „Keine Antwort“ markieren: SRE",
+      );
+    } finally {
+      overwriteGetLocale(original);
+    }
+    expect(taskTitle(suggestion("follow-up", "Follow up: Platform Engineer"))).toBe(
+      "Follow up: Platform Engineer",
+    );
+  });
+
+  it("keeps an edited title, an unknown rule's and a direct task's as they are", () => {
+    expect(taskTitle(suggestion("follow-up", "Call Anna about the SRE role"))).toBe(
+      "Call Anna about the SRE role",
+    );
+    expect(taskTitle(suggestion("constructor", "Follow up: SRE"))).toBe("Follow up: SRE");
+    expect(taskTitle(aTask({ title: "Follow up: SRE" }))).toBe("Follow up: SRE");
   });
 });

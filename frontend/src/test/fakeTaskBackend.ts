@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// An in-memory stand-in for the task endpoints (#93, #94), as MSW handlers. It mirrors the backend's status
-// codes and problem types: 400 violations, 409 `version-conflict` for a stale `basedOnVersion`, a 428 before a
-// delete, and the grouped list of open tasks only. The group of each task is given by the test (`groups`),
+// An in-memory stand-in for the task endpoints (#93, #94, #95), as MSW handlers. It mirrors the backend's status
+// codes and problem types: 400 violations, 409 `version-conflict` for a stale `basedOnVersion`, 409
+// `invalid-transition` for accepting or dismissing what is no suggestion, a 428 before a delete, the grouped list
+// of open tasks only, and the suggestions (state `SUGGESTED`) newest first. The group of each task is given by the test (`groups`),
 // or follows the bucket it was created with; the real calendar runs in the backend's tests and in e2e.
 
 import { HttpResponse, http } from "msw";
@@ -65,6 +66,10 @@ export interface FakeTaskState {
   updates: UpdateTaskRequest[];
   /** Every complete (`true`) and reopen (`false`) call's body, in order. */
   stateChanges: { done: boolean; basedOnVersion: number }[];
+  /** Every accepted accept and dismiss call, in order. */
+  decisions: { decision: "accept" | "dismiss"; id: string; basedOnVersion: number }[];
+  /** While true, the suggestions list answers 503 `storage-unavailable`. */
+  suggestionsUnavailable: boolean;
   /** Delete calls seen: `first` without token, `confirmed` with it. */
   deleteCalls: ("first" | "confirmed")[];
   /** Held until resolved: lets a test look at the page while a complete is on its way. */
@@ -118,6 +123,8 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
     creates: [],
     updates: [],
     stateChanges: [],
+    decisions: [],
+    suggestionsUnavailable: false,
     deleteCalls: [],
     ...initial,
   };
@@ -146,7 +153,31 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
       });
     };
 
+  const decide =
+    (decision: "accept" | "dismiss") =>
+    async ({ request, params }: { request: Request; params: Record<string, unknown> }) => {
+      const task = find(params.id);
+      if (!task) return problem(404, "task-not-found");
+      const { basedOnVersion } = (await request.json()) as TaskVersionRequest;
+      if (basedOnVersion !== task.version) return problem(409, "version-conflict");
+      if (task.status !== "SUGGESTED") return problem(409, "invalid-transition");
+      state.decisions.push({ decision, id: task.id, basedOnVersion });
+      return store({
+        ...task,
+        status: decision === "accept" ? "OPEN" : "DISMISSED",
+        version: task.version + 1,
+      });
+    };
+
   const handlers = [
+    // Before `/api/tasks/:id`, which would take "suggestions" for an id.
+    http.get(`${origin()}/api/tasks/suggestions`, () => {
+      if (state.suggestionsUnavailable) return problem(503, "storage-unavailable");
+      const suggested = state.tasks.filter((task) => task.status === "SUGGESTED");
+      return HttpResponse.json({ tasks: suggested.toReversed() });
+    }),
+    http.post(`${origin()}/api/tasks/:id/accept`, decide("accept")),
+    http.post(`${origin()}/api/tasks/:id/dismiss`, decide("dismiss")),
     http.get(`${origin()}/api/tasks`, ({ request }) => {
       state.listZones.push(new URL(request.url).searchParams.get("timeZone") ?? "");
       const open = state.tasks.filter((task) => task.status === "OPEN");
