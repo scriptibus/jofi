@@ -44,6 +44,19 @@ licensee {
     allowUrl("https://jdbc.postgresql.org/about/license.html") {
         because("BSD-2-Clause, named in the pom of org.postgresql:postgresql")
     }
+    allowUrl("https://www.bouncycastle.org/licence.html") {
+        because("MIT: the Bouncy Castle Licence is the MIT license text (org.bouncycastle:bcprov-jdk18on, argon2id)")
+    }
+    // Spring Session 4.1.1's poms name a "Broadcom Foundation License" by a release-tooling bug
+    // (https://github.com/spring-projects/spring-session/issues/3910); the jars ship Apache-2.0
+    // LICENSE.txt and the repository is Apache-2.0. Pinned to 4.1.1 so the next version is checked again.
+    listOf("spring-session-core", "spring-session-jdbc").forEach { artifact ->
+        allowDependency("org.springframework.session", artifact, "4.1.1") {
+            because(
+                "Apache-2.0 (LICENSE.txt in the jar); the pom's license name is a known release bug, spring-session#3910",
+            )
+        }
+    }
     allowDependency("org.reactivestreams", "reactive-streams", "1.0.4") {
         because("MIT-0 (MIT without attribution; already accepted for the frontend), via jOOQ -> r2dbc-spi")
     }

@@ -10,9 +10,11 @@ plugins {
 dependencies {
     implementation(project(":application"))
     implementation(libs.spring.boot.starter.webmvc)
+    implementation(libs.spring.boot.starter.security)
     implementation(libs.jackson.module.kotlin)
 
     testImplementation(libs.spring.boot.starter.webmvc.test)
+    testImplementation(libs.spring.boot.starter.security.test)
     // Test-only: OpenApiSpecTest renders the spec from the controllers; the app does not serve it.
     testImplementation(libs.springdoc.openapi.webmvc.api)
     testRuntimeOnly(libs.jackson2.module.kotlin)

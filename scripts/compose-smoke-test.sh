@@ -56,9 +56,30 @@ until app_id="$(container_id app)" && [[ -n "${app_id}" ]] \
 done
 pass "app container is healthy"
 
+status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${base_url}/api/auth/session")"
+[[ "${status}" == "200" ]] || fail "GET /api/auth/session returned ${status}, expected 200"
+pass "GET ${base_url}/api/auth/session returns 200"
+
+# First run always needs the one-time setup token from the data volume (ADR-0035).
+# The token is issued right after startup, possibly a moment after the healthcheck turned green.
+token_deadline=$((SECONDS + 30))
+until compose exec -T app test -s /data/secrets/setup-token; do
+  ((SECONDS < token_deadline)) || fail "no setup token in /data/secrets/setup-token"
+  sleep 2
+done
+pass "the setup token for first run is in the data volume"
+compose logs app | grep -q "docker compose exec app cat /data/secrets/setup-token" \
+  || fail "the app log does not say how to read the setup token"
+pass "the app log says how to read the setup token"
+status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  -H 'Content-Type: application/json' -d '{"password":"a long enough password"}' "${base_url}/api/auth/first-run")"
+[[ "${status}" == "403" ]] || fail "POST /api/auth/first-run without CSRF token and setup token returned ${status}, expected 403"
+pass "first run is refused without CSRF and setup token"
+
+# Every other API call needs a login session (ADR-0035).
 status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${base_url}/api/system/info")"
-[[ "${status}" == "200" ]] || fail "GET /api/system/info returned ${status}, expected 200"
-pass "GET ${base_url}/api/system/info returns 200"
+[[ "${status}" == "401" ]] || fail "GET /api/system/info without a session returned ${status}, expected 401"
+pass "GET ${base_url}/api/system/info without a session returns 401"
 
 status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${base_url}/")"
 [[ "${status}" == "200" ]] || fail "GET / (frontend) returned ${status}, expected 200"

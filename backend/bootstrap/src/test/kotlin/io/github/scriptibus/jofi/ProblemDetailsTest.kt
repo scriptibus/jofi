@@ -13,6 +13,9 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.authentication.InsufficientAuthenticationException
+import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.GetMapping
@@ -21,8 +24,12 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 
-/** The one error contract of the API (ADR-0033): every error is RFC 9457 problem details. */
+/**
+ * The one error contract of the API (ADR-0033): every error is RFC 9457 problem details. Runs as a
+ * logged-in user; the answers without a session are in `AuthSecurityTest`.
+ */
 @SpringBootTest
+@WithMockUser
 @AutoConfigureMockMvc
 @Import(PostgresTestConfiguration::class, ProblemDetailsTest.SealedResultController::class)
 class ProblemDetailsTest(
@@ -98,6 +105,25 @@ class ProblemDetailsTest(
             .isLenientlyEqualTo("""{"status":409,"detail":"Already exists"}""")
     }
 
+    @Test
+    fun `Spring Security's exceptions from a controller reach the filter chain as 401 and 403`() {
+        mvc
+            .get()
+            .uri("/api/test/denied")
+            .assertThat()
+            .hasStatus(HttpStatus.FORBIDDEN)
+            .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+            .bodyJson()
+            .extractingPath("$.type")
+            .isEqualTo("urn:jofi:problem:system:access-denied")
+        mvc
+            .get()
+            .uri("/api/test/unauthenticated")
+            .assertThat()
+            .hasStatus(HttpStatus.UNAUTHORIZED)
+            .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+    }
+
     @ResponseStatus(HttpStatus.CONFLICT, reason = "Already exists")
     class ConflictException : RuntimeException("internal message")
 
@@ -131,6 +157,12 @@ class ProblemDetailsTest(
 
         @GetMapping("/api/test/conflict")
         fun conflict(): ThingResponse = throw ConflictException()
+
+        @GetMapping("/api/test/denied")
+        fun denied(): ThingResponse = throw AccessDeniedException("denied")
+
+        @GetMapping("/api/test/unauthenticated")
+        fun unauthenticated(): ThingResponse = throw InsufficientAuthenticationException("log in")
 
         @GetMapping("/api/test/explode")
         fun explode(): ThingResponse = error("secret internals")

@@ -33,7 +33,8 @@ import kotlin.io.path.writeText
         "springdoc.override-with-generic-response=false",
     ],
 )
-@AutoConfigureMockMvc
+// The spec is rendered without the security filter chain, which lives in bootstrap.
+@AutoConfigureMockMvc(addFilters = false)
 class OpenApiSpecTest(
     @param:Autowired private val mvc: MockMvcTester,
 ) {
