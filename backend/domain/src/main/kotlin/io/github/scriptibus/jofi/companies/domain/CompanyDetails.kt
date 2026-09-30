@@ -88,6 +88,7 @@ value class WebAddress(
             // The URI check sees a placeholder host, since URI rejects some valid hosts (underscores).
             val rest = raw.substring(authority.range.last + 1)
             return raw.length <= MAX_LENGTH &&
+                !raw.hasUnstorableCharacter() &&
                 ':' !in host &&
                 !runCatching { IDN.toASCII(host) }.getOrNull().isNullOrEmpty() &&
                 runCatching { URI("http://host.invalid$rest") }.isSuccess
@@ -115,7 +116,25 @@ enum class ViolationKind {
 
     /** Not an absolute http(s) URL with a host and without user info. */
     INVALID_URL,
+
+    /** Not an email address: no `@` with text on both sides, or whitespace in it. */
+    INVALID_EMAIL,
+
+    /** Not a phone number: no digit, or a control character in it. */
+    INVALID_PHONE,
+
+    /** The referenced entity (e.g. the company of a contact) does not exist. */
+    NOT_FOUND,
+
+    /** The text contains U+0000, which the database cannot store. */
+    INVALID_CHARACTER,
 }
+
+/**
+ * Whether the text contains a character the database cannot store: PostgreSQL `text` rejects U+0000,
+ * so a domain that accepted it would produce entities that fail to store (ADR-0041).
+ */
+internal fun String.hasUnstorableCharacter(): Boolean = '\u0000' in this
 
 /** The rules of [CompanyDetails], shared by its invariants and [CompanyInput.validate]. */
 internal object CompanyRules {
@@ -139,6 +158,7 @@ internal object CompanyRules {
     ): CompanyViolation? =
         when {
             value.isBlank() || value != value.trim() -> CompanyViolation(field, ViolationKind.REQUIRED)
+            value.hasUnstorableCharacter() -> CompanyViolation(field, ViolationKind.INVALID_CHARACTER)
             value.length > maxLength -> CompanyViolation(field, ViolationKind.TOO_LONG)
             else -> null
         }
@@ -147,6 +167,10 @@ internal object CompanyRules {
         when {
             locations.size > CompanyDetails.MAX_LOCATIONS -> {
                 CompanyViolation(CompanyField.LOCATIONS, ViolationKind.TOO_MANY)
+            }
+
+            locations.any(String::hasUnstorableCharacter) -> {
+                CompanyViolation(CompanyField.LOCATIONS, ViolationKind.INVALID_CHARACTER)
             }
 
             locations.any { it.length > CompanyDetails.MAX_LOCATION_LENGTH } -> {

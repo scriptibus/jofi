@@ -179,4 +179,34 @@ class CompanyInputTest {
 
     private fun valid(input: CompanyInput): CompanyDetails =
         input.validate().shouldBeInstanceOf<CompanyValidation.Valid<CompanyDetails>>().value
+
+    @Test
+    fun `text with U+0000, which PostgreSQL cannot store, is rejected in every field`() {
+        val nul = "\u0000"
+        val input =
+            CompanyInput(
+                name = "AC${nul}ME",
+                website = "https://acme.example/$nul",
+                industry = "Robo${nul}tics",
+                locations = listOf("Ber${nul}lin"),
+                careersPage = "https://jobs.example/?q=$nul",
+                researchNotes = "# Notes$nul",
+            )
+
+        input.validate().shouldBeInstanceOf<CompanyValidation.Invalid>().violations shouldContainExactlyInAnyOrder
+            listOf(
+                CompanyViolation(CompanyField.NAME, ViolationKind.INVALID_CHARACTER),
+                CompanyViolation(CompanyField.WEBSITE, ViolationKind.INVALID_URL),
+                CompanyViolation(CompanyField.INDUSTRY, ViolationKind.INVALID_CHARACTER),
+                CompanyViolation(CompanyField.LOCATIONS, ViolationKind.INVALID_CHARACTER),
+                CompanyViolation(CompanyField.CAREERS_PAGE, ViolationKind.INVALID_URL),
+                CompanyViolation(CompanyField.RESEARCH_NOTES, ViolationKind.INVALID_CHARACTER),
+            )
+        PreferenceInput(PreferenceKind.FAVOURITE, "Gr${nul}eat").validate() shouldBe
+            CompanyValidation.Invalid(
+                listOf(CompanyViolation(CompanyField.PREFERENCE_REASON, ViolationKind.INVALID_CHARACTER)),
+            )
+        shouldThrow<IllegalArgumentException> { CompanyDetails("AC${nul}ME") }
+        shouldThrow<IllegalArgumentException> { CompanyPreference.Blacklisted("No$nul") }
+    }
 }

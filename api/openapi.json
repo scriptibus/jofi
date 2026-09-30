@@ -533,65 +533,49 @@
         "tags" : [ "company-controller" ]
       }
     },
-    "/api/setup/assignments" : {
+    "/api/contacts" : {
       "get" : {
-        "operationId" : "listTaskAssignments",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/TaskAssignmentResponse"
-                  }
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "Error as RFC 9457 problem details"
-          }
-        },
-        "tags" : [ "task-assignment-controller" ]
-      }
-    },
-    "/api/setup/assignments/{task}" : {
-      "put" : {
-        "operationId" : "assignTaskModel",
+        "operationId" : "searchContacts",
         "parameters" : [ {
-          "in" : "path",
-          "name" : "task",
-          "required" : true,
+          "in" : "query",
+          "name" : "search",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "companyId",
+          "required" : false,
           "schema" : {
             "type" : "string",
-            "enum" : [ "SCANNER_PRE_SCORING", "CLASSIFICATION", "LANGUAGE_TONE_DETECTION", "EXTRACTION", "KNOWLEDGE_INTERVIEW", "DOCUMENT_GENERATION", "INTERVIEW_TRAINING", "CHAT", "EMBEDDING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH" ]
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
           }
         } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/AssignTaskModelRequest"
-              }
-            }
-          },
-          "required" : true
-        },
         "responses" : {
           "200" : {
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/TaskAssignmentResponse"
+                  "$ref" : "#/components/schemas/ContactPageResponse"
                 }
               }
             },
@@ -607,16 +591,6 @@
             },
             "description" : "The input breaks the rules; `violations` names each field and problem"
           },
-          "404" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "Nothing with this id"
-          },
           "default" : {
             "content" : {
               "application/problem+json" : {
@@ -628,46 +602,15 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "task-assignment-controller" ]
-      }
-    },
-    "/api/setup/providers" : {
-      "get" : {
-        "operationId" : "listProviders",
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/ProviderResponse"
-                  }
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "Error as RFC 9457 problem details"
-          }
-        },
-        "tags" : [ "ai-provider-controller" ]
+        "tags" : [ "contact-controller" ]
       },
       "post" : {
-        "operationId" : "createProvider",
+        "operationId" : "createContact",
         "requestBody" : {
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/CreateProviderRequest"
+                "$ref" : "#/components/schemas/ContactDetailsRequest"
               }
             }
           },
@@ -678,7 +621,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ProviderResponse"
+                  "$ref" : "#/components/schemas/ContactResponse"
                 }
               }
             },
@@ -705,12 +648,12 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "ai-provider-controller" ]
+        "tags" : [ "contact-controller" ]
       }
     },
-    "/api/setup/providers/{id}" : {
+    "/api/contacts/{id}" : {
       "delete" : {
-        "operationId" : "deleteProvider",
+        "operationId" : "deleteContact",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -741,16 +684,6 @@
             },
             "description" : "Nothing with this id"
           },
-          "409" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "Conflicts with the current state; the problem `type` says how"
-          },
           "428" : {
             "content" : {
               "application/problem+json" : {
@@ -772,77 +705,10 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "ai-provider-controller" ]
+        "tags" : [ "contact-controller" ]
       },
-      "put" : {
-        "operationId" : "updateProvider",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid"
-          }
-        } ],
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/UpdateProviderRequest"
-              }
-            }
-          },
-          "required" : true
-        },
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProviderResponse"
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "400" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ValidationProblem"
-                }
-              }
-            },
-            "description" : "The input breaks the rules; `violations` names each field and problem"
-          },
-          "404" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "Nothing with this id"
-          },
-          "default" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "Error as RFC 9457 problem details"
-          }
-        },
-        "tags" : [ "ai-provider-controller" ]
-      }
-    },
-    "/api/setup/providers/{id}/models" : {
       "get" : {
-        "operationId" : "listProviderModels",
+        "operationId" : "getContact",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -857,10 +723,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/ModelResponse"
-                  }
+                  "$ref" : "#/components/schemas/ContactResponse"
                 }
               }
             },
@@ -887,10 +750,10 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "ai-provider-controller" ]
+        "tags" : [ "contact-controller" ]
       },
       "put" : {
-        "operationId" : "correctModelCapabilities",
+        "operationId" : "updateContact",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -904,7 +767,7 @@
           "content" : {
             "application/json" : {
               "schema" : {
-                "$ref" : "#/components/schemas/CorrectModelCapabilitiesRequest"
+                "$ref" : "#/components/schemas/UpdateContactRequest"
               }
             }
           },
@@ -915,7 +778,7 @@
             "content" : {
               "application/json" : {
                 "schema" : {
-                  "$ref" : "#/components/schemas/ModelResponse"
+                  "$ref" : "#/components/schemas/ContactResponse"
                 }
               }
             },
@@ -941,7 +804,7 @@
             },
             "description" : "Nothing with this id"
           },
-          "default" : {
+          "409" : {
             "content" : {
               "application/problem+json" : {
                 "schema" : {
@@ -949,47 +812,7 @@
                 }
               }
             },
-            "description" : "Error as RFC 9457 problem details"
-          }
-        },
-        "tags" : [ "ai-provider-controller" ]
-      }
-    },
-    "/api/setup/providers/{id}/models/refresh" : {
-      "post" : {
-        "operationId" : "refreshProviderModels",
-        "parameters" : [ {
-          "in" : "path",
-          "name" : "id",
-          "required" : true,
-          "schema" : {
-            "type" : "string",
-            "format" : "uuid"
-          }
-        } ],
-        "responses" : {
-          "200" : {
-            "content" : {
-              "application/json" : {
-                "schema" : {
-                  "type" : "array",
-                  "items" : {
-                    "$ref" : "#/components/schemas/ModelResponse"
-                  }
-                }
-              }
-            },
-            "description" : "OK"
-          },
-          "404" : {
-            "content" : {
-              "application/problem+json" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "description" : "Nothing with this id"
+            "description" : "Conflicts with the current state; the problem `type` says how"
           },
           "default" : {
             "content" : {
@@ -1002,7 +825,7 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "ai-provider-controller" ]
+        "tags" : [ "contact-controller" ]
       }
     },
     "/api/system/info" : {
@@ -1091,19 +914,6 @@
   },
   "components" : {
     "schemas" : {
-      "AssignTaskModelRequest" : {
-        "required" : [ "model", "providerId" ],
-        "type" : "object",
-        "properties" : {
-          "model" : {
-            "type" : "string"
-          },
-          "providerId" : {
-            "type" : "string",
-            "format" : "uuid"
-          }
-        }
-      },
       "AuthSessionResponse" : {
         "required" : [ "authenticated", "setUp", "setupTokenRequired" ],
         "type" : "object",
@@ -1116,24 +926,6 @@
           },
           "setupTokenRequired" : {
             "type" : "boolean"
-          }
-        }
-      },
-      "CapabilityNeedsResponse" : {
-        "required" : [ "features" ],
-        "type" : "object",
-        "properties" : {
-          "features" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string",
-              "enum" : [ "TOOL_USE", "STREAMING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH", "EMBEDDING" ]
-            }
-          },
-          "minContextWindowTokens" : {
-            "type" : "integer",
-            "format" : "int32",
-            "nullable" : true
           }
         }
       },
@@ -1365,45 +1157,117 @@
         } ],
         "description" : "428 answer of a destructive or outward-facing operation: nothing ran yet. Repeat the request with confirmationToken in the Jofi-Confirmation header once the user confirmed."
       },
-      "CorrectModelCapabilitiesRequest" : {
-        "required" : [ "features", "model" ],
+      "ContactChannelDto" : {
+        "required" : [ "kind", "value" ],
         "type" : "object",
         "properties" : {
-          "contextWindowTokens" : {
-            "type" : "integer",
-            "format" : "int32",
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "EMAIL", "PHONE", "WEB", "OTHER" ]
+          },
+          "label" : {
+            "type" : "string",
             "nullable" : true
           },
-          "features" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string",
-              "enum" : [ "TOOL_USE", "STREAMING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH", "EMBEDDING" ]
-            }
-          },
-          "model" : {
+          "value" : {
             "type" : "string"
           }
         }
       },
-      "CreateProviderRequest" : {
-        "required" : [ "displayName", "kind" ],
+      "ContactDetailsRequest" : {
+        "required" : [ "name" ],
         "type" : "object",
         "properties" : {
-          "apiKey" : {
+          "channels" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "$ref" : "#/components/schemas/ContactChannelDto"
+            }
+          },
+          "companyId" : {
             "type" : "string",
+            "format" : "uuid",
             "nullable" : true
           },
-          "baseUrl" : {
-            "type" : "string",
-            "nullable" : true
-          },
-          "displayName" : {
+          "name" : {
             "type" : "string"
           },
-          "kind" : {
+          "relationshipNotes" : {
             "type" : "string",
-            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+            "nullable" : true
+          },
+          "role" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
+      "ContactPageResponse" : {
+        "required" : [ "contacts", "page", "size", "total" ],
+        "type" : "object",
+        "properties" : {
+          "contacts" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ContactResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "ContactResponse" : {
+        "required" : [ "channels", "createdAt", "id", "name", "updatedAt", "version" ],
+        "type" : "object",
+        "properties" : {
+          "channels" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ContactChannelDto"
+            }
+          },
+          "companyId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "nullable" : true
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "relationshipNotes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "role" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         }
       },
@@ -1486,35 +1350,6 @@
           }
         }
       },
-      "ModelResponse" : {
-        "required" : [ "features", "model", "origin", "updatedAt" ],
-        "type" : "object",
-        "properties" : {
-          "contextWindowTokens" : {
-            "type" : "integer",
-            "format" : "int32",
-            "nullable" : true
-          },
-          "features" : {
-            "type" : "array",
-            "items" : {
-              "type" : "string",
-              "enum" : [ "TOOL_USE", "STREAMING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH", "EMBEDDING" ]
-            }
-          },
-          "model" : {
-            "type" : "string"
-          },
-          "origin" : {
-            "type" : "string",
-            "enum" : [ "DETECTED", "USER" ]
-          },
-          "updatedAt" : {
-            "type" : "string",
-            "format" : "date-time"
-          }
-        }
-      },
       "ProblemDetail" : {
         "type" : "object",
         "additionalProperties" : true,
@@ -1545,30 +1380,6 @@
           }
         }
       },
-      "ProviderResponse" : {
-        "required" : [ "apiKeySet", "displayName", "id", "kind" ],
-        "type" : "object",
-        "properties" : {
-          "apiKeySet" : {
-            "type" : "boolean"
-          },
-          "baseUrl" : {
-            "type" : "string",
-            "nullable" : true
-          },
-          "displayName" : {
-            "type" : "string"
-          },
-          "id" : {
-            "type" : "string",
-            "format" : "uuid"
-          },
-          "kind" : {
-            "type" : "string",
-            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
-          }
-        }
-      },
       "SystemInfoResponse" : {
         "required" : [ "name", "version" ],
         "type" : "object",
@@ -1578,31 +1389,6 @@
           },
           "version" : {
             "type" : "string"
-          }
-        }
-      },
-      "TaskAssignmentResponse" : {
-        "required" : [ "missing", "needs", "task" ],
-        "type" : "object",
-        "properties" : {
-          "missing" : {
-            "$ref" : "#/components/schemas/CapabilityNeedsResponse"
-          },
-          "model" : {
-            "type" : "string",
-            "nullable" : true
-          },
-          "needs" : {
-            "$ref" : "#/components/schemas/CapabilityNeedsResponse"
-          },
-          "providerId" : {
-            "type" : "string",
-            "format" : "uuid",
-            "nullable" : true
-          },
-          "task" : {
-            "type" : "string",
-            "enum" : [ "SCANNER_PRE_SCORING", "CLASSIFICATION", "LANGUAGE_TONE_DETECTION", "EXTRACTION", "KNOWLEDGE_INTERVIEW", "DOCUMENT_GENERATION", "INTERVIEW_TRAINING", "CHAT", "EMBEDDING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH" ]
           }
         }
       },
@@ -1619,20 +1405,16 @@
           }
         }
       },
-      "UpdateProviderRequest" : {
-        "required" : [ "displayName" ],
+      "UpdateContactRequest" : {
+        "required" : [ "basedOnVersion", "details" ],
         "type" : "object",
         "properties" : {
-          "apiKey" : {
-            "type" : "string",
-            "nullable" : true
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
           },
-          "baseUrl" : {
-            "type" : "string",
-            "nullable" : true
-          },
-          "displayName" : {
-            "type" : "string"
+          "details" : {
+            "$ref" : "#/components/schemas/ContactDetailsRequest"
           }
         }
       },

@@ -99,6 +99,7 @@ data class CompanyProfile(
     init {
         require(markdown.isNotBlank()) { "A company profile must not be blank" }
         require(markdown.length <= MAX_LENGTH) { "A company profile has at most $MAX_LENGTH characters" }
+        require(!markdown.hasUnstorableCharacter()) { "A company profile cannot contain U+0000" }
     }
 
     companion object {

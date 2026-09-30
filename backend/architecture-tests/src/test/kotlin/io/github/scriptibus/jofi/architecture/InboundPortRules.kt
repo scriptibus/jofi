@@ -28,6 +28,11 @@ object InboundPortRules {
             "SearchCompaniesPort" to "#88",
             "SetCompanyPreferencePort" to "#88",
             "DeleteCompanyPort" to "#88",
+            "CreateContactPort" to "#89",
+            "UpdateContactPort" to "#89",
+            "GetContactPort" to "#89",
+            "SearchContactsPort" to "#89",
+            "DeleteContactPort" to "#89",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */
