@@ -13,6 +13,7 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
+import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
 import io.github.scriptibus.jofi.applications.domain.SnapshotId
 import io.github.scriptibus.jofi.applications.domain.SnapshotSummary
@@ -42,12 +43,15 @@ import java.util.UUID
 /**
  * An in-memory application store behind every port the application use cases take, with a transaction
  * that restores all of it (applications, history, changelog, events) when the result is not committed.
- * Like the database, it refuses applications of unknown companies (`application_company_fk`).
+ * Like the database, it refuses applications of unknown companies and links to unknown contacts.
  */
 class ApplicationFixtures {
     val applications = linkedMapOf<ApplicationId, Application>()
     val history = mutableListOf<StatusChange>()
     val companies = mutableSetOf(ACME)
+
+    /** The contacts that exist, which links may name (`application_contact_contact_fk`). */
+    val contacts = mutableSetOf<ContactRef>()
     val entries = mutableListOf<ChangelogEntry>()
     val events = mutableListOf<DomainEvent>()
     var failingChangelog = false
@@ -109,8 +113,32 @@ class ApplicationFixtures {
                 }
             }
 
-            override fun replaceContacts(application: Application): ApplicationStoreResult<Unit> =
-                error("Not used by these use cases")
+            override fun replaceContacts(application: Application): ApplicationStoreResult<Unit> {
+                val stored = applications[application.id]
+                return when {
+                    stored == null -> {
+                        ApplicationStoreResult.NotFound
+                    }
+
+                    (concurrentVersion ?: stored.version) != application.version - 1 -> {
+                        ApplicationStoreResult.VersionConflict
+                    }
+
+                    !contacts.containsAll(application.contacts) -> {
+                        ApplicationStoreResult.ContactNotFound
+                    }
+
+                    else -> {
+                        applications[application.id] =
+                            stored.copy(
+                                contacts = application.contacts,
+                                version = application.version,
+                                updatedAt = application.updatedAt,
+                            )
+                        ApplicationStoreResult.Success(Unit)
+                    }
+                }
+            }
 
             override fun changeStatus(
                 application: Application,

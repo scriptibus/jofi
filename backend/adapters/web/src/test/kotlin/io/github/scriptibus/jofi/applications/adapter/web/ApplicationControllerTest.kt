@@ -8,6 +8,7 @@ import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCa
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.LinkApplicationContactsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
@@ -55,7 +56,7 @@ import java.util.UUID
 /**
  * The application endpoints over the real use cases (#82) with mocked repositories: mapping, problem
  * details and the two-step delete; the list (#83) is `ApplicationListControllerTest`, the status endpoints (#84)
- * `ApplicationStatusControllerTest`. Contact links (#90) still answer `501`.
+ * `ApplicationStatusControllerTest`, the contact links (#90) `ApplicationContactsControllerTest`.
  * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(ApplicationController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
@@ -101,6 +102,10 @@ class ApplicationControllerTest(
         @Bean
         fun unread(ports: Ports) =
             SetApplicationUnreadUseCase(ports.applications, ports.changelog, ports.transactions, clock)
+
+        @Bean
+        fun linkContacts(ports: Ports) =
+            LinkApplicationContactsUseCase(ports.applications, ports.changelog, ports.transactions, clock)
 
         @Bean
         fun delete(ports: Ports) =
@@ -303,11 +308,6 @@ class ApplicationControllerTest(
     }
 
     @Test
-    fun `contact links are not implemented yet`() {
-        notImplemented(json(mvc.put().uri("$path/contacts"), """{"contactIds":["$contactId"],"basedOnVersion":3}"""))
-    }
-
-    @Test
     fun `requests that break the contract are rejected`() {
         badRequest(mvc.get().uri("/api/applications/not-a-uuid"))
         badRequest(json(mvc.post().uri("/api/applications"), """{"title":"Backend Engineer"}"""))
@@ -316,7 +316,6 @@ class ApplicationControllerTest(
         )
         badRequest(json(mvc.put().uri(path), """{"details":$details}"""))
         badRequest(json(mvc.put().uri("$path/unread"), """{}"""))
-        badRequest(json(mvc.put().uri("$path/contacts"), """{"contactIds":["$contactId"]}"""))
         badRequest(json(mvc.put().uri("$path/status"), """{"status":"APPLIED"}"""))
         badRequest(json(mvc.put().uri("$path/status"), """{"status":"HIRED","basedOnVersion":1}"""))
         verify(exactly = 0) { ports.changelog.append(any()) }
@@ -336,10 +335,6 @@ class ApplicationControllerTest(
         request: MockMvcTester.MockMvcRequestBuilder,
         body: String,
     ): MockMvcTester.MockMvcRequestBuilder = request.contentType(MediaType.APPLICATION_JSON).content(body)
-
-    private fun notImplemented(request: MockMvcTester.MockMvcRequestBuilder) {
-        request.assertThat().hasStatus(501).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
-    }
 
     private fun badRequest(request: MockMvcTester.MockMvcRequestBuilder) {
         request.assertThat().hasStatus(400).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
