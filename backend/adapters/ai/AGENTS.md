@@ -16,6 +16,15 @@ every change is reviewed by Lucas. Package: `io.github.scriptibus.jofi.setup.ada
 - `price-table.json` (resources, next to `PriceTableFile`): list prices per model with the provider's
   page and the day read. Only add a row you read on the official page; bump `checkedOn` with every
   change. `PriceTableFileTest` checks sources and spot prices.
+- `provider-privacy.json` (resources, next to `ProviderPrivacyFile`, #138, spec §3.2): per provider kind
+  what the API terms say about zero data retention, training and data location, each claim with a
+  status, a DE/EN summary and short **verbatim** quotes from the provider's official pages. Never write a
+  fact from memory; what the pages do not say is `UNKNOWN` or "not stated" in the summary. API terms
+  only, not consumer apps. Refresh: re-read every source (and look for newer official pages), update
+  the claims, set each entry's and the file's `checkedOn`, list every URL in the PR. The API flags
+  entries older than `staleAfterMonths` (6) as stale, so refresh at least twice a year.
+  `ProviderPrivacyFileTest` checks one entry per `ProviderKind`, https sources on official hosts, and
+  that a broken file stops startup.
 - `SpringAiProviderAdapter` implements `AiProviderPort`: complete, stream (with cancellation and
   usage totals through `onUsage`) and embed for exactly the given `ResolvedModel`. No routing,
   filtering or metering; that is the gateway.

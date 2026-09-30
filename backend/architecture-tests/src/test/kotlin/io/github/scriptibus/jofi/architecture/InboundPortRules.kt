@@ -40,6 +40,8 @@ object InboundPortRules {
             "DeleteApplicationPort" to "#82",
             "SearchApplicationsPort" to "#83",
             "LinkApplicationContactsPort" to "#90",
+            "ChangeApplicationStatusPort" to "#84",
+            "GetApplicationStatusHistoryPort" to "#84",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */

@@ -95,6 +95,11 @@ key or its secret id; request DTOs hide the key in `toString()` and mark it `@Wr
 (`writeOnly`, `format: password` in the contract). Controllers always act as
 `Actor.User`; the use cases refuse every other actor (`403 urn:jofi:problem:setup:forbidden`), so MCP
 and AI tools must never be given these use cases. `SetupProblems.of` maps each `SetupResult.Failure`.
+`ProviderPrivacyController`: `GET /api/setup/providers/privacy` (read-only, #138): one entry per provider
+kind with `zeroDataRetention`, `noTraining` and `dataLocation` (each a `status`, a `summary` in `en`/`de`
+and `evidence` quotes with their https `source`), the entry's `checkedOn` and `stale` (older than
+`staleAfterMonths`), plus the `disclaimer` (`key` for Paraglide and its `en`/`de` text) that the UI must
+show with every entry. The data comes from `provider-privacy.json` in `adapters/ai`.
 
 ## AI costs and monthly budget (#24)
 
@@ -118,8 +123,11 @@ USD micros everywhere.
 `POST /api/applications`, `GET|PUT /api/applications/{id}` (PUT replaces all details),
 `PUT /api/applications/{id}/unread` (no version, the version stays), `PUT /api/applications/{id}/contacts`
 (the full set of linked contact ids with `basedOnVersion`; linking and unlinking both send the changed set,
-so no `DELETE` needs a confirmation) and `DELETE /api/applications/{id}` (two steps, `Jofi-Confirmation`).
-Contract only: every operation answers `501` until #82, #83 and #90 (the search already answers 400 for
+so no `DELETE` needs a confirmation), `PUT /api/applications/{id}/status` (the status matrix of ADR-0044;
+a decline category exactly for `DECLINED`/`REJECTED`, `409 invalid-transition` for a move it does not
+allow), `GET /api/applications/{id}/status-history` and `DELETE /api/applications/{id}` (two steps,
+`Jofi-Confirmation`). The decline reason is set by the status change, not by the details.
+Contract only: every operation answers `501` until #82, #83, #84 and #90 (the search already answers 400 for
 paging out of range). `ApplicationProblems.of` maps each `ApplicationResult.Failure`; violations name the
 nested request field (`payBand.max`, `offer.salary.currency`, `contactIds`). API enums are copies of the
 domain enums (`JobSeniority` for `Seniority`, ...), mapped with `mapByName` and tested for equal constants.

@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.applications.domain
 
+import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import java.time.Instant
 import java.util.UUID
@@ -41,7 +42,9 @@ value class ContactRef(
  * A job the user tracks (spec §6.1): discovered, considered, applied to or declined. The user edits
  * [details]; [contacts] are linked separately; [unread] marks entries a scanner created that the user
  * has not opened yet. [wantScore] and [fitScore] are placeholders for the scoring pipeline (M2).
- * The status pipeline (#77), sources and snapshots (#78), interviews (#79) and tasks (#80) attach to it.
+ * [status] moves only through [changeStatus] (ADR-0044); a `DECLINED` or `REJECTED` application holds
+ * its [declineReason], any other none. Sources and snapshots (#78), interviews (#79) and tasks (#80)
+ * attach to it.
  *
  * [version] counts changes: a change is stored only if the stored version is still the one it was
  * based on, so edits by the user, the AI and external clients cannot overwrite each other. Marking
@@ -54,6 +57,9 @@ data class Application(
     val unread: Boolean,
     val wantScore: Score?,
     val fitScore: Score?,
+    val status: ApplicationStatus,
+    /** Why the user declined or the company rejected (spec §6.1), exactly while [status] takes one. */
+    val declineReason: DeclineReason?,
     val version: Long,
     val createdAt: Instant,
     val updatedAt: Instant,
@@ -62,6 +68,9 @@ data class Application(
         require(contacts.size <= MAX_CONTACTS) { "An application links at most $MAX_CONTACTS contacts" }
         require(version >= INITIAL_VERSION) { "An application version must not be negative" }
         require(!updatedAt.isBefore(createdAt)) { "An application cannot be updated before it was created" }
+        require((declineReason != null) == status.takesDeclineReason) {
+            "An application holds a decline reason exactly while it is declined or rejected"
+        }
     }
 
     /**
@@ -87,6 +96,37 @@ data class Application(
     ): Application =
         if (contacts == this.contacts) this else copy(contacts = contacts, version = version + 1, updatedAt = at)
 
+    /**
+     * The application moved as [request] asks, by [actor] [at]: a new version holding the request's decline
+     * reason (or none, which is how reopening clears it), with the history entry and the event; or
+     * [StatusTransition.NotAllowed] if the matrix has no such move. Callers check the client's version before.
+     */
+    fun changeStatus(
+        request: StatusChangeRequest,
+        actor: Actor,
+        at: Instant,
+    ): StatusTransition {
+        val target = request.status
+        val reason = request.declineReason
+        return when {
+            target == status && reason == declineReason -> {
+                StatusTransition.Unchanged
+            }
+
+            !status.canMoveTo(target) -> {
+                StatusTransition.NotAllowed(status, target)
+            }
+
+            else -> {
+                StatusTransition.Changed(
+                    copy(status = target, declineReason = reason, version = version + 1, updatedAt = at),
+                    StatusChange(id, status, target, request.reason, request.declineCategory, actor, at),
+                    ApplicationStatusChanged(id, status, target, actor, at),
+                )
+            }
+        }
+    }
+
     /** The application marked [unread] (or read); neither a new version nor a new `updatedAt`. */
     fun markUnread(unread: Boolean): Application = copy(unread = unread)
 
@@ -100,15 +140,29 @@ data class Application(
         const val DELETE_OPERATION = "applications.delete"
 
         /**
-         * A new application without contacts or scores, created [at]; [unread] for entries the user did
-         * not create themselves (scanners, imports).
+         * A new application in [ApplicationStatus.INITIAL] without contacts or scores, created [at]; [unread]
+         * for entries the user did not create themselves (scanners, imports). Its first history entry is
+         * [StatusChange.initial].
          */
         fun create(
             id: ApplicationId,
             details: ApplicationDetails,
             at: Instant,
             unread: Boolean = false,
-        ): Application = Application(id, details, emptySet(), unread, null, null, INITIAL_VERSION, at, at)
+        ): Application =
+            Application(
+                id,
+                details,
+                emptySet(),
+                unread,
+                null,
+                null,
+                ApplicationStatus.INITIAL,
+                null,
+                INITIAL_VERSION,
+                at,
+                at,
+            )
     }
 }
 

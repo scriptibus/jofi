@@ -188,8 +188,10 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `ESTIMATED`), language & tone (BCP 47 `posting_language`/`application_language`, canonical case from
   the domain but any case accepted here; a null application language follows the posting's; `form_of_address`, `tone`), the decline/rejection reason
   (category + text), the offer (`offer_*`, salary as amount + currency + period together), `unread`,
-  `want_score`/`fit_score` placeholders (`numeric(2,1)`, 0 to 5) and `version`. No status column: the
-  status pipeline and its history come with #77. Named check constraints mirror the domain, never
+  `want_score`/`fit_score` placeholders (`numeric(2,1)`, 0 to 5), `status` (#77, ADR-0044) and `version`.
+  The decline reason is set exactly while the status is `DECLINED` or `REJECTED`
+  (`application_decline_reason_matches_status`, added `NOT VALID` and validated after the backfill).
+  Named check constraints mirror the domain, never
   stricter: letter ranges are ASCII code points, the "at least one offer detail" rule and the 50-contact
   limit stay in the domain. `ApplicationSchemaTest` proves every constraint, every limit, every enum
   constant and the names. `application_company_idx` serves the company filter, counts and the RESTRICT
@@ -198,9 +200,17 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `ON DELETE CASCADE` (`application_contact_application_fk`, `application_contact_contact_fk`), so deleting
   a contact or its company unlinks it and is never blocked. `ApplicationContactSchemaTest` proves both
   cascades and the RESTRICT on `company`. `application_contact_contact_idx` serves "applications per contact".
-- `ApplicationRepositoryPort` is implemented with the use cases (#82). **No write overwrites columns it
+- `application_status_change` (#77, ADR-0044): the status history, one row per move in order (identity
+  `id`), `from_status` NULL only for the first entry, optional `reason`, `decline_category` exactly for
+  `DECLINED`/`REJECTED` entries, the actor as in `changelog_entry`, `changed_at`; deleted with the
+  application (`application_status_change_application_fk`, `ON DELETE CASCADE`). The migration gave every
+  existing application one entry (`SYSTEM` `status-history-backfill`). The transition matrix is the
+  domain's job. `ApplicationStatusChangeSchemaTest` proves the constraints, `ApplicationStatusMigrationTest`
+  the backfill. User data: **covered by export/import**.
+- `ApplicationRepositoryPort` is implemented with the use cases (#82, #84). **No write overwrites columns it
   does not own** (lost updates): `updateDetails` writes only the detail columns, `version` and `updated_at`
-  (never `unread`, the scores or the links); `replaceContacts` writes `version`/`updated_at` and rewrites
+  (never the status, the decline reason, `unread`, the scores or the links); `changeStatus` writes only
+  `status`, the decline reason, `version` and `updated_at` and appends the history row, both or neither; `replaceContacts` writes `version`/`updated_at` and rewrites
   `application_contact` only when the stored set differs; both store only if the stored `version` is one
   below the new one. `setUnread` changes only the flag (no version). `delete` checks the `Confirmed` proof.
   The repository tests (#82) prove each write leaves the other columns as they were. It maps `application_company_fk` to `CompanyNotFound` and
