@@ -236,6 +236,24 @@ class ApplicationRepositoryTest {
     }
 
     @Test
+    fun `unlinking keeps the other links and a deleted contact leaves by cascade, the version untouched`() {
+        val first = contact()
+        val second = contact()
+        val linked = stored().linkContacts(setOf(first, second), LATER)
+        repository.replaceContacts(linked) shouldBe ApplicationStoreResult.Success(Unit)
+
+        val unlinked = linked.linkContacts(setOf(second), LATER)
+        repository.replaceContacts(unlinked) shouldBe ApplicationStoreResult.Success(Unit)
+        read(linked.id).contacts shouldBe setOf(second)
+
+        dsl.execute("delete from contact where id = ?", second.value)
+        read(linked.id) shouldBe unlinked.copy(contacts = emptySet())
+        repository.replaceContacts(unlinked.linkContacts(setOf(first), LATER)) shouldBe
+            ApplicationStoreResult.Success(Unit)
+        read(linked.id).contacts shouldBe setOf(first)
+    }
+
+    @Test
     fun `a status change writes status and reason, appends its history entry and leaves the details`() {
         val application = stored()
         dsl

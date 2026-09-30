@@ -18,8 +18,6 @@ import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
-import org.springframework.http.ProblemDetail
-import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -34,12 +32,10 @@ import java.util.UUID
 
 /**
  * Applications (spec §6.1), for the logged-in user. Create, read, edit, read/unread and delete (#82) and the
- * status change with its history (#84) call their use case and map its `ApplicationResult.Failure`
- * with [ApplicationProblems.of]; the list (#83) is [ApplicationListController]. The contact links (#90) are
- * still the contract only and answer `501 Not Implemented`; their parameters only declare it, hence the
- * suppressed unused-parameter rule.
+ * status change with its history (#84) call their use case and map its `ApplicationResult.Failure` with
+ * [ApplicationProblems.of]; the list (#83) is [ApplicationListController], the contact links (#90)
+ * [ApplicationContactsController].
  */
-@Suppress("UnusedParameter")
 @RestController
 @RequestMapping("/api/applications")
 class ApplicationController(
@@ -87,14 +83,6 @@ class ApplicationController(
     ): ApplicationResponse =
         ApplicationResponse.from(setUnread.execute(ApplicationId(id), request.unread, Actor.User).orThrow())
 
-    /** Links exactly the given contacts (replacing the linked set); 409 if `basedOnVersion` is stale. */
-    @PutMapping("/{id}/contacts")
-    @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.NOT_FOUND, ProblemKind.CONFLICT)
-    fun linkApplicationContacts(
-        @PathVariable id: UUID,
-        @RequestBody request: ApplicationContactsRequest,
-    ): ApplicationResponse = throw notImplemented()
-
     /**
      * Moves the application to another status (ADR-0044); 409 `invalid-transition` if the matrix has no
      * such move, 409 `version-conflict` if `basedOnVersion` is stale.
@@ -131,11 +119,6 @@ class ApplicationController(
         deleteApplication
             .execute(ApplicationId(id), Confirmations.requester(request), Confirmations.token(confirmation))
             .orThrow()
-    }
-
-    private fun notImplemented(): ErrorResponseException {
-        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Applications are not available yet")
-        return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
     }
 }
 
