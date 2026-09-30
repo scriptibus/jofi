@@ -39,6 +39,13 @@ object InboundPortRules {
             "DeleteCountdownPort" to "#112",
             "ListCountdownsPort" to "#112",
             "ListDashboardCountdownsPort" to "#112",
+            "CreateSavedViewPort" to "#99",
+            "UpdateSavedViewPort" to "#99",
+            "GetSavedViewPort" to "#99",
+            "ListSavedViewsPort" to "#99",
+            "DeleteSavedViewPort" to "#99",
+            "GetApplicationSettingsPort" to "#85",
+            "UpdateApplicationSettingsPort" to "#85",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */

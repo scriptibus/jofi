@@ -24,6 +24,7 @@ export {
   ListChecks as TasksIcon,
   LogOut as LogOutIcon,
   Mail as EmailIcon,
+  MailOpen as ReadIcon,
   MessageCircle as ChatIcon,
   MessageSquareText as OtherChannelIcon,
   Pencil as EditIcon,

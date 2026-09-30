@@ -53,6 +53,15 @@ RUN --mount=type=cache,target=/root/.gradle,sharing=locked \
 # --- 3. Runtime (JRE 25) -----------------------------------------------------------------------
 FROM docker.io/library/eclipse-temurin:25.0.4.1_1-jre-resolute@sha256:b8e5a7403fd1e1fd8cd09118f8a808ac0482736bef2946e89f261efbe71c52d8
 
+# CVE-2026-84782 (#169): the pinned base image ships OpenSSL 3.5.5-1ubuntu3.5 and upstream has not
+# rebuilt it yet. Remove this step once the Temurin digest above ships 3.5.5-1ubuntu3.6 or newer.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade --no-install-recommends -y \
+      libssl3t64=3.5.5-1ubuntu3.6 \
+      openssl=3.5.5-1ubuntu3.6 \
+      openssl-provider-legacy=3.5.5-1ubuntu3.6 \
+    && rm -rf /var/lib/apt/lists/*
+
 LABEL org.opencontainers.image.title="Jofi" \
       org.opencontainers.image.description="Self-hosted, AI-assisted job application manager" \
       org.opencontainers.image.source="https://github.com/scriptibus/jofi" \

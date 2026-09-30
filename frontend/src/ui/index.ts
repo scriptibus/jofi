@@ -32,5 +32,6 @@ export {
   type SegmentedOption,
 } from "./SegmentedControl";
 export { Select, type SelectGroup, type SelectOption, type SelectProps } from "./Select";
+export { type TabDefinition, Tabs, type TabsProps } from "./Tabs";
 export { TextArea, type TextAreaProps } from "./TextArea";
 export { TextField, type TextFieldProps } from "./TextField";

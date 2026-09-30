@@ -98,7 +98,7 @@ export function CompanyContacts({ companyId }: { companyId: string }) {
   );
 }
 
-/** The company's applications, read-only, until the applications pages link them. */
+/** The company's applications, each linking to its page. */
 export function CompanyApplications({ companyId, count }: { companyId: string; count: number }) {
   const applications = useSearchApplications({ companyId, size: RELATED_PAGE_SIZE }, { query: quietly });
   return (
@@ -110,7 +110,11 @@ export function CompanyApplications({ companyId, count }: { companyId: string; c
       empty={m.company_applications_empty()}
       items={applications.data?.applications.map((application) => ({
         id: application.id,
-        primary: application.title,
+        primary: (
+          <TextLink to="/applications/$applicationId" params={{ applicationId: application.id }}>
+            {application.title}
+          </TextLink>
+        ),
         secondary: application.location,
       }))}
     />
@@ -129,7 +133,11 @@ export function ContactApplications({ contactId }: { contactId: string }) {
       empty={m.contact_applications_empty()}
       items={applications.data?.applications.map((application) => ({
         id: application.id,
-        primary: application.title,
+        primary: (
+          <TextLink to="/applications/$applicationId" params={{ applicationId: application.id }}>
+            {application.title}
+          </TextLink>
+        ),
         secondary: application.location,
       }))}
     />

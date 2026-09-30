@@ -25,6 +25,7 @@ internal class BackupDomainSeeds(
             at,
         )
         seedContacts(company)
+        seedViewsAndSettings(company, UUID.fromString("00000000-0000-0000-0000-0000000000c1"))
     }
 
     // A quoted email local part, CR/LF in notes, a non-ASCII phone number, several channels, NULL labels.
@@ -83,6 +84,38 @@ internal class BackupDomainSeeds(
         dsl.execute("insert into application_contact (application_id, contact_id) values (?, ?)", application, contact)
         seedDependants(application, contact)
         seedTasks(company, application, contact)
+    }
+
+    // A filter with quotes, commas, a line break and non-ASCII text in JSON, every kind of value, and a minimal one;
+    // the settings row.
+    private fun seedViewsAndSettings(
+        company: UUID,
+        contact: UUID,
+    ) {
+        val filter =
+            "{\"search\": \"Kotlin, \\\"senior\\\"\\nBerlin ☕\", \"companyId\": \"$company\", " +
+                "\"contactId\": \"$contact\", \"status\": [\"APPLIED\", \"OFFER\"], \"unread\": false, " +
+                "\"language\": [\"de-CH\"], \"sourceKind\": [\"URL\"], " +
+                "\"createdFrom\": \"2026-09-01T00:00:00.5Z\", \"wantMin\": 3.5, \"sort\": \"STATUS\", " +
+                "\"direction\": \"DESCENDING\"}"
+        dsl.execute(
+            "insert into saved_view (id, name, filter, filter_version, version, created_at, updated_at) values " +
+                "(?, 'Offers, \"hot\";\nZürich', ?::jsonb, 1, 2, ?::timestamptz, ?::timestamptz), " +
+                "(?, 'Everything', ?::jsonb, 1, 0, ?::timestamptz, ?::timestamptz)",
+            UUID.fromString("00000000-0000-0000-0000-000000000031"),
+            filter,
+            at,
+            at,
+            UUID.fromString("00000000-0000-0000-0000-000000000032"),
+            "{}",
+            at,
+            at,
+        )
+        dsl.execute(
+            "insert into application_settings (ghosted_after_weeks, follow_up_after_days, version, updated_at) " +
+                "values (26, 7, 1, ?::timestamptz)",
+            at,
+        )
     }
 
     // Each timing (exact, day, week, month, someday), each link, a done task, a dismissed suggestion, and CR/LF,
