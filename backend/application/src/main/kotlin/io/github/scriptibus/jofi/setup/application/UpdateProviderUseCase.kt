@@ -9,8 +9,10 @@ import io.github.scriptibus.jofi.setup.domain.ProviderConfig
 import io.github.scriptibus.jofi.setup.domain.ProviderId
 import io.github.scriptibus.jofi.setup.domain.ProviderInput
 import io.github.scriptibus.jofi.setup.domain.ProviderSettings
+import io.github.scriptibus.jofi.setup.domain.SetupField
 import io.github.scriptibus.jofi.setup.domain.SetupResult
-import io.github.scriptibus.jofi.setup.domain.SetupStoreResult
+import io.github.scriptibus.jofi.setup.domain.SetupViolation
+import io.github.scriptibus.jofi.setup.domain.SetupViolationKind
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.SecretStorePort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
@@ -39,11 +41,26 @@ class UpdateProviderUseCase(
         actor: Actor,
     ): SetupResult<ProviderConfig> =
         asUser(actor) {
-            providers.findById(id).toSetupResult().then { current ->
-                input.validate(current.kind, keyStored = current.apiKey != null).toSetupResult().then {
-                    update(current, it, actor)
+            // Read and write in one transaction; the update-only store refuses a provider deleted meanwhile.
+            transactions.whenSuccessful {
+                providers.findById(id).toSetupResult().then { current ->
+                    input
+                        .validate(current.kind, keyStored = current.apiKey != null)
+                        .toSetupResult()
+                        .then { keyFollowsOrigin(current, it) }
+                        .then { update(current, it, actor) }
                 }
             }
+        }
+
+    private fun keyFollowsOrigin(
+        current: ProviderConfig,
+        settings: ProviderSettings,
+    ): SetupResult<ProviderSettings> =
+        if (settings.apiKey == null && current.keyMustBeReenteredFor(settings.baseUri)) {
+            SetupResult.Invalid(listOf(SetupViolation(SetupField.API_KEY, SetupViolationKind.REQUIRED)))
+        } else {
+            SetupResult.Success(settings)
         }
 
     private fun update(
@@ -55,7 +72,7 @@ class UpdateProviderUseCase(
         val keyId = current.apiKey ?: key?.let { SecretId(UUID.randomUUID()) }
         val updated = current.copy(displayName = settings.displayName, baseUri = settings.baseUri, apiKey = keyId)
         if (updated == current && key == null) return SetupResult.Success(current)
-        return transactions.whenSuccessful { store(current, updated, key, actor) }
+        return store(current, updated, key, actor)
     }
 
     private fun store(
@@ -68,22 +85,15 @@ class UpdateProviderUseCase(
         val replaced = key != null && current.apiKey != null
         val description = if (replaced) "Changed AI provider and replaced its API key" else "Changed AI provider"
         val changes = providerChanges(current, updated)
-        return when {
-            keyId != null && key != null && secrets.put(keyId, key) !is SecretResult.Success -> {
+        val keyStored =
+            if (keyId == null || key == null || secrets.put(keyId, key) is SecretResult.Success) {
+                SetupResult.Success(Unit)
+            } else {
                 SetupResult.StorageFailure("store key")
             }
-
-            providers.save(updated) !is SetupStoreResult.Success -> {
-                SetupResult.StorageFailure("save provider")
-            }
-
-            !changelog.record(updated.id.toEntityRef(), actor, clock.storedNow(), description, changes) -> {
-                SetupResult.StorageFailure("changelog")
-            }
-
-            else -> {
-                SetupResult.Success(updated)
-            }
+        return keyStored.then { providers.update(updated).toSetupResult() }.then {
+            val recorded = changelog.record(updated.id.toEntityRef(), actor, clock.storedNow(), description, changes)
+            if (recorded) SetupResult.Success(updated) else SetupResult.StorageFailure("changelog")
         }
     }
 }

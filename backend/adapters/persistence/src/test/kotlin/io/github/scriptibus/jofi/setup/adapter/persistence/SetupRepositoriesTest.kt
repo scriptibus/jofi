@@ -95,6 +95,16 @@ class SetupRepositoriesTest {
     }
 
     @Test
+    fun `an update replaces a stored provider but never inserts one`() {
+        providers.save(local)
+
+        providers.update(local.copy(displayName = "LM Studio")) shouldBe SetupStoreResult.Success(Unit)
+        providers.findById(local.id) shouldBe SetupStoreResult.Success(local.copy(displayName = "LM Studio"))
+        providers.update(cloud) shouldBe SetupStoreResult.NotFound
+        providers.findById(cloud.id) shouldBe SetupStoreResult.NotFound
+    }
+
+    @Test
     fun `assignments are one per task and replaced on save`() {
         providers.save(cloud)
         providers.save(local)

@@ -25,6 +25,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
+import org.junit.jupiter.params.provider.ValueSource
 import java.net.URI
 import java.util.UUID
 
@@ -143,7 +144,7 @@ class ProviderUseCasesTest {
     }
 
     @Test
-    fun `a new base URL is stored and recorded`() {
+    fun `a new base URL is stored and recorded, a keyless endpoint needs no key for it`() {
         val existing = setup.provider()
 
         val updated =
@@ -154,6 +155,68 @@ class ProviderUseCasesTest {
             .single()
             .change.fieldChanges shouldBe
             listOf(FieldChange("baseUrl", "http://localhost:11434/v1", "http://gpu-box:11434/v1"))
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "https://evil.example/api/v1", "http://openrouter.ai/api/v1", "https://openrouter.ai:8443/api/v1",
+            "https://api.openrouter.ai/api/v1",
+        ],
+    )
+    fun `a stored key does not follow its base URL to another origin without being entered again`(url: String) {
+        val existing = keyedEndpoint()
+
+        update.execute(existing.id, ProviderInput("OpenRouter", url, null), Actor.User) shouldBe
+            SetupResult.Invalid(listOf(SetupViolation(SetupField.API_KEY, SetupViolationKind.REQUIRED)))
+        setup.providers[existing.id] shouldBe existing
+        setup.entries.shouldBeEmpty()
+
+        created(update.execute(existing.id, ProviderInput("OpenRouter", url, "sk-again"), Actor.User)).baseUri shouldBe
+            URI(url)
+        setup.secrets[checkNotNull(existing.apiKey)] shouldBe SecretValue("sk-again")
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["https://openrouter.ai/v2", "HTTPS://OpenRouter.ai:443/api/v1"])
+    fun `the key stays for a new path on the same origin`(url: String) {
+        val existing = keyedEndpoint()
+
+        created(update.execute(existing.id, ProviderInput("OpenRouter", url, null), Actor.User)).apiKey shouldBe
+            existing.apiKey
+        setup.secrets[checkNotNull(existing.apiKey)] shouldBe SecretValue("sk-router")
+    }
+
+    @Test
+    fun `an update racing a delete does not bring the provider back`() {
+        val gone = keyedEndpoint()
+        setup.providers.remove(gone.id)
+        setup.staleReads[gone.id] = gone
+
+        update.execute(
+            gone.id,
+            ProviderInput("OpenRouter", "https://openrouter.ai/api/v1", "sk-new"),
+            Actor.User,
+        ) shouldBe
+            SetupResult.NotFound
+        setup.providers.shouldBeEmpty()
+        setup.secrets[checkNotNull(gone.apiKey)] shouldBe SecretValue("sk-router")
+        setup.entries.shouldBeEmpty()
+    }
+
+    private fun keyedEndpoint(): ProviderConfig {
+        val key = SecretId(UUID.randomUUID())
+        setup.secrets[key] = SecretValue("sk-router")
+        val config =
+            ProviderConfig(
+                ProviderId(UUID.randomUUID()),
+                "OpenRouter",
+                ProviderKind.OPENAI_COMPATIBLE,
+                key,
+                URI("https://openrouter.ai/api/v1"),
+            )
+        setup.providers[config.id] = config
+        return config
     }
 
     @Test

@@ -50,6 +50,9 @@ class SetupFixtures {
     val profiles = linkedMapOf<Pair<ProviderId, ModelName>, ModelCapabilityProfile>()
     val secrets = linkedMapOf<SecretId, SecretValue>()
     val entries = mutableListOf<ChangelogEntry>()
+
+    /** What a read still sees of providers another transaction deleted meanwhile (the update/delete race). */
+    val staleReads = linkedMapOf<ProviderId, ProviderConfig>()
     var failingChangelog = false
     var failingWrites = false
     var detected: AiResult<List<ModelCapabilityProfile>> = AiResult.Success(emptyList())
@@ -68,9 +71,12 @@ class SetupFixtures {
         object : ProviderConfigPort {
             override fun findAll() = SetupStoreResult.Success(providers.values.toList())
 
-            override fun findById(id: ProviderId) = read(providers[id])
+            override fun findById(id: ProviderId) = read(providers[id] ?: staleReads[id])
 
             override fun save(config: ProviderConfig) = write { providers[config.id] = config }
+
+            override fun update(config: ProviderConfig) =
+                if (config.id in providers) write { providers[config.id] = config } else SetupStoreResult.NotFound
 
             override fun delete(
                 id: ProviderId,

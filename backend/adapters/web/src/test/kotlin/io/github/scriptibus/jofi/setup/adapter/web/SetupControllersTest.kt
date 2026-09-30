@@ -194,6 +194,15 @@ class SetupControllersTest(
             URI("http://localhost:11434/v1"),
         )
 
+    private val router =
+        ProviderConfig(
+            ProviderId(UUID.fromString("00000000-0000-0000-0000-00000000000d")),
+            "OpenRouter",
+            ProviderKind.OPENAI_COMPATIBLE,
+            keyId,
+            URI("https://openrouter.ai/api/v1"),
+        )
+
     @BeforeEach
     fun answer() {
         clearMocks(ports.providers, ports.assignments, ports.profiles, ports.catalog, ports.secrets, ports.changelog)
@@ -202,6 +211,8 @@ class SetupControllersTest(
         every { ports.providers.findById(openAi.id) } returns SetupStoreResult.Success(openAi)
         every { ports.providers.findById(ollama.id) } returns SetupStoreResult.Success(ollama)
         every { ports.providers.save(any()) } returns SetupStoreResult.Success(Unit)
+        every { ports.providers.update(any()) } returns SetupStoreResult.Success(Unit)
+        every { ports.providers.findById(router.id) } returns SetupStoreResult.Success(router)
         every { ports.providers.delete(any(), any()) } returns SetupStoreResult.Success(Unit)
         every { ports.assignments.findAll() } returns SetupStoreResult.Success(emptyList())
         every { ports.assignments.findByTask(any()) } returns SetupStoreResult.NotFound
@@ -281,7 +292,7 @@ class SetupControllersTest(
             .bodyJson()
             .extractingPath("type")
             .isEqualTo(SetupProblems.NOT_FOUND)
-        every { ports.providers.save(any()) } returns SetupStoreResult.StorageFailure("save")
+        every { ports.providers.update(any()) } returns SetupStoreResult.StorageFailure("update")
         mvc
             .put()
             .uri("/api/setup/providers/${ollama.id.value}")
@@ -291,6 +302,30 @@ class SetupControllersTest(
             .bodyJson()
             .extractingPath("type")
             .isEqualTo(SetupProblems.UNAVAILABLE)
+    }
+
+    @Test
+    fun `moving a stored key to another origin needs the key again`() {
+        val path = "/api/setup/providers/${router.id.value}"
+        mvc
+            .put()
+            .uri(path)
+            .json("""{"displayName":"OpenRouter","baseUrl":"http://openrouter.ai/api/v1"}""")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """{"type":"${SetupProblems.INVALID}","violations":[{"field":"apiKey","problem":"REQUIRED"}]}""",
+            )
+        verify(exactly = 0) { ports.providers.update(any()) }
+
+        mvc
+            .put()
+            .uri(path)
+            .json("""{"displayName":"OpenRouter","baseUrl":"https://other.example/v1","apiKey":"sk-other"}""")
+            .assertThat()
+            .hasStatusOk()
+        verify { ports.secrets.put(keyId, SecretValue("sk-other")) }
     }
 
     private fun deleteOpenAi(

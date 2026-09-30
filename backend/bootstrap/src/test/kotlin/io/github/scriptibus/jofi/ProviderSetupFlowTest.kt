@@ -141,11 +141,48 @@ class ProviderSetupFlowTest(
             .toSet() shouldBe
             setOf("USER")
 
+        val secretId = secretOf(id)
         val path = "/api/setup/providers/$id"
         val token = json.readTree(browser.delete(path).response.contentAsString)["confirmationToken"].asString()
         browser.delete(path, mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
         reachable(localModels) shouldBe false
+        dsl.fetchCount(SECRET, SECRET.ID.eq(secretId)) shouldBe 0
     }
+
+    @Test
+    fun `a changed base URL moves the allowlist, the old host and port are blocked, the new one reachable`() {
+        val movedAi = WireMockServer(wireMockConfig().dynamicPort().bindAddress("127.0.0.1")).apply { start() }
+        try {
+            val movedModels = URI("http://127.0.0.1:${movedAi.port()}/v1/models")
+            movedAi.stubFor(get("/v1/models").willReturn(aResponse().withBody("{}")))
+            val browser = owner()
+            val first = "http://127.0.0.1:${localAi.port()}/v1"
+            val id =
+                browser.createProvider(
+                    """{"kind":"OPENAI_COMPATIBLE","displayName":"Local","baseUrl":"$first","apiKey":"$KEY"}""",
+                )
+            reachable(localModels) shouldBe true
+            reachable(movedModels) shouldBe false
+
+            val moved = """{"displayName":"Local","baseUrl":"http://127.0.0.1:${movedAi.port()}/v1","apiKey":"$KEY"}"""
+            browser.put("/api/setup/providers/$id", moved).response.status shouldBe 200
+
+            reachable(localModels) shouldBe false
+            reachable(movedModels) shouldBe true
+            dsl.deleteFrom(AI_PROVIDER_CONFIG).where(AI_PROVIDER_CONFIG.ID.eq(UUID.fromString(id))).execute()
+        } finally {
+            movedAi.stop()
+        }
+    }
+
+    private fun secretOf(id: String): UUID =
+        checkNotNull(
+            dsl
+                .select(AI_PROVIDER_CONFIG.API_KEY_SECRET_ID)
+                .from(AI_PROVIDER_CONFIG)
+                .where(AI_PROVIDER_CONFIG.ID.eq(UUID.fromString(id)))
+                .fetchOne(AI_PROVIDER_CONFIG.API_KEY_SECRET_ID),
+        )
 
     @Test
     fun `the metadata address stays blocked even as a configured base URL`() {

@@ -100,7 +100,9 @@ in `setup.adapter.ai` (#19, ADR-0040, ADR-0043). Only the gateway implements `Ll
 and calls `AiProviderPort`; nothing outside `setup.adapter.ai` may use `AiProviderPort` (architecture
 tests). The setup use cases (#23: providers, keys, model refresh, capability corrections, task
 assignments) accept only `Actor.User`, since the provider config decides where prompts go and feeds
-the AI transport's allowlist; never expose them as MCP or AI tools. Mark text copied from a stored
+the AI transport's allowlist; never expose them as MCP or AI tools. `SetupRules` (architecture tests)
+enforces it: only `setup.adapter.web` (and `setup.config`) may depend on the mutating setup use cases and
+inbound ports, and only `..adapter.web..` may name `Actor.User` (reviewed allowlist in `SetupRules`). Mark text copied from a stored
 item as `ContentPart.Sourced`, and handle the results `PrivacyFilterFailed` and `Withheld`. `ModelCatalogPort` lists a provider's models with their known
 capabilities for the setup checks. Costs and the budget are in USD only; an unknown cost is null.
 

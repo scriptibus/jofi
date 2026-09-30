@@ -22,6 +22,12 @@ interface ProviderConfigPort {
     fun save(config: ProviderConfig): SetupStoreResult<Unit>
 
     /**
+     * Replaces the stored config with the same id, never inserts: [SetupStoreResult.NotFound] when it
+     * is gone, so an update racing a delete cannot bring the provider back.
+     */
+    fun update(config: ProviderConfig): SetupStoreResult<Unit>
+
+    /**
      * Removes the provider and its model capabilities, only with a [proof] covering
      * [ProviderId.DELETE_OPERATION] for [id] (else [SetupStoreResult.NotConfirmed], ADR-0039).
      * [SetupStoreResult.InUse] while a task is still assigned to the provider.

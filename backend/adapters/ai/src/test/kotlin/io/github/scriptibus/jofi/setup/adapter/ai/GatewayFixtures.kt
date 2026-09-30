@@ -64,6 +64,8 @@ class InMemorySetup(
 
             override fun save(config: ProviderConfig) = write { providers[config.id] = config }
 
+            override fun update(config: ProviderConfig) = write { providers[config.id] = config }
+
             override fun delete(
                 id: ProviderId,
                 proof: ConfirmationResult.Confirmed,

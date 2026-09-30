@@ -56,6 +56,17 @@ class ProviderConfigRepository(
             SetupStoreResult.Success(Unit)
         }
 
+    override fun update(config: ProviderConfig): SetupStoreResult<Unit> =
+        storeCall(log, "update") {
+            val updated =
+                dsl
+                    .update(AI_PROVIDER_CONFIG)
+                    .set(toRecord(config))
+                    .where(AI_PROVIDER_CONFIG.ID.eq(config.id.value))
+                    .execute()
+            if (updated == 0) SetupStoreResult.NotFound else SetupStoreResult.Success(Unit)
+        }
+
     override fun delete(
         id: ProviderId,
         proof: ConfirmationResult.Confirmed,

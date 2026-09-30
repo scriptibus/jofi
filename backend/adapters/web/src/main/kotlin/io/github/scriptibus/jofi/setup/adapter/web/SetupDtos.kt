@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.setup.domain.ProviderConfig
 import io.github.scriptibus.jofi.setup.domain.ProviderInput
 import io.github.scriptibus.jofi.setup.domain.ProviderKind
 import io.github.scriptibus.jofi.setup.domain.TaskAssignmentView
+import io.github.scriptibus.jofi.shared.adapter.web.WriteOnlySecret
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
 import java.time.Instant
 import java.util.UUID
@@ -80,6 +81,7 @@ data class CreateProviderRequest(
     /** Only for `OPENAI_COMPATIBLE`, e.g. `http://localhost:11434/v1`; no credentials in it. */
     val baseUrl: String? = null,
     /** Stored encrypted; never returned. Required for every kind but `OPENAI_COMPATIBLE`. */
+    @WriteOnlySecret
     val apiKey: String? = null,
 ) {
     fun toInput(): ProviderInput = ProviderInput(displayName, baseUrl, apiKey)
@@ -91,7 +93,11 @@ data class CreateProviderRequest(
 data class UpdateProviderRequest(
     val displayName: String,
     val baseUrl: String? = null,
-    /** Absent or blank keeps the stored key. */
+    /**
+     * Absent or blank keeps the stored key, except when the base URL moves to another origin (scheme,
+     * host or port): then the key must be entered again.
+     */
+    @WriteOnlySecret
     val apiKey: String? = null,
 ) {
     fun toInput(): ProviderInput = ProviderInput(displayName, baseUrl, apiKey)

@@ -66,7 +66,31 @@ data class ProviderConfig(
         }
     }
 
+    /**
+     * Whether moving to [newBaseUri] must come with the key again: a stored key belongs to the origin
+     * (scheme, host, port) it was entered for, so a changed origin, including an https to http downgrade
+     * on the same host, would otherwise send it to a server the user never gave it to.
+     */
+    fun keyMustBeReenteredFor(newBaseUri: URI?): Boolean = apiKey != null && originOf(baseUri) != originOf(newBaseUri)
+
     companion object {
+        private const val HTTP_PORT = 80
+        private const val HTTPS_PORT = 443
+
+        private fun originOf(uri: URI?): Triple<String, String, Int>? =
+            uri?.let {
+                val scheme = it.scheme.lowercase()
+                val port =
+                    if (it.port != -1) {
+                        it.port
+                    } else if (scheme == "https") {
+                        HTTPS_PORT
+                    } else {
+                        HTTP_PORT
+                    }
+                Triple(scheme, it.host.lowercase(), port)
+            }
+
         /** An absolute http(s) URL with a host and without user info, query or fragment. */
         fun isValidBaseUri(uri: URI): Boolean = isHttpUrl(uri) && isFreeOfCredentials(uri)
 

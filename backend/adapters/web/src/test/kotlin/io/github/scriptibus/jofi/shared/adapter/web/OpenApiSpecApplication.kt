@@ -48,6 +48,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
     OpenApiSpecApplication.UseCaseStubs::class,
     OpenApiSpecApplication.ContractCustomizer::class,
     ProblemResponsesCustomizer::class,
+    WriteOnlySecretCustomizer::class,
 )
 class OpenApiSpecApplication {
     /** Registers a stub for every constructor parameter (a use case) of every controller. */
