@@ -23,8 +23,10 @@ class LayerDependencyTest {
         classes()
             .should()
             .haveNameMatching(PACKAGE_CONVENTION)
-            .because("code lives in $BASE.<context>.(domain|application|adapter.<kind>|config)")
-            .check(classes)
+            .because(
+                "code lives in $BASE.<context>.(domain|application|adapter.<kind>|config); " +
+                    "a context root may only hold its Spring Modulith ModuleMetadata",
+            ).check(classes)
     }
 
     @Test
@@ -64,12 +66,7 @@ class LayerDependencyTest {
 
     @Test
     fun `adapters do not depend on other adapters`() {
-        slices()
-            .matching("$BASE.(*).adapter.(*)..")
-            .should()
-            .notDependOnEachOther()
-            .because("adapters talk to each other only through use cases and ports")
-            .check(classes)
+        AdapterRules.adaptersAreIndependent.check(classes)
     }
 
     @Test
@@ -97,9 +94,13 @@ class LayerDependencyTest {
                 "com.fasterxml.jackson..",
             )
 
-        /** `<base>.<context>.<layer>.…` or a top-level class in the base package (the app). */
+        /**
+         * `<base>.<context>.<layer>.…`, a context's Modulith metadata (`<base>.<context>.ModuleMetadata`)
+         * or a top-level class in the base package (the app).
+         */
         val PACKAGE_CONVENTION =
             Regex.escape(BASE) +
-                "\\.([a-z][a-z0-9]*\\.(domain|application|adapter\\.[a-z][a-z0-9]*|config)\\..+|[A-Z][A-Za-z0-9]*)"
+                "\\.([a-z][a-z0-9]*\\.(domain|application|adapter\\.[a-z][a-z0-9]*|config)\\..+" +
+                "|[a-z][a-z0-9]*\\.ModuleMetadata|[A-Z][A-Za-z0-9]*)"
     }
 }
