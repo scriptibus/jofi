@@ -268,9 +268,14 @@ def parse_artifact(text: str | None, pr_number: int, head_sha: str) -> tuple[str
 
 
 def verify(artifact_text: str | None, pr: dict, changed_files: list[str], run_head_sha: str,
-           default_branch: str, rules: list[Rule]) -> Decision:
-    """Final decision in the privileged workflow: auto-merge only if the artifact says so and our own checks agree."""
+           run_base_ref: str, default_branch: str, rules: list[Rule]) -> Decision:
+    """Final decision in the privileged workflow: auto-merge only if the artifact says so and our own checks agree.
+
+    `run_base_ref` is the PR's base as the workflow_run payload recorded it for the lenses run.
+    """
     decision = Decision()
+    if run_base_ref != default_branch:
+        decision.add(f"The lenses run was for a PR targeting `{safe(run_base_ref)}`, not `{default_branch}`.")
     pr_number = pr.get("number")
     parsed = parse_artifact(artifact_text, pr_number, run_head_sha) if type(pr_number) is int else None
     if parsed is None:
@@ -353,7 +358,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     decide_command.add_argument("--lens-result", required=True)
     decide_command.add_argument("--run-id", required=True)
     decide_command.add_argument("--artifact", type=Path, required=True, help="where to write the decision artifact")
-    commands.choices["verify"].add_argument("--artifact", type=Path, required=True, help="decision artifact to verify")
+    verify_command = commands.choices["verify"]
+    verify_command.add_argument("--artifact", type=Path, required=True, help="decision artifact to verify")
+    verify_command.add_argument("--run-base-ref", required=True, help="PR base from the workflow_run payload")
     return parser.parse_args(argv)
 
 
@@ -379,7 +386,7 @@ def run_decide(args: argparse.Namespace) -> Decision:
 
 def run_verify(args: argparse.Namespace) -> Decision:
     return verify(read_optional(args.artifact), read_pr(args.pr), read_files(args.files), args.head_sha,
-                  args.default_branch, load_rules(args.protected))
+                  args.run_base_ref, args.default_branch, load_rules(args.protected))
 
 
 def main(argv: list[str]) -> int:

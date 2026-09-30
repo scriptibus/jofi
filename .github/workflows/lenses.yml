@@ -9,7 +9,10 @@ name: lenses
 
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize, reopened]
+    # `edited` so that retargeting a PR disarms auto-merge and gets a fresh decision (merge-gate.yml).
+    # It also reruns the lenses on title/body edits: a skipped `result` would count as passed, so a
+    # cheaper "only on base change" filter would let an edit hide an earlier lens failure.
+    types: [opened, ready_for_review, synchronize, reopened, edited]
 
 permissions: {}
 

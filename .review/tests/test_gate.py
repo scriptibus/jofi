@@ -375,12 +375,13 @@ def artifact(**overrides) -> str:
     return json.dumps(data)
 
 
-def verify(text=None, pr=None, files=None) -> gate.Decision:
+def verify(text=None, pr=None, files=None, run_base_ref="main") -> gate.Decision:
     return gate.verify(
         artifact() if text is None else text,
         pull_request() if pr is None else pr,
         ["frontend/src/App.tsx"] if files is None else files,
         HEAD,
+        run_base_ref,
         "main",
         RULES,
     )
@@ -406,6 +407,17 @@ class VerifyTest(unittest.TestCase):
                          ("no number", pull_request(number=None))):
             with self.subTest(case=name):
                 self.assertEqual(gate.NEEDS_HUMAN, verify(pr=pr).label)
+
+    def test_non_main_base_never_merges(self):
+        # Stacked PR, or a PR retargeted after the lenses ran: base in the run payload or in the fresh PR data.
+        stacked = pull_request(base={"ref": "agent/2-other", "repo": {"full_name": "scriptibus/jofi"}})
+        for name, decision in (("payload base", verify(run_base_ref="agent/2-other")),
+                               ("current base", verify(pr=stacked)),
+                               ("both", verify(pr=stacked, run_base_ref="agent/2-other"))):
+            with self.subTest(case=name):
+                self.assertEqual(gate.NEEDS_HUMAN, decision.label)
+                self.assertIn("`agent/2-other`" if name != "current base" else "does not target `main`",
+                              " ".join(decision.reasons))
 
     def test_invalid_artifacts_never_merge(self):
         cases = {
@@ -478,18 +490,18 @@ class CommandLineTest(unittest.TestCase):
             decision, comment = self.run_decide(Path(tmp), LOW_RISK, APP_FILES)
             self.assertEqual(gate.AUTO_MERGE, decision)
             self.assertIn("Eligible for auto-merge", comment)
-            self.assertEqual(gate.AUTO_MERGE, self.run_main(["verify", *self.common(Path(tmp))]))
+            self.assertEqual(gate.AUTO_MERGE, self.run_main(["verify", *self.common(Path(tmp)), "--run-base-ref", "main"]))
 
     def test_missing_risk_file_needs_a_human(self):
         with tempfile.TemporaryDirectory() as tmp:
             decision, _ = self.run_decide(Path(tmp), None, APP_FILES)
             self.assertEqual(gate.NEEDS_HUMAN, decision)
-            self.assertEqual(gate.NEEDS_HUMAN, self.run_main(["verify", *self.common(Path(tmp))]))
+            self.assertEqual(gate.NEEDS_HUMAN, self.run_main(["verify", *self.common(Path(tmp)), "--run-base-ref", "main"]))
 
     def test_missing_artifact_needs_a_human(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.write_inputs(Path(tmp), APP_FILES)
-            self.assertEqual(gate.NEEDS_HUMAN, self.run_main(["verify", *self.common(Path(tmp))]))
+            self.assertEqual(gate.NEEDS_HUMAN, self.run_main(["verify", *self.common(Path(tmp)), "--run-base-ref", "main"]))
 
     def test_unreadable_inputs_need_a_human(self):
         with tempfile.TemporaryDirectory() as tmp:

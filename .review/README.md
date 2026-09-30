@@ -99,11 +99,17 @@ unit-tested in `tests/test_gate.py` (CI job `review-lenses`). It runs in two pla
 
 1. `lenses.yml`, job `gate` (read-only, on `pull_request`): after the lenses, `gate.py decide` computes the
    decision from CI data and uploads it as the artifact `merge-gate`. The required check `result` waits for it.
-2. `merge-gate.yml` (`workflow_run` on `lenses`, always **main's** definition): when a lenses run is
-   *requested* it disarms any auto-merge on that commit; when the run *completes*, `gate.py verify` (main's
-   copy) validates the artifact strictly as untrusted data, re-reads the PR, re-checks the head commit and
-   the protected paths itself and only then arms squash auto-merge pinned to that commit
-   (`--match-head-commit`). Any mismatch means auto-merge off and `needs-human`.
+2. `merge-gate.yml` (`workflow_run` on `lenses`, always **main's** definition). It acts only on the PRs
+   listed in the run payload (same-repository PRs; the commits API is only a fallback).
+   - When a lenses run is *requested* (push, ready, reopen, or `edited`, which covers retargeting), it
+     disarms any auto-merge on those PRs. If a same-repository run maps to no PR, the job fails.
+   - When the run *completes*, `gate.py verify` (main's copy) validates the artifact strictly as untrusted
+     data. It re-reads the PR and re-checks the head commit, the base (payload and current, both must be
+     `main`) and the protected paths itself. Only then does it arm squash auto-merge pinned to that commit
+     (`--match-head-commit`). Any mismatch means auto-merge off and `needs-human`.
+   - Last, it sets the commit status **`merge-gate`** (`success` for either decision) on that commit.
+     `merge-gate` is a required check, so nothing merges before the gate has armed or disarmed auto-merge
+     for that exact commit.
 
 A PR gets `auto-merge` only if **all** of these hold, otherwise `needs-human` and a comment with the reasons:
 
@@ -125,10 +131,14 @@ What it guarantees, and what it doesn't:
   artifact. It still can't arm auto-merge through the gate: `merge-gate.yml` comes from main, and its own
   re-check sends every PR that touches `.github/`, `.review/` or any other protected path to `needs-human`,
   whatever the artifact says. For all other PRs the artifact comes from main's `lenses.yml`.
-- **No merge before the decision.** Auto-merge is disarmed when a lenses run starts, and `result` stays
-  pending until `gate` has decided, so an approval for an earlier commit can't merge a new one.
+- **No merge before the decision.** The required status `merge-gate` appears on a commit only after
+  `merge-gate.yml` has armed or disarmed auto-merge for it, so an approval for an earlier commit can't merge
+  a new one, even if the disarm at *requested* time was missed. The disarm and `result` (which waits for
+  `gate`) are extra layers.
 - **Required checks still apply.** Auto-merge only merges once every required check is green (ruleset on
-  `main`). A `needs-human` decision does not fail `result`, so Lucas can still merge by hand.
+  `main`). A `needs-human` decision fails neither `result` nor `merge-gate`, so Lucas can still merge by hand.
+- **Cost:** `edited` also reruns the lenses on title or body edits. Skipping them there would leave a
+  skipped `result`, which GitHub counts as passed, and so an edit could hide an earlier lens failure.
 - **Safe degradation.** If CI can't enable auto-merge (token or repository setting), the PR gets
   `needs-human` and a comment instead, and any earlier auto-merge is disabled.
 - **Not covered:** anyone with write access can still merge or arm auto-merge by hand, and a PR's own
@@ -138,7 +148,7 @@ What it guarantees, and what it doesn't:
   environment restricted to `main` so only `merge-gate.yml` can use it, never a `pull_request` workflow.
 - A merge done by `GITHUB_TOKEN` does not trigger the `push` workflows on `main` (GitHub prevents
   recursive runs), so `main` is next checked by the following push or the scheduled runs; #48 fixes this.
-- Fork PRs are never armed.
+- Fork PRs are never armed, and their runs carry no PR in the payload, so the gate leaves them alone.
 
 ## Running a lens locally
 
