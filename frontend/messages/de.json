@@ -784,6 +784,16 @@
       }
     }
   ],
+  "application_delete_interviews": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Gespräch oder Telefonat",
+        "countPlural=other": "{count} Gespräche und Telefonate"
+      }
+    }
+  ],
   "application_delete_snapshots": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
