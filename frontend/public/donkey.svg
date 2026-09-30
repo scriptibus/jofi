@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- SPDX-FileCopyrightText: 2026 Jofi contributors -->
+  <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+  <title>Jofi</title>
+  <style>
+    .f{fill:#1D1B16}.a{fill:#C98200}.b{fill:#F3F2EE}
+    @media (prefers-color-scheme: dark){.f{fill:#F1EEE6}.a{fill:#F2B33D}.b{fill:#15140F}}
+  </style>
+  <polygon class="f" points="17,29 20,3 28,26"/>
+  <polygon class="f" points="33,25 43,2 42,29"/>
+  <polygon class="f" points="13,30 46,27 53,44 47,59 22,61 11,46"/>
+  <polygon class="a" points="31,46 53,44 47,59 29,61"/>
+  <polygon class="b" points="22.5,36 27,35 26,39.5"/>
+  <circle class="b" cx="46" cy="52" r="1.6"/>
+</svg>
