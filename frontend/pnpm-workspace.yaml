@@ -1,11 +1,50 @@
 # SPDX-FileCopyrightText: 2026 Jofi contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Supply-chain settings (docs: https://pnpm.io/10.x/settings)
-# Only resolve versions that have been public for at least this many minutes.
+# Supply-chain settings (docs: https://pnpm.io/settings, https://pnpm.io/supply-chain-security)
+# Only resolve versions that have been public for at least this many minutes. Setting it explicitly
+# also makes it strict (minimumReleaseAgeStrict), and pnpm re-checks every lockfile entry on install.
 minimumReleaseAge: 10080 # 7 days, same as Renovate
+# Exact versions already in the lockfile when pnpm 12 started verifying lockfile entries against
+# minimumReleaseAge (pnpm 10 only checked new resolutions). All of them are older than 7 days from
+# 2026-10-04T14:00Z on; delete this list then. Never add a bare package name or a pattern here.
+minimumReleaseAgeExclude:
+  - "@asamuzakjp/css-color@7.1.2"
+  - "@asamuzakjp/dom-selector@9.2.2"
+  - "@csstools/color-helpers@6.1.2"
+  - "@csstools/css-calc@3.4.1"
+  - "@csstools/css-color-parser@4.2.4"
+  - "@csstools/css-parser-algorithms@4.0.1"
+  - "@csstools/css-tokenizer@4.0.2"
+  - "@rolldown/binding-android-arm-eabi@1.2.11"
+  - "@rolldown/binding-android-arm64@1.2.11"
+  - "@rolldown/binding-darwin-arm64@1.2.11"
+  - "@rolldown/binding-darwin-x64@1.2.11"
+  - "@rolldown/binding-freebsd-x64@1.2.11"
+  - "@rolldown/binding-linux-arm-gnueabihf@1.2.11"
+  - "@rolldown/binding-linux-arm64-gnu@1.2.11"
+  - "@rolldown/binding-linux-arm64-musl@1.2.11"
+  - "@rolldown/binding-linux-ppc64-gnu@1.2.11"
+  - "@rolldown/binding-linux-s390x-gnu@1.2.11"
+  - "@rolldown/binding-linux-x64-gnu@1.2.11"
+  - "@rolldown/binding-linux-x64-musl@1.2.11"
+  - "@rolldown/binding-openharmony-arm64@1.2.11"
+  - "@rolldown/binding-win32-arm64-msvc@1.2.11"
+  - "@rolldown/binding-win32-x64-msvc@1.2.11"
+  - "@types/node@24.19.0"
+  - "@vitest/mocker@5.0.2"
+  - "@vitest/spy@5.0.2"
+  - "magic-string@1.4.2"
+  - "rolldown@1.2.11"
+  - "tldts-core@7.4.16"
+  - "tldts@7.4.16"
+  - "undici@8.11.2"
+  - "vite@8.3.1"
+  - "vitest@5.0.2"
+# Drop exclusions automatically once the lockfile no longer resolves that version.
+minimumReleaseAgeExcludePrune: true
 # Fail the install if a dependency has build scripts we have not reviewed.
 strictDepBuilds: true
-# Install-script allowlist (replaces the deprecated onlyBuiltDependencies).
+# Install-script allowlist (pnpm 11 removed onlyBuiltDependencies and friends).
 allowBuilds: {}
 strictPeerDependencies: true

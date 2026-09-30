@@ -14,7 +14,7 @@ Spec: `docs/spec/04-tech-stack-proposal.md` (3.4, 4.5, 4.6, 4.6a, 4.8a, 4.10) an
 
 | Command | What it does |
 |---|---|
-| `pnpm install` | Install (lockfile committed; `minimumReleaseAge` 24 h, build scripts blocked unless allowlisted) |
+| `pnpm install` | Install (lockfile committed; `minimumReleaseAge` 7 days, also re-checked for every lockfile entry; build scripts blocked unless allowlisted) |
 | `pnpm dev` | Dev server on http://localhost:5173 |
 | `pnpm build` / `pnpm preview` | Production build / serve it on :4173 |
 | `pnpm lint` | Biome lint + format check (a11y rules, import rules, token plugin) |
@@ -24,6 +24,10 @@ Spec: `docs/spec/04-tech-stack-proposal.md` (3.4, 4.5, 4.6, 4.6a, 4.8a, 4.10) an
 | `pnpm e2e` | Playwright: builds, runs `vite preview`, tests light/dark/phone incl. axe WCAG 2.2 AA |
 | `pnpm run license-check` | Every installed package against the AGPL-compatible allowlist |
 | `pnpm check` | lint + typecheck + test + build + license-check (run before every commit) |
+
+pnpm is pinned in `package.json` `packageManager` as `pnpm@<version>+sha512.<hex>` (the hex SHA-512 of
+the npm tarball, which Corepack verifies); `pnpm-lock.yaml` records the same version. CI uses
+`pnpm/setup`, the Dockerfile uses Corepack. Without either locally, `npx pnpm@<version>` works.
 
 First e2e run on a machine: `pnpm exec playwright install chromium`.
 Screenshots: `SCREENSHOT_DIR=/some/dir pnpm e2e` writes one PNG per project and step.

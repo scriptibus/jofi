@@ -8,7 +8,8 @@
 # --- 1. Frontend build -------------------------------------------------------------------------
 FROM docker.io/library/node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS frontend
 WORKDIR /build/frontend
-# Corepack installs the exact pnpm version from package.json's packageManager field.
+# Corepack installs the exact pnpm version from package.json's packageManager field and verifies
+# the tarball against the SHA-512 pinned there; pnpm then fetches its signature-checked native binary.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
