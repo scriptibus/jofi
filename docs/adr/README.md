@@ -54,4 +54,6 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0043](0043-ai-gateway-never-send-filter-and-cost-meter.md) | The AI gateway, the "never send to AI" filter and the cost meter | accepted |
 | [0044](0044-application-status-pipeline-transition-matrix-and-history.md) | Application status pipeline: transition matrix, decline reason and history | accepted |
 | [0045](0045-dated-provider-privacy-info.md) | Dated provider privacy info with quoted sources | accepted |
+| [0046](0046-application-sources-description-snapshots-hash-and-freeze.md) | Application sources and job description snapshots: content hash and freezing on applying | accepted |
 | [0047](0047-sanitised-markdown-rendering-in-the-frontend.md) | Sanitised Markdown rendering in the frontend | accepted |
+||||||| b1a7c05

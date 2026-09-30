@@ -43,12 +43,13 @@ value class ContactRef(
  * [details]; [contacts] are linked separately; [unread] marks entries a scanner created that the user
  * has not opened yet. [wantScore] and [fitScore] are placeholders for the scoring pipeline (M2).
  * [status] moves only through [changeStatus] (ADR-0044); a `DECLINED` or `REJECTED` application holds
- * its [declineReason], any other none. Sources and snapshots (#78), interviews (#79) and tasks (#80)
- * attach to it.
+ * its [declineReason], any other none. [sources] say where the job was found (#78), each with its
+ * description history ([DescriptionSnapshot], stored apart). Interviews (#79) and tasks (#80) attach to it.
  *
  * [version] counts changes: a change is stored only if the stored version is still the one it was
  * based on, so edits by the user, the AI and external clients cannot overwrite each other. Marking
- * it read or unread is not a change of the application and keeps the version.
+ * it read or unread is not a change of the application and keeps the version, and so is adding a source
+ * or marking one offline: imports and scanners record those while the user edits, in rows of their own.
  */
 data class Application(
     val id: ApplicationId,
@@ -63,9 +64,15 @@ data class Application(
     val version: Long,
     val createdAt: Instant,
     val updatedAt: Instant,
+    /** Where the job was found, oldest first. */
+    val sources: List<ApplicationSource> = emptyList(),
 ) {
     init {
         require(contacts.size <= MAX_CONTACTS) { "An application links at most $MAX_CONTACTS contacts" }
+        require(sources.size <= MAX_SOURCES) { "An application has at most $MAX_SOURCES sources" }
+        require(sources.all { it.application == id } && sources.distinctBy { it.id }.size == sources.size) {
+            "An application's sources are its own, each once"
+        }
         require(version >= INITIAL_VERSION) { "An application version must not be negative" }
         require(!updatedAt.isBefore(createdAt)) { "An application cannot be updated before it was created" }
         require((declineReason != null) == status.takesDeclineReason) {
@@ -127,6 +134,22 @@ data class Application(
         }
     }
 
+    /**
+     * The application with [source] added (spec §6.1: the same job found in another place), neither a new
+     * version nor a new `updatedAt`; [ApplicationField.SOURCES] [ApplicationProblem.TOO_MANY] if it has
+     * [MAX_SOURCES] already.
+     */
+    fun addSource(source: ApplicationSource): ApplicationValidation<Application> {
+        require(source.application == id) { "A source belongs to its application" }
+        return if (sources.size < MAX_SOURCES) {
+            ApplicationValidation.Valid(copy(sources = sources + source))
+        } else {
+            ApplicationValidation.Invalid(
+                listOf(ApplicationViolation(ApplicationField.SOURCES, ApplicationProblem.TOO_MANY)),
+            )
+        }
+    }
+
     /** The application marked [unread] (or read); neither a new version nor a new `updatedAt`. */
     fun markUnread(unread: Boolean): Application = copy(unread = unread)
 
@@ -135,6 +158,7 @@ data class Application(
     companion object {
         const val INITIAL_VERSION = 0L
         const val MAX_CONTACTS = 50
+        const val MAX_SOURCES = 50
 
         /** The confirmable operation (ADR-0039) of deleting applications; its targets are application ids. */
         const val DELETE_OPERATION = "applications.delete"

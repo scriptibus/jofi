@@ -222,7 +222,8 @@ data class ApplicationContactsRequest(
 /**
  * One application. [version] goes back as `basedOnVersion` with the next change; render the notes
  * sanitised. Scores are 0 to 5 with one decimal (null until scoring exists). [declineReason] is present
- * exactly while [status] is `DECLINED` or `REJECTED`.
+ * exactly while [status] is `DECLINED` or `REJECTED`. [sources] are where the job was found, oldest first;
+ * their description versions are read per source.
  */
 data class ApplicationResponse(
     val id: UUID,
@@ -247,6 +248,7 @@ data class ApplicationResponse(
     val version: Long,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val sources: List<ApplicationSourceResponse>,
 ) {
     override fun toString(): String = "ApplicationResponse(id=$id, version=$version)"
 
@@ -276,6 +278,7 @@ data class ApplicationResponse(
                     application.version,
                     application.createdAt,
                     application.updatedAt,
+                    application.sources.map(ApplicationSourceResponse::from),
                 )
             }
 
