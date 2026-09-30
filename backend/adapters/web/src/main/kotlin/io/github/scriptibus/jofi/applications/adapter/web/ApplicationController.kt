@@ -6,13 +6,13 @@ package io.github.scriptibus.jofi.applications.adapter.web
 import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
-import io.github.scriptibus.jofi.applications.domain.CompanyRef
-import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.SearchValidation
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
@@ -49,29 +49,26 @@ class ApplicationController(
     private val updateApplication: UpdateApplicationUseCase,
     private val setUnread: SetApplicationUnreadUseCase,
     private val deleteApplication: DeleteApplicationUseCase,
+    private val searchApplications: SearchApplicationsUseCase,
 ) {
-    /**
-     * Applications whose title matches [search] fuzzily (best match first, otherwise newest first),
-     * filtered by company and linked contact ("linked applications per contact", #90). #83 adds the
-     * unread, status, score, source, language and date filters and the sort order.
-     */
+    /** One page of the list with its filters and order (see [ApplicationListQuery]); 400 names bad parameters. */
     @GetMapping
     @ProblemResponses(ProblemKind.INVALID_INPUT)
     fun searchApplications(
-        @RequestParam(required = false) search: String?,
-        @RequestParam(required = false) companyId: UUID?,
-        @RequestParam(required = false) contactId: UUID?,
+        query: ApplicationListQuery,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "${ApplicationSearch.DEFAULT_SIZE}") size: Int,
-    ): ApplicationPageResponse {
-        val filters =
-            ApplicationSearch(
-                company = companyId?.let(::CompanyRef),
-                contact = contactId?.let(::ContactRef),
-            )
-        ApplicationSearch.of(search, filters, page, size) ?: throw ApplicationProblems.invalidSearch(page, size)
-        throw notImplemented()
-    }
+    ): ApplicationPageResponse =
+        when (val validation = query.toInput(page, size).validate()) {
+            is SearchValidation.Invalid -> {
+                throw ApplicationProblems.invalidSearch(validation.violations)
+            }
+
+            is SearchValidation.Valid -> {
+                val search = validation.search
+                ApplicationPageResponse.from(searchApplications.execute(search).orThrow(), search.page, search.size)
+            }
+        }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

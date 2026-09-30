@@ -189,49 +189,6 @@ sealed interface ApplicationStoreResult<out T> {
     ) : ApplicationStoreResult<Nothing>
 }
 
-/**
- * A page of the application list: [text] matches titles fuzzily (pg_trgm similarity, best match
- * first, otherwise newest first), [company] and [contact] keep the applications of one company or with
- * one linked contact. [page] counts from 0. The list issue (#83) adds the unread, status, score, source,
- * language and date filters and the sort order.
- */
-data class ApplicationSearch(
-    val text: String? = null,
-    val company: CompanyRef? = null,
-    val contact: ContactRef? = null,
-    val page: Int = 0,
-    val size: Int = DEFAULT_SIZE,
-) {
-    init {
-        require(text == null || text.isNotBlank()) { "A search text, when given, must not be blank" }
-        require(page >= 0) { "A page number must not be negative" }
-        require(size in 1..MAX_SIZE) { "A page holds 1 to $MAX_SIZE applications" }
-    }
-
-    override fun toString(): String = "ApplicationSearch(company=$company, contact=$contact, page=$page, size=$size)"
-
-    companion object {
-        const val DEFAULT_SIZE = 50
-        const val MAX_SIZE = 200
-
-        /**
-         * The search for raw query parameters, or `null` if [page] or [size] is out of range (the caller
-         * answers 400). Blank [text] searches every application.
-         */
-        fun of(
-            text: String?,
-            filters: ApplicationSearch = ApplicationSearch(),
-            page: Int,
-            size: Int,
-        ): ApplicationSearch? =
-            if (page >= 0 && size in 1..MAX_SIZE) {
-                filters.copy(text = text?.trim()?.takeIf(String::isNotEmpty), page = page, size = size)
-            } else {
-                null
-            }
-    }
-}
-
 /** One page of [items] and the number of all items matching the search. */
 data class ApplicationPage<out T>(
     val items: List<T>,

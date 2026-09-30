@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.applications.adapter.web
 import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
@@ -52,7 +53,8 @@ import java.util.UUID
 
 /**
  * The application endpoints over the real use cases (#82) with a mocked repository: mapping, problem
- * details and the two-step delete. The list (#83), status (#84) and contact links (#90) still answer `501`.
+ * details and the two-step delete (the list, #83, is `ApplicationListControllerTest`). Status (#84) and contact
+ * links (#90) still answer `501`.
  * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(ApplicationController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
@@ -89,6 +91,9 @@ class ApplicationControllerTest(
 
         @Bean
         fun get(ports: Ports) = GetApplicationUseCase(ports.applications)
+
+        @Bean
+        fun search(ports: Ports) = SearchApplicationsUseCase(ports.applications)
 
         @Bean
         fun update(ports: Ports) =
@@ -285,8 +290,7 @@ class ApplicationControllerTest(
     }
 
     @Test
-    fun `the list, contact links, status and history are not implemented yet`() {
-        notImplemented(mvc.get().uri("/api/applications?search=backend&companyId=$companyId&contactId=$contactId"))
+    fun `contact links, status and history are not implemented yet`() {
         notImplemented(json(mvc.put().uri("$path/contacts"), """{"contactIds":["$contactId"],"basedOnVersion":3}"""))
         notImplemented(
             json(

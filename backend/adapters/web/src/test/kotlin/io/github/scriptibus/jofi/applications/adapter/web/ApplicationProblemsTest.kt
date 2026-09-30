@@ -8,6 +8,8 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationProblem
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
+import io.github.scriptibus.jofi.applications.domain.SearchField
+import io.github.scriptibus.jofi.applications.domain.SearchViolation
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.FieldViolation
 import io.github.scriptibus.jofi.shared.adapter.web.ValidationProblem
@@ -81,12 +83,28 @@ class ApplicationProblemsTest {
     }
 
     @Test
-    fun `search parameters out of range name the parameter`() {
-        val problem = ApplicationProblems.invalidSearch(page = 0, size = 0)
+    fun `search violations name every query parameter`() {
+        val violations = SearchField.entries.map { SearchViolation(it, ApplicationProblem.OUT_OF_RANGE) }
+
+        val problem = ApplicationProblems.invalidSearch(violations)
 
         problem.body.type shouldBe URI.create(ApplicationProblems.INVALID_SEARCH)
-        problem.body.shouldBeInstanceOf<ValidationProblem>().violations shouldBe
-            listOf(FieldViolation("size", "OUT_OF_RANGE"))
+        problem.body
+            .shouldBeInstanceOf<ValidationProblem>()
+            .violations
+            .map { it.field } shouldBe
+            listOf(
+                "search",
+                "language",
+                "createdTo",
+                "updatedTo",
+                "wantMin",
+                "wantMax",
+                "fitMin",
+                "fitMax",
+                "page",
+                "size",
+            )
     }
 
     private fun expect(
