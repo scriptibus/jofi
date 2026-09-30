@@ -183,6 +183,24 @@ class DescriptionSnapshotTest {
     }
 
     @Test
+    fun `a source's first text recorded after applying is frozen at once, before applying it is not`() {
+        val details = ApplicationDetails("Backend Engineer", CompanyRef(UUID(0, 2)))
+        val discovered = Application.create(ApplicationId(UUID(0, 1)), details, at)
+        val applied = discovered.copy(status = ApplicationStatus.APPLIED)
+        val recorded = DescriptionSnapshot(first, source, DescriptionText("Kotlin"), SnapshotReason.MANUAL, later)
+
+        recorded.firstOf(discovered) shouldBeSameInstanceAs recorded
+        recorded.firstOf(applied) shouldBe recorded.copy(frozenAt = later)
+    }
+
+    @Test
+    fun `a summary counts characters as code points, as the database does`() {
+        val emoji = snapshot.copy(text = DescriptionText("Team 🚀"))
+
+        emoji.summary().length shouldBe 6
+    }
+
+    @Test
     fun `a summary leaves out the text, and nothing prints it`() {
         snapshot.summary() shouldBe
             SnapshotSummary(

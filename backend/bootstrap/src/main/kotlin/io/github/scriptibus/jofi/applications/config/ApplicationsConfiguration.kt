@@ -23,7 +23,7 @@ import java.time.Clock
 
 /**
  * The application use cases: create, read, edit, read/unread and delete (#82); the list (#83); status change and
- * history (#84).
+ * history (#84). The job description history has its own, [DescriptionSnapshotConfiguration].
  */
 @Configuration(proxyBeanMethods = false)
 class ApplicationsConfiguration {
