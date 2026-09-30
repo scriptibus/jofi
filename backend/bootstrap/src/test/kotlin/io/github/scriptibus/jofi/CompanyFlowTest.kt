@@ -3,7 +3,11 @@
 
 package io.github.scriptibus.jofi
 
+import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
+import io.github.scriptibus.jofi.companies.domain.Company
+import io.github.scriptibus.jofi.companies.domain.CompanyId
 import io.github.scriptibus.jofi.companies.domain.CompanyPreferenceChanged
+import io.github.scriptibus.jofi.companies.domain.CompanyStoreResult
 import io.github.scriptibus.jofi.companies.domain.ContactDeleted
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CHANGELOG_ENTRY
@@ -12,6 +16,13 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.SPRING_SESSION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.USER_ACCOUNT
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
+import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmableAction
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequest
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
@@ -117,19 +128,31 @@ class CompanyFlowTest(
     fun `a company with applications cannot be deleted`() {
         val browser = owner()
         val id = browser.create("ACME GmbH")["id"].asString()
-        dsl
-            .insertInto(APPLICATION)
-            .set(APPLICATION.ID, UUID.randomUUID())
-            .set(APPLICATION.COMPANY_ID, UUID.fromString(id))
-            .set(APPLICATION.TITLE, "Backend Engineer")
-            .set(APPLICATION.CREATED_AT, NOW)
-            .set(APPLICATION.UPDATED_AT, NOW)
-            .execute()
+        insertApplication(id)
 
         browser.get("/api/companies/$id").body()["applicationCount"].asInt() shouldBe 1
         val refused = browser.delete("/api/companies/$id")
         refused.response.status shouldBe 409
         refused.body()["type"].asString() shouldBe "urn:jofi:problem:companies:has-applications"
+    }
+
+    @Test
+    fun `the store maps the applications foreign key by name behind Spring's exception translation`() {
+        val browser = owner()
+        val id = CompanyId(UUID.fromString(browser.create("ACME GmbH")["id"].asString()))
+        insertApplication(id.value.toString())
+        val gate = context.getBean(ConfirmActionUseCase::class.java)
+        val requester = ConfirmationRequester(Actor.User, "session")
+        val action =
+            ConfirmableAction(
+                Company.DELETE_OPERATION,
+                listOf(id.value.toString()),
+                ConfirmationEffect("company", "ACME"),
+            )
+        val token = (gate.execute(ConfirmationRequest(requester, action, null)) as ConfirmationResult.Required).token
+        val proof = gate.execute(ConfirmationRequest(requester, action, token)) as ConfirmationResult.Confirmed
+
+        context.getBean(CompanyRepositoryPort::class.java).delete(id, proof) shouldBe CompanyStoreResult.HasApplications
     }
 
     @Test
@@ -149,6 +172,17 @@ class CompanyFlowTest(
             ).response.status shouldBe 403
         browser.delete("/api/companies/${UUID.randomUUID()}", csrf = null).response.status shouldBe 403
         dsl.fetchCount(COMPANY) shouldBe 0
+    }
+
+    private fun insertApplication(company: String) {
+        dsl
+            .insertInto(APPLICATION)
+            .set(APPLICATION.ID, UUID.randomUUID())
+            .set(APPLICATION.COMPANY_ID, UUID.fromString(company))
+            .set(APPLICATION.TITLE, "Backend Engineer")
+            .set(APPLICATION.CREATED_AT, NOW)
+            .set(APPLICATION.UPDATED_AT, NOW)
+            .execute()
     }
 
     private fun contactOf(company: String): UUID {

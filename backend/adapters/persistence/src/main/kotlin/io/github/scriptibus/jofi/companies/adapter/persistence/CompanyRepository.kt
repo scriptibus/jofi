@@ -14,8 +14,6 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import org.jooq.DSLContext
-import org.jooq.exception.DataAccessException
-import org.postgresql.util.PSQLException
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -61,7 +59,7 @@ class CompanyRepository(
 
     override fun search(search: CompanySearch): CompanyStoreResult<CompanyPage<Company>> =
         storeCall("search") {
-            val query = CompanyQuery(search)
+            val query = NameQuery.of(search)
             val companies =
                 dsl
                     .selectFrom(COMPANY)
@@ -95,10 +93,8 @@ class CompanyRepository(
             try {
                 val deleted = dsl.deleteFrom(COMPANY).where(COMPANY.ID.eq(id.value)).execute()
                 if (deleted == 0) CompanyStoreResult.NotFound else CompanyStoreResult.Success(Unit)
-            } catch (exception: DataAccessException) {
-                if (exception.violated() ==
-                    APPLICATION_COMPANY_FK
-                ) {
+            } catch (exception: RuntimeException) {
+                if (exception.violatedConstraint() == APPLICATION_COMPANY_FK) {
                     CompanyStoreResult.HasApplications
                 } else {
                     throw exception
@@ -118,9 +114,6 @@ class CompanyRepository(
             log.error("Company store {} failed: {}", operation, exception.javaClass.name)
             CompanyStoreResult.StorageFailure(operation)
         }
-
-    private fun DataAccessException.violated(): String? =
-        getCause(PSQLException::class.java)?.serverErrorMessage?.constraint
 
     private companion object {
         /** `application.company_id`, `ON DELETE RESTRICT`: the company still has applications. */

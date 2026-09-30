@@ -51,8 +51,10 @@ interface SearchContactsPort {
 /**
  * Deletes a contact with all its personal data in two steps (ADR-0039): without [token] it answers
  * [ContactResult.Unconfirmed] with a token bound to [Contact.DELETE_OPERATION], the contact id and the
- * effect `ConfirmationEffect("contact", <name>)` (#90 adds the count of linked applications). With the
- * token, it deletes and publishes `ContactDeleted`; the changelog entry names no personal data.
+ * effect `ConfirmationEffect("contact", <name>, mapOf("applications" to <n>))`, n being the applications
+ * it is linked to (`LinkedApplicationsPort`, read in the same transaction). With the token, it deletes the
+ * contact, its channels and its links (nothing personal remains), appends one changelog entry for the
+ * contact and one per linked application (ids only) and publishes `ContactDeleted`.
  * The actor is [requester]'s.
  */
 interface DeleteContactPort {

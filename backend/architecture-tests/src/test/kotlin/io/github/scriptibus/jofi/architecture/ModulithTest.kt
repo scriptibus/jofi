@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.architecture
 import io.github.scriptibus.jofi.JofiApplication
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.EmbeddingPort
@@ -87,6 +88,7 @@ class ModulithTest {
 
         companies.namedInterfaces.getByName("spi").isPresent shouldBe true
         companies.isExposed(ApplicationCountsPort::class.java) shouldBe true
+        companies.isExposed(LinkedApplicationsPort::class.java) shouldBe true
         companies.isExposed(CompanyRepositoryPort::class.java) shouldBe false
         module("applications").getDirectDependencies(modules).containsModuleNamed("companies") shouldBe true
         companies.getDirectDependencies(modules).containsModuleNamed("applications") shouldBe false
