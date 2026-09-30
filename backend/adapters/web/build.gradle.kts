@@ -16,6 +16,10 @@ dependencies {
     // Test-only: OpenApiSpecTest renders the spec from the controllers; the app does not serve it.
     testImplementation(libs.springdoc.openapi.webmvc.api)
     testRuntimeOnly(libs.jackson2.module.kotlin)
+    constraints {
+        // Security override (see the version catalog): swagger-core brings a vulnerable Jackson 2.
+        testImplementation(libs.security.jackson2.databind)
+    }
 }
 
 // The API contract (ADR-0016), committed at the repository root so the frontend and oasdiff read it.

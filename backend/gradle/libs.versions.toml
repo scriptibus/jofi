@@ -32,6 +32,8 @@ jackson3-patched = "3.1.7"
 commons-lang3-patched = "3.21.0"
 plexus-utils-patched = "3.6.2"
 freemarker-patched = "2.3.35"
+# Jackson 2 only on the adapters/web test classpath (springdoc via swagger-core).
+jackson2-patched = "2.22.3"
 
 [libraries]
 security-tomcat-embed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcat-patched" }
@@ -39,6 +41,7 @@ security-jackson3-databind = { module = "tools.jackson.core:jackson-databind", v
 security-commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3-patched" }
 security-plexus-utils = { module = "org.codehaus.plexus:plexus-utils", version.ref = "plexus-utils-patched" }
 security-freemarker = { module = "org.freemarker:freemarker", version.ref = "freemarker-patched" }
+security-jackson2-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson2-patched" }
 spring-boot-bom = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
