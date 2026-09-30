@@ -17,10 +17,12 @@ Subcommands:
 import argparse
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import subprocess
 import sys
+import tempfile
 
 REVIEW_DIR = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = REVIEW_DIR.parent
@@ -50,9 +52,9 @@ def lens_meta(lens_dir: pathlib.Path) -> dict[str, dict]:
     return {meta["name"]: meta for meta in metas}
 
 
-def git(repo: pathlib.Path, *args: str, stdin: str | None = None) -> str:
+def git(repo: pathlib.Path, *args: str, stdin: str | None = None, env: dict[str, str] | None = None) -> str:
     completed = subprocess.run(["git", *GIT_CONFIG, *args], cwd=repo, input=stdin, text=True,
-                               capture_output=True, check=False)
+                               capture_output=True, check=False, env={**os.environ, **(env or {})})
     if completed.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {completed.stderr.strip()}")
     return completed.stdout
@@ -161,7 +163,7 @@ def validate_expected(expected: object, lens: dict) -> list[str]:
 
 def validate_diff(diff: str) -> list[str]:
     """Fixture diffs only add new files, so they keep applying while main moves on."""
-    blocks = [block for block in diff.split("diff --git ")[1:]]
+    blocks = diff.split("diff --git ")[1:]
     if not blocks:
         return ["change.diff contains no file"]
     errors = []
@@ -169,9 +171,43 @@ def validate_diff(diff: str) -> list[str]:
         header = block.splitlines()[0]
         if "\nnew file mode " not in block or "\n--- /dev/null\n" not in block:
             errors.append(f"change.diff may only add new files: {header}")
-        if f" b/{FIXTURES}/" in header:
+        path = _added_path(block)
+        if path is None:
+            errors.append(f"change.diff must add a plain relative path (no quoting, '.' or '..'): {header}")
+        elif path == FIXTURES or path.startswith(FIXTURES + "/") or f" b/{FIXTURES}/" in header:
             errors.append(f"change.diff must not touch the fixtures: {header}")
     return errors
+
+
+def added_paths(diff: str) -> list[str]:
+    """The paths a fixture's diff adds (complete only for a diff that `validate_diff` accepts)."""
+    paths = (_added_path(block) for block in diff.split("diff --git ")[1:])
+    return [path for path in paths if path]
+
+
+def _added_path(block: str) -> str | None:
+    match = re.search(r"^\+\+\+ b/(.+)$", block, re.M)
+    path = match.group(1).rstrip("\t") if match else ""
+    if not path or path.startswith(('"', "/")) or "\\" in path:
+        return None
+    return None if any(part in ("", ".", "..") for part in path.split("/")) else path
+
+
+def colliding_paths(tracked: list[str], added: list[str]) -> list[str]:
+    """Tracked files that would keep a fixture from applying: the added path itself, files below it (it is a
+    directory in the tree) and files where one of its parent directories should be. Leaving them out of the base
+    lets a fixture apply however main has grown, and the lens sees only the fixture's version of each file."""
+    blocked = set()
+    for path in added:
+        parts = path.split("/")
+        parents = {"/".join(parts[:end]) for end in range(1, len(parts))}
+        blocked |= {file for file in tracked if file == path or file.startswith(path + "/") or file in parents}
+    return sorted(blocked)
+
+
+def tracked_files(repo: pathlib.Path) -> list[str]:
+    """Every file in the committed tree (HEAD), the tree `prepare` exports."""
+    return [path for path in git(repo, "ls-tree", "-r", "-z", "--name-only", "HEAD").split("\0") if path]
 
 
 def validate(root: pathlib.Path) -> list[str]:
@@ -215,12 +251,26 @@ def _validate_case(root: pathlib.Path, case: pathlib.Path, lens: dict) -> list[s
     errors += validate_diff(diff)
     if not errors:
         try:
-            git(root, "apply", "--check", "-", stdin=diff)
+            _check_applies(root, diff)
         except RuntimeError as error:
             errors.append(f"change.diff does not apply: {error}")
     if not pr_title((case / "context.md").read_text(encoding="utf-8")):
         errors.append("context.md needs a line 'PR #<number>: <title>' like lenses.yml writes it")
     return errors
+
+
+def _check_applies(root: pathlib.Path, diff: str) -> None:
+    """Apply the diff to a throwaway index of HEAD without the paths it adds, the same base `prepare` builds.
+
+    Only the temporary index changes; the real checkout, its index and its refs stay as they are.
+    """
+    with tempfile.TemporaryDirectory(prefix="jofi-selftest-index-") as scratch:
+        env = {"GIT_INDEX_FILE": str(pathlib.Path(scratch) / "index")}
+        git(root, "read-tree", "HEAD", env=env)
+        colliding = colliding_paths(tracked_files(root), added_paths(diff))
+        if colliding:
+            git(root, "update-index", "-z", "--force-remove", "--stdin", stdin="\0".join(colliding) + "\0", env=env)
+        git(root, "apply", "--cached", "--check", "-", stdin=diff, env=env)
 
 
 # --- synthetic pull request ----------------------------------------------------------------------------------
@@ -235,13 +285,17 @@ def prepare(source: pathlib.Path, fixture: str, out: pathlib.Path, context_out: 
     """Build a synthetic PR repository in `out` whose `origin/main...HEAD` is exactly the fixture's change.
 
     `out` is a fresh `git init` holding the source's committed tree without `.review/fixtures`, so no object,
-    ref or history of the source repository (and therefore no expectation) is reachable from it.
+    ref or history of the source repository (and therefore no expectation) is reachable from it. The base also
+    leaves out every path the fixture adds (see `colliding_paths`), so the fixture applies however main has grown.
     """
     case = source / fixture
     diff = (case / "change.diff").read_text(encoding="utf-8")
     context = (case / "context.md").read_text(encoding="utf-8")
+    problems = validate_diff(diff)
+    if problems:
+        raise ValueError("; ".join(problems))
     out.mkdir(parents=True)
-    _export_tree(source, out)
+    _export_tree(source, out, colliding_paths(tracked_files(source), added_paths(diff)))
     git(out, "init", "-q", "-b", HEAD_BRANCH)
     git(out, "add", "-A", "-f")
     git(out, "commit", "-q", "-m", "Base branch")
@@ -251,8 +305,9 @@ def prepare(source: pathlib.Path, fixture: str, out: pathlib.Path, context_out: 
     context_out.write_text(context, encoding="utf-8")
 
 
-def _export_tree(source: pathlib.Path, out: pathlib.Path) -> None:
-    archive = subprocess.run(["git", "archive", "--format=tar", "HEAD", "--", ".", f":(exclude){FIXTURES}"],
+def _export_tree(source: pathlib.Path, out: pathlib.Path, left_out: list[str]) -> None:
+    excludes = [f":(exclude){FIXTURES}", *(f":(exclude,literal){path}" for path in left_out)]
+    archive = subprocess.run(["git", "archive", "--format=tar", "HEAD", "--", ".", *excludes],
                              cwd=source, capture_output=True, check=False)
     if archive.returncode != 0:
         raise RuntimeError(f"git archive failed: {archive.stderr.decode(errors='replace').strip()}")
@@ -274,9 +329,6 @@ def report(fixture: str, failures: list[str], result: object) -> str:
                 lines.append(f"- reported {found.get('severity')} `{found.get('file')}:{found.get('line', '')}` "
                              f"{found.get('title')}")
     return "\n".join(lines) + "\n"
-
-
-# --- command line --------------------------------------------------------------------------------------------
 
 
 # --- command line --------------------------------------------------------------------------------------------

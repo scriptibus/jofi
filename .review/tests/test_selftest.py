@@ -17,6 +17,8 @@ selftest = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(selftest)
 
 FILE = "backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/x/Controller.kt"
+REAL_BAD = "the real implementation that main already has\n"
+REAL_WORSE = "the real directory that main already has at src/Worse.kt\n"
 
 
 def setUpModule():
@@ -181,6 +183,28 @@ class ValidateDiff(unittest.TestCase):
         self.assertEqual(len(selftest.validate_diff("")), 1)
         self.assertEqual(len(selftest.validate_diff(new_file_diff(".review/fixtures/x/y/expected.json"))), 1)
 
+    def test_rejects_paths_that_cannot_be_removed_from_the_base_safely(self):
+        for path in ("../outside.txt", "a/./b.txt", "a//b.txt", '"quoted\\tname.txt"'):
+            with self.subTest(path=path):
+                self.assertNotEqual(selftest.validate_diff(new_file_diff(path)), [])
+
+
+class AddedAndCollidingPaths(unittest.TestCase):
+    def test_lists_the_paths_a_diff_adds(self):
+        diff = new_file_diff("a.txt") + new_file_diff("dir/b.txt")
+        self.assertEqual(selftest.added_paths(diff), ["a.txt", "dir/b.txt"])
+
+    def test_the_added_file_itself_collides(self):
+        self.assertEqual(selftest.colliding_paths(["src/A.kt", "src/B.kt"], ["src/A.kt"]), ["src/A.kt"])
+
+    def test_files_below_an_added_path_and_files_in_place_of_a_parent_collide(self):
+        tracked = ["x/A.kt/inner.txt", "x/A.kt/deep/more.txt", "y", "y2/z.txt", "x/A.kt.bak", "x/Other.kt"]
+        self.assertEqual(selftest.colliding_paths(tracked, ["x/A.kt", "y/z.txt"]),
+                         ["x/A.kt/deep/more.txt", "x/A.kt/inner.txt", "y"])
+
+    def test_nothing_collides_on_a_fresh_path(self):
+        self.assertEqual(selftest.colliding_paths(["README.md", "src/A.kt"], ["src/B.kt"]), [])
+
 
 class PrTitle(unittest.TestCase):
     def test_reads_the_title_line_lenses_yml_writes(self):
@@ -213,6 +237,17 @@ class RepositoryTestCase(unittest.TestCase):
     def git(self, *args):
         return selftest.git(self.repo, *args)
 
+    def commit_real_files(self):
+        """Main grows real files at the paths the fixtures add: a file, a directory and a file in the way."""
+        (self.repo / "src").mkdir()
+        (self.repo / "src" / "Bad.kt").write_text(REAL_BAD)
+        (self.repo / "src" / "Worse.kt").mkdir()
+        (self.repo / "src" / "Worse.kt" / "Inner.kt").write_text(REAL_WORSE)
+        (self.repo / "src" / "Kept.kt").write_text("kept\n")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "real feature")
+        self.source = self.git("rev-parse", "HEAD").strip()
+
     def add_fixture(self, case, diff, expected, lens="demo"):
         case_dir = self.repo / ".review" / "fixtures" / lens / case
         case_dir.mkdir(parents=True)
@@ -239,9 +274,23 @@ class Validate(RepositoryTestCase):
         self.assertIn("demo/good-one: missing context.md", errors)
 
     def test_reports_diffs_that_do_not_apply(self):
-        (self.repo / ".review" / "fixtures" / "demo" / "bad-two" / "change.diff").write_text(
-            new_file_diff("README.md"))
+        malformed = new_file_diff("src/Worse.kt").replace("@@ -0,0 +1,1 @@", "@@ -0,0 +1,3 @@")
+        (self.repo / ".review" / "fixtures" / "demo" / "bad-two" / "change.diff").write_text(malformed)
         self.assertIn("does not apply", "\n".join(selftest.validate(self.repo)))
+
+    def test_a_fixture_adding_a_path_that_exists_on_main_is_valid(self):
+        self.commit_real_files()
+        self.assertEqual(selftest.validate(self.repo), [])
+
+    def test_validation_leaves_the_checkout_and_its_index_untouched(self):
+        self.commit_real_files()
+        head = self.git("rev-parse", "HEAD").strip()
+        index = (self.repo / ".git" / "index").read_bytes()
+        selftest.validate(self.repo)
+        self.assertEqual(self.git("rev-parse", "HEAD").strip(), head)
+        self.assertEqual((self.repo / ".git" / "index").read_bytes(), index)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertEqual((self.repo / "src" / "Bad.kt").read_text(), REAL_BAD)
 
     def test_the_repository_fixtures_are_valid(self):
         self.assertEqual(selftest.validate(REVIEW_DIR.parent), [])
@@ -306,6 +355,54 @@ class Prepare(RepositoryTestCase):
     def test_refuses_to_reuse_an_existing_directory(self):
         with self.assertRaises(FileExistsError):
             selftest.prepare(self.repo, self.FIXTURE, self.out, self.context)
+
+
+class PrepareOnAGrownMain(RepositoryTestCase):
+    """Main has real files at the paths the fixtures add; the lens must see only the fixture's version."""
+
+    def setUp(self):
+        super().setUp()
+        self.commit_real_files()
+
+    def prepare(self, case):
+        out = self.repo.parent / f"{self.repo.name}-{case}-pr"
+        self.addCleanup(shutil.rmtree, out, ignore_errors=True)
+        context = self.repo.parent / f"{self.repo.name}-{case}-context.md"
+        self.addCleanup(context.unlink, missing_ok=True)
+        selftest.prepare(self.repo, f".review/fixtures/demo/{case}", out, context)
+        return out
+
+    def test_the_fixture_replaces_an_existing_file(self):
+        out = self.prepare("bad-one")
+        self.assertEqual((out / "src" / "Bad.kt").read_text(), "val x = 1\n")
+        self.assertEqual(selftest.git(out, "diff", "--name-status", "origin/main...HEAD").split(), ["A", "src/Bad.kt"])
+        self.assertEqual(selftest.git(out, "status", "--porcelain"), "")
+
+    def test_the_base_holds_none_of_the_real_content(self):
+        out = self.prepare("bad-one")
+        self.assertNotIn("src/Bad.kt", selftest.git(out, "ls-tree", "-r", "--name-only", "origin/main").split())
+        history = selftest.git(out, "log", "--all", "-p")
+        self.assertNotIn(REAL_BAD.strip(), history)
+        self.assertIn("src/Kept.kt", selftest.git(out, "ls-tree", "-r", "--name-only", "origin/main").split())
+
+    def test_a_directory_at_the_added_path_is_left_out(self):
+        out = self.prepare("bad-two")
+        self.assertEqual((out / "src" / "Worse.kt").read_text(), "hello\n")
+        self.assertEqual(selftest.git(out, "diff", "--name-only", "origin/main...HEAD").split(), ["src/Worse.kt"])
+        self.assertNotIn(REAL_WORSE.strip(), selftest.git(out, "log", "--all", "-p"))
+
+    def test_leaves_the_source_checkout_untouched(self):
+        self.prepare("bad-one")
+        self.assertEqual((self.repo / "src" / "Bad.kt").read_text(), REAL_BAD)
+        self.assertEqual(self.git("rev-parse", "HEAD").strip(), self.source)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_refuses_a_fixture_that_is_not_add_only(self):
+        change = "diff --git a/README.md b/README.md\nindex 1..2 100644\n--- a/README.md\n+++ b/README.md\n" \
+                 "@@ -1 +1 @@\n-existing file\n+changed\n"
+        (self.repo / ".review" / "fixtures" / "demo" / "bad-two" / "change.diff").write_text(change)
+        with self.assertRaises(ValueError):
+            self.prepare("bad-two")
 
 
 class EvaluateCommand(unittest.TestCase):
