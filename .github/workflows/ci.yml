@@ -63,6 +63,81 @@ jobs:
       - name: migration-lock.sh tests (stubbed gh)
         run: bash .github/scripts/migration-lock.test.sh
 
+  # Breaking changes to the API contract (api/openapi.json) against the base branch fail the PR (ADR-0033).
+  # Human-only override: an entry in .github/oasdiff/breaking-changes-allowed.txt, read from the BASE
+  # branch, so a PR cannot approve its own break; Lucas lands the entry on main first. The PR that uses an
+  # entry must delete it (checked here and on push to main). Edits to this job itself are only covered by
+  # the protected-path review of .github/.
+  api-breaking-changes:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      # Bump both together: https://github.com/oasdiff/oasdiff/releases (checksums.txt)
+      OASDIFF_VERSION: 1.32.1
+      OASDIFF_SHA256: 7c8939fc49b75ee11fec66a5b83b37a2fca6aee109fed85013b1ba2ac2a1ee7f
+      ALLOWLIST: .github/oasdiff/breaking-changes-allowed.txt
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: ${{ github.event_name == 'push' && 2 || 1 }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          sparse-checkout: |
+            api
+            .github/oasdiff
+          persist-credentials: false
+      - name: Install oasdiff (checksum-verified release binary)
+        if: github.event_name == 'pull_request'
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/oasdiff.tar.gz" \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          echo "${OASDIFF_SHA256}  $RUNNER_TEMP/oasdiff.tar.gz" | sha256sum --check --strict -
+          tar -xzf "$RUNNER_TEMP/oasdiff.tar.gz" -C "$RUNNER_TEMP" oasdiff
+      - name: No breaking changes unless approved on the base branch
+        if: github.event_name == 'pull_request'
+        run: |
+          if [[ ! -f base/api/openapi.json ]]; then
+            # Only the PR that introduces the contract meets a base without it.
+            echo "::notice::The base branch has no api/openapi.json yet; nothing to compare."
+            exit 0
+          fi
+          # oasdiff treats every line as a rule, comments included.
+          touch "$RUNNER_TEMP/allowed.txt"
+          if [[ -f "base/$ALLOWLIST" ]]; then
+            grep -v -E '^[[:space:]]*(#|$)' "base/$ALLOWLIST" > "$RUNNER_TEMP/allowed.txt" || true
+          fi
+          "$RUNNER_TEMP/oasdiff" breaking base/api/openapi.json api/openapi.json \
+            --fail-on ERR \
+            --err-ignore "$RUNNER_TEMP/allowed.txt" \
+            --format singleline
+      - name: A PR that changes the contract deletes the approvals it used
+        if: github.event_name == 'pull_request'
+        run: |
+          if cmp -s base/api/openapi.json api/openapi.json; then exit 0; fi
+          if grep -q -v -E '^[[:space:]]*(#|$)' "$ALLOWLIST"; then
+            echo "::error file=$ALLOWLIST::This PR changes api/openapi.json; delete the approved entries from $ALLOWLIST in it."
+            exit 1
+          fi
+      - name: No approvals left on main after a contract change
+        if: github.event_name == 'push'
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null || git diff --quiet "$BEFORE" HEAD -- api/openapi.json; then
+            exit 0
+          fi
+          if grep -q -v -E '^[[:space:]]*(#|$)' "$ALLOWLIST"; then
+            echo "::error file=$ALLOWLIST::api/openapi.json changed on main while $ALLOWLIST still has entries; delete them."
+            exit 1
+          fi
+
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 30

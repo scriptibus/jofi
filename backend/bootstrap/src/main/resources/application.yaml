@@ -4,6 +4,11 @@
 spring:
   application:
     name: jofi
+  # Every error response is RFC 9457 problem details (application/problem+json), the one error
+  # schema of the API contract (api/openapi.json, ADR-0016).
+  mvc:
+    problemdetails:
+      enabled: true
   threads:
     virtual:
       enabled: true

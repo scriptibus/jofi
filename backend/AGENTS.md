@@ -19,6 +19,7 @@ Spec: `docs/spec/04-tech-stack-proposal.md` (sections 3, 4.1, 4.2, 4.5, 4.6, 4.6
 | Run the app against a throwaway PostgreSQL (http://localhost:8080/api/system/info) | `./gradlew :bootstrap:bootTestRun` |
 | Run the app against your PostgreSQL (`JOFI_DB_URL`, `JOFI_DB_USERNAME`, `JOFI_DB_PASSWORD`) | `./gradlew :bootstrap:bootRun` |
 | Regenerate jOOQ code from the migrations | `./gradlew :adapters:persistence:generateJooq` |
+| Regenerate the API contract `../api/openapi.json` after a controller/DTO change (commit it) | `./gradlew :adapters:web:updateOpenApiSpec` |
 | Outdated dependencies report (not part of `check`) | `./gradlew dependencyUpdates` |
 | Refresh lockfiles after a dependency change | `./gradlew resolveAndLockAll :build-logic:resolveAndLockAll --write-locks` |
 | Refresh checksums after a dependency change | `./gradlew --write-verification-metadata sha256 resolveAndLockAll :build-logic:resolveAndLockAll --write-locks check help --no-build-cache --rerun-tasks --no-configuration-cache` |
@@ -130,10 +131,40 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
 - **A controller**: `adapters/web/.../<context>/adapter/web/<Name>Controller.kt`; inject use cases
   only, map domain types to DTOs (`*Response`/`*Request`) in the same package. Test with a
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).
+  Then regenerate and commit the API contract (see "API contract" below).
 - **A context**: create `<context>` packages in the modules you need, following the convention.
 - **A dependency or plugin**: look up the latest stable version at the official source, read its
   current docs, add it to `gradle/libs.versions.toml`, then refresh locks and checksums. List
   version + doc link in the PR (spec 4.10).
+
+## API contract (ADR-0016, ADR-0033)
+
+- `api/openapi.json` at the repository root is the contract the frontend client is generated from.
+  `OpenApiSpecTest` (in `adapters/web`, part of `check`) renders it from all controllers with
+  springdoc-openapi and fails when the committed file differs. Fix: run
+  `./gradlew :adapters:web:updateOpenApiSpec`, review the diff and commit it. Never edit it by hand.
+- springdoc is on the test classpath only; the running app does not serve the spec.
+- Controller method names become operation ids and frontend hook names (`getSystemInfo` ->
+  `useGetSystemInfo`): make them unique and descriptive (`<verb><Noun>`).
+- Non-null Kotlin DTO properties are `required` in the contract; nullable ones are optional.
+- **Errors are RFC 9457 problem details**, the one error schema (`ProblemDetail`, declared as the
+  `default` response of every operation). `spring.mvc.problemdetails.enabled` turns framework
+  errors into `application/problem+json`; `shared.adapter.web.UnexpectedErrorAdvice` (lowest
+  precedence) answers everything else: an `ErrorResponse` keeps its problem, an exception annotated
+  with `@ResponseStatus` keeps that status, any other exception is a 500 without internal details.
+  (When Spring Security arrives, #16, the advice must rethrow its access/authentication exceptions.)
+  The use case returns a sealed result; the controller maps its failure cases to a `ProblemDetail`
+  and hands it to Spring as an `ErrorResponse`, so the success return type (and its schema in the contract) stays typed:
+  `is NotFound -> throw ErrorResponseException(HttpStatus.NOT_FOUND, ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "..."), null)`.
+  Set a `type` URI `urn:jofi:problem:<context>:<code>` when clients must tell cases apart. The
+  exception never leaves the web adapter (ports still return sealed results). No internal details
+  (stack traces, SQL, personal data) in `detail`.
+- Breaking changes (removed paths or fields, new required inputs, narrowed types) fail the
+  `api-breaking-changes` CI job (oasdiff against the base branch). Prefer additive changes. The
+  only override is an entry in `.github/oasdiff/breaking-changes-allowed.txt` **on main**: the job
+  reads the file from the PR's base branch, so Lucas lands the approval first and the breaking PR
+  then deletes the entry (CI fails a contract change that leaves entries behind). Agents never add
+  an entry; they explain the break in the PR and ask.
 
 ## Testing expectations
 
@@ -178,5 +209,8 @@ with `jofi.postgresImage`. Build and smoke-test the stack from the repository ro
   `jul-to-slf4j`, via Spring Boot logging) declares MIT by URL instead of an SPDX id.
 - **licensee `allowUrl` for Flyway, jOOQ and the PostgreSQL driver**: their poms name Apache-2.0
   (Flyway, jOOQ Open Source Edition) and BSD-2-Clause (pgjdbc) with a URL licensee cannot map.
+- **Jackson 2 on the `adapters/web` test classpath**: springdoc 3 (via swagger-core 2.2) still reads
+  models with Jackson 2 and needs `com.fasterxml.jackson.module:jackson-module-kotlin` to honour
+  Kotlin nullability. Test-only; the app uses Jackson 3.
 - **licensee `allowDependency` for `org.reactivestreams:reactive-streams:1.0.4`** (via jOOQ ->
   `r2dbc-spi`): MIT-0, which the frontend already accepts as strictly more permissive than MIT.

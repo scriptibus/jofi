@@ -29,3 +29,19 @@ ecosystem = "Maven"
 vulnerability.ignore = true
 effectiveUntil = 2026-12-31
 reason = "Only the .module metadata is listed (read during resolution before the security constraint raises it to 3.1.7). No 3.1.5 jar is used."
+
+[[PackageOverrides]]
+name = "com.fasterxml.jackson.core:jackson-databind"
+version = "2.21.5"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Only .pom/.module metadata is listed (Spring Boot's Jackson 2 BOM, read while resolving the adapters/web test classpath before the security constraint raises it to 2.22.3). No 2.21.5 jar is used."
+
+[[PackageOverrides]]
+name = "org.apache.tomcat.embed:tomcat-embed-core"
+version = "11.0.24"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Only the .pom is listed (read via springdoc's parent BOM, Spring Boot 4.1.0, during resolution). The app uses tomcat-embed-core 11.0.26 (security constraint, see the lockfiles)."

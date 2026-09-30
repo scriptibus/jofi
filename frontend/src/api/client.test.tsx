@@ -1,0 +1,69 @@
+// SPDX-FileCopyrightText: 2026 Jofi contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook, waitFor } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
+import type { ReactNode } from "react";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { ApiProblemError } from "./fetcher";
+import { getGetSystemInfoUrl, type SystemInfoResponse, useGetSystemInfo } from "./generated/jofi";
+import { GetSystemInfoResponse } from "./generated/jofi.zod";
+
+const systemInfoUrl = new URL(getGetSystemInfoUrl(), window.location.origin).href;
+const server = setupServer();
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+function wrapper({ children }: { children: ReactNode }) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+}
+
+describe("generated API client", () => {
+  it("useGetSystemInfo returns typed data from the backend", async () => {
+    server.use(http.get(systemInfoUrl, () => HttpResponse.json({ name: "Jofi", version: "1.2.3" })));
+
+    const { result } = renderHook(() => useGetSystemInfo(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const info: SystemInfoResponse | undefined = result.current.data;
+    expect(info).toEqual({ name: "Jofi", version: "1.2.3" });
+    expect(GetSystemInfoResponse.parse(info)).toEqual(info);
+  });
+
+  it("surfaces RFC 9457 problem details as ApiProblemError", async () => {
+    const problem = { type: "about:blank", title: "Internal Server Error", status: 500, detail: "Boom" };
+    server.use(
+      http.get(systemInfoUrl, () =>
+        HttpResponse.json(problem, { status: 500, headers: { "Content-Type": "application/problem+json" } }),
+      ),
+    );
+
+    const { result } = renderHook(() => useGetSystemInfo(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    const error = result.current.error;
+    expect(error).toBeInstanceOf(ApiProblemError);
+    expect(error?.status).toBe(500);
+    expect(error?.problem).toEqual(problem);
+    expect(error?.message).toBe("Boom");
+  });
+
+  it("keeps the status when the error body is not JSON", async () => {
+    server.use(http.get(systemInfoUrl, () => new HttpResponse("Bad gateway", { status: 502 })));
+
+    const { result } = renderHook(() => useGetSystemInfo(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.problem).toEqual({ status: 502 });
+    expect(result.current.error?.message).toBe("HTTP 502");
+  });
+
+  it("the Zod schema rejects a response that breaks the contract", () => {
+    expect(GetSystemInfoResponse.safeParse({ name: "Jofi" }).success).toBe(false);
+  });
+});

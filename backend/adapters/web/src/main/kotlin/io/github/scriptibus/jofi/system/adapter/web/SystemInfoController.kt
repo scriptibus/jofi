@@ -14,5 +14,5 @@ class SystemInfoController(
     private val getSystemInfo: GetSystemInfoUseCase,
 ) {
     @GetMapping("/info")
-    fun info(): SystemInfoResponse = SystemInfoResponse.from(getSystemInfo.execute())
+    fun getSystemInfo(): SystemInfoResponse = SystemInfoResponse.from(getSystemInfo.execute())
 }
