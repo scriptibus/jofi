@@ -19,7 +19,9 @@ class UnconfirmedDeleteFixtureController {
     @DeleteMapping("/{id}")
     fun deleteThing(
         @PathVariable id: String,
-    ): String = id
+    ) {
+        require(id.isNotBlank())
+    }
 }
 
 /** Known-bad: a `DELETE` declared through `@RequestMapping(method = ...)`, without the header. */
@@ -28,7 +30,9 @@ class RequestMappingDeleteFixtureController {
     @RequestMapping("/api/fixture/things/{id}", method = [RequestMethod.DELETE])
     fun deleteThing(
         @PathVariable id: String,
-    ): String = id
+    ) {
+        require(id.isNotBlank())
+    }
 }
 
 /** Known-bad once its path is declared outward-facing: a `POST` that sends without the header. */
@@ -38,7 +42,9 @@ class UnconfirmedSendFixtureController {
     @PostMapping("/send/{id}")
     fun sendThing(
         @PathVariable id: String,
-    ): String = id
+    ) {
+        require(id.isNotBlank())
+    }
 }
 
 /** Known-good: a delete that follows the convention. */
@@ -48,5 +54,7 @@ class ConfirmedDeleteFixtureController {
     fun deleteThing(
         @PathVariable id: String,
         @RequestHeader(Confirmations.HEADER, required = false) confirmation: String?,
-    ): String = id + confirmation.orEmpty()
+    ) {
+        require(id.isNotBlank() && confirmation != "")
+    }
 }
