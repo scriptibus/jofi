@@ -187,12 +187,14 @@ describe("Application detail", () => {
     const application = anApplication(acme.id, { title: "Data Engineer" });
     const { user, state, router } = start(`/applications/${application.id}`, {
       applications: [application],
-      cascade: { [application.id]: { contactLinks: 1, statusChanges: 3, sources: 2, snapshots: 0 } },
+      cascade: {
+        [application.id]: { contactLinks: 1, statusChanges: 3, sources: 2, snapshots: 0, interviews: 2 },
+      },
     });
     await user.click(await screen.findByRole("button", { name: "Delete…" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Delete this application?" });
     expect(dialog).toHaveTextContent(
-      "Data Engineer will be deleted with its link to 1 contact, 3 status changes, and 2 sources. This cannot be undone.",
+      "Data Engineer will be deleted with its link to 1 contact, 3 status changes, 2 sources, and 2 interviews and calls. This cannot be undone.",
     );
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());

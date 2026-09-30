@@ -83,12 +83,26 @@ Under `/api/applications/{id}/interviews`: `GET` (the application's interviews i
 starting now or later, not cancelled, soonest first, at most 100, each with its application's title). An interview
 the application does not have is 404 `interview-not-found`.
 
+### Use cases (amended with #91)
+
+- Every interview use case reads the application first, so an unknown application is `404 not-found` and an
+  interview it does not have `404 interview-not-found`. An update then checks `basedOnVersion`, before the input,
+  even when nothing would change; unchanged details store nothing, write no changelog entry and publish nothing.
+- A participant that is no contact (`interview_participant_contact_fk`) is `400` on `participantIds` (`NOT_FOUND`).
+- Changelog entries (entity `interview`) carry values only for `type`, `startsAt` (the instant), `timeZone` and
+  `outcome`; changed participants, preparation notes and notes are named in the description ("also changed: …"),
+  never recorded. The log and delete entries also name the `application` id, so the timeline (#92) finds them.
+- The delete's confirmation effect is `ConfirmationEffect("interview", "<TYPE> <localStart> <zone>")`, e.g.
+  `PHONE_SCREEN 2026-10-06T14:30 Europe/Berlin`, read in the delete's transaction; a reschedule between the steps
+  voids the token. The application delete's effect counts the interviews it cascades to (`interviews`).
+
 ## Consequences
 
 - Interviews, the application and other interviews never block each other's edits; the use cases (#91, #92) keep the
   application and its interviews consistent only through the foreign key.
 - The dashboard, the timeline and task suggestions order by one exact instant and show the agreed time.
-- The application delete's confirmation effect (#82) should count the interviews it cascades to, and the contact
-  delete (#89) the interviews a contact took part in, as they do for contact links; both are follow-ups of #91/#92.
+- The application delete's confirmation effect (#82) counts the interviews it cascades to (#91). The contact delete
+  (#89) could count the interviews a contact took part in, as it does for application links; that is left to #92,
+  which reads those interviews for the `ContactDeleted` changelog anyway.
 - Other scheduled things (tasks with a time, M1 dashboard countdowns) can reuse this model: an instant plus the zone
   it was planned in.

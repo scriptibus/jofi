@@ -14,6 +14,7 @@ import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUs
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
@@ -67,11 +68,20 @@ class ApplicationsConfiguration {
     @Bean
     fun deleteApplicationUseCase(
         applications: ApplicationRepositoryPort,
+        interviews: InterviewRepositoryPort,
         confirmation: ConfirmActionUseCase,
         events: DomainEventPort,
         audit: ApplicationAudit,
     ): DeleteApplicationUseCase =
-        DeleteApplicationUseCase(applications, confirmation, events, audit.changelog, audit.transactions, audit.clock)
+        DeleteApplicationUseCase(
+            applications,
+            interviews,
+            confirmation,
+            events,
+            audit.changelog,
+            audit.transactions,
+            audit.clock,
+        )
 
     @Bean
     fun changeApplicationStatusUseCase(

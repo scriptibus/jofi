@@ -99,7 +99,7 @@ class ApplicationFlowTest(
         first.response.status shouldBe 428
         first.body()["effect"].toString() shouldBe
             """{"kind":"application","name":"Staff Engineer","counts":""" +
-            """{"contactLinks":0,"snapshots":0,"sources":0,"statusChanges":1}}"""
+            """{"contactLinks":0,"interviews":0,"snapshots":0,"sources":0,"statusChanges":1}}"""
         val token = first.body()["confirmationToken"].asString()
         browser.delete("/api/applications/$id", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
 
