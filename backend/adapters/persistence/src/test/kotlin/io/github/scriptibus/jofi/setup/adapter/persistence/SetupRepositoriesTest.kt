@@ -85,10 +85,23 @@ class SetupRepositoriesTest {
 
         assignments.save(ModelAssignment(AiTask.CHAT, local.id, ModelName("llama3.1"))) shouldBe
             SetupStoreResult.Success(Unit)
-        providers.delete(local.id) shouldBe SetupStoreResult.InUse
+        val proof = ConfirmedProofs.of(ProviderId.DELETE_OPERATION, local.id.value.toString())
+        providers.delete(local.id, proof) shouldBe SetupStoreResult.InUse
         assignments.delete(AiTask.CHAT) shouldBe SetupStoreResult.Success(Unit)
-        providers.delete(local.id) shouldBe SetupStoreResult.Success(Unit)
-        providers.delete(local.id) shouldBe SetupStoreResult.NotFound
+        providers.delete(cloud.id, proof) shouldBe SetupStoreResult.NotConfirmed
+        providers.findById(cloud.id) shouldBe SetupStoreResult.Success(cloud)
+        providers.delete(local.id, proof) shouldBe SetupStoreResult.Success(Unit)
+        providers.delete(local.id, proof) shouldBe SetupStoreResult.NotFound
+    }
+
+    @Test
+    fun `an update replaces a stored provider but never inserts one`() {
+        providers.save(local)
+
+        providers.update(local.copy(displayName = "LM Studio")) shouldBe SetupStoreResult.Success(Unit)
+        providers.findById(local.id) shouldBe SetupStoreResult.Success(local.copy(displayName = "LM Studio"))
+        providers.update(cloud) shouldBe SetupStoreResult.NotFound
+        providers.findById(cloud.id) shouldBe SetupStoreResult.NotFound
     }
 
     @Test
