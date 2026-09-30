@@ -42,11 +42,18 @@ class Browser(
         json: String,
     ): MvcTestResult = exchange(HttpMethod.PUT, path, json)
 
+    fun delete(
+        path: String,
+        headers: Map<String, String> = emptyMap(),
+        csrf: String? = cookies[CSRF_COOKIE],
+    ): MvcTestResult = exchange(HttpMethod.DELETE, path, csrf = csrf, headers = headers)
+
     fun exchange(
         method: HttpMethod,
         path: String,
         json: String? = null,
         csrf: String? = cookies[CSRF_COOKIE],
+        headers: Map<String, String> = emptyMap(),
     ): MvcTestResult {
         val request =
             mvc
@@ -55,6 +62,7 @@ class Browser(
                 .secure(https)
                 .with { it.apply { remoteAddr = address } }
         cookies.forEach { (name, value) -> request.cookie(Cookie(name, value)) }
+        headers.forEach { (name, value) -> request.header(name, value) }
         if (csrf != null) request.header(CSRF_HEADER, csrf)
         if (json != null) request.contentType(MediaType.APPLICATION_JSON).content(json)
         val result = request.exchange()

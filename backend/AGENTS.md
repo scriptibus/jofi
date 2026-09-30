@@ -85,6 +85,7 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | `SecretRepository` (`adapters/persistence`) over `SecretCipherPort` (Tink, `adapters/crypto`), ADR-0035 |
 | `SecretCipherPort` | AES-GCM under the master keyset; **only secret stores use it** | `adapters/crypto` |
 | `TransactionPort` | one transaction around a mutation and its changelog entry; commit only accepted results | `adapters/persistence` |
+| `ConfirmationStorePort` | pending two-step confirmations; features call `ConfirmActionUseCase`, never the port | `InMemoryConfirmationStoreAdapter` (`bootstrap`), ADR-0039 |
 
 Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for that reason; the
 `setup` context owns what it configures around it.
@@ -141,6 +142,22 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
 - **A mutation**: append a `ChangelogEntry` with the acting `Actor` through `ChangelogPort` in the
   same use case (spec §13), inside `TransactionPort.inTransaction` so both are stored or neither.
   The changelog is append-only; the audit lens checks the actor.
+- **A delete or outward-facing action** (spec §9, ADR-0039), enforced by `ConfirmationRulesTest`:
+  - The feature use case takes `ConfirmActionUseCase` and a `ConfirmationRequester` + optional
+    `ConfirmationToken`. Inside one `TransactionPort.inTransaction` it reads the targets, builds the
+    `ConfirmableAction` from **that same read** (operation `<context>.<verb>`; targets = concrete,
+    server-resolved ids, never filters; a `ConfirmationEffect(kind, name, counts)`), calls the gate,
+    and mutates only with the `ConfirmationResult.Confirmed` it returns. It returns
+    `ConfirmationResult.Unconfirmed` as one case of its sealed result.
+  - The port method takes the proof: `fun delete(id: ThingId, proof: ConfirmationResult.Confirmed)`,
+    and the adapter checks `proof.covers("<context>.delete", id.toString())` first. Only the gate can
+    mint a `Confirmed` (internal constructor + architecture test).
+  - Port methods named `delete*`/`remove*`/`send*`/`purge*` may only be called by use cases that hold
+    the gate or pass a `Confirmed`; `DELETE` endpoints (and those in
+    `ConfirmationRules.OUTWARD_FACING_ENDPOINTS`, which every new outward endpoint joins) take the
+    `Jofi-Confirmation` header. Allowlist entries need a reason and a human review.
+  - Never put the gate in a controller or MCP tool: it must hold for every caller. Test the
+    unconfirmed, confirmed, replay and changed-effect paths.
 - **A controller**: `adapters/web/.../<context>/adapter/web/<Name>Controller.kt`; inject use cases
   only, map domain types to DTOs (`*Response`/`*Request`) in the same package. Test with a
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).

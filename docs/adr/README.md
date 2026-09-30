@@ -47,3 +47,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0036](0036-e2e-stack-with-a-wire-level-fake-ai-provider.md) | e2e stack with a wire-level fake AI provider | accepted |
 | [0037](0037-frontend-shell-routing-auth-guard-and-pwa-caching.md) | Frontend shell: code-based routes, a session guard, and a shell-only service worker | accepted |
 | [0038](0038-jobrunr-job-store-worker-profile-and-job-log.md) | JobRunr job store, worker profile and job log | accepted |
+| [0039](0039-server-enforced-two-step-confirmation.md) | Server-enforced two-step confirmation for deletes and outward-facing actions | accepted |
