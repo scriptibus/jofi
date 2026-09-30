@@ -4,15 +4,20 @@
 // An in-memory stand-in for one application's endpoints (#82) and create, as MSW handlers next to
 // `fakeCompanyBackend` (which answers the company lookups). It mirrors the backend's status codes and
 // problem types: 409 `version-conflict` for a stale `basedOnVersion`, a 428 whose effect counts what goes
-// with the application before a delete, and read/unread without a version change.
+// with the application before a delete, and read/unread without a version change. Status changes follow
+// ADR-0044 (409 `invalid-transition`, a decline category required for Declined and Rejected) and append to
+// the status history, which starts with the status the application was created in.
 
 import { HttpResponse, http } from "msw";
 import type {
   ApplicationDetailsRequest,
   ApplicationResponse,
   ApplicationUnreadRequest,
+  ChangeApplicationStatusRequest,
+  StatusChangeResponse,
   UpdateApplicationRequest,
 } from "../api/generated/jofi";
+import { canMoveTo, takesDeclineReason } from "../app/applications/statusMatrix";
 
 const origin = () => window.location.origin;
 const json = (body: Record<string, unknown>, status: number) =>
@@ -70,6 +75,12 @@ export interface FakeApplicationState {
   deleteCalls: ("first" | "confirmed")[];
   /** What goes with each application on delete (the effect's counts), by id. */
   cascade: Record<string, Record<string, number>>;
+  /** Every accepted `PUT …/status` body, in order. */
+  statusChanges: ChangeApplicationStatusRequest[];
+  /** The status history by application id; without an entry, the one initial change. */
+  history: Record<string, StatusChangeResponse[]>;
+  /** The status history answers 500 (to show its own failure). */
+  historyFails?: boolean;
   /** A rule only the server knows: a request with this pay band maximum is refused with `problem`. */
   refusePayMax?: { value: number; problem: string };
 }
@@ -116,6 +127,8 @@ export function fakeApplicationBackend(initial: Partial<FakeApplicationState> = 
     creates: [],
     deleteCalls: [],
     cascade: {},
+    statusChanges: [],
+    history: {},
     ...initial,
   };
   const find = (id: unknown) => state.applications.find((application) => application.id === id);
@@ -124,10 +137,45 @@ export function fakeApplicationBackend(initial: Partial<FakeApplicationState> = 
     return HttpResponse.json(saved);
   };
 
+  const historyOf = (application: ApplicationResponse): StatusChangeResponse[] => {
+    state.history[application.id] ??= [
+      { from: null, to: application.status, actor: { kind: "USER" }, at: application.createdAt },
+    ];
+    return state.history[application.id] ?? [];
+  };
+
   const refused = (found: { field: string; problem: string }[]) =>
     json({ type: "urn:jofi:problem:applications:invalid-application", status: 400, violations: found }, 400);
 
   const handlers = [
+    http.get(`${origin()}/api/applications/:id/status-history`, ({ params }) => {
+      const application = find(params.id);
+      if (!application) return problem(404, "application-not-found");
+      if (state.historyFails) return problem(500, "storage-unavailable");
+      return HttpResponse.json({ changes: historyOf(application) });
+    }),
+    http.put(`${origin()}/api/applications/:id/status`, async ({ request, params }) => {
+      const application = find(params.id);
+      if (!application) return problem(404, "application-not-found");
+      const body = (await request.json()) as ChangeApplicationStatusRequest;
+      if (takesDeclineReason(body.status) && !body.declineCategory)
+        return refused([{ field: "declineCategory", problem: "REQUIRED" }]);
+      if (body.basedOnVersion !== application.version) return problem(409, "version-conflict");
+      if (!canMoveTo(application.status, body.status)) return problem(409, "invalid-transition");
+      state.statusChanges.push(body);
+      historyOf(application).push({
+        from: application.status,
+        to: body.status,
+        reason: body.reason ?? null,
+        declineCategory: body.declineCategory ?? null,
+        actor: { kind: "USER" },
+        at: "2026-09-30T11:00:00Z",
+      });
+      const declineReason = body.declineCategory
+        ? { category: body.declineCategory, text: body.reason ?? null }
+        : null;
+      return store({ ...application, status: body.status, declineReason, version: application.version + 1 });
+    }),
     http.post(`${origin()}/api/applications`, async ({ request }) => {
       const body = (await request.json()) as ApplicationDetailsRequest;
       const found = violations(body, state);

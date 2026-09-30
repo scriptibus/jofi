@@ -28,22 +28,13 @@ import {
   formOfAddressLabels,
   howAppliedLabels,
   paySourceLabels,
-  type Status,
   seniorityLabels,
   sourceKindLabels,
-  statusLabels,
   toneLabels,
 } from "./labels";
-
-/** The status as a word in a frame (read-only here; the status control comes with #103). */
-export function StatusBadge({ status }: { status: Status }) {
-  return (
-    <span className="inline-flex w-fit items-center gap-1.5 rounded border border-line bg-sunken px-2 py-0.5 font-semibold text-body">
-      <span className="sr-only">{m.application_status_label()}: </span>
-      {statusLabels[status]()}
-    </span>
-  );
-}
+import { StatusBadge } from "./StatusBadge";
+import { StatusControl } from "./StatusControl";
+import { StatusHistory } from "./StatusHistory";
 
 export function CompanyLink({ companyId }: { companyId: string }) {
   const company = useGetCompany(companyId, { query: { meta: { errorHandledLocally: true } } });
@@ -88,6 +79,9 @@ export function ApplicationOverview({ application }: { application: ApplicationR
     <div className="grid gap-6 lg:grid-cols-2">
       <JobFacts application={application} />
       <StatusSection application={application} />
+      <Section id="application-status-history-heading" title={m.application_status_history_heading()}>
+        <StatusHistory applicationId={application.id} />
+      </Section>
       <PaySection application={application} />
       <LanguageSection application={application} />
       <ScoresSection application={application} />
@@ -135,6 +129,7 @@ function StatusSection({ application }: { application: ApplicationResponse }) {
           ) : null}
         </dl>
       ) : null}
+      <StatusControl application={application} />
     </Section>
   );
 }

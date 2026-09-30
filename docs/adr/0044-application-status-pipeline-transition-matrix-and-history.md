@@ -38,6 +38,8 @@ exhaustive `when` (`canMoveTo`), so adding a status does not compile until its m
 ### Transition matrix
 
 `x` = allowed, rows are the current status. `ApplicationStatusTest` checks all 121 pairs against this table.
+The frontend mirrors it in `frontend/src/app/applications/statusMatrix.ts`, so the status control only offers
+allowed moves (the server still decides); `statusMatrix.test.ts` checks the same 121 pairs. Change all three together.
 
 | from \ to | DIS | SHO | PRE | APP | INT | OFF | ACC | REJ | WIT | DEC | GHO |
 |---|---|---|---|---|---|---|---|---|---|---|---|
