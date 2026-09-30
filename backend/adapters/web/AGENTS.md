@@ -23,6 +23,13 @@ Rules:
   (test sources) picks up every `@RestController` and `@RestControllerAdvice` under
   `io.github.scriptibus.jofi` and stubs their use cases, so new controllers need no extra wiring.
 
+## Job log (ADR-0038)
+
+`system.adapter.web.JobLogController`: `GET /api/system/jobs?status=&page=&size=`, one page of the job log
+(name, status, attempts, timestamps, failure reason code), newest change first. A page must end within the
+newest 1000 jobs (`400 urn:jofi:problem:system:invalid-job-log-page`); an unreadable job store answers
+`503 urn:jofi:problem:system:job-log-unavailable`. Never add job arguments or exception messages to it.
+
 ## Authentication (ADR-0035)
 
 - `system.adapter.web.AuthController`: `GET /api/auth/session`, `POST /api/auth/first-run`,

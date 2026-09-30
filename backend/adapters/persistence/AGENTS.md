@@ -71,6 +71,16 @@ The generator lives in the `codegen` source set and has its own locked classpath
 - `spring_session`, `spring_session_attributes`: login sessions, managed by Spring Session JDBC (schema
   copied from spring-session-jdbc 4.1.1). Ephemeral bearer credentials: **excluded from export/import**
   (#26), a restore starts logged out. Never log their ids.
+- `ExpiredSessionsRepository` (`ExpiredSessionsPort`, #17): deletes sessions past their idle timeout (the
+  statement Spring Session's own cleanup runs, which is switched off in `app`); the hourly `session-cleanup`
+  worker job calls it and records the count in the changelog.
+- `jobrunr_jobs`, `jobrunr_recurring_jobs`, `jobrunr_backgroundjobservers`, `jobrunr_metadata` and the view
+  `jobrunr_jobs_stats` (#17, ADR-0038): JobRunr's job store, created by our migration (the end state of
+  JobRunr 8.8.2's own migrations; JobRunr runs with `NO_VALIDATE` and never touches the schema).
+  `JobRunrSchemaTest` compares it with the schema JobRunr's migrations create: after a JobRunr upgrade that
+  fails, add a migration with the difference. Only JobRunr reads and writes these tables (no jOOQ
+  repositories). Operational state: **excluded from export/import** (#26), a restore starts with an empty
+  queue and `app` registers its recurring schedules again.
 - `TransactionAdapter` (`TransactionPort`): Spring's JDBC transaction around several repository calls;
   jOOQ joins it.
 - `ai_provider_config` (base URL without credentials, query or fragment; one secret per provider),

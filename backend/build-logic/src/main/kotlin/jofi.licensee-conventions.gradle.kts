@@ -47,6 +47,12 @@ licensee {
     allowUrl("https://www.bouncycastle.org/licence.html") {
         because("MIT: the Bouncy Castle Licence is the MIT license text (org.bouncycastle:bcprov-jdk18on, argon2id)")
     }
+    allowUrl("https://github.com/jobrunr/jobrunr/blob/master/License.md#lgpl-v3-license") {
+        because("LGPL-3.0-or-later: JobRunr's open-source edition (org.jobrunr:jobrunr*, ADR-0038); Pro is not used")
+    }
+    allowUrl("https://asm.ow2.io/license.html") {
+        because("BSD-3-Clause, the ASM licence named by URL (org.ow2.asm:asm, via JobRunr)")
+    }
     // Spring Session 4.1.1's poms name a "Broadcom Foundation License" by a release-tooling bug
     // (https://github.com/spring-projects/spring-session/issues/3910); the jars ship Apache-2.0
     // LICENSE.txt and the repository is Apache-2.0. Pinned to 4.1.1 so the next version is checked again.

@@ -14,6 +14,7 @@ dependencies {
     testImplementation(project(":adapters:persistence"))
     testImplementation(project(":adapters:net"))
     testImplementation(project(":adapters:crypto"))
+    testImplementation(project(":adapters:jobs"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))
@@ -21,6 +22,8 @@ dependencies {
     testImplementation(libs.spring.modulith.core)
     testImplementation(libs.archunit)
     testImplementation(libs.konsist)
+    // Known-bad fixtures for the JobRunr rules (ADR-0038).
+    testImplementation(libs.jobrunr) { exclude(group = "org.jobrunr", module = "jobrunr-bom") }
 }
 
 tasks.withType<Test>().configureEach {
