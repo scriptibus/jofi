@@ -60,8 +60,10 @@ optional reference to `contact`, applied to all three so that:
   their confirmation effects, and the tasks context needs no named interface of theirs);
 - the user's own to-dos never disappear as a side effect of another delete.
 
-The row changes without a new `version`, as the link is gone rather than edited. The tasks context reacts to
-`ContactDeleted` and `ApplicationDeleted` for the rest (changelog, dismissing obsolete suggestions; #93, #95).
+The row changes without a new `version`, as the link is gone rather than edited. For now (#93) the task gets no
+changelog entry of its own: the deleted entity's "Deleted …" entry is the trace. An entry per task needs the linked
+task ids before the delete (the tasks context cannot find them once `SET NULL` ran), read through an SPI port the
+tasks context implements, like `LinkedApplicationsPort`; that is #168. Dismissing obsolete suggestions is #95.
 
 ### States and origins
 
@@ -89,6 +91,16 @@ rescheduled) uses a new key. Direct tasks have neither, and `NULL`s never collid
 `/api/countdowns`: `GET`, `POST`, `PUT|DELETE /{id}` (two steps, `countdowns.delete`); `GET
 /api/dashboard/countdowns?timeZone=`. Changelog entity types `task` and `countdown`; entries name changed fields,
 never titles or notes.
+
+### Use cases (#93)
+
+Create, edit, complete, reopen and delete follow ADR-0041: one transaction per mutation with its changelog entry,
+the version checked first (even for a no-op), unchanged details or a task already in the target state store nothing
+and record nothing, timestamps and the bucket's "today" from one `clock.instant()` cut to microseconds. The changelog
+carries the timing (`2026-10-05T08:00:00Z Europe/Berlin`, `WEEK 2026-09-28`, `SOMEDAY`) and the link
+(`contact:<id>`) as values, `state` for completing and reopening, and only the names of a changed title or notes;
+a delete records the id alone. The delete's confirmation effect is `("task", <title>)` without counts, since nothing
+goes with a task. The tasks domain defines no events yet: no other context reacts to tasks.
 
 ## Consequences
 
