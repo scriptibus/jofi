@@ -7,6 +7,7 @@ import type {
   ApplicationResponseSeniority,
   ApplicationResponseStatus,
   ApplicationSourceResponseKind,
+  ChangeActorDtoKind,
   DeclineReasonDtoCategory,
   LanguageAndToneDtoFormOfAddress,
   LanguageAndToneDtoTone,
@@ -29,6 +30,7 @@ export type FormOfAddress = NonNullable<LanguageAndToneDtoFormOfAddress>;
 export type Tone = NonNullable<LanguageAndToneDtoTone>;
 export type SourceKind = ApplicationSourceResponseKind;
 export type DeclineCategory = DeclineReasonDtoCategory;
+export type ActorKind = ChangeActorDtoKind;
 
 export const statusLabels: Record<Status, () => string> = {
   DISCOVERED: m.application_status_discovered,
@@ -129,6 +131,15 @@ export const declineCategoryLabels: Record<DeclineCategory, () => string> = {
   POSITION_FILLED: m.application_decline_position_filled,
   NO_REASON_GIVEN: m.application_decline_no_reason,
   OTHER: m.application_other,
+};
+
+/** Who made a change, as the object of "by …" ("by you", "von der KI"). */
+export const actorLabels: Record<ActorKind, () => string> = {
+  USER: m.application_actor_user,
+  AI: m.application_actor_ai,
+  SCANNER: m.application_actor_scanner,
+  SYSTEM: m.application_actor_system,
+  EXTERNAL_CLIENT: m.application_actor_external,
 };
 
 /** The options of `labels` in declaration order, for a Select or SegmentedControl. */
