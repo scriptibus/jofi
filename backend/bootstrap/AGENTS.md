@@ -15,4 +15,7 @@ Rules:
   `Adapter` (e.g. `system.adapter.buildinfo.BuildPropertiesAdapter`).
 - The only class allowed directly in the base package is the application class.
 - Keep the `@SpringBootTest` smoke test green: context starts, `/actuator/health` is `UP`.
+  Context tests `@Import(PostgresTestConfiguration::class)` (Testcontainers service connection).
+- The database comes from `JOFI_DB_URL`, `JOFI_DB_USERNAME`, `JOFI_DB_PASSWORD`; Flyway migrates at
+  startup. Credentials never go into `application.yaml`, the URL or logs (`DatabaseConfigurationTest`).
 - Actuator exposes `health` only; widen exposure deliberately.

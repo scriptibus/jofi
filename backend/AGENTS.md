@@ -16,13 +16,18 @@ Spec: `docs/spec/04-tech-stack-proposal.md` (sections 3, 4.1, 4.2, 4.5, 4.6, 4.6
 | Fix formatting and SPDX headers | `./gradlew spotlessApply` |
 | One module's quality loop | `./gradlew :application:check` |
 | Architecture rules only | `./gradlew :architecture-tests:test` |
-| Run the app (http://localhost:8080/api/system/info) | `./gradlew :bootstrap:bootRun` |
+| Run the app against a throwaway PostgreSQL (http://localhost:8080/api/system/info) | `./gradlew :bootstrap:bootTestRun` |
+| Run the app against your PostgreSQL (`JOFI_DB_URL`, `JOFI_DB_USERNAME`, `JOFI_DB_PASSWORD`) | `./gradlew :bootstrap:bootRun` |
+| Regenerate jOOQ code from the migrations | `./gradlew :adapters:persistence:generateJooq` |
 | Outdated dependencies report (not part of `check`) | `./gradlew dependencyUpdates` |
 | Refresh lockfiles after a dependency change | `./gradlew resolveAndLockAll :build-logic:resolveAndLockAll --write-locks` |
 | Refresh checksums after a dependency change | `./gradlew --write-verification-metadata sha256 resolveAndLockAll :build-logic:resolveAndLockAll --write-locks check help --no-build-cache --rerun-tasks --no-configuration-cache` |
 
 A JDK 25 toolchain is required; if only a JRE is installed, Gradle provisions a JDK via the
 foojay resolver. Configuration cache, build cache and parallel execution are on.
+The build (jOOQ codegen) and the integration tests start PostgreSQL via Testcontainers, so Docker
+or Podman (Docker-compatible socket, `DOCKER_HOST`) must be available. The image is pinned by
+digest in `gradle.properties` (`jofi.postgresImage`).
 
 ## Modules and what may depend on what
 
@@ -33,7 +38,7 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
-- `adapters/<kind>`: framework code (web, later persistence, ai, net, ...); depends on `application`.
+- `adapters/<kind>`: framework code (web, persistence, later ai, net, ...); depends on `application`.
   Adapters never depend on each other.
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
   adapters that belong nowhere else (e.g. build info).
@@ -51,13 +56,15 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 - `config` for Spring wiring (in `bootstrap/`)
 
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
-`tasks`, `setup`, plus the `shared` kernel. Today only `system` exists (proves the wiring).
+`tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring) and `shared`
+(`Actor`, `ChangelogEntry`, `ChangelogPort`) exist.
 The only class allowed directly in the base package is the application class.
 
 A context spans Gradle modules (e.g. `system.domain` lives in `domain/`, `system.adapter.web` in
 `adapters/web/`). Spring Modulith sees each context as one application module; its sub-packages
 are internal, so other contexts may not reach into them. Cross-context APIs will be exposed
-deliberately (Modulith named interfaces or the `shared` kernel) when the first one is needed.
+deliberately (Modulith named interfaces or the `shared` kernel) when the first one is needed;
+that includes making `shared.domain` and `shared.application.port` visible to the other contexts.
 
 ## Rules (all fail `check`)
 
@@ -92,6 +99,10 @@ deliberately (Modulith named interfaces or the `shared` kernel) when the first o
   (or `...Repository`). New adapter kinds get a new Gradle module under `adapters/` using
   `id("jofi.spring-conventions")`, added to `settings.gradle.kts` and to `bootstrap` and
   `architecture-tests` dependencies.
+- **A table or migration**: see `adapters/persistence/AGENTS.md` (timestamp versions, one open
+  migration PR at a time, jOOQ codegen, export/import coverage, changelog on every mutation).
+- **A mutation**: append a `ChangelogEntry` with the acting `Actor` through `ChangelogPort` in the
+  same use case (spec §13). The changelog is append-only; the audit lens checks the actor.
 - **A controller**: `adapters/web/.../<context>/adapter/web/<Name>Controller.kt`; inject use cases
   only, map domain types to DTOs (`*Response`/`*Request`) in the same package. Test with a
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).
@@ -103,7 +114,9 @@ deliberately (Modulith named interfaces or the `shared` kernel) when the first o
 ## Testing expectations
 
 JUnit 6 (Jupiter) + Kotest assertions + MockK. Domain and application: plain unit tests, no
-Spring. Adapters: slice tests. Bootstrap: `@SpringBootTest` smoke test (context + `/actuator/health`).
+Spring. Adapters: slice tests; persistence against a real PostgreSQL via Testcontainers (Flyway
+from zero, jOOQ round-trips), never an in-memory database. Bootstrap: `@SpringBootTest` smoke test
+(context + `/actuator/health`) with `PostgresTestConfiguration` as the service connection.
 Keep `./gradlew check` green before you finish.
 
 ## Container image
@@ -112,8 +125,13 @@ The repository-root `Dockerfile` builds the frontend, then `:bootstrap:bootJar` 
 `classpath:/static/`), and creates the JDK AOT cache (ADR-0003) in a training run that starts the
 Spring context and exits on refresh (`-Dspring.context.exit=onRefresh`). That run has **no database
 or network**: startup code must not need them (Flyway is switched off there, `JOFI_DB_URL` gets a
-placeholder). If you add a bean that connects at startup, make it skip the training run too, or the
-image build fails. Build and smoke-test the stack from the repository root with
+placeholder, and so does `JOFI_DB_PASSWORD`, without which startup fails). If you add a bean that
+connects at startup, make it skip the training run too, or the image build fails.
+The image build has **no Docker daemon**, so build-time tasks cannot use Testcontainers. jOOQ codegen
+therefore uses an external database when `JOFI_CODEGEN_JDBC_URL` (+ `_USER`, `_PASSWORD`) is set:
+the backend build stage is the pinned pgvector image with the JDK copied in, and its single Gradle
+`RUN` starts that PostgreSQL on loopback, builds, and stops it. Keep the image digest there in sync
+with `jofi.postgresImage`. Build and smoke-test the stack from the repository root with
 `cp .env.example .env && scripts/compose-smoke-test.sh` (heavy: one build at a time).
 
 ## Documented exceptions
@@ -128,5 +146,13 @@ image build fails. Build and smoke-test the stack from the repository root with
   is the default in Kotlin 2.4 and passing it is a compiler error there, so it is not set.
 - **Konsist 0.17.3** is compiled against `kotlin-compiler-embeddable` 2.0.21; on the test
   classpath the Boot BOM aligns it to 2.3.21, which works for source parsing.
+- **jOOQ 3.21.8 and Flyway 13.7.0 over the Boot BOM** (which manages 3.21.7 and 12.4.0): the
+  explicit catalog versions win in Gradle. The newest releases younger than 7 days were skipped
+  (same minimum release age as Renovate). Flyway 13 works with Boot 4.1's autoconfiguration
+  (bootstrap tests migrate at startup); drop the override if Boot starts managing a newer one.
 - **licensee `allowUrl("https://opensource.org/license/mit")`**: SLF4J (`slf4j-api`,
   `jul-to-slf4j`, via Spring Boot logging) declares MIT by URL instead of an SPDX id.
+- **licensee `allowUrl` for Flyway, jOOQ and the PostgreSQL driver**: their poms name Apache-2.0
+  (Flyway, jOOQ Open Source Edition) and BSD-2-Clause (pgjdbc) with a URL licensee cannot map.
+- **licensee `allowDependency` for `org.reactivestreams:reactive-streams:1.0.4`** (via jOOQ ->
+  `r2dbc-spi`): MIT-0, which the frontend already accepts as strictly more permissive than MIT.

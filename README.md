@@ -49,7 +49,9 @@ checks all of this and runs in CI.
 
 The backend lives in `backend/` (Kotlin, Spring Boot, Gradle), the frontend in `frontend/` (React, TypeScript,
 pnpm). `cd backend && ./gradlew check` and `cd frontend && pnpm check` run what CI runs; see the command table
-in [AGENTS.md](AGENTS.md#9-commands).
+in [AGENTS.md](AGENTS.md#9-commands). The backend build and tests start PostgreSQL through Testcontainers, so
+they need Docker or Podman (with its Docker-compatible socket). `./gradlew :bootstrap:bootTestRun` runs the app
+against a throwaway database; a real one is configured with `JOFI_DB_URL`, `JOFI_DB_USERNAME` and `JOFI_DB_PASSWORD`.
 
 ## Contributing
 

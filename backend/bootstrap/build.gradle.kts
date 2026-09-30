@@ -10,6 +10,7 @@ plugins {
 dependencies {
     implementation(project(":application"))
     implementation(project(":adapters:web"))
+    implementation(project(":adapters:persistence"))
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.jackson.module.kotlin)
@@ -17,4 +18,18 @@ dependencies {
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)
     testImplementation(libs.spring.boot.starter.actuator.test)
+    testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.jooq)
+}
+
+val postgresImage = providers.gradleProperty("jofi.postgresImage")
+
+// Tests and `bootTestRun` (the app against a throwaway database) start the pinned PostgreSQL image.
+tasks.withType<Test>().configureEach {
+    systemProperty("jofi.postgresImage", postgresImage.get())
+}
+
+tasks.named<JavaExec>("bootTestRun") {
+    systemProperty("jofi.postgresImage", postgresImage.get())
 }

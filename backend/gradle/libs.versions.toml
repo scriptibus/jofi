@@ -19,6 +19,9 @@ spotless = "8.10.3"
 ktlint = "1.8.0"
 kover = "0.9.11"
 licensee = "1.14.1"
+# Newer than the Spring Boot BOM (jOOQ 3.21.7, Flyway 12.4.0); the explicit version wins in Gradle.
+jooq = "3.21.8"
+flyway = "13.7.0"
 
 # Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
 # Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
@@ -44,6 +47,18 @@ spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-b
 spring-modulith-core = { module = "org.springframework.modulith:spring-modulith-core" }
 jackson-module-kotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
+
+# Persistence (adapters/persistence). PostgreSQL driver and Testcontainers versions come from the Boot BOM.
+spring-boot-starter-jooq = { module = "org.springframework.boot:spring-boot-starter-jooq" }
+spring-boot-starter-flyway = { module = "org.springframework.boot:spring-boot-starter-flyway" }
+spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+jooq-codegen = { module = "org.jooq:jooq-codegen", version.ref = "jooq" }
+jooq-meta = { module = "org.jooq:jooq-meta", version.ref = "jooq" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+postgresql = { module = "org.postgresql:postgresql" }
+testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

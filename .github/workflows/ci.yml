@@ -21,6 +21,48 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Only one open PR at a time may add Flyway migrations (AGENTS.md §1); the oldest one holds the lock,
+  # and new migration versions must be newer than the base branch's. Runs the BASE branch's copy of the
+  # script (it only needs the API), so a PR cannot edit the check that judges it.
+  migration-lock:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: At most one open PR adds migrations, with versions newer than the base branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [[ ! -f .github/scripts/migration-lock.sh ]]; then
+            # Only the PR that introduces the script meets a base without it.
+            echo "::warning::The base branch has no migration-lock.sh yet; nothing to run."
+            exit 0
+          fi
+          bash .github/scripts/migration-lock.sh "$PR_NUMBER"
+
+  # Tests for the CI scripts themselves (this PR's copy).
+  ci-scripts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: migration-lock.sh tests (stubbed gh)
+        run: bash .github/scripts/migration-lock.test.sh
+
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 30
