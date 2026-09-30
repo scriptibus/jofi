@@ -48,7 +48,10 @@ interface GetTaskPort {
     fun execute(id: TaskId): TaskResult<Task>
 }
 
-/** Marks an open task done (#93, `TaskTransition.COMPLETE`); a done one is unchanged, any other `InvalidTransition`. */
+/**
+ * Marks an open task done (#93, `TaskTransition.COMPLETE`); a done one is unchanged, any other state is
+ * `InvalidTransition`.
+ */
 interface CompleteTaskPort {
     fun execute(
         id: TaskId,
@@ -57,7 +60,10 @@ interface CompleteTaskPort {
     ): TaskResult<Task>
 }
 
-/** Opens a done task again (#93, `TaskTransition.REOPEN`); an open one is unchanged, a suggestion `InvalidTransition`. */
+/**
+ * Opens a done task again (#93, `TaskTransition.REOPEN`); an open one is unchanged, a suggestion or dismissed one is
+ * `InvalidTransition`.
+ */
 interface ReopenTaskPort {
     fun execute(
         id: TaskId,
@@ -106,8 +112,8 @@ interface AcceptTaskSuggestionPort {
 
 /**
  * Dismisses a suggestion (#95), by the user or, when it is obsolete, by its rule (`Actor.System`). It stays stored
- * as dismissed, so the rule does not suggest it again (`TaskTransition.DISMISS`). A dismissed one is unchanged, any other
- * state `InvalidTransition`.
+ * as dismissed, so the rule does not suggest it again (`TaskTransition.DISMISS`). A dismissed one is unchanged, any
+ * other state is `InvalidTransition`.
  */
 interface DismissTaskSuggestionPort {
     fun execute(
