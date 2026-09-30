@@ -3,11 +3,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Auto-merge gate (proposal §4.4, ADR 0023).
 
-Decides from data CI collected itself whether a PR may auto-merge. Labels are never an input, so a
-label set by an author or agent can't change the decision. Every missing or unreadable input counts
-against merging: the gate fails closed.
+Two steps, both fail closed (any missing or unreadable input means "needs a human"):
 
-CI runs the copy of this file from the PR's base branch, so a PR can't weaken the gate that judges it.
+- `decide` runs in the lenses workflow on the PR and writes a small decision artifact.
+- `verify` runs in the merge-gate workflow (workflow_run, always main's definition and main's copy of this
+  file). It treats the artifact as untrusted data and re-checks the PR state and protected paths itself.
+
+Labels are never an input, so a label set by an author or agent can't change the decision.
 """
 from __future__ import annotations
 
@@ -31,6 +33,11 @@ FAILED_CONCLUSIONS = frozenset({"failure", "timed_out", "cancelled", "action_req
 # The REST API lists at most 3000 files of a PR. A list that long may be cut off, so it can't prove anything.
 MAX_LISTED_FILES = 3000
 MAX_FILES_IN_COMMENT = 20
+SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
+ARTIFACT_KEYS = frozenset({"pr", "head_sha", "decision", "reasons"})
+MAX_ARTIFACT_BYTES = 64 * 1024
+MAX_ARTIFACT_REASONS = 30
+MAX_REASON_LENGTH = 2000
 
 
 @dataclass(frozen=True)
@@ -62,6 +69,10 @@ class Decision:
     @property
     def label(self) -> str:
         return NEEDS_HUMAN if self.reasons else AUTO_MERGE
+
+    def add(self, reason: str) -> None:
+        if reason not in self.reasons:
+            self.reasons.append(reason)
 
 
 def glob_to_regex(pattern: str) -> re.Pattern[str]:
@@ -154,30 +165,30 @@ def is_fork(pr: dict) -> bool:
     return not head_repo or head_repo != base_repo
 
 
-def check_pr_state(gate: GateInput, decision: Decision) -> None:
-    pr = gate.pr
+def check_pr_state(pr: dict, expected_head_sha: str, default_branch: str, decision: Decision) -> None:
     if pr.get("state") != "open" or pr.get("draft") is not False:
-        decision.reasons.append("The PR is not an open, ready-for-review PR.")
-    if (pr.get("base") or {}).get("ref") != gate.default_branch:
-        decision.reasons.append(f"The PR does not target `{gate.default_branch}`.")
+        decision.add("The PR is not an open, ready-for-review PR.")
+    if (pr.get("base") or {}).get("ref") != default_branch:
+        decision.add(f"The PR does not target `{default_branch}`.")
     if is_fork(pr):
-        decision.reasons.append("The PR comes from a fork.")
-    if not gate.expected_head_sha or (pr.get("head") or {}).get("sha") != gate.expected_head_sha:
-        decision.reasons.append("The PR head moved while the gate ran; the next run decides again.")
+        decision.add("The PR comes from a fork.")
+    if not expected_head_sha or (pr.get("head") or {}).get("sha") != expected_head_sha:
+        decision.add("The PR head moved while the gate ran; the next run decides again.")
 
 
 def check_lenses(gate: GateInput, decision: Decision) -> None:
     if gate.select_result != "success":
-        decision.reasons.append(f"Lens selection did not succeed (`{gate.select_result}`).")
+        decision.add(f"Lens selection did not succeed (`{safe(gate.select_result)}`).")
     if gate.lens_result != "success":
-        decision.reasons.append(
-            f"Not all triggered lenses passed (`{gate.lens_result}`): a lens failed, found a blocking issue or did not run."
+        decision.add(
+            f"Not all triggered lenses passed (`{safe(gate.lens_result)}`): "
+            "a lens failed, found a blocking issue or did not run."
         )
     risk = parse_risk(gate.risk_text)
     if risk is None:
-        decision.reasons.append("The risk classifier returned no valid rating.")
+        decision.add("The risk classifier returned no valid rating.")
     elif risk != "low":
-        decision.reasons.append(f"The risk classifier rated the PR `{risk}`, not `low`.")
+        decision.add(f"The risk classifier rated the PR `{risk}`, not `low`.")
 
 
 def check_other_checks(gate: GateInput, decision: Decision) -> None:
@@ -191,44 +202,96 @@ def check_other_checks(gate: GateInput, decision: Decision) -> None:
         }
     )
     if failed:
-        decision.reasons.append("Checks failed: " + ", ".join(f"`{safe(name)}`" for name in failed) + ".")
+        decision.add("Checks failed: " + ", ".join(f"`{safe(name)}`" for name in failed) + ".")
 
 
-def check_protected_paths(gate: GateInput, decision: Decision) -> None:
-    if not gate.changed_files:
-        decision.reasons.append("The PR changes no files, or the file list could not be read.")
+def check_protected_paths(pr: dict, changed_files: list[str], rules: list[Rule], decision: Decision) -> None:
+    if not changed_files:
+        decision.add("The PR changes no files, or the file list could not be read.")
         return
-    if len(gate.changed_files) >= MAX_LISTED_FILES:
-        decision.reasons.append("The PR is too large for the file list to be complete.")
+    if len(changed_files) >= MAX_LISTED_FILES:
+        decision.add("The PR is too large for the file list to be complete.")
         return
-    hits = {file: matching_rules(file, gate.rules) for file in gate.changed_files}
-    hits = {file: rules for file, rules in hits.items() if rules}
+    hits = {file: matching_rules(file, rules) for file in changed_files}
+    hits = {file: matched for file, matched in hits.items() if matched}
     if not hits:
         return
-    only_dependencies = all(rule.category == DEPENDENCY_CATEGORY for rules in hits.values() for rule in rules)
-    if only_dependencies and is_renovate_patch_or_minor(gate.pr):
-        decision.notes.append("Dependency files changed by a Renovate patch/minor update (allowed exception).")
+    only_dependencies = all(rule.category == DEPENDENCY_CATEGORY for matched in hits.values() for rule in matched)
+    if only_dependencies and is_renovate_patch_or_minor(pr):
+        note = "Dependency files changed by a Renovate patch/minor update (allowed exception)."
+        if note not in decision.notes:
+            decision.notes.append(note)
         return
     listed = sorted(hits)[:MAX_FILES_IN_COMMENT]
     lines = [f"`{safe(file)}` ({', '.join(sorted({rule.category for rule in hits[file]}))})" for file in listed]
     more = len(hits) - len(listed)
-    decision.reasons.append(
-        "Protected paths touched (AGENTS.md §8): " + "; ".join(lines) + (f"; and {more} more." if more else ".")
-    )
+    decision.add("Protected paths touched (AGENTS.md §8): " + "; ".join(lines) + (f"; and {more} more." if more else "."))
 
 
 def decide(gate: GateInput) -> Decision:
     decision = Decision()
-    check_pr_state(gate, decision)
+    check_pr_state(gate.pr, gate.expected_head_sha, gate.default_branch, decision)
     check_lenses(gate, decision)
     check_other_checks(gate, decision)
-    check_protected_paths(gate, decision)
+    check_protected_paths(gate.pr, gate.changed_files, gate.rules, decision)
+    return decision
+
+
+def decision_artifact(decision: Decision, pr_number: int, head_sha: str) -> dict:
+    return {"pr": pr_number, "head_sha": head_sha, "decision": decision.label, "reasons": decision.reasons}
+
+
+def parse_artifact(text: str | None, pr_number: int, head_sha: str) -> tuple[str, list[str]] | None:
+    """Validate the decision artifact strictly. It comes from a workflow the PR may have changed, so it is data only."""
+    if not text or len(text.encode("utf-8")) > MAX_ARTIFACT_BYTES:
+        return None
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict) or set(data) != ARTIFACT_KEYS:
+        return None
+    decision, reasons = data["decision"], data["reasons"]
+    valid = (
+        type(data["pr"]) is int
+        and data["pr"] == pr_number
+        and data["head_sha"] == head_sha
+        and isinstance(head_sha, str)
+        and SHA_PATTERN.match(head_sha) is not None
+        and decision in (AUTO_MERGE, NEEDS_HUMAN)
+        and isinstance(reasons, list)
+        and len(reasons) <= MAX_ARTIFACT_REASONS
+        and all(isinstance(r, str) and 0 < len(r) <= MAX_REASON_LENGTH for r in reasons)
+        and (decision == NEEDS_HUMAN) == bool(reasons)
+    )
+    return (decision, [untrusted_text(r) for r in reasons]) if valid else None
+
+
+def verify(artifact_text: str | None, pr: dict, changed_files: list[str], run_head_sha: str,
+           default_branch: str, rules: list[Rule]) -> Decision:
+    """Final decision in the privileged workflow: auto-merge only if the artifact says so and our own checks agree."""
+    decision = Decision()
+    pr_number = pr.get("number")
+    parsed = parse_artifact(artifact_text, pr_number, run_head_sha) if type(pr_number) is int else None
+    if parsed is None:
+        decision.add("The lenses workflow left no valid gate decision for this commit.")
+    else:
+        for reason in parsed[1]:
+            decision.add(reason)
+    check_pr_state(pr, run_head_sha, default_branch, decision)
+    check_protected_paths(pr, changed_files, rules, decision)
     return decision
 
 
 def safe(text: str) -> str:
     """File and check names come from the PR: keep them from breaking out of inline code in the comment."""
     return re.sub(r"[`\x00-\x1f\x7f]", "?", text)
+
+
+def untrusted_text(text: str) -> str:
+    """Reasons read back from the artifact: one line, no HTML, no @-mentions."""
+    text = re.sub(r"[\x00-\x1f\x7f]", " ", text)
+    return text.replace("<", "&lt;").replace("@", "@​")
 
 
 def render_comment(decision: Decision, head_sha: str) -> str:
@@ -247,54 +310,81 @@ def render_comment(decision: Decision, head_sha: str) -> str:
 
 
 def read_optional(path: Path | None) -> str | None:
-    if path is None or not path.is_file():
+    if path is None or not path.is_file() or path.stat().st_size > MAX_ARTIFACT_BYTES:
         return None
-    return path.read_text(encoding="utf-8")
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
 
 
 def read_json(path: Path, default: object) -> object:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return default
+
+
+def read_pr(path: Path) -> dict:
+    pr = read_json(path, {})
+    return pr if isinstance(pr, dict) else {}
+
+
+def read_files(path: Path) -> list[str]:
+    files = read_json(path, [])
+    return [f for f in files if isinstance(f, str)] if isinstance(files, list) else []
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--pr", type=Path, required=True, help="PR JSON from the REST API")
-    parser.add_argument("--files", type=Path, required=True, help="JSON list of changed paths (old and new names)")
-    parser.add_argument("--checks", type=Path, required=True, help="JSON list of check runs on the head commit")
-    parser.add_argument("--risk", type=Path, help="structured output of the risk-classifier lens")
-    parser.add_argument("--protected", type=Path, default=Path(__file__).parent / "protected-paths.json")
-    parser.add_argument("--head-sha", required=True)
-    parser.add_argument("--default-branch", required=True)
-    parser.add_argument("--select-result", required=True)
-    parser.add_argument("--lens-result", required=True)
-    parser.add_argument("--run-id", required=True)
-    parser.add_argument("--comment", type=Path, required=True, help="where to write the PR comment")
+    commands = parser.add_subparsers(dest="command", required=True)
+    for name in ("decide", "verify"):
+        command = commands.add_parser(name)
+        command.add_argument("--pr", type=Path, required=True, help="PR JSON from the REST API")
+        command.add_argument("--files", type=Path, required=True, help="JSON list of changed paths (old and new names)")
+        command.add_argument("--protected", type=Path, default=Path(__file__).parent / "protected-paths.json")
+        command.add_argument("--head-sha", required=True, help="the commit this decision is about")
+        command.add_argument("--default-branch", required=True)
+        command.add_argument("--comment", type=Path, required=True, help="where to write the PR comment")
+    decide_command = commands.choices["decide"]
+    decide_command.add_argument("--checks", type=Path, required=True, help="JSON list of check runs on the head commit")
+    decide_command.add_argument("--risk", type=Path, help="structured output of the risk-classifier lens")
+    decide_command.add_argument("--select-result", required=True)
+    decide_command.add_argument("--lens-result", required=True)
+    decide_command.add_argument("--run-id", required=True)
+    decide_command.add_argument("--artifact", type=Path, required=True, help="where to write the decision artifact")
+    commands.choices["verify"].add_argument("--artifact", type=Path, required=True, help="decision artifact to verify")
     return parser.parse_args(argv)
 
 
-def as_list(value: object) -> list:
-    return value if isinstance(value, list) else []
-
-
-def main(argv: list[str]) -> int:
-    args = parse_args(argv)
-    pr = read_json(args.pr, {})
+def run_decide(args: argparse.Namespace) -> Decision:
+    checks = read_json(args.checks, [])
     gate = GateInput(
-        pr=pr if isinstance(pr, dict) else {},
+        pr=read_pr(args.pr),
         expected_head_sha=args.head_sha,
         default_branch=args.default_branch,
-        changed_files=[f for f in as_list(read_json(args.files, [])) if isinstance(f, str)],
+        changed_files=read_files(args.files),
         select_result=args.select_result,
         lens_result=args.lens_result,
         risk_text=read_optional(args.risk),
-        check_runs=[c for c in as_list(read_json(args.checks, [])) if isinstance(c, dict)],
+        check_runs=[c for c in checks if isinstance(c, dict)] if isinstance(checks, list) else [],
         own_run_id=args.run_id,
         rules=load_rules(args.protected),
     )
     decision = decide(gate)
+    artifact = decision_artifact(decision, gate.pr.get("number"), args.head_sha)
+    args.artifact.write_text(json.dumps(artifact), encoding="utf-8")
+    return decision
+
+
+def run_verify(args: argparse.Namespace) -> Decision:
+    return verify(read_optional(args.artifact), read_pr(args.pr), read_files(args.files), args.head_sha,
+                  args.default_branch, load_rules(args.protected))
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    decision = run_decide(args) if args.command == "decide" else run_verify(args)
     args.comment.write_text(render_comment(decision, args.head_sha), encoding="utf-8")
     print(decision.label)
     return 0

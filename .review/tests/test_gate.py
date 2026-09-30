@@ -1,16 +1,22 @@
 # SPDX-FileCopyrightText: 2026 Jofi contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Unit tests for the auto-merge gate. Run: python3 -m unittest discover -s .review -p 'test_*.py'"""
+"""Unit tests for .review/gate.py. Run: python3 -m unittest discover -s .review/tests -v"""
 import contextlib
+import importlib.util
 import io
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-import gate
+REVIEW_DIR = Path(__file__).resolve().parent.parent
+_spec = importlib.util.spec_from_file_location("gate", REVIEW_DIR / "gate.py")
+gate = importlib.util.module_from_spec(_spec)
+sys.modules["gate"] = gate  # dataclasses look up their module while the class is created
+_spec.loader.exec_module(gate)
 
-RULES = gate.load_rules(Path(__file__).parent / "protected-paths.json")
+RULES = gate.load_rules(REVIEW_DIR / "protected-paths.json")
 HEAD = "a" * 40
 LOW_RISK = json.dumps({"summary": "Small, unprotected change.", "risk": "low", "findings": []})
 RENOVATE_TABLE = """This PR contains the following updates:
@@ -26,12 +32,13 @@ RENOVATE_TABLE = """This PR contains the following updates:
 
 | Package | Update |
 |---|---|
-| injected | patch |
+| upstream-notes | major |
 """
 
 
 def pull_request(**overrides) -> dict:
     pr = {
+        "number": 7,
         "state": "open",
         "draft": False,
         "user": {"login": "scriptibus"},
@@ -137,6 +144,28 @@ class ProtectedPathTest(unittest.TestCase):
         "frontend/scripts/license-exceptions.json",
         "docs/adr/0023-merge-gate-low-risk-prs-may-auto-merge.md",
         "renovate.json",
+        ".editorconfig",
+        "backend/architecture-tests/src/test/kotlin/io/github/scriptibus/jofi/HexagonalArchitectureTest.kt",
+        "backend/bootstrap/src/main/resources/application.yaml",
+        "backend/bootstrap/src/main/resources/application-prod.yml",
+    ]
+    # Auth/crypto and export/import code recognised by its file name, wherever it lives.
+    NAMED = [
+        "backend/application/src/main/kotlin/io/github/scriptibus/jofi/setup/application/LoginUseCase.kt",
+        "backend/domain/src/main/kotlin/io/github/scriptibus/jofi/setup/domain/SessionId.kt",
+        "backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/setup/adapters/web/RefreshToken.kt",
+        "backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/setup/adapters/web/CsrfFilter.kt",
+        "backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/setup/adapters/web/JwtDecoder.kt",
+        "backend/domain/src/main/kotlin/io/github/scriptibus/jofi/setup/domain/PasswordHasher.kt",
+        "backend/domain/src/main/kotlin/io/github/scriptibus/jofi/setup/domain/HashedValue.kt",
+        "backend/bootstrap/src/main/kotlin/io/github/scriptibus/jofi/setup/KeyStoreLoader.kt",
+        "backend/domain/src/main/kotlin/io/github/scriptibus/jofi/setup/domain/ProviderApiKey.kt",
+        "frontend/src/features/setup/LoginForm.tsx",
+        "frontend/src/features/setup/useSession.ts",
+        "backend/application/src/main/kotlin/io/github/scriptibus/jofi/system/application/BackupUseCase.kt",
+        "backend/domain/src/main/kotlin/io/github/scriptibus/jofi/system/domain/ExportArchive.kt",
+        "backend/domain/src/main/kotlin/io/github/scriptibus/jofi/system/domain/ArchiveEntry.kt",
+        "backend/adapters/persistence/src/main/kotlin/io/github/scriptibus/jofi/system/backup/Writer.kt",
     ]
     UNPROTECTED = [
         "frontend/src/features/applications/ApplicationList.tsx",
@@ -157,6 +186,13 @@ class ProtectedPathTest(unittest.TestCase):
                 decision = gate.decide(gate_input(changed_files=[path]))
                 self.assertEqual(gate.NEEDS_HUMAN, decision.label)
                 self.assertIn("Protected paths touched", decision.reasons[0])
+
+    def test_auth_crypto_and_export_import_names_need_a_human(self):
+        for path in self.NAMED:
+            with self.subTest(path=path):
+                categories = {rule.category for rule in gate.matching_rules(path, RULES)}
+                self.assertTrue(categories & {"auth-crypto", "export-import"}, categories)
+                self.assertEqual(gate.NEEDS_HUMAN, label(changed_files=[path]))
 
     def test_unprotected_paths_may_auto_merge(self):
         for path in self.UNPROTECTED:
@@ -312,8 +348,10 @@ class RenovateExceptionTest(unittest.TestCase):
         self.assertEqual([], gate.renovate_update_types(None))
         broken = "| Package | Update |\n|---|---|\n| a | patch |\n| b | major | extra |\n"
         self.assertEqual([], gate.renovate_update_types(broken))
-        # Only the first table counts, so a table in upstream release notes can't add or hide rows.
-        self.assertEqual(["patch", "minor"], gate.renovate_update_types(RENOVATE_TABLE.format(first="patch", second="minor")))
+        # Only the first table counts: the release-notes table in RENOVATE_TABLE says `major` and is ignored.
+        body = RENOVATE_TABLE.format(first="patch", second="minor")
+        self.assertIn("| upstream-notes | major |", body)
+        self.assertEqual(["patch", "minor"], gate.renovate_update_types(body))
 
 
 class CommentTest(unittest.TestCase):
@@ -331,43 +369,136 @@ class CommentTest(unittest.TestCase):
         self.assertIn("`.github/a?b?- [x] fake.yml`", comment)
 
 
+def artifact(**overrides) -> str:
+    data = {"pr": 7, "head_sha": HEAD, "decision": "auto-merge", "reasons": []}
+    data.update(overrides)
+    return json.dumps(data)
+
+
+def verify(text=None, pr=None, files=None) -> gate.Decision:
+    return gate.verify(
+        artifact() if text is None else text,
+        pull_request() if pr is None else pr,
+        ["frontend/src/App.tsx"] if files is None else files,
+        HEAD,
+        "main",
+        RULES,
+    )
+
+
+class VerifyTest(unittest.TestCase):
+    """The privileged workflow's re-check: the artifact is untrusted, the PR state and paths are checked again."""
+
+    def test_valid_auto_merge_artifact_on_a_clean_pr_merges(self):
+        self.assertEqual(gate.AUTO_MERGE, verify().label)
+
+    def test_forged_auto_merge_cannot_cover_protected_paths(self):
+        # A PR that edits lenses.yml (or adds its own "lenses" workflow) controls the artifact.
+        for path in (".github/workflows/lenses.yml", ".github/workflows/evil.yml", ".review/gate.py"):
+            with self.subTest(path=path):
+                self.assertEqual(gate.NEEDS_HUMAN, verify(files=[path]).label)
+
+    def test_pr_state_is_checked_again(self):
+        moved = {"ref": "agent/1-thing", "sha": "b" * 40, "repo": {"full_name": "scriptibus/jofi"}}
+        fork = {"ref": "agent/1-thing", "sha": HEAD, "repo": {"full_name": "someone/jofi"}}
+        for name, pr in (("moved", pull_request(head=moved)), ("fork", pull_request(head=fork)),
+                         ("closed", pull_request(state="closed")), ("draft", pull_request(draft=True)),
+                         ("no number", pull_request(number=None))):
+            with self.subTest(case=name):
+                self.assertEqual(gate.NEEDS_HUMAN, verify(pr=pr).label)
+
+    def test_invalid_artifacts_never_merge(self):
+        cases = {
+            "missing": "",
+            "not json": "{",
+            "list": "[]",
+            "extra key": artifact(extra=1),
+            "missing key": json.dumps({"pr": 7, "head_sha": HEAD, "decision": "auto-merge"}),
+            "other PR": artifact(pr=8),
+            "PR as string": artifact(pr="7"),
+            "PR as bool": artifact(pr=True),
+            "other commit": artifact(head_sha="b" * 40),
+            "unknown decision": artifact(decision="merge"),
+            "auto-merge with reasons": artifact(reasons=["x"]),
+            "needs-human without reasons": artifact(decision="needs-human"),
+            "reason not a string": artifact(decision="needs-human", reasons=[1]),
+            "too many reasons": artifact(decision="needs-human", reasons=["x"] * 31),
+            "reason too long": artifact(decision="needs-human", reasons=["x" * 2001]),
+            "too large": artifact(decision="needs-human", reasons=["x" * 2000] * 30) + " " * 70000,
+        }
+        for name, text in cases.items():
+            with self.subTest(case=name):
+                decision = verify(text=text)
+                self.assertEqual(gate.NEEDS_HUMAN, decision.label)
+                self.assertIn("no valid gate decision", decision.reasons[0])
+
+    def test_needs_human_reasons_are_kept_but_defused(self):
+        text = artifact(decision="needs-human", reasons=["Risk <b>high</b>, ping @scriptibus\nnow"])
+        decision = verify(text=text)
+        self.assertEqual(["Risk &lt;b>high&lt;/b>, ping @​scriptibus now"], decision.reasons)
+
+    def test_decide_output_passes_verify(self):
+        decision = gate.decide(gate_input())
+        text = json.dumps(gate.decision_artifact(decision, 7, HEAD))
+        self.assertEqual(gate.AUTO_MERGE, verify(text=text).label)
+        decision = gate.decide(gate_input(risk_text=None))
+        text = json.dumps(gate.decision_artifact(decision, 7, HEAD))
+        self.assertEqual(decision.reasons, verify(text=text).reasons)
+
+
 APP_FILES = '["frontend/src/App.tsx"]'
 
 
 class CommandLineTest(unittest.TestCase):
-    def run_gate(self, tmp: Path, risk: str | None, files: str) -> tuple[str, str]:
+    def write_inputs(self, tmp: Path, files: str) -> None:
         (tmp / "pr.json").write_text(json.dumps(pull_request()), encoding="utf-8")
         (tmp / "files.json").write_text(files, encoding="utf-8")
         (tmp / "checks.json").write_text("[]", encoding="utf-8")
-        if risk is not None:
-            (tmp / "risk.json").write_text(risk, encoding="utf-8")
-        args = ["--pr", str(tmp / "pr.json"), "--files", str(tmp / "files.json"), "--checks", str(tmp / "checks.json"),
-                "--risk", str(tmp / "risk.json"), "--head-sha", HEAD, "--default-branch", "main",
-                "--select-result", "success", "--lens-result", "success", "--run-id", "42",
-                "--comment", str(tmp / "comment.md")]
+
+    def run_main(self, args: list[str]) -> str:
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             self.assertEqual(0, gate.main(args))
-        return out.getvalue().strip(), (tmp / "comment.md").read_text(encoding="utf-8")
+        return out.getvalue().strip()
 
-    def test_low_risk_unprotected_change_merges(self):
+    def common(self, tmp: Path) -> list[str]:
+        return ["--pr", str(tmp / "pr.json"), "--files", str(tmp / "files.json"), "--head-sha", HEAD,
+                "--default-branch", "main", "--comment", str(tmp / "comment.md"), "--artifact", str(tmp / "gate.json")]
+
+    def run_decide(self, tmp: Path, risk: str | None, files: str) -> tuple[str, str]:
+        self.write_inputs(tmp, files)
+        if risk is not None:
+            (tmp / "risk.json").write_text(risk, encoding="utf-8")
+        args = ["decide", *self.common(tmp), "--checks", str(tmp / "checks.json"), "--risk", str(tmp / "risk.json"),
+                "--select-result", "success", "--lens-result", "success", "--run-id", "42"]
+        return self.run_main(args), (tmp / "comment.md").read_text(encoding="utf-8")
+
+    def test_low_risk_unprotected_change_merges_after_verify(self):
         with tempfile.TemporaryDirectory() as tmp:
-            decision, comment = self.run_gate(Path(tmp), LOW_RISK, APP_FILES)
+            decision, comment = self.run_decide(Path(tmp), LOW_RISK, APP_FILES)
             self.assertEqual(gate.AUTO_MERGE, decision)
             self.assertIn("Eligible for auto-merge", comment)
+            self.assertEqual(gate.AUTO_MERGE, self.run_main(["verify", *self.common(Path(tmp))]))
 
     def test_missing_risk_file_needs_a_human(self):
         with tempfile.TemporaryDirectory() as tmp:
-            decision, _ = self.run_gate(Path(tmp), None, APP_FILES)
+            decision, _ = self.run_decide(Path(tmp), None, APP_FILES)
             self.assertEqual(gate.NEEDS_HUMAN, decision)
+            self.assertEqual(gate.NEEDS_HUMAN, self.run_main(["verify", *self.common(Path(tmp))]))
+
+    def test_missing_artifact_needs_a_human(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.write_inputs(Path(tmp), APP_FILES)
+            self.assertEqual(gate.NEEDS_HUMAN, self.run_main(["verify", *self.common(Path(tmp))]))
 
     def test_unreadable_inputs_need_a_human(self):
         with tempfile.TemporaryDirectory() as tmp:
             for files in ("{broken", '{"frontend/src/App.tsx": 1}', "[1, 2]"):
                 with self.subTest(files=files):
-                    decision, _ = self.run_gate(Path(tmp), LOW_RISK, files)
+                    decision, _ = self.run_decide(Path(tmp), LOW_RISK, files)
                     self.assertEqual(gate.NEEDS_HUMAN, decision)
 
 
 if __name__ == "__main__":
     unittest.main()
+

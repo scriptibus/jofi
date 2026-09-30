@@ -19,13 +19,26 @@
     { "category": "auth-crypto", "pattern": "backend/**/*Encrypt*.kt" },
     { "category": "auth-crypto", "pattern": "backend/**/*Secret*.kt" },
     { "category": "auth-crypto", "pattern": "backend/**/*Password*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Login*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Session*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Token*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Csrf*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Jwt*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Hash*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*KeyStore*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*ApiKey*.kt" },
     { "category": "auth-crypto", "pattern": "frontend/src/**/*auth*" },
+    { "category": "auth-crypto", "pattern": "frontend/src/**/*login*" },
+    { "category": "auth-crypto", "pattern": "frontend/src/**/*session*" },
 
     { "category": "export-import", "pattern": "**/export/**" },
     { "category": "export-import", "pattern": "**/import/**" },
     { "category": "export-import", "pattern": "**/portability/**" },
+    { "category": "export-import", "pattern": "**/backup/**" },
     { "category": "export-import", "pattern": "backend/**/*Export*.kt" },
     { "category": "export-import", "pattern": "backend/**/*Import*.kt" },
+    { "category": "export-import", "pattern": "backend/**/*Backup*.kt" },
+    { "category": "export-import", "pattern": "backend/**/*Archive*.kt" },
 
     { "category": "ci", "pattern": ".github/**" },
     { "category": "ci", "pattern": "renovate.json" },
@@ -46,6 +59,8 @@
     { "category": "containers", "pattern": "**/docker-compose*.y*ml" },
 
     { "category": "checks", "pattern": "backend/config/**" },
+    { "category": "checks", "pattern": "backend/architecture-tests/**" },
+    { "category": "checks", "pattern": ".editorconfig" },
     { "category": "checks", "pattern": "backend/build-logic/src/**" },
     { "category": "checks", "pattern": "backend/gradle/osv-scanner.toml" },
     { "category": "checks", "pattern": "frontend/biome.json*" },
@@ -59,6 +74,8 @@
     { "category": "checks", "pattern": ".gitattributes" },
 
     { "category": "decisions", "pattern": "docs/adr/**" },
+
+    { "category": "runtime-config", "pattern": "backend/**/src/main/resources/application*.y*ml" },
 
     { "category": "dependencies", "pattern": "**/*.gradle.kts" },
     { "category": "dependencies", "pattern": "**/*.lockfile" },
