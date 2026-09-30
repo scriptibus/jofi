@@ -19,7 +19,7 @@ export interface DisclosureProps {
  */
 export function Disclosure({ label, defaultExpanded = false, children }: DisclosureProps) {
   return (
-    <AriaDisclosure defaultExpanded={defaultExpanded} className="group flex flex-col gap-4">
+    <AriaDisclosure defaultExpanded={defaultExpanded} className="group flex flex-col">
       <Button
         slot="trigger"
         className={
@@ -34,7 +34,11 @@ export function Disclosure({ label, defaultExpanded = false, children }: Disclos
         />
         {label}
       </Button>
-      <DisclosurePanel>{children}</DisclosurePanel>
+      {/* The spacing sits inside the panel: a closed panel keeps an empty box in the layout
+          (hidden="until-found"), so a flex gap would leave a hole under the trigger. */}
+      <DisclosurePanel>
+        <div className="pt-4">{children}</div>
+      </DisclosurePanel>
     </AriaDisclosure>
   );
 }
