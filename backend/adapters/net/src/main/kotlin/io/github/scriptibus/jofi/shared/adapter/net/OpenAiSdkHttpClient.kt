@@ -1,0 +1,78 @@
+// SPDX-FileCopyrightText: 2026 Jofi contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+package io.github.scriptibus.jofi.shared.adapter.net
+
+import com.openai.core.RequestOptions
+import com.openai.core.http.Headers
+import com.openai.core.http.HttpClient
+import com.openai.core.http.HttpRequest
+import com.openai.core.http.HttpResponse
+import com.openai.errors.OpenAIIoException
+import java.io.IOException
+import java.io.InputStream
+import java.net.URI
+import java.util.concurrent.CompletableFuture
+
+/**
+ * The OpenAI SDK's transport (ADR-0037), used for OpenAI, Gemini, Mistral and OpenAI-compatible
+ * endpoints: every request goes through [GuardedAiTransport]. Base URL and key live in the SDK's
+ * client options, so one instance serves every provider. [close] leaves the shared transport open.
+ */
+class OpenAiSdkHttpClient(
+    private val transport: GuardedAiTransport,
+) : HttpClient {
+    override fun execute(
+        request: HttpRequest,
+        requestOptions: RequestOptions,
+    ): HttpResponse =
+        try {
+            SdkResponse(transport.execute(toAiRequest(request, requestOptions)))
+        } catch (failure: IOException) {
+            throw OpenAIIoException("Request failed", failure)
+        } finally {
+            request.body?.close()
+        }
+
+    override fun executeAsync(
+        request: HttpRequest,
+        requestOptions: RequestOptions,
+    ): CompletableFuture<HttpResponse> =
+        SdkFutures.map(
+            transport.executeAsync(toAiRequest(request, requestOptions)),
+            whenDone = { request.body?.close() },
+            ioFailure = { OpenAIIoException("Request failed", it) },
+            toSdk = ::SdkResponse,
+        )
+
+    override fun close() = Unit
+
+    private fun toAiRequest(
+        request: HttpRequest,
+        options: RequestOptions,
+    ): AiRequest {
+        val headers = request.headers.names().flatMap { name -> request.headers.values(name).map { name to it } }
+        val body =
+            request.body?.let { body ->
+                AiRequestBody(body.contentType(), body.contentLength(), body.repeatable(), body::writeTo)
+            }
+        return AiRequest(request.method.name, URI(request.url()), headers, body, options.timeout?.request())
+    }
+
+    private class SdkResponse(
+        private val response: AiResponse,
+    ) : HttpResponse {
+        private val headers =
+            Headers.builder().apply { response.headers.forEach { (name, value) -> put(name, value) } }.build()
+
+        override fun statusCode(): Int = response.statusCode
+
+        override fun headers(): Headers = headers
+
+        override fun body(): InputStream = response.body
+
+        private val cleanup = UnclosedResponses.register(this, response)
+
+        override fun close() = cleanup.clean()
+    }
+}

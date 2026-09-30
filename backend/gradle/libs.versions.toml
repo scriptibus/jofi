@@ -29,6 +29,12 @@ wiremock = "3.13.2"
 # Secret encryption (adapters/crypto, ADR-0017) and the argon2id implementation behind Spring Security's encoder.
 tink = "1.23.0"
 bouncycastle = "1.86"
+# AI providers (adapters/ai, ADR-0037). Spring AI 2.0.1 is the latest stable release for Boot 4.
+spring-ai = "2.0.1"
+# The vendor SDK cores (no transport of their own) at the versions Spring AI 2.0.1 is built and
+# tested against; its BOM does not manage them. adapters/net implements their HttpClient interface.
+openai-java = "4.49.0"
+anthropic-java = "2.52.0"
 
 # Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
 # Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
@@ -37,7 +43,7 @@ jackson3-patched = "3.1.7"
 commons-lang3-patched = "3.21.0"
 plexus-utils-patched = "3.6.2"
 freemarker-patched = "2.3.35"
-# Jackson 2 only on the adapters/web test classpath (springdoc via swagger-core).
+# Jackson 2: the AI vendor SDK cores (adapters/ai, adapters/net) and springdoc in adapters/web tests.
 jackson2-patched = "2.22.3"
 
 [libraries]
@@ -84,9 +90,16 @@ bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref 
 springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
 # springdoc (via swagger-core) still reads models with Jackson 2; this module makes it honour Kotlin nullability.
 jackson2-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
-# Outbound HTTP (adapters/net). Apache HttpClient 5 and spring-web versions come from the Boot BOM.
+# Outbound HTTP (adapters/net). The Apache HttpClient 5 version comes from the Boot BOM.
 httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5" }
-spring-web = { module = "org.springframework:spring-web" }
+# AI providers (adapters/ai): Spring AI model modules only, no starters or auto-configuration (ADR-0037).
+spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
+spring-ai-openai = { module = "org.springframework.ai:spring-ai-openai" }
+spring-ai-anthropic = { module = "org.springframework.ai:spring-ai-anthropic" }
+openai-java-core = { module = "com.openai:openai-java-core", version.ref = "openai-java" }
+anthropic-java-core = { module = "com.anthropic:anthropic-java-core", version.ref = "anthropic-java" }
+# Test-only: LogPrivacyTest (adapters/ai) captures every log event. Version from the Boot BOM.
+logback-classic = { module = "ch.qos.logback:logback-classic" }
 # The standalone (shaded) jar: WireMock 3 embeds Jetty 11, which would clash with the Boot BOM's Jetty 12.
 wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 

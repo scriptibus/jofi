@@ -45,3 +45,11 @@ ecosystem = "Maven"
 vulnerability.ignore = true
 effectiveUntil = 2026-12-31
 reason = "Only the .pom is listed (read via springdoc's parent BOM, Spring Boot 4.1.0, during resolution). The app uses tomcat-embed-core 11.0.26 (security constraint, see the lockfiles)."
+
+[[PackageOverrides]]
+name = "com.fasterxml.jackson.core:jackson-core"
+version = "2.19.4"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Only .pom/.module metadata is listed (anthropic-java-core 2.52.0 declares it; the security constraint on jackson-databind aligns Jackson 2 to 2.22.3 on every classpath). No 2.19.4 jar is used."

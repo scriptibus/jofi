@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":adapters:persistence"))
     implementation(project(":adapters:net"))
     implementation(project(":adapters:crypto"))
+    implementation(project(":adapters:ai"))
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.session.jdbc)

@@ -70,6 +70,11 @@ class AdapterRulesTest {
     }
 
     @Test
+    fun `no AI SDK reads its settings from the environment`() {
+        AdapterRules.noAiSdkReadsTheEnvironment.check(classes)
+    }
+
+    @Test
     fun `ports are interfaces`() {
         classes()
             .that()

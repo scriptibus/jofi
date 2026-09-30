@@ -17,9 +17,13 @@ reviewed by Lucas. Package: `io.github.scriptibus.jofi.shared.adapter.net`.
   addresses (no DNS rebinding). `GuardedHttpClients` builds every client (redirects, cookies,
   retries, auth cache and system proxies off).
 - `DestinationAllowlist` unlocks internal (never link-local/metadata/reserved) addresses for exact
-  host:port destinations. Posting and page fetches get `NONE`; only the AI request factory
-  (`GuardedHttpClients.aiRequestFactory`, wired in `bootstrap` `setup.config.AiHttpConfiguration`)
-  gets the configured provider base URLs.
+  host:port destinations. Posting and page fetches get `NONE`; only the AI transport
+  (`GuardedAiTransport`, wired in `bootstrap` `setup.config.AiHttpConfiguration`) gets the configured
+  provider base URLs.
+- `GuardedAiTransport` (ADR-0037) is the transport of the AI vendor SDKs: no redirects, SDK telemetry
+  headers dropped, and closing an unfinished response aborts it instead of draining it.
+  `OpenAiSdkHttpClient` and `AnthropicSdkHttpClient` implement the SDKs' `HttpClient` interfaces over
+  it and wrap I/O failures in the SDKs' I/O exceptions.
 
 Rules:
 - Nothing else in the backend may use an HTTP client or socket (architecture test

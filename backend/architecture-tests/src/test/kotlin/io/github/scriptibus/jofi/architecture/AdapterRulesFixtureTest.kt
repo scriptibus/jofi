@@ -9,10 +9,15 @@ import io.github.scriptibus.jofi.fixture.adapter.web.AiProviderPortInWebAdapterF
 import io.github.scriptibus.jofi.fixture.adapter.web.ImageIoInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JdkHttpClientInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JooqInWebAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.OpenAiClientInWebAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.SdkFromEnvFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.SocketsInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlClassLoaderInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlHolderInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlReadInWebAdapterFixture
+import io.github.scriptibus.jofi.setup.adapter.ai.ImpostorAiAdapterFixture
+import io.github.scriptibus.jofi.setup.adapter.ai.ModelCatalogAdapter
+import io.github.scriptibus.jofi.setup.adapter.ai.ProviderModels
 import io.github.scriptibus.jofi.setup.application.port.AiProviderPort
 import io.github.scriptibus.jofi.shared.adapter.net.GuardedHttpClients
 import io.github.scriptibus.jofi.shared.adapter.net.ImpostorNetAdapterFixture
@@ -60,6 +65,8 @@ class AdapterRulesFixtureTest {
             UrlClassLoaderInWebAdapterFixture::class,
             SocketsInWebAdapterFixture::class,
             ImpostorNetAdapterFixture::class,
+            OpenAiClientInWebAdapterFixture::class,
+            ImpostorAiAdapterFixture::class,
         ],
     )
     fun `network access outside the adapters net module is rejected`(fixture: Class<*>) {
@@ -79,5 +86,27 @@ class AdapterRulesFixtureTest {
             )
 
         AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.evaluate(classes).hasViolation() shouldBe false
+    }
+
+    @Test
+    fun `the AI adapter module may use its named SDK types`() {
+        val classes = ClassFileImporter().importClasses(ProviderModels::class.java, ModelCatalogAdapter::class.java)
+
+        AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.evaluate(classes).hasViolation() shouldBe false
+    }
+
+    @Test
+    fun `reading an AI SDK's settings from the environment is rejected`() {
+        val classes = ClassFileImporter().importClasses(SdkFromEnvFixture::class.java)
+
+        AdapterRules.noAiSdkReadsTheEnvironment.evaluate(classes).hasViolation() shouldBe true
+    }
+
+    @Test
+    fun `the SDK allowlist names types, not packages, and no transport`() {
+        AdapterRules.AI_ADAPTER_SDK_TYPES.forEach { type ->
+            type.contains("okhttp") shouldBe false
+            type.endsWith(".") shouldBe false
+        }
     }
 }

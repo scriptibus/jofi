@@ -3,6 +3,8 @@
 
 package io.github.scriptibus.jofi.fixture.adapter.web
 
+import com.openai.client.OpenAIClient
+import com.openai.core.ClientOptions
 import java.awt.image.BufferedImage
 import java.net.DatagramSocket
 import java.net.URI
@@ -44,4 +46,14 @@ class UrlClassLoaderInWebAdapterFixture {
 class SocketsInWebAdapterFixture(
     val tls: SSLSocket,
     val udp: DatagramSocket,
+)
+
+/** Lets the OpenAI SDK read keys, base URL and headers from the environment. */
+class SdkFromEnvFixture {
+    fun options(): ClientOptions.Builder = ClientOptions.builder().fromEnv()
+}
+
+/** Holds an AI vendor SDK client outside the AI adapter. */
+class OpenAiClientInWebAdapterFixture(
+    val client: OpenAIClient,
 )

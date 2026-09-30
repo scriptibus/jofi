@@ -14,6 +14,7 @@ dependencies {
     testImplementation(project(":adapters:persistence"))
     testImplementation(project(":adapters:net"))
     testImplementation(project(":adapters:crypto"))
+    testImplementation(project(":adapters:ai"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))
@@ -21,6 +22,8 @@ dependencies {
     testImplementation(libs.spring.modulith.core)
     testImplementation(libs.archunit)
     testImplementation(libs.konsist)
+    // Fixtures for the AI adapter's SDK exemption (AdapterRulesFixtureTest).
+    testImplementation(libs.openai.java.core)
 }
 
 tasks.withType<Test>().configureEach {
