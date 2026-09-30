@@ -28,7 +28,7 @@ function start(path: string, setup: Partial<FakeSetupState> = {}) {
 
 /** Picks an option in one of our Selects: the button is named by its value and its label. */
 async function pick(user: User, label: string, option: string) {
-  await user.click(screen.getByRole("button", { name: new RegExp(`${label}$`) }));
+  await user.click(screen.getByRole("button", { name: (name) => name.endsWith(label) }));
   await user.click(await screen.findByRole("option", { name: option }));
 }
 

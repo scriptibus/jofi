@@ -53,7 +53,7 @@ async function restoreSeededSetup(page: Page) {
 
 /** Picks a provider's model in one of our Selects (the same model names exist at both fake providers). */
 async function pickModel(page: Page, task: string, provider: string, model: string) {
-  await page.getByRole("button", { name: new RegExp(`${task}$`) }).click();
+  await page.getByRole("button", { name: task }).click();
   const list = page.getByRole("listbox", { name: task });
   await list.getByRole("group", { name: provider }).getByRole("option", { name: model }).click();
   await expect(list).toBeHidden();
