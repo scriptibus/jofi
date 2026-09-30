@@ -53,9 +53,13 @@ sealed interface CompanyPreference {
                 PreferenceKind.BLACKLISTED -> Blacklisted(reason)
             }
 
-        /** Whether [reason] is acceptable as a preference reason: absent, or trimmed text of bounded length. */
+        /** Whether [reason] is acceptable as a reason: absent, or trimmed, storable text of bounded length. */
         fun isValidReason(reason: String?): Boolean =
-            reason == null || (reason.isNotBlank() && reason == reason.trim() && reason.length <= MAX_REASON_LENGTH)
+            reason == null ||
+                (
+                    reason.isNotBlank() && reason == reason.trim() && !reason.hasUnstorableCharacter() &&
+                        reason.length <= MAX_REASON_LENGTH
+                )
     }
 }
 

@@ -112,4 +112,9 @@ class CompanyTest {
             CompanyPreference.Blacklisted("x".repeat(CompanyPreference.MAX_REASON_LENGTH + 1))
         }
     }
+
+    @Test
+    fun `a profile cannot hold U+0000`() {
+        shouldThrow<IllegalArgumentException> { CompanyProfile("Builds\u0000anvils.", later) }
+    }
 }

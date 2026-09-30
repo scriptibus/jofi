@@ -110,7 +110,7 @@ The generator lives in the `codegen` source set and has its own locked classpath
   jOOQ code in `shared.adapter.persistence.jooq` (the one exemption from adapter independence,
   ADR-0032).
 
-## `companies` tables (#73, ADR-0041)
+## `companies` tables (#73, #74, ADR-0041)
 
 - `company` (spec §5): details (trimmed name, http(s) website and careers page without user info, IDN
   and underscore hosts allowed, industry, size band, ordered `locations text[]`, research notes), the AI
@@ -136,6 +136,30 @@ The generator lives in the `codegen` source set and has its own locked classpath
   changed (in the description, e.g. "Research notes edited"), never their text in a `FieldChange`,
   until redaction exists (#52).
 
+- `contact` and `contact_channel` (#74, spec §5, §13): contact persons (trimmed name, role, relationship
+  notes, optional `company_id` with `contact_company_fk` `ON DELETE CASCADE`, `version`) and their ordered
+  channels (`position` 0-19, `kind` `EMAIL`/`PHONE`/`WEB`/`OTHER`, `value` as entered, optional `label`;
+  deleted with the contact by `contact_channel_contact_fk`). Named check constraints mirror `ContactDetails`
+  and `ContactChannel`, never stricter: per-kind length limits, email needs text on both sides of its last
+  `@`, web links are absolute http(s) without user info; whitespace, digits and control characters are
+  the domain's job (Unicode classes), and so are exact duplicate channels (a unique index on values up to
+  2048 characters could exceed the index row size). `ContactSchemaTest` proves every constraint, every
+  limit, the names and both cascades. `contact_company_idx` serves the company filter, the company
+  delete's count and its cascade; `contact_name_trgm_idx` fuzzy name search.
+- Contacts are **third-party personal data**: user data **covered by export/import** (#26); never log a
+  row, and changelog entries for contacts name the changed fields, never their values (the changelog is
+  append-only, and a deleted contact must leave nothing personal behind). `ContactRepositoryPort` maps a
+  violation of `contact_company_fk` on insert or update to `CompanyNotFound` by its name.
+- Foreign keys **to** `contact` from other contexts (ADR-0041): link-table rows (e.g. application links,
+  #90) use `ON DELETE CASCADE`; an optional reference in an entity's own row (e.g. `task.contact_id`,
+  #93) uses `ON DELETE SET NULL`; never `RESTRICT`/`NO ACTION`, which would block company deletes
+  through `contact_company_fk`. They also react to `ContactDeleted`.
+- Channels have no stable id (`(contact_id, position)` changes on every edit), so nothing may reference a
+  single channel; the repository replaces all of a contact's channels (delete, then insert) in the
+  version-checked update.
+- Text columns never hold U+0000 (PostgreSQL `text` rejects it); the domain rejects it first, so a valid
+  entity never fails to store.
+
 ## Changelog entity types
 
 `EntityRef.type` is stored in every changelog entry, so these names never change. Each is a constant on
@@ -144,6 +168,7 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 | Entity type | Aggregate | Constant |
 |---|---|---|
 | `company` | `companies.domain.Company` | `CompanyId.ENTITY_TYPE` |
+| `contact` | `companies.domain.Contact` | `ContactId.ENTITY_TYPE` |
 
 ## Tests
 

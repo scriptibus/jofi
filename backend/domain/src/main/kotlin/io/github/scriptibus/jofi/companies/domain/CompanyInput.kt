@@ -81,13 +81,23 @@ data class PreferenceInput(
     fun validate(): CompanyValidation<CompanyPreference> {
         val reason = reason.trimmedOrNull()?.takeIf { kind != PreferenceKind.NONE }
         if (!CompanyPreference.isValidReason(reason)) {
-            val violation = CompanyViolation(CompanyField.PREFERENCE_REASON, ViolationKind.TOO_LONG)
+            val problem =
+                if (reason?.hasUnstorableCharacter() ==
+                    true
+                ) {
+                    ViolationKind.INVALID_CHARACTER
+                } else {
+                    ViolationKind.TOO_LONG
+                }
+            val violation = CompanyViolation(CompanyField.PREFERENCE_REASON, problem)
             return CompanyValidation.Invalid(listOf(violation))
         }
         return CompanyValidation.Valid(CompanyPreference.of(kind, reason))
     }
 }
 
-private fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFC)
+/** The text in Unicode NFC, so the same name typed on two systems is the same string. */
+internal fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFC)
 
-private fun String?.trimmedOrNull(): String? = this?.normalized()?.trim()?.takeIf(String::isNotEmpty)
+/** The text normalized and trimmed, or `null` if nothing is left. */
+internal fun String?.trimmedOrNull(): String? = this?.normalized()?.trim()?.takeIf(String::isNotEmpty)
