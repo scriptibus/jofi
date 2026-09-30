@@ -86,6 +86,14 @@ class OpenApiSpecTest(
             .containsOnlyKeys("type", "title", "status", "detail", "instance")
     }
 
+    @Test
+    fun `the confirmation-required problem is part of the contract`() {
+        servedSpec()
+            .extractingPath("$.components.schemas.ConfirmationRequiredProblem.allOf[1].required")
+            .asArray()
+            .containsExactlyInAnyOrder("confirmationToken", "expiresAt", "operation", "targets")
+    }
+
     private fun servedSpec() =
         mvc
             .get()

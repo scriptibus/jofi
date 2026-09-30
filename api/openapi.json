@@ -209,6 +209,37 @@
         },
         "required" : [ "currentPassword", "newPassword" ]
       },
+      "ConfirmationRequiredProblem" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/ProblemDetail"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "confirmationToken" : {
+              "type" : "string",
+              "description" : "Send it back in the Jofi-Confirmation header"
+            },
+            "expiresAt" : {
+              "type" : "string",
+              "description" : "The token is refused from then on",
+              "format" : "date-time"
+            },
+            "operation" : {
+              "type" : "string",
+              "description" : "What would run, e.g. applications.delete"
+            },
+            "targets" : {
+              "type" : "array",
+              "description" : "Ids of what it would affect",
+              "items" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : [ "confirmationToken", "expiresAt", "operation", "targets" ]
+        } ],
+        "description" : "428 answer of a destructive or outward-facing operation: nothing ran yet. Repeat the request with confirmationToken in the Jofi-Confirmation header once the user confirmed."
+      },
       "FirstRunRequest" : {
         "type" : "object",
         "properties" : {

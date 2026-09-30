@@ -83,6 +83,7 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | `SecretRepository` (`adapters/persistence`) over `SecretCipherPort` (Tink, `adapters/crypto`), ADR-0035 |
 | `SecretCipherPort` | AES-GCM under the master keyset; **only secret stores use it** | `adapters/crypto` |
 | `TransactionPort` | one transaction around a mutation and its changelog entry; commit only accepted results | `adapters/persistence` |
+| `ConfirmationStorePort` | pending two-step confirmations; features call `ConfirmActionUseCase`, never the port | `InMemoryConfirmationStoreAdapter` (`bootstrap`), ADR-0039 |
 
 Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for that reason; the
 `setup` context owns what it configures around it.
@@ -135,6 +136,12 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
 - **A mutation**: append a `ChangelogEntry` with the acting `Actor` through `ChangelogPort` in the
   same use case (spec §13), inside `TransactionPort.inTransaction` so both are stored or neither.
   The changelog is append-only; the audit lens checks the actor.
+- **A delete or outward-facing action** (spec §9, ADR-0039): the feature use case takes
+  `ConfirmActionUseCase` and a `ConfirmationRequester` + optional `ConfirmationToken`, builds the
+  `ConfirmableAction` (operation `<context>.<verb>`, target ids, an effect derived from the current
+  state), calls the gate first and mutates only on `ConfirmationResult.Confirmed`; it returns
+  `ConfirmationResult.Unconfirmed` as one case of its sealed result. Never put the gate in a
+  controller or MCP tool: it must hold for every caller. Test the unconfirmed, confirmed and replay paths.
 - **A controller**: `adapters/web/.../<context>/adapter/web/<Name>Controller.kt`; inject use cases
   only, map domain types to DTOs (`*Response`/`*Request`) in the same package. Test with a
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).

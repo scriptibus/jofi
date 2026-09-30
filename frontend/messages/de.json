@@ -87,5 +87,9 @@
   "error_other_sessions_remain": "Das Passwort wurde geändert, aber andere Geräte konnten nicht abgemeldet werden. Ändere es noch einmal.",
   "error_details": "Meldung des Servers",
   "error_retry": "Noch einmal versuchen",
-  "error_dismiss": "Schließen"
+  "error_dismiss": "Schließen",
+  "confirm_title": "Bitte bestätigen",
+  "confirm_action": "Bestätigen",
+  "confirm_cancel": "Abbrechen",
+  "error_confirmation_invalid": "Die Bestätigung ist abgelaufen oder passt nicht mehr. Bitte fang noch einmal an."
 }

@@ -87,5 +87,9 @@
   "error_other_sessions_remain": "The password was changed, but other devices could not be logged out. Change it once more.",
   "error_details": "Server message",
   "error_retry": "Try again",
-  "error_dismiss": "Dismiss"
+  "error_dismiss": "Dismiss",
+  "confirm_title": "Please confirm",
+  "confirm_action": "Confirm",
+  "confirm_cancel": "Cancel",
+  "error_confirmation_invalid": "The confirmation expired or no longer matches. Please start again."
 }

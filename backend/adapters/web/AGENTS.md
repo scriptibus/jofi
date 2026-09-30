@@ -23,6 +23,16 @@ Rules:
   (test sources) picks up every `@RestController` and `@RestControllerAdvice` under
   `io.github.scriptibus.jofi` and stubs their use cases, so new controllers need no extra wiring.
 
+## Two-step confirmation (ADR-0039)
+
+Every delete or outward-facing endpoint follows `shared.adapter.web.Confirmations`: take
+`@RequestHeader(Confirmations.HEADER, required = false) confirmation: String?` and the
+`HttpServletRequest`, pass `Confirmations.requester(request)` and `Confirmations.token(confirmation)`
+to the use case, and map its `ConfirmationResult.Unconfirmed` with `throw Confirmations.problem(it)`
+(428 with the token on the first call, 412 for a refused token). The header parameter makes the contract
+document the 428 `ConfirmationRequiredProblem` automatically. Never log the token or put it in a URL.
+`ConfirmationFlowTest` (bootstrap) shows the pattern end to end behind the security filter chain.
+
 ## Authentication (ADR-0035)
 
 - `system.adapter.web.AuthController`: `GET /api/auth/session`, `POST /api/auth/first-run`,
