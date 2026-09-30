@@ -63,6 +63,12 @@ licensee {
             )
         }
     }
+    // Exact artifacts, not the URL: a future ANTLR release must be checked again.
+    listOf("antlr4-runtime" to "4.13.1", "ST4" to "4.3.4", "antlr-runtime" to "3.5.3").forEach { (name, version) ->
+        allowDependency("org.antlr", name, version) {
+            because("BSD-3-Clause, declared only by URL (antlr.org/license.html); via Spring AI's prompt templates")
+        }
+    }
     allowDependency("org.reactivestreams", "reactive-streams", "1.0.4") {
         because("MIT-0 (MIT without attribution; already accepted for the frontend), via jOOQ -> r2dbc-spi")
     }

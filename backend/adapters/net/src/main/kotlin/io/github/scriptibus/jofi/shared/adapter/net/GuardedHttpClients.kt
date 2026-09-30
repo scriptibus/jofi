@@ -4,15 +4,13 @@
 package io.github.scriptibus.jofi.shared.adapter.net
 
 import org.apache.hc.client5.http.config.ConnectionConfig
+import org.apache.hc.client5.http.config.RequestConfig
 import org.apache.hc.client5.http.config.TlsConfig
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder
 import org.apache.hc.client5.http.impl.classic.HttpClients
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder
-import org.apache.hc.core5.util.TimeValue
 import org.apache.hc.core5.util.Timeout
-import org.springframework.http.client.ClientHttpRequestFactory
-import org.springframework.http.client.HttpComponentsClientHttpRequestFactory
 import java.time.Duration
 
 /**
@@ -37,6 +35,16 @@ object GuardedHttpClients {
     /** Idle AI connections close soon, so a removed provider's pooled connection does not linger. */
     val AI_MAX_IDLE: Duration = Duration.ofSeconds(30)
 
+    /**
+     * How long an AI call waits for a pooled connection (Apache's default is 3 minutes). A full pool
+     * means calls pile up; failing fast returns `Unavailable` instead of hanging the caller.
+     */
+    val AI_CONNECTION_REQUEST_TIMEOUT: Duration = Duration.ofSeconds(10)
+
+    /** Chat, scanner and embedding calls often share one provider (route); Apache's default is 5. */
+    const val AI_MAX_CONNECTIONS_PER_ROUTE = 20
+    const val AI_MAX_CONNECTIONS = 50
+
     fun create(
         guard: DestinationGuard,
         timeouts: ClientTimeouts,
@@ -44,32 +52,44 @@ object GuardedHttpClients {
     ): CloseableHttpClient = builder(guard, timeouts, userAgent).build()
 
     /**
-     * The request factory for the AI provider clients (ADR-0034): the same guard, with the
-     * allowlist of configured AI endpoints. Redirects are not followed; an AI API has no reason to
-     * redirect. Response sizes are not capped (streamed completions). Spring closes the client when
-     * the bean is destroyed.
+     * The client for the AI providers (ADR-0034, ADR-0040; used by [GuardedAiTransport]): the same
+     * guard, with the allowlist of configured AI endpoints and the generous AI timeouts. Redirects
+     * are not followed; an AI API has no reason to redirect. Response sizes are not capped
+     * (streamed completions).
      */
-    fun aiRequestFactory(
+    internal fun aiClientBuilder(
         allowlist: DestinationAllowlist,
         userAgent: String,
-    ): ClientHttpRequestFactory {
+    ): HttpClientBuilder {
         val timeouts = ClientTimeouts(connect = { AI_CONNECT_TIMEOUT }, read = { AI_READ_TIMEOUT })
-        val client =
-            builder(DestinationGuard(allowlist), timeouts, userAgent)
-                .evictExpiredConnections()
-                .evictIdleConnections(TimeValue.of(AI_MAX_IDLE))
-                .build()
-        return HttpComponentsClientHttpRequestFactory(client)
+        val pool = PoolLimits(AI_MAX_CONNECTIONS_PER_ROUTE, AI_MAX_CONNECTIONS)
+        val waitForConnection = timeoutOf(AI_CONNECTION_REQUEST_TIMEOUT)
+        return builder(DestinationGuard(allowlist), timeouts, userAgent, pool)
+            .setDefaultRequestConfig(RequestConfig.custom().setConnectionRequestTimeout(waitForConnection).build())
+    }
+
+    /** Connection pool sizes; the defaults are Apache HttpClient's. */
+    class PoolLimits(
+        val perRoute: Int = DEFAULT_PER_ROUTE,
+        val total: Int = DEFAULT_TOTAL,
+    ) {
+        private companion object {
+            const val DEFAULT_PER_ROUTE = 5
+            const val DEFAULT_TOTAL = 25
+        }
     }
 
     private fun builder(
         guard: DestinationGuard,
         timeouts: ClientTimeouts,
         userAgent: String,
+        pool: PoolLimits = PoolLimits(),
     ): HttpClientBuilder {
         val connectionManager =
             PoolingHttpClientConnectionManagerBuilder
                 .create()
+                .setMaxConnPerRoute(pool.perRoute)
+                .setMaxConnTotal(pool.total)
                 .setDnsResolver(GuardedDnsResolver(guard, timeouts.connect))
                 .setConnectionConfigResolver { _ ->
                     ConnectionConfig

@@ -1,0 +1,34 @@
+{
+  "id": "chatcmpl-AJ4a2",
+  "object": "chat.completion",
+  "created": 1790683201,
+  "model": "gpt-4o-mini-2024-07-18",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_Qx7",
+            "type": "function",
+            "function": {
+              "name": "find_company",
+              "arguments": "{\"name\":\"ACME GmbH\"}"
+            }
+          }
+        ],
+        "refusal": null,
+        "annotations": []
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 84,
+    "completion_tokens": 17,
+    "total_tokens": 101
+  }
+}

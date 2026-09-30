@@ -11,7 +11,10 @@ plugins {
 dependencies {
     implementation(project(":application"))
     implementation(libs.httpclient5)
-    implementation(libs.spring.web)
+    // The guarded transport for the AI vendor SDKs implements their HttpClient interfaces (ADR-0040).
+    // The SDK cores have no transport of their own.
+    api(libs.openai.java.core)
+    api(libs.anthropic.java.core)
 
     testImplementation(libs.wiremock.standalone)
 }

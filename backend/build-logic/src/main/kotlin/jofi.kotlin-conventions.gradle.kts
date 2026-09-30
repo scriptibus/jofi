@@ -48,7 +48,8 @@ kotlin {
 dependencies {
     // Security overrides from the version catalog (see its "Security overrides" section).
     constraints {
-        listOf("security-tomcat-embed-core", "security-jackson3-databind").forEach { alias ->
+        val overrides = listOf("security-tomcat-embed-core", "security-jackson3-databind", "security-jackson2-databind")
+        overrides.forEach { alias ->
             implementation(libs.findLibrary(alias).get())
             testImplementation(libs.findLibrary(alias).get())
         }

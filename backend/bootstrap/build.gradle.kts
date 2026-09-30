@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":adapters:net"))
     implementation(project(":adapters:crypto"))
     implementation(project(":adapters:jobs"))
+    implementation(project(":adapters:ai"))
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.session.jdbc)
@@ -32,6 +33,8 @@ dependencies {
     testImplementation(libs.spring.boot.testcontainers)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.jooq)
+    // AiProviderSecretStoreTest: a local model endpoint for the wired AI adapter.
+    testImplementation(libs.wiremock.standalone)
 }
 
 val postgresImage = providers.gradleProperty("jofi.postgresImage")

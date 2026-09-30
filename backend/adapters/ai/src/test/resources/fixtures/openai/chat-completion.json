@@ -1,0 +1,25 @@
+{
+  "id": "chatcmpl-AJ4a1",
+  "object": "chat.completion",
+  "created": 1790683200,
+  "model": "gpt-4o-mini-2024-07-18",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Guten Tag! Wie kann ich helfen?",
+        "refusal": null,
+        "annotations": []
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 21,
+    "completion_tokens": 9,
+    "total_tokens": 30
+  },
+  "system_fingerprint": "fp_0a1b2c3d4e"
+}

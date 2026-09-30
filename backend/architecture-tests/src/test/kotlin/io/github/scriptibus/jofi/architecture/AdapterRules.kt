@@ -8,7 +8,13 @@ import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage
 import com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage
 import com.tngtech.archunit.core.domain.JavaMethodCall
+import com.tngtech.archunit.lang.ArchCondition
 import com.tngtech.archunit.lang.ArchRule
+import com.tngtech.archunit.lang.ConditionEvents
+import com.tngtech.archunit.lang.SimpleConditionEvent
+import com.tngtech.archunit.lang.conditions.ArchConditions.callMethodWhere
+import com.tngtech.archunit.lang.conditions.ArchConditions.never
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 import io.github.scriptibus.jofi.architecture.JofiPackages.BASE
@@ -107,19 +113,56 @@ object AdapterRules {
      * Only `adapters/net` may use an HTTP client, a socket or a `URL`, so every outbound request
      * passes the SSRF guard. The exemption needs both the package and the module: a class that
      * merely declares the package in another module is not exempt. The `ClientHttpRequestFactory`
-     * interface stays usable, since that is how the guarded client reaches the AI adapter; its
-     * implementations (which would create unguarded clients) are not. ArchUnit only sees our own
-     * classes: ADR-0034 lists what it cannot catch (auto-configured clients, libraries that fetch
-     * on their own).
+     * interface stays usable; its implementations (which would create unguarded clients) are not.
+     *
+     * One narrow exemption (ADR-0040): the AI provider adapter (`setup.adapter.ai`, module
+     * `adapters/ai`) may use the named vendor SDK types in [AI_ADAPTER_SDK_TYPES] to build SDK
+     * clients over the guarded transport that `adapters/net` provides. None of them is a
+     * transport, and Spring AI's own SDK client builders stay banned everywhere. ArchUnit only sees
+     * our own classes: ADR-0034 lists what it cannot catch (auto-configured clients, libraries that
+     * fetch on their own).
      */
     val onlyTheNetAdapterMakesOutboundHttpCalls: ArchRule =
-        noClasses()
+        classes()
             .that(areOutsideTheNetModule())
-            .should()
-            .dependOnClassesThat(isHttpClient())
-            .orShould()
-            .callMethodWhere(readsAUrl())
+            .should(notUseHttpClients())
+            .andShould(never(callMethodWhere(readsAUrl())))
             .because("adapters/net is the only outbound HTTP client (SSRF guard, threat model T1)")
+
+    /** The AI provider adapter (ADR-0040). */
+    const val AI_ADAPTER = "$BASE.setup.adapter.ai"
+
+    /** Where the Gradle module `adapters/ai` puts its compiled classes (class dirs and jar). */
+    private const val AI_MODULE_OUTPUT = "/adapters/ai/build/"
+
+    /**
+     * The vendor SDK types `setup.adapter.ai` may use (ADR-0040): the clients, built from client
+     * options that carry Jofi's guarded transport; the transport interface as a type (only
+     * `adapters/net` implements it); the error types mapped to sealed results; and the model
+     * listing. Adding a type needs review.
+     */
+    val AI_ADAPTER_SDK_TYPES: Set<String> =
+        listOf("com.openai" to "OpenAI", "com.anthropic" to "Anthropic")
+            .flatMap { (sdk, prefix) ->
+                listOf(
+                    "$sdk.client.${prefix}Client",
+                    "$sdk.client.${prefix}ClientImpl",
+                    "$sdk.client.${prefix}ClientAsync",
+                    "$sdk.client.${prefix}ClientAsyncImpl",
+                    "$sdk.core.ClientOptions",
+                    "$sdk.core.ClientOptions\$Builder",
+                    "$sdk.core.ClientOptions\$Companion",
+                    "$sdk.core.LogLevel",
+                    "$sdk.core.Sleeper",
+                    "$sdk.core.AutoPager",
+                    "$sdk.core.http.HttpClient",
+                    "$sdk.core.http.Headers",
+                    "$sdk.errors.${prefix}ServiceException",
+                    "$sdk.errors.${prefix}IoException",
+                    "$sdk.services.blocking.ModelService",
+                    "$sdk.models.models.ModelListPage",
+                )
+            }.toSet() + setOf("com.openai.models.models.Model", "com.anthropic.models.models.ModelInfo")
 
     private val HTTP_CLIENT_PACKAGES =
         arrayOf(
@@ -139,6 +182,11 @@ object AdapterRules {
             "retrofit2..",
             "com.openai..",
             "com.anthropic..",
+            "com.google.genai..",
+            // Spring AI's own SDK client builders create unguarded OkHttp clients (ADR-0040).
+            "org.springframework.ai.openai.setup..",
+            "org.springframework.ai.openai.http..",
+            "org.springframework.ai.anthropic.http..",
             "org.jsoup..",
             "org.springframework.web.client..",
             "org.springframework.web.reactive.function.client..",
@@ -164,6 +212,7 @@ object AdapterRules {
             "java.nio.channels.DatagramChannel",
             "javax.net.SocketFactory",
             "javax.net.ssl.SSLSocketFactory",
+            "org.springframework.ai.anthropic.AnthropicSetup",
         )
 
     private fun areOutsideTheNetModule(): DescribedPredicate<JavaClass> =
@@ -172,6 +221,28 @@ object AdapterRules {
             val inModule = javaClass.source.map { NET_MODULE_OUTPUT in it.uri.toString() }.orElse(false)
             !(inPackage && inModule)
         }
+
+    private fun notUseHttpClients(): ArchCondition<JavaClass> =
+        object : ArchCondition<JavaClass>("not use HTTP clients, sockets or URLs") {
+            override fun check(
+                item: JavaClass,
+                events: ConditionEvents,
+            ) {
+                item.directDependenciesFromSelf
+                    .filter { isHttpClient().test(it.targetClass) && !isAllowedSdkUse(item, it.targetClass) }
+                    .forEach { events.add(SimpleConditionEvent.violated(it, it.description)) }
+            }
+        }
+
+    /** Both the package and the `adapters/ai` module, like the net exemption, and a named type. */
+    private fun isAllowedSdkUse(
+        origin: JavaClass,
+        target: JavaClass,
+    ): Boolean {
+        val inPackage = origin.packageName == AI_ADAPTER || origin.packageName.startsWith("$AI_ADAPTER.")
+        val inModule = origin.source.map { AI_MODULE_OUTPUT in it.uri.toString() }.orElse(false)
+        return inPackage && inModule && target.name in AI_ADAPTER_SDK_TYPES
+    }
 
     private fun isHttpClient(): DescribedPredicate<JavaClass> =
         DescribedPredicate.describe("HTTP clients, sockets or URLs") { javaClass ->
@@ -191,6 +262,23 @@ object AdapterRules {
             val target = call.target
             val takesUrl = target.rawParameterTypes.any { it.name == "java.net.URL" }
             takesUrl && target.owner.name in setOf("javax.imageio.ImageIO", "kotlin.io.TextStreamsKt")
+        }
+
+    /**
+     * The vendor SDKs' `fromEnv()` reads keys, base URLs, custom headers and log levels from
+     * environment variables and system properties (`OPENAI_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`, ...).
+     * Jofi's providers come only from the user's configuration, so nothing may call it (ADR-0040).
+     */
+    val noAiSdkReadsTheEnvironment: ArchRule =
+        noClasses()
+            .should()
+            .callMethodWhere(readsSdkEnvironment())
+            .because("AI provider settings come from the user's configuration, never from the environment")
+
+    private fun readsSdkEnvironment(): DescribedPredicate<JavaMethodCall> =
+        DescribedPredicate.describe("an AI SDK's fromEnv()") { call ->
+            val owner = call.target.owner.name
+            call.target.name == "fromEnv" && (owner.startsWith("com.openai.") || owner.startsWith("com.anthropic."))
         }
 
     private fun isTheProviderPort(): DescribedPredicate<JavaClass> =

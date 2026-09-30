@@ -15,6 +15,7 @@ dependencies {
     testImplementation(project(":adapters:net"))
     testImplementation(project(":adapters:crypto"))
     testImplementation(project(":adapters:jobs"))
+    testImplementation(project(":adapters:ai"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))
@@ -27,6 +28,8 @@ dependencies {
     // Spring MVC annotations for the known-bad controller fixtures of the confirmation rules (ADR-0039);
     // already on the runtime classpath through bootstrap, version from the Boot BOM.
     testImplementation(libs.spring.web)
+    // Fixtures for the AI adapter's SDK exemption (AdapterRulesFixtureTest).
+    testImplementation(libs.openai.java.core)
 }
 
 tasks.withType<Test>().configureEach {
