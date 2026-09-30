@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
-/** The provider privacy info for the setup wizard (#138, ADR-0044). */
+/** The provider privacy info for the setup wizard (#138, ADR-0045). */
 @Configuration(proxyBeanMethods = false)
 class ProviderPrivacyConfiguration {
     /** Reads the dated provider privacy file once at startup; a broken file stops the app. */
