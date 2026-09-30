@@ -34,15 +34,23 @@ and a CI job that compares it with the base branch.
   stale; a contract change the frontend does not follow is a `tsc` error in `pnpm check`.
   Docs: https://orval.dev/docs/reference/configuration/output
 - **One error schema:** every error is RFC 9457 problem details (`spring.mvc.problemdetails.enabled`
-  for framework errors, plus a lowest-precedence catch-all advice that answers 500 without internal
-  details, so nothing falls through to Spring Boot's differently shaped `/error` JSON).
+  for framework errors, plus a lowest-precedence catch-all advice, so nothing falls through to
+  Spring Boot's differently shaped `/error` JSON; it keeps the status of `ErrorResponse` and
+  `@ResponseStatus` exceptions and answers everything else with a 500 without internal details.
+  Spring Security's access/authentication exceptions must be rethrown there once #16 adds it.
   The contract declares a `ProblemDetail` schema and a `default` `application/problem+json`
   response on every operation; web adapters map sealed failure results to `ProblemDetail`.
   The client throws `ApiProblemError` carrying it.
 - **Breaking changes:** the `api-breaking-changes` CI job runs oasdiff 1.32.1 (release binary,
-  SHA-256 pinned) against the base branch's spec and fails on `ERR`. The only override is a line
-  in `.github/oasdiff/breaking-changes-allowed.txt` (`--err-ignore`), a protected path that Lucas
-  must approve. The GitHub Action is not used because it uploads specs to oasdiff.com by default.
+  SHA-256 pinned) against the base branch's spec and fails on `ERR`. The only override is an
+  entry in `.github/oasdiff/breaking-changes-allowed.txt` (`--err-ignore`, comment lines stripped,
+  since oasdiff treats every line as a rule). The job reads that file from the **base** branch, so
+  a PR cannot approve its own break: Lucas lands the entry on main first (a protected path), then
+  the breaking PR deletes it. A PR that changes the contract while entries remain fails, and so
+  does a push to main that changes the contract with entries left. The job's own definition
+  (`.github/workflows/ci.yml`) is only covered by the protected-path review of `.github/`: a PR
+  could weaken the job itself, which is why `.github/` is never auto-merged. The GitHub Action is
+  not used because it uploads specs to oasdiff.com by default.
   Docs: https://github.com/oasdiff/oasdiff/blob/main/docs/BREAKING-CHANGES.md
 
 ## Consequences

@@ -15,7 +15,7 @@ Spec: `docs/spec/04-tech-stack-proposal.md` (3.4, 4.5, 4.6, 4.6a, 4.8a, 4.10) an
 | Command | What it does |
 |---|---|
 | `pnpm install` | Install (lockfile committed; `minimumReleaseAge` 7 days, also re-checked for every lockfile entry; build scripts blocked unless allowlisted) |
-| `pnpm dev` | Dev server on http://localhost:5173 |
+| `pnpm dev` | Generate the API client (`predev`), then the dev server on http://localhost:5173 |
 | `pnpm build` / `pnpm preview` | Production build / serve it on :4173 |
 | `pnpm lint` | Biome lint + format check (a11y rules, import rules, token plugin) |
 | `pnpm format` | Biome autofix + format |

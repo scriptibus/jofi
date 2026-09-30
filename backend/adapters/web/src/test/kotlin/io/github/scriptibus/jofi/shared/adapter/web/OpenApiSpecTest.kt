@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
@@ -93,13 +94,15 @@ class OpenApiSpecTest(
             .bodyJson()
 
     private fun renderSpec(): String {
-        val body =
+        val response =
             mvc
                 .get()
                 .uri(API_DOCS)
                 .exchange()
                 .response
-                .getContentAsString(StandardCharsets.UTF_8)
+        // Never compare or write an error page as the contract.
+        response.status shouldBe HttpStatus.OK.value()
+        val body = response.getContentAsString(StandardCharsets.UTF_8)
         return body.replace("\r\n", "\n").trimEnd() + "\n"
     }
 

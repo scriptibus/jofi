@@ -9,6 +9,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "predev": "pnpm api",
     "dev": "vite",
     "build": "pnpm api && vite build",
     "preview": "vite preview",

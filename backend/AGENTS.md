@@ -150,17 +150,21 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
 - **Errors are RFC 9457 problem details**, the one error schema (`ProblemDetail`, declared as the
   `default` response of every operation). `spring.mvc.problemdetails.enabled` turns framework
   errors into `application/problem+json`; `shared.adapter.web.UnexpectedErrorAdvice` (lowest
-  precedence) turns any other exception into a 500 problem without internal details. The use case returns a sealed result; the controller
-  maps its failure cases to a `ProblemDetail` and hands it to Spring as an `ErrorResponse`, so the
-  success return type (and its schema in the contract) stays typed:
+  precedence) answers everything else: an `ErrorResponse` keeps its problem, an exception annotated
+  with `@ResponseStatus` keeps that status, any other exception is a 500 without internal details.
+  (When Spring Security arrives, #16, the advice must rethrow its access/authentication exceptions.)
+  The use case returns a sealed result; the controller maps its failure cases to a `ProblemDetail`
+  and hands it to Spring as an `ErrorResponse`, so the success return type (and its schema in the contract) stays typed:
   `is NotFound -> throw ErrorResponseException(HttpStatus.NOT_FOUND, ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "..."), null)`.
   Set a `type` URI `urn:jofi:problem:<context>:<code>` when clients must tell cases apart. The
   exception never leaves the web adapter (ports still return sealed results). No internal details
   (stack traces, SQL, personal data) in `detail`.
 - Breaking changes (removed paths or fields, new required inputs, narrowed types) fail the
   `api-breaking-changes` CI job (oasdiff against the base branch). Prefer additive changes. The
-  only override is a line Lucas adds to `.github/oasdiff/breaking-changes-allowed.txt`; agents
-  never add one, they explain the break in the PR and ask.
+  only override is an entry in `.github/oasdiff/breaking-changes-allowed.txt` **on main**: the job
+  reads the file from the PR's base branch, so Lucas lands the approval first and the breaking PR
+  then deletes the entry (CI fails a contract change that leaves entries behind). Agents never add
+  an entry; they explain the break in the PR and ask.
 
 ## Testing expectations
 

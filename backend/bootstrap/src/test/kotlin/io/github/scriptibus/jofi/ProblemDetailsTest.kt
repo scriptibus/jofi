@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester
 import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 
@@ -85,6 +86,21 @@ class ProblemDetailsTest(
             .isLenientlyEqualTo("""{"status":500,"detail":"Unexpected server error"}""")
     }
 
+    @Test
+    fun `an exception with a declared status keeps it as problem details`() {
+        mvc
+            .get()
+            .uri("/api/test/conflict")
+            .assertThat()
+            .hasStatus(HttpStatus.CONFLICT)
+            .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+            .bodyJson()
+            .isLenientlyEqualTo("""{"status":409,"detail":"Already exists"}""")
+    }
+
+    @ResponseStatus(HttpStatus.CONFLICT, reason = "Already exists")
+    class ConflictException : RuntimeException("internal message")
+
     /** What a use case returns: failures are values, not exceptions. */
     sealed interface ThingResult {
         data class Found(
@@ -112,6 +128,9 @@ class ProblemDetailsTest(
                 is ThingResult.Found -> ThingResponse(result.name)
                 is ThingResult.NotFound -> throw notFound(result)
             }
+
+        @GetMapping("/api/test/conflict")
+        fun conflict(): ThingResponse = throw ConflictException()
 
         @GetMapping("/api/test/explode")
         fun explode(): ThingResponse = error("secret internals")
