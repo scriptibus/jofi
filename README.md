@@ -24,6 +24,12 @@ your own knowledge base, tracks every application to the offer, and trains you f
 - [Architecture decisions](docs/adr/README.md) · [Threat model](docs/threat-model.md)
 - [Rules for contributors and coding agents](AGENTS.md)
 
+## Development
+
+The backend lives in `backend/` (Kotlin, Spring Boot, Gradle), the frontend in `frontend/` (React, TypeScript,
+pnpm). `cd backend && ./gradlew check` and `cd frontend && pnpm check` run what CI runs; see the command table
+in [AGENTS.md](AGENTS.md#9-commands).
+
 ## Contributing
 
 Jofi is mostly built by coding agents working on one issue each, reviewed by CI, review lenses and a human.
