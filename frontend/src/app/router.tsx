@@ -35,6 +35,8 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { parseSharedContent, SharePage } from "./pages/SharePage";
 import { NotFoundPage, PendingPage, RouteErrorPage } from "./pages/StatusPages";
 import { AppShell } from "./shell/AppShell";
+import { EditTaskPage, NewTaskPage } from "./tasks/TaskEditPages";
+import { TasksPage } from "./tasks/TasksPage";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -169,7 +171,25 @@ const editApplicationRoute = createRoute({
   component: EditApplicationPage,
 });
 
-const tasksRoute = placeholder("tasks", m.nav_tasks, m.tasks_empty);
+// Tasks (spec §10.2): the grouped list with quick add, complete and delete; create and edit with all details.
+const tasksRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "tasks",
+  component: TasksPage,
+});
+
+const newTaskRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "tasks/new",
+  component: NewTaskPage,
+});
+
+const editTaskRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "tasks/$taskId/edit",
+  component: EditTaskPage,
+});
+
 const chatRoute = placeholder("chat", m.nav_chat, m.chat_empty);
 
 // Companies (spec §5): list with search and filter, create, detail, edit.
@@ -275,6 +295,8 @@ export const routeTree = rootRoute.addChildren([
     contactRoute,
     editContactRoute,
     tasksRoute,
+    newTaskRoute,
+    editTaskRoute,
     chatRoute,
     settingsRoute,
     setupRoute,
