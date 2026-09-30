@@ -82,7 +82,10 @@ class CompaniesConfiguration {
         clock: Clock,
     ): CompanyAudit = CompanyAudit(changelog, transactions, clock)
 
-    /** What every company mutation writes with: the changelog, in one transaction, at the clock's time. */
+    /**
+     * What every company and contact mutation writes with: the changelog, in one transaction, at the
+     * clock's time.
+     */
     class CompanyAudit(
         val changelog: ChangelogPort,
         val transactions: TransactionPort,

@@ -151,8 +151,8 @@ The generator lives in the `codegen` source set and has its own locked classpath
     any other failure is a `StorageFailure`.
 - `CompanyRepository` (`CompanyRepositoryPort`, #88): `update` stores only if the stored `version` is one
   below the new one (`VersionConflict` otherwise, `NotFound` without the row); `delete` checks the
-  `Confirmed` proof (ADR-0039) and maps `application_company_fk` by name (the PSQL error's constraint) to
-  `HasApplications`; `findContactIds` lists the contacts the delete cascades to. `search` matches names
+  `Confirmed` proof (ADR-0039) and maps `application_company_fk` by name (the PSQL error's constraint, anywhere in the
+  cause chain since #89, so Spring's exception translation does not hide it) to `HasApplications`; `findContactIds` lists the contacts the delete cascades to. `search` matches names
   with pg_trgm (`%`, `<%`) or an escaped `ILIKE`, all served by `company_name_trgm_idx`, best match first
   (word similarity, similarity, name, id). `CompanyRepositoryTest` proves each of these.
 - `ApplicationCountsRepository` (`applications.adapter.persistence`) implements the companies context's
@@ -174,8 +174,22 @@ The generator lives in the `codegen` source set and has its own locked classpath
   delete's count and its cascade; `contact_name_trgm_idx` fuzzy name search.
 - Contacts are **third-party personal data**: user data **covered by export/import** (#26); never log a
   row, and changelog entries for contacts name the changed fields, never their values (the changelog is
-  append-only, and a deleted contact must leave nothing personal behind). `ContactRepositoryPort` maps a
-  violation of `contact_company_fk` on insert or update to `CompanyNotFound` by its name.
+  append-only, and a deleted contact must leave nothing personal behind). `ContactRepository`
+  (`ContactRepositoryPort`, #89) maps a violation of `contact_company_fk` on insert or update to
+  `CompanyNotFound` by its name, found anywhere in the cause chain (`violatedConstraint()`: the app's
+  `DSLContext` throws Spring's translated exceptions, plain jOOQ its own); `update` stores only on top of
+  the version one below; `delete` checks the `Confirmed` proof; `search` uses the same trigram matching as
+  companies (`NameQuery`, `contact_name_trgm_idx`) and loads the page's channels in one query.
+  `ContactRepositoryTest` proves each of these.
+- **Complete deletion (DSGVO Art. 17, spec §13)**: a confirmed contact delete removes the `contact` row;
+  `contact_channel` rows and `application_contact` links go with it by `ON DELETE CASCADE`. Nothing is
+  soft-deleted. What remains are changelog entries with ids only: the contact's own (field names at most,
+  never values) and one per linked application (`FieldChange("contacts", <contact id>, null)`). The pending
+  confirmation (in memory, ADR-0039) holds the name until it is redeemed or expires. Backups made before
+  the delete still contain the contact until the user deletes them.
+- `LinkedApplicationsRepository` (`applications.adapter.persistence`) implements the companies context's
+  `LinkedApplicationsPort` (`companies.application.port.spi`, ADR-0041): the applications linked to a
+  contact as `application` entity refs, over `application_contact_contact_idx`.
 - Foreign keys **to** `contact` from other contexts (ADR-0041): link-table rows (e.g. application links,
   #90) use `ON DELETE CASCADE`; an optional reference in an entity's own row (e.g. `task.contact_id`,
   #93) uses `ON DELETE SET NULL`; never `RESTRICT`/`NO ACTION`, which would block company deletes
