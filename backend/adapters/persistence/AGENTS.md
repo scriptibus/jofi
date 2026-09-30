@@ -177,6 +177,32 @@ The generator lives in the `codegen` source set and has its own locked classpath
 - Text columns never hold U+0000 (PostgreSQL `text` rejects it); the domain rejects it first, so a valid
   entity never fails to store.
 
+## `applications` tables (#76, ADR-0041)
+
+- `application` (spec §6.1): title, `company_id` (**`ON DELETE RESTRICT`**, `application_company_fk`, so a
+  company with applications cannot be deleted), location, remote share (percent), employment type,
+  seniority, deadline, how applied + portal notes, the pay band (`pay_min`/`pay_max` `numeric(12,2)`,
+  ISO 4217 `pay_currency`, `pay_period`, `pay_source` with `pay_estimate_basis`/`_confidence` exactly for
+  `ESTIMATED`), language & tone (BCP 47 `posting_language`/`application_language` as entered, a null
+  application language follows the posting's; `form_of_address`, `tone`), the decline/rejection reason
+  (category + text), the offer (`offer_*`, salary as amount + currency + period together), `unread`,
+  `want_score`/`fit_score` placeholders (`numeric(2,1)`, 0 to 5) and `version`. No status column: the
+  status pipeline and its history come with #77. Named check constraints mirror the domain, never
+  stricter: letter ranges are ASCII code points, the "at least one offer detail" rule and the 50-contact
+  limit stay in the domain. `ApplicationSchemaTest` proves every constraint, every limit, every enum
+  constant and the names. `application_company_idx` serves the company filter, counts and the RESTRICT
+  check; `application_title_trgm_idx` fuzzy title search; `application_unread_idx` the few unread rows.
+- `application_contact` (#90): links to contacts, PK `(application_id, contact_id)`, both foreign keys
+  `ON DELETE CASCADE` (`application_contact_application_fk`, `application_contact_contact_fk`), so deleting
+  a contact or its company unlinks it and is never blocked. `ApplicationContactSchemaTest` proves both
+  cascades and the RESTRICT on `company`. `application_contact_contact_idx` serves "applications per contact".
+- `ApplicationRepositoryPort` is implemented with the use cases (#82). Its `update` replaces the contact
+  links in the version-checked update; `setUnread` changes only the flag (no version); `delete` checks the
+  `Confirmed` proof. It maps `application_company_fk` to `CompanyNotFound` and
+  `application_contact_contact_fk` to `ContactNotFound` by name.
+- Portal notes, reasons and offer text are the user's free text: changelog entries name the changed
+  fields, never the text (#52). User data: **covered by export/import** (#26, #134).
+
 ## Changelog entity types
 
 `EntityRef.type` is stored in every changelog entry, so these names never change. Each is a constant on
@@ -188,6 +214,7 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 | `contact` | `companies.domain.Contact` | `ContactId.ENTITY_TYPE` |
 | `ai_provider` | `setup.domain.ProviderConfig` (also its models' capability corrections and refreshes) | `ProviderId.ENTITY_TYPE` |
 | `ai_model_assignment` | `setup.domain.ModelAssignment`, one entity per task (id = task name) | `ModelAssignment.ENTITY_TYPE` |
+| `application` | `applications.domain.Application` | `ApplicationId.ENTITY_TYPE` |
 
 ## Tests
 
