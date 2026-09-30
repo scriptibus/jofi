@@ -1,0 +1,17 @@
+// SPDX-FileCopyrightText: 2026 Jofi contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// Design tokens only: no raw colours and no Tailwind arbitrary values in TS/TSX.
+// Colours live in src/styles/tokens.css; use utilities such as bg-surface or text-muted.
+// Flags e.g. "bg-[#fff]", "text-[13px]", "hover:[color:red]", "p-(--x)", "#C98200", "rgb(0 0 0)".
+// Regex groups must be non-capturing: Grit treats capture groups as variables.
+language js
+
+or {
+  JsStringLiteralExpression(),
+  JsxString(),
+  JsTemplateChunkElement()
+} as $literal where {
+  $literal <: r"(?s).*(?:[0-9a-z]-\[|[a-z]:\[|-\(--|#[0-9a-fA-F]{3,8}(?:[^0-9a-zA-Z_]|$)|(?:rgba?|hsla?|oklch|oklab|lab|lch|color-mix)\().*",
+  register_diagnostic(span=$literal, message="Raw colour or Tailwind arbitrary value. Use a design token utility (see src/styles/tokens.css and frontend/AGENTS.md).")
+}

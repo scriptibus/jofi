@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# Claude Code
+.claude/worktrees/
+.claude/.cache/
+.claude/settings.local.json
+CLAUDE.local.md
+# Project instructions are shared (a global gitignore may hide them otherwise)
+!CLAUDE.md
+!**/CLAUDE.md
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Gradle / Kotlin / JVM
+.gradle/
+.kotlin/
+build/
+!**/src/**/build/
+*.class
+*.hprof
+
+# Node / frontend
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.vite/
+*.tsbuildinfo
+
+# IDEs and OS
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db

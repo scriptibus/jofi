@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+* text=auto eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jar binary
+**/gradle/verification-metadata.xml linguist-generated=true
+**/*.lockfile linguist-generated=true
+**/pnpm-lock.yaml linguist-generated=true

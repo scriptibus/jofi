@@ -1,0 +1,12 @@
+{
+  "licenses": {
+    "MIT-0": "MIT without the attribution clause; strictly more permissive than MIT. Currently dev-only (@csstools/* via jsdom).",
+    "Apache-2.0 WITH LLVM-exception": "Apache-2.0 plus the LLVM exception, which only grants extra permissions. Currently build-time only (@bytecodealliance/* via the Paraglide/inlang toolchain)."
+  },
+  "packages": {
+    "@lix-js/sdk-*": {
+      "license": "Unknown",
+      "reason": "Per-platform native binaries of @lix-js/sdk (MIT). Their package.json lacks a license field; the upstream repo github.com/opral/lix is MIT. Build-time only (Paraglide/inlang)."
+    }
+  }
+}
