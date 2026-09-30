@@ -107,6 +107,39 @@ for service in app worker db; do
   pass "${service}: ports [${host_ips:-none}], uid ${uid}, read-only root filesystem"
 done
 
+# Background jobs (ADR-0010, ADR-0038): only the worker runs a JobRunr background job server, `app`
+# registered the hourly session cleanup, and the worker runs it. JobRunr schedules the next run ahead of
+# time; moving it into the past stands in for downtime, so the worker must run it on its next poll.
+sql() {
+  compose exec -T db psql --no-psqlrc --username "${JOFI_DB_USERNAME:-jofi}" --dbname jofi --tuples-only --no-align \
+    --command "$1" | tr -d '[:space:]'
+}
+cleanup_jobs="SELECT count(*) FROM jobrunr_jobs WHERE recurringjobid = 'session-cleanup'"
+jobs_deadline=$((SECONDS + 120))
+until [[ "$(sql "${cleanup_jobs} AND state = 'SCHEDULED'")" == "1" ]]; do
+  ((SECONDS < jobs_deadline)) || fail "the worker did not schedule the session cleanup within 120s"
+  sleep 3
+done
+servers="$(sql "SELECT count(*) FROM jobrunr_backgroundjobservers")"
+[[ "${servers}" == "1" ]] || fail "expected exactly one background job server (the worker), found ${servers}"
+pass "only the worker runs background jobs; the recurring session cleanup is scheduled"
+sql "UPDATE jobrunr_jobs SET scheduledat = scheduledat - interval '2 hours' WHERE recurringjobid = 'session-cleanup' AND state = 'SCHEDULED'" >/dev/null
+until [[ "$(sql "${cleanup_jobs} AND state = 'SUCCEEDED'")" == "1" ]]; do
+  ((SECONDS < jobs_deadline + 60)) || fail "the worker did not run the overdue session cleanup"
+  sleep 3
+done
+pass "the worker ran the overdue session cleanup job"
+status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${base_url}/api/system/jobs")"
+[[ "${status}" == "401" ]] || fail "GET /api/system/jobs without a session returned ${status}, expected 401"
+pass "the job log API needs a session"
+# JobRunr's dashboard (port 8000) is off: nothing listens there in either container.
+for service in app worker; do
+  if compose exec -T "${service}" timeout 3 bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000' 2>/dev/null; then
+    fail "${service} listens on port 8000 (JobRunr dashboard)"
+  fi
+done
+pass "no JobRunr dashboard in app or worker"
+
 # Not reachable through a non-loopback address of this host.
 external_ip="$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+(\.[0-9]+){3}$' | grep -v '^127\.' | head -n 1 || true)"
 if [[ -n "${external_ip}" ]]; then

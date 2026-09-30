@@ -39,7 +39,7 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
-- `adapters/<kind>`: framework code (web, persistence, net, crypto, later ai, ...); depends on `application`.
+- `adapters/<kind>`: framework code (web, persistence, net, crypto, jobs, later ai, ...); depends on `application`.
   Adapters never depend on each other (one exemption: persistence adapters of every context use
   the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
@@ -79,7 +79,9 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | `ChangelogPort` | the audit trail of every mutation | `adapters/persistence` |
 | `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | the AI gateway (`setup.adapter.ai`, module `adapters/ai`, #20) |
 | `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (ADR-0034) |
-| `JobSchedulerPort` | background jobs (ids-only arguments) | `adapters/jobs` (#17) |
+| `JobSchedulerPort` | background jobs (ids-only arguments), recurring schedules with a random delay | `JobRunrJobSchedulerAdapter` (`adapters/jobs`, ADR-0038) |
+| `JobHandlerPort` | inbound: runs the jobs of one type in the worker; one `*JobAdapter` per type | `<context>.adapter.jobs` |
+| `JobLogPort` | the job log the user sees (status, attempts, failure reason code) | `JobRunrJobLogAdapter` (`adapters/jobs`) |
 | `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | `SecretRepository` (`adapters/persistence`) over `SecretCipherPort` (Tink, `adapters/crypto`), ADR-0035 |
 | `SecretCipherPort` | AES-GCM under the master keyset; **only secret stores use it** | `adapters/crypto` |
 | `TransactionPort` | one transaction around a mutation and its changelog entry; commit only accepted results | `adapters/persistence` |
@@ -127,6 +129,9 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
   (or `...Repository`). New adapter kinds get a new Gradle module under `adapters/` using
   `id("jofi.spring-conventions")`, added to `settings.gradle.kts` and to `bootstrap` and
   `architecture-tests` dependencies.
+- **A background job**: see `adapters/jobs/AGENTS.md` (job type in the domain, a use case, a
+  `*JobAdapter` implementing `JobHandlerPort` that returns `JobOutcome`; ids-only arguments; reason codes,
+  never messages). `app` enqueues through `JobSchedulerPort`; only the `worker` profile runs jobs.
 - **An outbound HTTP call**: inject `OutboundHttpPort` (fetches of user/posting/page URLs). The AI
   adapter gets the guarded `aiHttpRequestFactory` bean instead. Never create an HTTP client
   elsewhere; see `adapters/net/AGENTS.md`.
@@ -233,5 +238,8 @@ with `jofi.postgresImage`. Build and smoke-test the stack from the repository ro
 - **`sun.misc.Unsafe` warning from protobuf** (via Tink): JDK 25 prints a one-time "terminally
   deprecated method" warning when protobuf first runs. It is a runtime notice from a dependency,
   not a deprecated API we call; it goes away when protobuf stops using `Unsafe`.
+- **`org.jobrunr:jobrunr-bom` excluded** from every JobRunr dependency (ADR-0038): its Gradle metadata
+  would raise Jackson, logback, HikariCP, pgjdbc and more above the Spring Boot BOM. Keep the exclusion on
+  each JobRunr dependency when adding one.
 - **licensee `allowDependency` for `org.reactivestreams:reactive-streams:1.0.4`** (via jOOQ ->
   `r2dbc-spi`): MIT-0, which the frontend already accepts as strictly more permissive than MIT.

@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import java.time.Duration
 import java.time.ZoneId
 import java.util.UUID
 
@@ -46,20 +47,35 @@ class JobTest {
     }
 
     @Test
+    fun `a cron schedule may delay each run by up to an hour`() {
+        CronSchedule("0 7 * * *", berlin).maxRandomDelay shouldBe Duration.ZERO
+        CronSchedule("0 7 * * *", berlin, Duration.ofMinutes(15)).maxRandomDelay shouldBe Duration.ofMinutes(15)
+        CronSchedule("0 7 * * *", berlin, CronSchedule.MAX_RANDOM_DELAY).maxRandomDelay shouldBe Duration.ofHours(1)
+        shouldThrow<IllegalArgumentException> { CronSchedule("0 7 * * *", berlin, Duration.ofSeconds(-1)) }
+        shouldThrow<IllegalArgumentException> { CronSchedule("0 7 * * *", berlin, Duration.ofMinutes(61)) }
+    }
+
+    @Test
     fun `every scheduler outcome is a value`() {
         val id = JobId(UUID.fromString("00000000-0000-0000-0000-000000000001"))
         val results: List<JobResult<JobId>> =
-            listOf(JobResult.Success(id), JobResult.NotFound, JobResult.StorageFailure("enqueue"))
+            listOf(
+                JobResult.Success(id),
+                JobResult.NotFound,
+                JobResult.InvalidSchedule,
+                JobResult.StorageFailure("enqueue"),
+            )
 
         val described =
             results.map {
                 when (it) {
                     is JobResult.Success -> it.value.value.toString()
                     JobResult.NotFound -> "not found"
+                    JobResult.InvalidSchedule -> "invalid schedule"
                     is JobResult.StorageFailure -> it.operation
                 }
             }
 
-        described shouldBe listOf("00000000-0000-0000-0000-000000000001", "not found", "enqueue")
+        described shouldBe listOf("00000000-0000-0000-0000-000000000001", "not found", "invalid schedule", "enqueue")
     }
 }

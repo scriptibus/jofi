@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The `worker` container (compose.yaml: same image, SPRING_PROFILES_ACTIVE=worker, no published
+# port): runs the JobRunr background job server (ADR-0010, ADR-0038). The startup checks of `app`
+# (master keyset, password reset, setup token) and the registration of schedules are off here.
+jobrunr:
+  background-job-server:
+    enabled: true
+    # A single user's jobs: a few at a time keep memory, provider rate limits and the AI budget calm.
+    worker-count: 4

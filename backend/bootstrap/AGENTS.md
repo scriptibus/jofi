@@ -36,5 +36,10 @@ Rules:
   the setup token. `StartupSafetyTest` starts the app on its own databases to prove each case, that
   the port stays closed while the checks run, and that the AOT training run (`spring.context.exit`)
   exits without running them.
+- Background jobs (ADR-0038): `shared.config.JobsConfiguration` replaces JobRunr's storage provider and
+  mappers (Flyway tables, class allowlist). `application.yaml` keeps JobRunr's background job server and
+  dashboard off and its telemetry disabled; `application-worker.yaml` (profile `worker`, compose's `worker`
+  service) turns the server on. `system.config.HousekeepingStartup` (a runner, never under `worker`)
+  registers the recurring housekeeping jobs. `BackgroundJobsTest` starts `app` and `worker` on one database.
 - `InMemoryLoginThrottleAdapter` (backoff counts) and `SpringSessionUserSessionsAdapter` (ending
   sessions) are framework-bound adapters here.
