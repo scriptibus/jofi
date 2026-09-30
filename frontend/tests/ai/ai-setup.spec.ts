@@ -156,8 +156,6 @@ test.describe("in German, dark, at phone width", () => {
     await page.getByRole("button", { name: "Anbieter hinzufügen" }).click();
     await expect(page.getByText("Gib den API-Schlüssel ein.")).toBeVisible();
     await page.getByLabel("API-Schlüssel").fill("e2e-not-a-real-key");
-    // The field's validity follows the value one render later; submit once the error is gone, as a user would.
-    await expect(page.getByLabel("API-Schlüssel")).not.toHaveAttribute("aria-invalid", "true");
     await page.getByRole("button", { name: "Anbieter hinzufügen" }).click();
     await expect(card(page, name).getByText(/API-Schlüssel gespeichert/)).toBeVisible();
     await expectNoA11yViolations(page);

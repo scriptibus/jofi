@@ -98,7 +98,11 @@ export function ProviderForm({ provider, onSaved, onCancel }: ProviderFormProps)
   const submit = (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFailure(null);
-    fieldErrors.set({});
+    // Checked here, not with each field's `validate`: errors go through `validationErrors`, which editing
+    // the field clears at once, so a corrected form always submits (native validity can lag a render).
+    const errors = clientErrors();
+    fieldErrors.set(errors);
+    if (Object.keys(errors).length > 0) return;
     const key = apiKey.trim() === "" ? null : apiKey;
     const url = compatible ? baseUrl.trim() : null;
     if (provider) {
@@ -109,6 +113,16 @@ export function ProviderForm({ provider, onSaved, onCancel }: ProviderFormProps)
     } else {
       create.mutate({ data: { kind, displayName, baseUrl: url, apiKey: key } }, { onSuccess, onError });
     }
+  };
+
+  const clientErrors = (): Record<string, string> => {
+    const errors: Record<string, string> = {};
+    if (displayName.trim() === "") errors.displayName = m.ai_violation_required();
+    const urlError = compatible ? baseUrlError(baseUrl) : null;
+    if (urlError) errors.baseUrl = urlError;
+    if (keyRequired && apiKey.trim() === "")
+      errors.apiKey = keyMustBeReentered ? m.ai_key_reenter() : m.ai_key_required();
+    return errors;
   };
 
   const keyDescription = keyMustBeReentered
@@ -141,7 +155,6 @@ export function ProviderForm({ provider, onSaved, onCancel }: ProviderFormProps)
           setNameEdited(true);
           setDisplayName(value);
         })}
-        validate={(value) => (value.trim() === "" ? m.ai_violation_required() : null)}
       />
       {compatible ? (
         <TextField
@@ -152,7 +165,6 @@ export function ProviderForm({ provider, onSaved, onCancel }: ProviderFormProps)
           description={m.ai_base_url_description()}
           value={baseUrl}
           onChange={fieldErrors.clearing("baseUrl", setBaseUrl)}
-          validate={baseUrlError}
         />
       ) : null}
       {url.status === "ok" && url.insecure ? (
@@ -169,10 +181,6 @@ export function ProviderForm({ provider, onSaved, onCancel }: ProviderFormProps)
         description={keyDescription}
         value={apiKey}
         onChange={fieldErrors.clearing("apiKey", setApiKey)}
-        validate={(value) => {
-          if (!keyRequired || value.trim() !== "") return null;
-          return keyMustBeReentered ? m.ai_key_reenter() : m.ai_key_required();
-        }}
       />
       <div className="flex flex-wrap justify-end gap-3">
         {onCancel ? (
