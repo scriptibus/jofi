@@ -7,13 +7,25 @@ import type { ProblemDetail } from "./generated/jofi";
 export class ApiProblemError<P extends ProblemDetail = ProblemDetail> extends Error {
   readonly status: number;
   readonly problem: P;
+  /** Seconds to wait before trying again (`Retry-After`, e.g. on a throttled login); absent if not sent. */
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(status: number, problem: P) {
+  constructor(status: number, problem: P, retryAfterSeconds?: number) {
     super(problem.detail ?? problem.title ?? `HTTP ${status}`);
     this.name = "ApiProblemError";
     this.status = status;
     this.problem = problem;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
+}
+
+/** `Retry-After` as whole seconds from now: either delay-seconds or an HTTP date (RFC 9110, 10.2.3). */
+export function parseRetryAfter(value: string | null, now: number = Date.now()): number | undefined {
+  if (value === null || value.trim() === "") return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const date = Date.parse(trimmed);
+  return Number.isNaN(date) ? undefined : Math.max(0, Math.ceil((date - now) / 1000));
 }
 
 /** The error type of every generated hook (orval picks up this export from the mutator). */
@@ -56,7 +68,8 @@ function withCsrf(init: RequestInit | undefined): RequestInit | undefined {
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(new URL(path, window.location.origin), withCsrf(init));
   if (!response.ok) {
-    throw new ApiProblemError(response.status, await readProblem(response));
+    const retryAfter = parseRetryAfter(response.headers.get("Retry-After"));
+    throw new ApiProblemError(response.status, await readProblem(response), retryAfter);
   }
   if (response.status === 204) {
     return undefined as T;

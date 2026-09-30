@@ -131,6 +131,7 @@ A PR is ready for review only when all of these hold:
 Flyway migrations · `backend/adapters/net` · the AI privacy filter in `backend/adapters/ai` · auth/crypto ·
 export/import · `.github/` · `.review/` · `.claude/` · Dockerfiles and compose files ·
 Gradle/pnpm dependency files (except Renovate patch/minor) · `AGENTS.md` / `CLAUDE.md` files.
+The exact patterns are in `.review/protected-paths.json`, which the auto-merge gate enforces.
 
 Agents must never weaken their own reviewers: don't edit lenses, workflows, hooks or these rules
 as a side effect of a feature PR.

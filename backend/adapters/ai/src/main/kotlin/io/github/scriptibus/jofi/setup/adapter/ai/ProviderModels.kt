@@ -53,7 +53,7 @@ internal class EmbeddingCall(
 }
 
 /**
- * Builds the vendor SDK clients and Spring AI models for one call to one provider (ADR-0037). The
+ * Builds the vendor SDK clients and Spring AI models for one call to one provider (ADR-0039). The
  * SDK clients always get a fresh guarded transport from `adapters/net` ([openAiTransports],
  * [anthropicTransports]), so Spring AI never builds a client of its own and each call can abort its
  * own exchanges. SDK retries are off (the caller decides about retries from the sealed result), SDK

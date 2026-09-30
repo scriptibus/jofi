@@ -8,6 +8,14 @@
       "license": "Python-2.0",
       "reason": "PSF License 2.0 (permissive, GPL-compatible per the FSF). JavaScript port of Python's argparse, via js-yaml via orval. Build-time only (API client generation), never shipped."
     },
+    "caniuse-lite": {
+      "license": "CC-BY-4.0",
+      "reason": "Browser support data (CC BY 4.0, attribution only), read by browserslist via Babel via workbox-build via vite-plugin-pwa while the service worker is built. Build-time only, never shipped."
+    },
+    "isbot": {
+      "license": "Unlicense",
+      "reason": "Public-domain dedication (GPL-compatible per the FSF). Dependency of @tanstack/react-router for server-side rendering, which Jofi does not use."
+    },
     "@lix-js/sdk-*": {
       "license": "Unknown",
       "reason": "Per-platform native binaries of @lix-js/sdk (MIT). Their package.json lacks a license field; the upstream repo github.com/opral/lix is MIT. Build-time only (Paraglide/inlang)."

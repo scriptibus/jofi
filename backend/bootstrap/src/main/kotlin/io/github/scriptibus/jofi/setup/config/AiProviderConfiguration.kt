@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
 /**
- * The Spring AI provider adapter (ADR-0037). Spring AI itself is not auto-configured (no starter on
+ * The Spring AI provider adapter (ADR-0039). Spring AI itself is not auto-configured (no starter on
  * the classpath): every model is built per call over the guarded SDK transports. The AI gateway
  * (#20) is the only user of `AiProviderPort`; this bean is typed as the adapter because nothing
  * outside `setup.adapter.ai` may name that port (architecture test).
@@ -23,7 +23,7 @@ import java.time.Clock
 class AiProviderConfiguration {
     @Bean
     fun providerModels(aiTransport: GuardedAiTransport): ProviderModels =
-        // A fresh bridge per call, so each call can abort what it leaves open (ADR-0037).
+        // A fresh bridge per call, so each call can abort what it leaves open (ADR-0039).
         ProviderModels(aiTransport::openAiBridge, aiTransport::anthropicBridge)
 
     @Bean

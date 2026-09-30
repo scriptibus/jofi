@@ -66,7 +66,7 @@ class AiResponse internal constructor(
 }
 
 /**
- * The only transport of the AI vendor SDKs (ADR-0034, ADR-0037): Apache HttpClient with the SSRF
+ * The only transport of the AI vendor SDKs (ADR-0034, ADR-0039): Apache HttpClient with the SSRF
  * guard, whose allowlist holds the configured AI endpoints. No redirects, cookies, retries or system
  * proxies; response sizes are not capped (completions stream). The SDK bridges
  * ([OpenAiSdkHttpClient], [AnthropicSdkHttpClient]) translate their request types into [AiRequest].

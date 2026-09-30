@@ -77,7 +77,7 @@ internal object ProviderFailures {
 
     /**
      * A class the provider stack needs is missing or incompatible, e.g. Spring AI fell back to its
-     * own OkHttp client, which is excluded on purpose (ADR-0037). A deployment bug, not a provider
+     * own OkHttp client, which is excluded on purpose (ADR-0039). A deployment bug, not a provider
      * answer: logged loudly (class name only), reported as unavailable, never thrown across the port.
      */
     fun brokenClasspath(failure: LinkageError): AiResult<Nothing> {

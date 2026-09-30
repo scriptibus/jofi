@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-29
 - Source: docs/spec/04-tech-stack-proposal.md §3, §3.3; refined by ADR-0032 (gateway and provider port)
-  and ADR-0037 (provider clients and transport)
+  and ADR-0039 (provider clients and transport)
 
 ## Context
 

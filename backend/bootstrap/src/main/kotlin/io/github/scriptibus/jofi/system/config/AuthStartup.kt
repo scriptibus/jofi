@@ -12,27 +12,51 @@ import io.github.scriptibus.jofi.system.domain.MasterKeyCheck.Reason
 import io.github.scriptibus.jofi.system.domain.PasswordResetResult
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.springframework.boot.ApplicationArguments
-import org.springframework.boot.ApplicationRunner
+import org.springframework.boot.web.server.context.WebServerApplicationContext
+import org.springframework.context.SmartLifecycle
 import org.springframework.core.env.Environment
 
 /**
  * Startup order (ADR-0035): check the master keyset (refuse to start rather than lose secrets), apply
  * a requested password reset, then issue or remove the setup token.
+ *
+ * A [SmartLifecycle] in the phase just before the web server's: lifecycle beans start after the
+ * context refresh, so the image build's AOT training run (`spring.context.exit=onRefresh`) exits
+ * before this runs, and the server binds its port only after the checks passed. A failure here stops
+ * the startup before any request is answered.
  */
 class AuthStartup(
     private val verifyMasterKey: VerifyMasterKeyUseCase,
     private val resetPassword: ResetPasswordUseCase,
     private val prepareFirstRun: PrepareFirstRunUseCase,
     private val environment: Environment,
-) : ApplicationRunner {
-    override fun run(args: ApplicationArguments) {
-        checkMasterKey()
-        reset()
-        if (prepareFirstRun.execute() == AuthSideEffectResult.Failure) {
-            logger.error("Preparing first run failed; see the errors above")
+) : SmartLifecycle {
+    @Volatile
+    private var running = false
+
+    @Volatile
+    private var checked = false
+
+    override fun start() {
+        // A context restart (stop, then start) must not apply the reset or touch the keyset again.
+        if (!checked) {
+            checkMasterKey()
+            reset()
+            if (prepareFirstRun.execute() == AuthSideEffectResult.Failure) {
+                logger.error("Preparing first run failed; see the errors above")
+            }
+            checked = true
         }
+        running = true
     }
+
+    override fun stop() {
+        running = false
+    }
+
+    override fun isRunning(): Boolean = running
+
+    override fun getPhase(): Int = PHASE
 
     private fun checkMasterKey() {
         val acceptLoss = flag("jofi.secrets.accept-loss")
@@ -98,7 +122,10 @@ class AuthStartup(
 
     private fun flag(name: String): Boolean = environment.getProperty(name, Boolean::class.java, false)
 
-    private companion object {
-        val logger: Logger = LoggerFactory.getLogger(AuthStartup::class.java)
+    companion object {
+        /** Lower phases start first: this one starts immediately before the web server binds its port. */
+        const val PHASE: Int = WebServerApplicationContext.START_STOP_LIFECYCLE_PHASE - 1
+
+        private val logger: Logger = LoggerFactory.getLogger(AuthStartup::class.java)
     }
 }

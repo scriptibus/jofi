@@ -1,0 +1,175 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Applies the auto-merge gate (proposal §4.4, ADR 0023, .review/README.md).
+# workflow_run always runs main's definition of this file, so a PR can't change the job that holds the
+# write token, even if it edits lenses.yml or adds its own workflow named "lenses". Everything that comes
+# from the PR's run (the decision artifact) is untrusted data: it is size-limited, validated strictly by
+# main's .review/gate.py and never executed, and the PR state and protected paths are checked again here.
+# PR numbers come from the run payload (same-repository PRs only), so no other PR's decision is touched.
+# The commit status `merge-gate` (a required check) is set only after this workflow has armed or disarmed
+# auto-merge for that exact commit, so nothing merges before the gate has decided on it.
+name: merge-gate
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] no PR code is checked out or run; see header
+    workflows: [lenses]
+    types: [requested, completed]
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash # -eo pipefail
+
+concurrency:
+  group: merge-gate-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  # A new lenses run means a new commit, a new review or a new base: disarm auto-merge at once.
+  disarm:
+    if: github.event.action == 'requested' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # disabling auto-merge requires it
+      pull-requests: write # disabling auto-merge
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+        run: |
+          set -euo pipefail
+          prs=$(jq -r '.[] | .number | select(type == "number")' <<<"$RUN_PRS")
+          if [ -z "$prs" ]; then
+            # The payload lists only same-repository PRs; fall back to the (sometimes lagging) commits API.
+            prs=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" | jq -r --arg sha "$HEAD_SHA" --arg repo "$REPO" \
+              '.[] | select(.state == "open" and .head.sha == $sha and .head.repo.full_name == $repo) | .number')
+          fi
+          if [ -z "$prs" ]; then
+            if [ "$HEAD_REPO" != "$REPO" ]; then
+              echo "Fork PR: the gate never arms it, nothing to disarm."
+              exit 0
+            fi
+            echo "::error::No PR found for $HEAD_SHA, so auto-merge could not be disarmed."
+            exit 1
+          fi
+          for pr in $prs; do
+            if [ "$(gh pr view "$pr" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')" = "true" ]; then
+              gh pr merge "$pr" --repo "$REPO" --disable-auto
+            fi
+          done
+
+  apply:
+    if: github.event.action == 'completed' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read # download the decision artifact of the lenses run
+      contents: write # enabling auto-merge requires it
+      pull-requests: write # labels, comment, auto-merge
+      statuses: write # the `merge-gate` commit status
+    steps:
+      # Download before checking out, into $RUNNER_TEMP: the checkout then replaces the workspace, so even a
+      # zip entry that escaped its directory could not change the gate code that runs afterwards.
+      - name: Download the gate decision (untrusted)
+        # Only from the real lenses workflow; a missing or invalid decision means needs-human.
+        if: github.event.workflow_run.path == '.github/workflows/lenses.yml'
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: merge-gate
+          path: ${{ runner.temp }}/untrusted
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false # default branch: main's gate and protected-paths.json
+          sparse-checkout: .review
+      - name: Verify and apply
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/gate"
+          mkdir -p "$dir"
+          disarm() {
+            if [ "$(gh pr view "$1" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')" = "true" ]; then
+              gh pr merge "$1" --repo "$REPO" --disable-auto
+            fi
+          }
+          set_label() { # $1 = PR, $2 = label to set, $3 = label to remove
+            gh api -X POST "repos/$REPO/issues/$1/labels" -f "labels[]=$2" > /dev/null
+            gh api -X DELETE "repos/$REPO/issues/$1/labels/$3" > /dev/null 2>&1 || true # absent is fine
+          }
+          upsert_comment() { # $1 = PR, $2 = body; only ever edits our own comment
+            local ids id
+            ids=$(gh api --paginate "repos/$REPO/issues/$1/comments?per_page=100" \
+              --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- jofi-merge-gate -->"))) | .id')
+            id="${ids%%$'\n'*}"
+            if [ -n "$id" ]; then
+              gh api -X PATCH "repos/$REPO/issues/comments/$id" -f "body=$2" > /dev/null
+            else
+              gh api -X POST "repos/$REPO/issues/$1/comments" -f "body=$2" > /dev/null
+            fi
+          }
+          # "<number> <base ref>" per PR, from the run payload (same-repository PRs only).
+          targets=$(jq -r '.[] | select(.number | type == "number") | "\(.number) \(.base.ref)"' <<<"$RUN_PRS")
+          if [ -z "$targets" ] && [ "$HEAD_REPO" = "$REPO" ]; then
+            targets=$(gh api "repos/$REPO/commits/$HEAD_SHA/pulls" | jq -r --arg sha "$HEAD_SHA" --arg repo "$REPO" \
+              '.[] | select(.state == "open" and .head.sha == $sha and .head.repo.full_name == $repo) | "\(.number) \(.base.ref)"')
+          fi
+          if [ -z "$targets" ]; then
+            if [ "$HEAD_REPO" != "$REPO" ]; then
+              echo "Fork PR: the gate never arms it."
+              exit 0
+            fi
+            echo "::error::No PR found for $HEAD_SHA; merge-gate stays unset, so nothing merges."
+            exit 1
+          fi
+          decisions=""
+          while read -r -u 3 pr base_ref; do
+            gh api "repos/$REPO/pulls/$pr" > "$dir/pr.json"
+            if [ "$(jq -r .draft "$dir/pr.json")" != "false" ]; then
+              disarm "$pr" # lenses skip drafts; only make sure nothing stays armed
+              decisions+="#$pr draft "
+              continue
+            fi
+            gh api --paginate "repos/$REPO/pulls/$pr/files?per_page=100" \
+              --jq '[.[] | .filename, (.previous_filename // empty)]' | jq -s 'add // []' > "$dir/files.json"
+            decision=$(python3 .review/gate.py verify --pr "$dir/pr.json" --files "$dir/files.json" \
+              --artifact "$RUNNER_TEMP/untrusted/decision.json" --head-sha "$HEAD_SHA" \
+              --run-base-ref "$base_ref" --default-branch "$DEFAULT_BRANCH" --comment "$dir/comment.md")
+            comment=$(cat "$dir/comment.md")
+            if [ "$decision" = "auto-merge" ] \
+              && gh pr merge "$pr" --repo "$REPO" --auto --squash --match-head-commit "$HEAD_SHA"; then
+              set_label "$pr" auto-merge needs-human
+            else
+              if [ "$decision" = "auto-merge" ]; then
+                echo "::warning::The gate passed, but CI could not enable auto-merge on #$pr. Falling back to needs-human."
+                comment+=$'\n\n'"CI could not enable auto-merge ([run]($RUN_URL)), so Lucas merges this PR by hand."
+                decision="needs-human"
+              fi
+              # Also disarms auto-merge armed earlier (an older commit, Renovate or by hand).
+              disarm "$pr"
+              set_label "$pr" needs-human auto-merge
+            fi
+            upsert_comment "$pr" "$comment"
+            cat "$dir/comment.md" >> "$GITHUB_STEP_SUMMARY"
+            decisions+="#$pr $decision "
+          done 3<<<"$targets"
+          # Only now, with auto-merge armed or disarmed, may the required check turn green. Both decisions
+          # are success: needs-human PRs stay mergeable by hand.
+          description="Decided: ${decisions% }"
+          gh api -X POST "repos/$REPO/statuses/$HEAD_SHA" -f state=success -f context=merge-gate \
+            -f "description=${description:0:140}" -f "target_url=$RUN_URL" > /dev/null

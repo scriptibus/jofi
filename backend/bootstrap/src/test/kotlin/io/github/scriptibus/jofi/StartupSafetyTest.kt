@@ -4,17 +4,24 @@
 package io.github.scriptibus.jofi
 
 import io.kotest.assertions.throwables.shouldThrowAny
+import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.context.ConfigurableApplicationContext
+import java.net.ConnectException
+import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.sql.DriverManager
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * Startup decisions that protect data (ADR-0035), each on its own database and data volume: a lost
@@ -39,13 +46,14 @@ class StartupSafetyTest {
         database: String,
         data: Path = dataDirectory,
         vararg extra: String,
+        port: Int = 0,
     ): ConfigurableApplicationContext =
         SpringApplicationBuilder(JofiApplication::class.java).run(
             "--JOFI_DB_URL=$database",
             "--JOFI_DB_USERNAME=${postgres.username}",
             "--JOFI_DB_PASSWORD=${postgres.password}",
             "--jofi.data-dir=$data",
-            "--server.port=0",
+            "--server.port=$port",
             *extra,
         )
 
@@ -167,7 +175,82 @@ class StartupSafetyTest {
         Files.exists(tokenFile) shouldBe false
     }
 
+    @Test
+    fun `the server accepts no connection before the startup checks have finished`() {
+        val database = freshDatabase()
+        start(database).close()
+        val port = ServerSocket(0).use { it.localPort }
+        DriverManager.getConnection(database, postgres.username, postgres.password).use { lock ->
+            // The master key check reads this table first: holding the lock keeps the checks running.
+            lock.autoCommit = false
+            lock.createStatement().execute("LOCK TABLE master_key_check IN ACCESS EXCLUSIVE MODE")
+            val app = CompletableFuture.supplyAsync { start(database, port = port) }
+            awaitStartupChecksBlocked(database, app)
+
+            accepts(port) shouldBe false
+            app.isDone shouldBe false
+            lock.commit()
+            app.get(STARTUP_SECONDS, TimeUnit.SECONDS).use { accepts(port) shouldBe true }
+        }
+    }
+
+    /** Polls on its own connection: inside the locking transaction, pg_stat_activity would not change. */
+    private fun awaitStartupChecksBlocked(
+        database: String,
+        app: CompletableFuture<*>,
+    ) = DriverManager.getConnection(database, postgres.username, postgres.password).use { monitor ->
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(STARTUP_SECONDS)
+        val waiting =
+            "SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()"
+        while (monitor.createStatement().executeQuery(waiting).let { it.next() && it.getInt(1) == 0 }) {
+            check(!app.isDone && System.nanoTime() < deadline) { "The startup checks never waited for the lock" }
+            Thread.onSpinWait()
+        }
+    }
+
+    private fun accepts(port: Int): Boolean =
+        try {
+            Socket().use { it.connect(InetSocketAddress("127.0.0.1", port), CONNECT_TIMEOUT_MILLIS) }
+            true
+        } catch (_: ConnectException) {
+            false
+        }
+
+    @Test
+    fun `the image build's training run exits on refresh without running the checks`(
+        @TempDir logs: Path,
+    ) {
+        // spring.context.exit halts the JVM, so the training run gets its own, like in the Dockerfile.
+        val log = logs.resolve("training.log")
+        val java =
+            ProcessHandle
+                .current()
+                .info()
+                .command()
+                .orElseThrow()
+        val training =
+            ProcessBuilder(
+                java,
+                "-cp",
+                System.getProperty("java.class.path"),
+                "-Dspring.context.exit=onRefresh",
+                "-Dspring.flyway.enabled=false",
+                "-DJOFI_DB_URL=jdbc:postgresql://localhost:1/aot-training",
+                "-DJOFI_DB_PASSWORD=aot-training-placeholder",
+                "-DJOFI_DATA_DIR=$dataDirectory",
+                "io.github.scriptibus.jofi.JofiApplicationKt",
+            ).redirectErrorStream(true)
+                .redirectOutput(log.toFile())
+                .start()
+
+        training.waitFor(STARTUP_SECONDS, TimeUnit.SECONDS) shouldBe true
+        withClue(Files.readString(log)) { training.exitValue() shouldBe 0 }
+        Files.list(dataDirectory).use { it.count() } shouldBe 0L
+    }
+
     private companion object {
+        const val STARTUP_SECONDS = 120L
+        const val CONNECT_TIMEOUT_MILLIS = 1_000
         val postgres = newPostgresContainer().apply { start() }
     }
 }

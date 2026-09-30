@@ -15,7 +15,7 @@ import java.net.URI
 import java.util.concurrent.CompletableFuture
 
 /**
- * The OpenAI SDK's transport for one AI call (ADR-0037), used for OpenAI, Gemini, Mistral and
+ * The OpenAI SDK's transport for one AI call (ADR-0039), used for OpenAI, Gemini, Mistral and
  * OpenAI-compatible endpoints: every request goes through the shared [GuardedAiTransport]. The AI
  * adapter takes a fresh instance per call and closes it when the call ends, which aborts whatever
  * that call still has open (see [ExchangeScope]); the transport itself stays open.

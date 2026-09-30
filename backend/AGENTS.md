@@ -90,7 +90,7 @@ Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for
 AI calls: callers use only `LlmPort`/`EmbeddingPort`. The gateway behind them resolves the task's
 model once per call, checks capabilities, applies the "never send to AI" filter and the budget,
 meters the cost, and calls `AiProviderPort` (`setup.application.port`), which Spring AI implements
-in `setup.adapter.ai` (#19, ADR-0037). Nothing outside `setup.adapter.ai` may use `AiProviderPort`
+in `setup.adapter.ai` (#19, ADR-0039). Nothing outside `setup.adapter.ai` may use `AiProviderPort`
 (architecture test). `ModelCatalogPort` lists a provider's models with their known capabilities for
 the setup checks. Costs and the budget are in USD only.
 
@@ -110,7 +110,7 @@ the setup checks. Costs and the budget are in USD only.
   `*Port`; port implementations end in `Adapter`/`Repository`; `@RestController`s end in
   `Controller`, receive only use cases and never touch ports/adapters/repositories; only
   the `adapters/net` module uses HTTP clients, sockets or `java.net.URL` (ADR-0034; the AI adapter
-  may use a named list of vendor SDK types, ADR-0037); domain data
+  may use a named list of vendor SDK types, ADR-0039); domain data
   and value classes only have `val`s; no `lateinit` in domain; Spring Modulith `verify()`.
 - Coverage (Kover): `domain` and `application` >= 70 % lines.
 - Licenses (licensee): only MIT, Apache-2.0, BSD-2/3, ISC, MPL-2.0, LGPL-2.1/3.0, EPL-2.0,
@@ -131,7 +131,7 @@ the setup checks. Costs and the budget are in USD only.
   `architecture-tests` dependencies.
 - **An outbound HTTP call**: inject `OutboundHttpPort` (fetches of user/posting/page URLs). The AI
   adapter's SDK clients get the guarded SDK transports (`OpenAiSdkHttpClient`,
-  `AnthropicSdkHttpClient`) instead (ADR-0037). Never create an HTTP client elsewhere; see
+  `AnthropicSdkHttpClient`) instead (ADR-0039). Never create an HTTP client elsewhere; see
   `adapters/net/AGENTS.md` and `adapters/ai/AGENTS.md`.
 - **A table or migration**: see `adapters/persistence/AGENTS.md` (timestamp versions, one open
   migration PR at a time, jOOQ codegen, export/import coverage, changelog on every mutation).
@@ -240,7 +240,7 @@ with `jofi.postgresImage`. Build and smoke-test the stack from the repository ro
   `r2dbc-spi`): MIT-0, which the frontend already accepts as strictly more permissive than MIT.
 - **Spring AI 2.0.1 with the vendor SDK cores at Spring AI's versions** (`openai-java-core` 4.49.0,
   `anthropic-java-core` 2.52.0; newer ones exist): the Spring AI BOM does not manage them and its
-  model classes are compiled against these (ADR-0037). They bring **Jackson 2** onto the runtime
+  model classes are compiled against these (ADR-0039). They bring **Jackson 2** onto the runtime
   classpath, with the catalog's security override. OkHttp is excluded from the Spring AI modules.
 - **licensee `allowDependency` for ANTLR** (`antlr4-runtime` 4.13.1, `ST4` 4.3.4, `antlr-runtime`
   3.5.3, via Spring AI's prompt templates): BSD-3-Clause, declared only by URL. Pinned to these

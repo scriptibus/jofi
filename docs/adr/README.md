@@ -45,4 +45,5 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0034](0034-ssrf-guard-with-pinned-dns-and-an-allowlist-for-ai-endpoints.md) | SSRF guard with pinned DNS, and an allowlist for AI endpoints | accepted |
 | [0035](0035-login-sessions-csrf-backoff-and-the-master-keyset.md) | Login, sessions, CSRF, backoff and the master keyset | accepted |
 | [0036](0036-e2e-stack-with-a-wire-level-fake-ai-provider.md) | e2e stack with a wire-level fake AI provider | accepted |
-| [0037](0037-ai-providers-through-spring-ai-and-vendor-sdk-cores-on-the-guarded-transport.md) | AI providers through Spring AI and the vendor SDK cores on the guarded transport | accepted |
+| [0037](0037-frontend-shell-routing-auth-guard-and-pwa-caching.md) | Frontend shell: code-based routes, a session guard, and a shell-only service worker | accepted |
+| [0039](0039-ai-providers-through-spring-ai-and-vendor-sdk-cores-on-the-guarded-transport.md) | AI providers through Spring AI and the vendor SDK cores on the guarded transport | accepted |

@@ -29,7 +29,7 @@ wiremock = "3.13.2"
 # Secret encryption (adapters/crypto, ADR-0017) and the argon2id implementation behind Spring Security's encoder.
 tink = "1.23.0"
 bouncycastle = "1.86"
-# AI providers (adapters/ai, ADR-0037). Spring AI 2.0.1 is the latest stable release for Boot 4.
+# AI providers (adapters/ai, ADR-0039). Spring AI 2.0.1 is the latest stable release for Boot 4.
 spring-ai = "2.0.1"
 # The vendor SDK cores (no transport of their own) at the versions Spring AI 2.0.1 is built and
 # tested against; its BOM does not manage them. adapters/net implements their HttpClient interface.
@@ -92,7 +92,7 @@ springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-start
 jackson2-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 # Outbound HTTP (adapters/net). The Apache HttpClient 5 version comes from the Boot BOM.
 httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5" }
-# AI providers (adapters/ai): Spring AI model modules only, no starters or auto-configuration (ADR-0037).
+# AI providers (adapters/ai): Spring AI model modules only, no starters or auto-configuration (ADR-0039).
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
 spring-ai-openai = { module = "org.springframework.ai:spring-ai-openai" }
 spring-ai-anthropic = { module = "org.springframework.ai:spring-ai-anthropic" }

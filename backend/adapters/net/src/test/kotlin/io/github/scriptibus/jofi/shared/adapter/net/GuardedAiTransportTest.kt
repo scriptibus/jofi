@@ -40,7 +40,7 @@ import com.anthropic.core.http.HttpMethod as AnthropicHttpMethod
 import com.anthropic.core.http.HttpRequest as AnthropicHttpRequest
 
 /**
- * The AI transport (ADR-0034, ADR-0037): the SSRF guard with the allowlist of configured AI
+ * The AI transport (ADR-0034, ADR-0039): the SSRF guard with the allowlist of configured AI
  * endpoints, no redirects, no SDK telemetry headers, and a close that aborts instead of draining.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)

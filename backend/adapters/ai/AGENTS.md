@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 # adapters/ai
 
-The only place where AI provider types appear (ADR-0011, ADR-0032, ADR-0037). **Protected path**:
+The only place where AI provider types appear (ADR-0011, ADR-0032, ADR-0039). **Protected path**:
 every change is reviewed by Lucas. Package: `io.github.scriptibus.jofi.setup.adapter.ai`.
 
 - `SpringAiProviderAdapter` implements `AiProviderPort`: complete, stream (with cancellation) and

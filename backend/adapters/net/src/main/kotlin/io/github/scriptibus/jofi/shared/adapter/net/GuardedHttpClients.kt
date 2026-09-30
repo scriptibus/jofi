@@ -52,7 +52,7 @@ object GuardedHttpClients {
     ): CloseableHttpClient = builder(guard, timeouts, userAgent).build()
 
     /**
-     * The client for the AI providers (ADR-0034, ADR-0037; used by [GuardedAiTransport]): the same
+     * The client for the AI providers (ADR-0034, ADR-0039; used by [GuardedAiTransport]): the same
      * guard, with the allowlist of configured AI endpoints and the generous AI timeouts. Redirects
      * are not followed; an AI API has no reason to redirect. Response sizes are not capped
      * (streamed completions).

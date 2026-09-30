@@ -49,10 +49,10 @@ class AuthStartupConfiguration {
     ): VerifyMasterKeyUseCase = VerifyMasterKeyUseCase(masterKey, records, audit.changelog, audit.transactions, clock)
 
     /**
-     * The master key check, the optional password reset and the setup token, once the app is up. A
-     * runner, so it neither blocks the context refresh nor runs in the image build's AOT training run.
-     * Only in `app`: the `worker` container shares image and volume, and a worker restart must never
-     * reset the password or touch the keyset.
+     * The master key check, the optional password reset and the setup token, after the context refresh
+     * and before the web server accepts requests (a lifecycle bean, see [AuthStartup]), so it never runs
+     * in the image build's AOT training run. Only in `app`: the `worker` container shares image and
+     * volume, and a worker restart must never reset the password or touch the keyset.
      */
     @Bean
     @ConditionalOnWebApplication

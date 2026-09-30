@@ -1,78 +1,124 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { AxeBuilder } from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { choose, expectNoA11yViolations, mainNav, onStack, snapshot } from "./helpers.ts";
 
-const WCAG_22_AA = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+// Every test starts logged in (storage state of the `seed` project).
+test.skip(!onStack, "Needs the full stack: run `pnpm e2e`.");
 
-/**
- * Picks an option in one of our SegmentedControls the way a user does: by clicking its
- * visible label (the native radio input is visually hidden), then asserts the radio state.
- */
-async function choose(page: Page, group: string, option: string) {
-  const radiogroup = page.getByRole("radiogroup", { name: group });
-  await radiogroup.getByText(option, { exact: true }).click();
-  await expect(radiogroup.getByRole("radio", { name: option })).toBeChecked();
-}
+const AREAS = [
+  { link: "Applications", heading: "Applications", path: "/applications" },
+  { link: "Companies", heading: "Companies", path: "/companies" },
+  { link: "Tasks", heading: "Tasks", path: "/tasks" },
+  { link: "Chat", heading: "Chat", path: "/chat" },
+  { link: "Dashboard", heading: "Let the donkey do the donkey work.", path: "/" },
+];
 
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page }).withTags(WCAG_22_AA).analyze();
-  expect(results.violations).toEqual([]);
-}
-
-/** Optional screenshots for PRs / agent review: set SCREENSHOT_DIR to collect them. */
-async function snapshot(page: Page, name: string) {
-  const dir = process.env.SCREENSHOT_DIR;
-  if (dir) await page.screenshot({ path: `${dir}/${test.info().project.name}-${name}.png`, fullPage: true });
-}
-
-test("shell: heading, theme, accent, language, accessibility", async ({ page }, testInfo) => {
+test("shell: navigation to every area, landmarks, skip link, accessibility", async ({ page }, testInfo) => {
   await page.goto("/");
-  const html = page.locator("html");
-
   await expect(
     page.getByRole("heading", { level: 1, name: "Let the donkey do the donkey work." }),
   ).toBeVisible();
-  await expect(html).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByRole("main")).toBeVisible();
   await expectNoA11yViolations(page);
-  await snapshot(page, "initial");
+  await snapshot(page, "dashboard");
 
-  // Theme: force the opposite of the emulated OS scheme.
+  for (const area of AREAS) {
+    await mainNav(page).getByRole("link", { name: area.link }).click();
+    await expect(page.getByRole("heading", { level: 1, name: area.heading })).toBeVisible();
+    await expect(page).toHaveURL(area.path);
+    await expect(mainNav(page).getByRole("link", { name: area.link })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(page.getByRole("heading", { level: 2, name: "Nothing here yet" })).toBeVisible();
+  }
+  await page.goto("/applications");
+  await expectNoA11yViolations(page);
+  await snapshot(page, "applications");
+
+  // Settings: in the sidebar on desktop, in the top bar on phones.
+  const isPhone = testInfo.project.name === "phone";
+  const settings = isPhone
+    ? page.getByRole("banner").getByRole("link", { name: "Settings" })
+    : mainNav(page).getByRole("link", { name: "Settings" });
+  await settings.click();
+  await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+
+  // The skip link is the first stop and moves focus to the content.
+  await page.goto("/tasks");
+  await expect(page.getByRole("heading", { level: 1, name: "Tasks" })).toBeVisible();
+  await page.keyboard.press("Tab");
+  const skip = page.getByRole("link", { name: "Skip to content" });
+  await expect(skip).toBeFocused();
+  await skip.press("Enter");
+  await expect(page).toHaveURL(/#main$/);
+});
+
+test("deep links load directly, unknown pages stay inside the shell", async ({ page }) => {
+  await page.goto("/companies");
+  await expect(page.getByRole("heading", { level: 1, name: "Companies" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1, name: "Companies" })).toBeVisible();
+
+  await page.goto("/does-not-exist");
+  await expect(page.getByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();
+  await expect(mainNav(page)).toBeVisible();
+});
+
+test("settings: theme, accent and language persist; German works", async ({ page }, testInfo) => {
+  await page.goto("/settings");
+  const html = page.locator("html");
+  await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  await expect(page.getByText(/^Jofi \S+$/)).toBeVisible();
+  await expectNoA11yViolations(page);
+  await snapshot(page, "settings");
+
   const osDark = testInfo.project.use.colorScheme === "dark";
   await choose(page, "Theme", osDark ? "Light" : "Dark");
   await expect(html).toHaveAttribute("data-theme", osDark ? "light" : "dark");
-  await expectNoA11yViolations(page);
-
-  // Accent preset.
   await choose(page, "Accent", "Teal");
   await expect(html).toHaveAttribute("data-accent", "teal");
   await expectNoA11yViolations(page);
-  await snapshot(page, "themed");
+  await snapshot(page, "settings-themed");
 
-  // Preferences survive a reload.
   await page.reload();
   await expect(html).toHaveAttribute("data-theme", osDark ? "light" : "dark");
-  await expect(html).toHaveAttribute("data-accent", "teal");
   await expect(
     page.getByRole("radiogroup", { name: "Accent" }).getByRole("radio", { name: "Teal" }),
   ).toBeChecked();
 
-  // Language: Paraglide stores the choice and reloads the document.
+  // Paraglide stores the language and reloads the document.
   await page.getByRole("radiogroup", { name: "Language" }).getByText("Deutsch", { exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Einstellungen" })).toBeVisible();
+  await expect(html).toHaveAttribute("lang", "de");
+  await expect(mainNav(page).getByRole("link", { name: "Bewerbungen" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Passwort ändern" })).toBeVisible();
+  await expectNoA11yViolations(page);
+  await snapshot(page, "settings-de");
+
+  await mainNav(page).getByRole("link", { name: "Übersicht" }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Lass den Esel die Eselsarbeit machen." }),
   ).toBeVisible();
-  await expect(html).toHaveAttribute("lang", "de");
-  await expect(page.getByRole("radiogroup", { name: "Farbschema" })).toBeVisible();
-  await expectNoA11yViolations(page);
-  await snapshot(page, "de");
+  await snapshot(page, "dashboard-de");
 });
 
-test("loader button toggles the working donkey", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Start working" }).click();
-  await expect(page.getByText("Jofi is working…")).toBeVisible();
-  await page.getByRole("button", { name: "Take a break" }).click();
-  await expect(page.getByText("Jofi is resting.")).toBeVisible();
+test("share target: the share route shows what was shared", async ({ page }) => {
+  await page.goto(
+    "/share?title=Kotlin%20Developer%20(m%2Fw%2Fd)&text=Look%20at%20this&url=https%3A%2F%2Fjobs.example%2F42",
+  );
+  await expect(page.getByRole("heading", { level: 1, name: "Shared with Jofi" })).toBeVisible();
+  await expect(page.getByText("Kotlin Developer (m/w/d)")).toBeVisible();
+  await expect(page.getByText("Look at this")).toBeVisible();
+  await expect(page.getByText("https://jobs.example/42")).toBeVisible();
+  await expectNoA11yViolations(page);
+  await snapshot(page, "share");
+
+  await page.goto("/share");
+  await expect(
+    page.getByText("Nothing was shared. Use your device's share sheet and pick Jofi."),
+  ).toBeVisible();
 });

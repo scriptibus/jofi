@@ -68,7 +68,7 @@ object AdapterRules {
      * merely declares the package in another module is not exempt. The `ClientHttpRequestFactory`
      * interface stays usable; its implementations (which would create unguarded clients) are not.
      *
-     * One narrow exemption (ADR-0037): the AI provider adapter (`setup.adapter.ai`, module
+     * One narrow exemption (ADR-0039): the AI provider adapter (`setup.adapter.ai`, module
      * `adapters/ai`) may use the named vendor SDK types in [AI_ADAPTER_SDK_TYPES] to build SDK
      * clients over the guarded transport that `adapters/net` provides. None of them is a
      * transport, and Spring AI's own SDK client builders stay banned everywhere. ArchUnit only sees
@@ -82,14 +82,14 @@ object AdapterRules {
             .andShould(never(callMethodWhere(readsAUrl())))
             .because("adapters/net is the only outbound HTTP client (SSRF guard, threat model T1)")
 
-    /** The AI provider adapter (ADR-0037). */
+    /** The AI provider adapter (ADR-0039). */
     const val AI_ADAPTER = "$BASE.setup.adapter.ai"
 
     /** Where the Gradle module `adapters/ai` puts its compiled classes (class dirs and jar). */
     private const val AI_MODULE_OUTPUT = "/adapters/ai/build/"
 
     /**
-     * The vendor SDK types `setup.adapter.ai` may use (ADR-0037): the clients, built from client
+     * The vendor SDK types `setup.adapter.ai` may use (ADR-0039): the clients, built from client
      * options that carry Jofi's guarded transport; the transport interface as a type (only
      * `adapters/net` implements it); the error types mapped to sealed results; and the model
      * listing. Adding a type needs review.
@@ -136,7 +136,7 @@ object AdapterRules {
             "com.openai..",
             "com.anthropic..",
             "com.google.genai..",
-            // Spring AI's own SDK client builders create unguarded OkHttp clients (ADR-0037).
+            // Spring AI's own SDK client builders create unguarded OkHttp clients (ADR-0039).
             "org.springframework.ai.openai.setup..",
             "org.springframework.ai.openai.http..",
             "org.springframework.ai.anthropic.http..",
@@ -220,7 +220,7 @@ object AdapterRules {
     /**
      * The vendor SDKs' `fromEnv()` reads keys, base URLs, custom headers and log levels from
      * environment variables and system properties (`OPENAI_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`, ...).
-     * Jofi's providers come only from the user's configuration, so nothing may call it (ADR-0037).
+     * Jofi's providers come only from the user's configuration, so nothing may call it (ADR-0039).
      */
     val noAiSdkReadsTheEnvironment: ArchRule =
         noClasses()

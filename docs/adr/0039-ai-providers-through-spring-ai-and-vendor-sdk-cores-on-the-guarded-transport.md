@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Jofi contributors
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-# ADR 0037: AI providers through Spring AI and the vendor SDK cores on the guarded transport
+# ADR 0039: AI providers through Spring AI and the vendor SDK cores on the guarded transport
 
 - Status: accepted
 - Date: 2026-09-30

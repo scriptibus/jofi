@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// The AI provider adapter (ADR-0011, ADR-0032, ADR-0037): Spring AI behind AiProviderPort. It has no
+// The AI provider adapter (ADR-0011, ADR-0032, ADR-0039): Spring AI behind AiProviderPort. It has no
 // HTTP client of its own; the vendor SDK clients get the guarded transport from adapters/net as a bean.
 
 plugins {
@@ -13,7 +13,7 @@ dependencies {
     implementation(platform(libs.spring.ai.bom))
     // Model modules only: no starter, so nothing is auto-configured and no unguarded client appears.
     // OkHttp is excluded: Spring AI would only use it to build its own, unguarded SDK clients, and
-    // without it any such fallback fails loudly instead of bypassing the SSRF guard (ADR-0037).
+    // without it any such fallback fails loudly instead of bypassing the SSRF guard (ADR-0039).
     implementation(libs.spring.ai.openai) {
         exclude(group = "com.squareup.okhttp3")
     }
