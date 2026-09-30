@@ -6,7 +6,6 @@ package io.github.scriptibus.jofi.system.adapter.crypto
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.TinkJsonProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.aead.PredefinedAeadParameters
@@ -40,10 +39,13 @@ class TinkSecretCipherAdapter(
     @Value("\${jofi.data-dir}") dataDirectory: String,
 ) : SecretCipherPort,
     MasterKeyPort {
-    private val keysetFile: Path = DataDirectory.of(dataDirectory).resolve(SECRETS_DIRECTORY).resolve(KEYSET_FILE)
+    private val keysetFile: Path = MasterKeysetFile.of(dataDirectory)
 
     @Volatile
     private var loaded: Aead? = null
+
+    // Identifies the file [loaded] came from: a restore (possibly by the other container) replaces it.
+    private var loadedVersion: List<Any?>? = null
 
     init {
         AeadConfig.register()
@@ -78,17 +80,18 @@ class TinkSecretCipherAdapter(
         return state()
     }
 
-    override fun newCheckValue(): ByteArray? =
-        (encryptBytes(CHECK_PLAINTEXT, CHECK_ASSOCIATED_DATA) as? SecretResult.Success)?.value
-
-    override fun verifies(checkValue: ByteArray): Boolean {
-        val primitive = keyset() ?: return false
+    override fun newCheckValue(): ByteArray? {
+        val primitive = keyset() ?: return null
         return try {
-            primitive.decrypt(checkValue, CHECK_ASSOCIATED_DATA).contentEquals(CHECK_PLAINTEXT)
-        } catch (_: GeneralSecurityException) {
-            false
+            MasterKeysetFile.newCheckValue(primitive)
+        } catch (exception: GeneralSecurityException) {
+            failure<Unit>(ENCRYPT, exception)
+            null
         }
     }
+
+    override fun verifies(checkValue: ByteArray): Boolean =
+        keyset()?.let { MasterKeysetFile.verifies(it, checkValue) } ?: false
 
     override fun encrypt(
         id: SecretId,
@@ -123,17 +126,25 @@ class TinkSecretCipherAdapter(
         }
     }
 
-    // Loads the keyset once; a missing file stays missing (null), a broken one is logged and retried.
-    // Tink and file access throw checked and unchecked exceptions alike, hence the broad catch.
+    // Loads the keyset once per file: a missing file stays missing (null), a broken one is logged and
+    // retried, and a replaced one (restore, ADR-0042) is loaded again. Tink and file access throw checked
+    // and unchecked exceptions alike, hence the broad catch.
     @Synchronized
-    private fun keyset(): Aead? = loaded ?: if (Files.exists(keysetFile)) load()?.also { loaded = it } else null
+    private fun keyset(): Aead? {
+        val version = MasterKeysetFile.version(keysetFile)
+        if (version == null) {
+            loaded = null
+        } else if (loaded == null || version != loadedVersion) {
+            loaded = load()
+            loadedVersion = version
+        }
+        return loaded
+    }
 
     private fun load(): Aead? =
         try {
             OwnerOnlyFiles.restrict(keysetFile)
-            val json = Files.readString(keysetFile)
-            val handle = TinkJsonProtoKeysetFormat.parseKeyset(json, InsecureSecretKeyAccess.get())
-            handle.getPrimitive(RegistryConfiguration.get(), Aead::class.java)
+            MasterKeysetFile.primitive(Files.readString(keysetFile))
         } catch (exception: Exception) {
             failure<Unit>("load keyset", exception)
             null
@@ -155,12 +166,8 @@ class TinkSecretCipherAdapter(
         val logger: Logger = LoggerFactory.getLogger(TinkSecretCipherAdapter::class.java)
         const val ENCRYPT = "encrypt"
         const val DECRYPT = "decrypt"
-        const val SECRETS_DIRECTORY = "secrets"
-        const val KEYSET_FILE = "master-keyset.json"
 
         /** Domain separation: the id of a row in the `secret` table, not of anything else. */
         const val ASSOCIATED_DATA_PREFIX = "jofi:secret:"
-        val CHECK_PLAINTEXT = "jofi master key check".toByteArray(Charsets.UTF_8)
-        val CHECK_ASSOCIATED_DATA = "jofi:master-key-check".toByteArray(Charsets.UTF_8)
     }
 }

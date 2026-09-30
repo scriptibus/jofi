@@ -43,6 +43,7 @@ include(
     "adapters:crypto",
     "adapters:jobs",
     "adapters:ai",
+    "adapters:backup",
     "bootstrap",
     "architecture-tests",
 )

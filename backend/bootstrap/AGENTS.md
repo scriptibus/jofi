@@ -27,11 +27,14 @@ Rules:
   `JOFI_SERVER_ADDRESS` (bind address of the server, default `127.0.0.1`), `JOFI_TRUSTED_PROXIES`
   (CIDRs allowed to send `X-Forwarded-*`, default loopback), `JOFI_SESSION_TIMEOUT` (idle, default
   `7d`), `JOFI_SESSION_MAX_AGE` (absolute, default `30d`), `JOFI_RESET_PASSWORD` (password
-  recovery at startup), `JOFI_ACCEPT_SECRET_LOSS` (accept a lost master keyset). Tests get a data
+  recovery at startup), `JOFI_ACCEPT_SECRET_LOSS` (accept a lost master keyset),
+  `JOFI_BACKUP_MAX_UPLOAD_SIZE` / `_MAX_UNPACKED_SIZE` / `_MAX_ENTRIES` (limits of an uploaded backup,
+  ADR-0042). Tests get a data
   directory under the test task's temporary directory; `bootRun` needs `JOFI_DATA_DIR` set.
 - `system.config.AuthStartup` (a `SmartLifecycle` in the phase just before the web server's, so it
   runs after the refresh but before the port is bound; web apps only and never under the `worker`
-  profile) checks the master keyset against the database and refuses to start on a mismatch or a
+  profile) first settles restores a crash interrupted (`RecoverRestoreUseCase`, ADR-0042; refuses to
+  start when it cannot), then checks the master keyset against the database and refuses to start on a mismatch or a
   leftover `JOFI_ACCEPT_SECRET_LOSS`, applies `JOFI_RESET_PASSWORD` once per setting, then issues or removes
   the setup token. `StartupSafetyTest` starts the app on its own databases to prove each case, that
   the port stays closed while the checks run, and that the AOT training run (`spring.context.exit`)

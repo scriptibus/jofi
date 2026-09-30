@@ -11,7 +11,9 @@ is reviewed by Lucas. Package: `io.github.scriptibus.jofi.system.adapter.crypto`
 | Class | Port | What |
 |---|---|---|
 | `Argon2PasswordHasherAdapter` | `PasswordHasherPort` | argon2id, OWASP parameters m = 19 MiB, t = 2, p = 1; at most 2 hashes at once |
-| `TinkSecretCipherAdapter` | `SecretCipherPort`, `MasterKeyPort` | Tink AES-256-GCM under the master keyset, associated data `jofi:secret:<id>`; generates a keyset only on request, plus its check value |
+| `TinkSecretCipherAdapter` | `SecretCipherPort`, `MasterKeyPort` | Tink AES-256-GCM under the master keyset, associated data `jofi:secret:<id>`; generates a keyset only on request, plus its check value; reloads the keyset when the file is replaced (a restore, also by the other container) |
+| `TinkMasterKeyBackupAdapter` | `MasterKeyBackupPort` | copies the keyset into a backup, checks a backup's keyset against its check value, and installs it on a confirmed restore by one atomic rename (ADR-0042) |
+| `MasterKeysetFile` | – | where the keyset lives, parsing it, the check value |
 | `SetupTokenFileAdapter` | `SetupTokenPort` | one-time token every first run needs |
 | `PasswordResetMarkerFileAdapter` | `PasswordResetMarkerPort` | remembers that the current `JOFI_RESET_PASSWORD` was applied |
 | `OwnerOnlyFiles` | – | `0600` files / `0700` directories, written atomically (random temp file + hard link) |

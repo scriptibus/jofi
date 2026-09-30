@@ -21,8 +21,9 @@ dependencies {
     implementation(libs.jooq)
     implementation(libs.flyway.core)
     implementation(libs.jackson.module.kotlin)
+    // DatabaseBackupRepository streams tables with the driver's COPY API (ADR-0042).
+    implementation(libs.postgresql)
     runtimeOnly(libs.flyway.database.postgresql)
-    runtimeOnly(libs.postgresql)
 
     "codegenImplementation"(platform(libs.spring.boot.bom))
     "codegenImplementation"(libs.jooq.codegen)

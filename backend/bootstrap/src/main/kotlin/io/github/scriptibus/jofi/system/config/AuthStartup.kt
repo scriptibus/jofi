@@ -4,12 +4,14 @@
 package io.github.scriptibus.jofi.system.config
 
 import io.github.scriptibus.jofi.system.application.PrepareFirstRunUseCase
+import io.github.scriptibus.jofi.system.application.RecoverRestoreUseCase
 import io.github.scriptibus.jofi.system.application.ResetPasswordUseCase
 import io.github.scriptibus.jofi.system.application.VerifyMasterKeyUseCase
 import io.github.scriptibus.jofi.system.domain.AuthSideEffectResult
 import io.github.scriptibus.jofi.system.domain.MasterKeyCheck
 import io.github.scriptibus.jofi.system.domain.MasterKeyCheck.Reason
 import io.github.scriptibus.jofi.system.domain.PasswordResetResult
+import io.github.scriptibus.jofi.system.domain.backup.RestoreRecoveryResult
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.boot.web.server.context.WebServerApplicationContext
@@ -17,8 +19,9 @@ import org.springframework.context.SmartLifecycle
 import org.springframework.core.env.Environment
 
 /**
- * Startup order (ADR-0035): check the master keyset (refuse to start rather than lose secrets), apply
- * a requested password reset, then issue or remove the setup token.
+ * Startup order (ADR-0035, ADR-0042): finish or undo a restore a crash interrupted (so database, files
+ * and keyset belong together again), check the master keyset (refuse to start rather than lose
+ * secrets), apply a requested password reset, then issue or remove the setup token.
  *
  * A [SmartLifecycle] in the phase just before the web server's: lifecycle beans start after the
  * context refresh, so the image build's AOT training run (`spring.context.exit=onRefresh`) exits
@@ -26,6 +29,7 @@ import org.springframework.core.env.Environment
  * the startup before any request is answered.
  */
 class AuthStartup(
+    private val recoverRestore: RecoverRestoreUseCase,
     private val verifyMasterKey: VerifyMasterKeyUseCase,
     private val resetPassword: ResetPasswordUseCase,
     private val prepareFirstRun: PrepareFirstRunUseCase,
@@ -40,6 +44,7 @@ class AuthStartup(
     override fun start() {
         // A context restart (stop, then start) must not apply the reset or touch the keyset again.
         if (!checked) {
+            recoverRestores()
             checkMasterKey()
             reset()
             if (prepareFirstRun.execute() == AuthSideEffectResult.Failure) {
@@ -57,6 +62,20 @@ class AuthStartup(
     override fun isRunning(): Boolean = running
 
     override fun getPhase(): Int = PHASE
+
+    private fun recoverRestores() {
+        val outcome = recoverRestore.execute()
+        check(outcome != RestoreRecoveryResult.FAILED) {
+            "Refusing to start: a restore was interrupted and could not be finished or undone; see the errors " +
+                "above. Its work directory (JOFI_DATA_DIR/backup-work) is kept, and the next start tries again."
+        }
+        if (outcome ==
+            RestoreRecoveryResult.ROLLED_FORWARD
+        ) {
+            logger.warn("Finished a restore interrupted after its commit")
+        }
+        if (outcome == RestoreRecoveryResult.ROLLED_BACK) logger.warn("Undid a restore interrupted before its commit")
+    }
 
     private fun checkMasterKey() {
         val acceptLoss = flag("jofi.secrets.accept-loss")

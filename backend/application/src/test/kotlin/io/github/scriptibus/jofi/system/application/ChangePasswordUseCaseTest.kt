@@ -33,7 +33,15 @@ class ChangePasswordUseCaseTest {
     private val sessions =
         mockk<UserSessionsPort> { every { endAllExcept(any()) } returns AuthSideEffectResult.Success }
     private val useCase =
-        ChangePasswordUseCase(users, FakeHasher, throttle, sessions, changelog, transactions, AuthFixtures.clock)
+        ChangePasswordUseCase(
+            VerifyPasswordUseCase(users, FakeHasher, throttle, AuthFixtures.clock),
+            users,
+            FakeHasher,
+            sessions,
+            changelog,
+            transactions,
+            AuthFixtures.clock,
+        )
 
     private fun change(
         current: String = PASSWORD,

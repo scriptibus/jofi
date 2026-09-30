@@ -8,6 +8,7 @@ import java.nio.file.FileAlreadyExistsException
 import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.PosixFileAttributeView
 import java.nio.file.attribute.PosixFilePermissions
@@ -40,6 +41,27 @@ internal object OwnerOnlyFiles {
                 .use { it.write(content) }
             restrict(temporary)
             linkIntoPlace(target, temporary)
+        } finally {
+            removeTemporary(temporary)
+        }
+    }
+
+    /**
+     * Replaces [target] with [content] in one atomic rename, so a reader sees the old or the new file,
+     * never a partial one (a restored keyset, ADR-0042).
+     */
+    fun replace(
+        target: Path,
+        content: ByteArray,
+    ) {
+        ensureDirectory(target.parent)
+        val temporary = target.resolveSibling(".${target.fileName}.${UUID.randomUUID()}.tmp")
+        try {
+            Files
+                .newOutputStream(temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)
+                .use { it.write(content) }
+            restrict(temporary)
+            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         } finally {
             removeTemporary(temporary)
         }

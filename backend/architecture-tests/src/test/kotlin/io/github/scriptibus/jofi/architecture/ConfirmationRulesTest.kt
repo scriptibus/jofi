@@ -11,9 +11,11 @@ import io.github.scriptibus.jofi.fixture.adapter.web.UnconfirmedSendFixtureContr
 import io.github.scriptibus.jofi.fixture.application.DeleteThingWithGateUseCase
 import io.github.scriptibus.jofi.fixture.application.DeleteThingWithoutGateUseCase
 import io.github.scriptibus.jofi.fixture.application.ForgedConfirmationUseCase
+import io.github.scriptibus.jofi.fixture.application.ReinstateKeysetWithoutRecoveryUseCase
 import io.github.scriptibus.jofi.fixture.application.SendThingWithProofUseCase
 import io.github.scriptibus.jofi.fixture.application.port.FixtureThingsPort
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.system.application.RecoverRestoreUseCase
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -34,6 +36,17 @@ class ConfirmationRulesTest {
     @Test
     fun `every destructive port call passes the gate`() {
         ConfirmationRules.destructivePortCallsPassTheGate.check(production)
+    }
+
+    @Test
+    fun `only restore recovery puts a keyset back`() {
+        val rule = ConfirmationRules.onlyRestoreRecoveryReinstatesTheKeyset
+        val bad = ClassFileImporter().importClasses(ReinstateKeysetWithoutRecoveryUseCase::class.java)
+        val recovery = ClassFileImporter().importClasses(RecoverRestoreUseCase::class.java)
+
+        rule.check(production)
+        rule.evaluate(bad).hasViolation() shouldBe true
+        rule.evaluate(recovery).hasViolation() shouldBe false
     }
 
     @Test

@@ -16,6 +16,7 @@ dependencies {
     testImplementation(project(":adapters:crypto"))
     testImplementation(project(":adapters:jobs"))
     testImplementation(project(":adapters:ai"))
+    testImplementation(project(":adapters:backup"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))

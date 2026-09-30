@@ -30,6 +30,20 @@ Rules:
 newest 1000 jobs (`400 urn:jofi:problem:system:invalid-job-log-page`); an unreadable job store answers
 `503 urn:jofi:problem:system:job-log-unavailable`. Never add job arguments or exception messages to it.
 
+## Backup and restore (ADR-0042)
+
+`system.adapter.web.BackupController`: `POST /api/system/backup/exports` (`{"password"}`) streams the zip
+(the handler writes the response itself, so a failed database dump is still a clean `503`);
+`POST /api/system/backup/restores` takes the raw `application/zip` body as a streamed
+`InputStreamResource` and answers the checked `StagedBackupResponse` or a `backup-refused` problem with a
+`reason` (`422`, `413` for the limits); `POST /api/system/backup/restores/{id}` (`{"password"}`) is the
+confirmed restore (`Jofi-Confirmation`, listed in `ConfirmationRules.OUTWARD_FACING_ENDPOINTS`). Export and
+restore check the current password (`AuthProblems.of(PasswordCheckResult)`: 403, 429 with `Retry-After`);
+concurrent backup work is `409 backup-busy`, a restore that could not be undone `500
+backup-restore-incomplete` (`BackupProblems`). A backup grants full access (it holds the master keyset):
+say so wherever it is offered. `OpenApiSpecApplication.BinaryBodies` documents non-JSON bodies as
+`string`/`binary`.
+
 ## Two-step confirmation (ADR-0039)
 
 Every delete or outward-facing endpoint follows `shared.adapter.web.Confirmations`: take

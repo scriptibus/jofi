@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.system.application.GetSessionAccountUseCase
 import io.github.scriptibus.jofi.system.application.GetSystemInfoUseCase
 import io.github.scriptibus.jofi.system.application.LogInUseCase
 import io.github.scriptibus.jofi.system.application.PrepareFirstRunUseCase
+import io.github.scriptibus.jofi.system.application.VerifyPasswordUseCase
 import io.github.scriptibus.jofi.system.application.port.BuildInfoPort
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.PasswordHasherPort
@@ -53,13 +54,18 @@ class SystemConfiguration {
     fun logInUseCase(auth: AuthPorts): LogInUseCase = LogInUseCase(auth.users, auth.hasher, auth.throttle, auth.clock)
 
     @Bean
+    fun verifyPasswordUseCase(auth: AuthPorts): VerifyPasswordUseCase =
+        VerifyPasswordUseCase(auth.users, auth.hasher, auth.throttle, auth.clock)
+
+    @Bean
     fun changePasswordUseCase(
+        verifyPassword: VerifyPasswordUseCase,
         auth: AuthPorts,
         sessions: UserSessionsPort,
         changelog: ChangelogPort,
         transactions: TransactionPort,
     ): ChangePasswordUseCase =
-        ChangePasswordUseCase(auth.users, auth.hasher, auth.throttle, sessions, changelog, transactions, auth.clock)
+        ChangePasswordUseCase(verifyPassword, auth.users, auth.hasher, sessions, changelog, transactions, auth.clock)
 
     @Bean
     fun authPorts(

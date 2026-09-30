@@ -55,6 +55,25 @@ class Browser(
         csrf: String? = cookies[CSRF_COOKIE],
         headers: Map<String, String> = emptyMap(),
     ): MvcTestResult {
+        val request = prepare(method, path, csrf, headers)
+        if (json != null) request.contentType(MediaType.APPLICATION_JSON).content(json)
+        return send(request)
+    }
+
+    /** A POST with a raw body, e.g. an uploaded file. */
+    fun upload(
+        path: String,
+        contentType: String,
+        content: ByteArray,
+        csrf: String? = cookies[CSRF_COOKIE],
+    ): MvcTestResult = send(prepare(HttpMethod.POST, path, csrf, emptyMap()).contentType(contentType).content(content))
+
+    private fun prepare(
+        method: HttpMethod,
+        path: String,
+        csrf: String?,
+        headers: Map<String, String>,
+    ): MockMvcTester.MockMvcRequestBuilder {
         val request =
             mvc
                 .method(method)
@@ -64,7 +83,10 @@ class Browser(
         cookies.forEach { (name, value) -> request.cookie(Cookie(name, value)) }
         headers.forEach { (name, value) -> request.header(name, value) }
         if (csrf != null) request.header(CSRF_HEADER, csrf)
-        if (json != null) request.contentType(MediaType.APPLICATION_JSON).content(json)
+        return request
+    }
+
+    private fun send(request: MockMvcTester.MockMvcRequestBuilder): MvcTestResult {
         val result = request.exchange()
         lastSetCookies = result.response.getHeaders("Set-Cookie")
         lastSetCookies.forEach(::remember)
