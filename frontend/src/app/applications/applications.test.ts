@@ -7,9 +7,11 @@ import { anApplication } from "../../test/fakeApplicationBackend";
 import { applicationFieldErrorsOf, formValues, hasPayBand, toDetailsRequest } from "./application";
 import {
   formatDate,
+  formatInstant,
   formatMoney,
   formatPayBand,
   formatPercent,
+  formatRelative,
   formatScore,
   isLanguageTag,
   languageName,
@@ -58,6 +60,20 @@ describe("other formats", () => {
   it("shows a calendar date on the same day in every time zone", () => {
     expect(formatDate("2026-01-01", "en")).toBe("Jan 1, 2026");
     expect(formatDate("2026-10-15", "de")).toBe("15.10.2026");
+  });
+
+  it("says how long ago a moment was, in its largest whole unit", () => {
+    const now = new Date("2026-09-30T12:00:00Z");
+    expect(formatRelative("2026-09-30T11:59:30Z", now, "en")).toBe("now");
+    expect(formatRelative("2026-09-30T11:15:00Z", now, "en")).toBe("45 minutes ago");
+    expect(formatRelative("2026-09-30T09:00:00Z", now, "de")).toBe("vor 3 Stunden");
+    expect(formatRelative("2026-09-29T10:00:00Z", now, "en")).toBe("yesterday");
+    expect(formatRelative("2026-09-10T12:00:00Z", now, "en")).toBe("2 weeks ago");
+    expect(formatRelative("2025-09-01T12:00:00Z", now, "de")).toBe("letztes Jahr");
+  });
+
+  it("shows a moment with date and time", () => {
+    expect(plain(formatInstant("2026-09-30T10:05:00Z", "en"))).toMatch(/^Sep 30, 2026, \d{1,2}:05/);
   });
 
   it("formats percentages and scores", () => {

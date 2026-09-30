@@ -5,6 +5,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
   type ApplicationResponse,
   getGetApplicationQueryKey,
+  getGetApplicationStatusHistoryQueryKey,
   getSearchApplicationsQueryKey,
 } from "../../api/generated/jofi";
 
@@ -12,6 +13,12 @@ import {
 export function storeSavedApplication(queryClient: QueryClient, application: ApplicationResponse) {
   queryClient.setQueryData(getGetApplicationQueryKey(application.id), application);
   void queryClient.invalidateQueries({ queryKey: getSearchApplicationsQueryKey() });
+}
+
+/** After a status change: like a save, and the status history asks again for the new entry. */
+export function storeStatusChange(queryClient: QueryClient, application: ApplicationResponse) {
+  storeSavedApplication(queryClient, application);
+  void queryClient.invalidateQueries({ queryKey: getGetApplicationStatusHistoryQueryKey(application.id) });
 }
 
 /** After a delete: the application is gone from the cache, and every list (a company's too) asks again. */

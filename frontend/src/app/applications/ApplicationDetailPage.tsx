@@ -19,10 +19,11 @@ import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
 import { useConfirmation } from "../useConfirmation";
 import { ApplicationLoadFailure } from "./ApplicationLoadFailure";
-import { ApplicationOverview, CompanyLink, StatusBadge } from "./ApplicationOverview";
+import { ApplicationOverview, CompanyLink } from "./ApplicationOverview";
 import { DELETE_OPERATION } from "./application";
 import { forgetDeletedApplication, storeSavedApplication } from "./applicationCache";
 import { describeApplicationError } from "./applicationProblems";
+import { StatusBadge } from "./StatusBadge";
 import { type ApplicationTab, TABS, tabLabels } from "./tabs";
 
 const route = getRouteApi("/_app/applications/$applicationId");

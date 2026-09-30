@@ -78,6 +78,40 @@ export function formatInstantDate(instant: string, locale: string = getLocale())
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(instant));
 }
 
+/** A moment from the API with date and time in the user's time zone: "Sep 30, 2026, 10:00 AM". */
+export function formatInstant(instant: string, locale: string = getLocale()): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(instant),
+  );
+}
+
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const RELATIVE_UNITS: readonly [unit: Intl.RelativeTimeFormatUnit, milliseconds: number][] = [
+  ["year", 365 * DAY],
+  ["month", 30 * DAY],
+  ["week", 7 * DAY],
+  ["day", DAY],
+  ["hour", HOUR],
+  ["minute", MINUTE],
+];
+
+/** How long ago a moment is, in its largest whole unit: "3 days ago", "vor 2 Stunden", "now". */
+export function formatRelative(
+  instant: string,
+  now: Date = new Date(),
+  locale: string = getLocale(),
+): string {
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const difference = new Date(instant).getTime() - now.getTime();
+  for (const [unit, milliseconds] of RELATIVE_UNITS) {
+    if (Math.abs(difference) >= milliseconds)
+      return format.format(Math.trunc(difference / milliseconds), unit);
+  }
+  return format.format(0, "second");
+}
+
 /** A percentage 0–100 in the user's locale: "40%", "40 %". */
 export function formatPercent(percent: number, locale: string = getLocale()): string {
   return new Intl.NumberFormat(locale, { style: "percent" }).format(percent / 100);

@@ -11,12 +11,18 @@ const APPLICATIONS = "urn:jofi:problem:applications:";
 export const ApplicationProblemType = {
   notFound: `${APPLICATIONS}application-not-found`,
   versionConflict: `${APPLICATIONS}version-conflict`,
+  invalidTransition: `${APPLICATIONS}invalid-transition`,
   unavailable: `${APPLICATIONS}storage-unavailable`,
 } as const;
 
 /** Someone saved the application after this page read it (another tab, the AI, a scanner, an MCP client). */
 export function isApplicationVersionConflict(error: unknown): boolean {
   return isProblem(error, ApplicationProblemType.versionConflict);
+}
+
+/** The transition matrix (ADR-0044) has no such move from the status the server holds. */
+export function isInvalidTransition(error: unknown): boolean {
+  return isProblem(error, ApplicationProblemType.invalidTransition);
 }
 
 export function isApplicationNotFound(error: unknown): boolean {
