@@ -22,11 +22,13 @@ export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { FilePicker, type FilePickerProps } from "./FilePicker";
 export * from "./icons";
-export { NavItem, TextLink } from "./Link";
+export { ExternalLink, type ExternalLinkProps, NavItem, TextLink } from "./Link";
+export { NumberField, type NumberFieldProps } from "./NumberField";
 export {
   AccentSwatch,
   SegmentedControl,
   type SegmentedControlProps,
   type SegmentedOption,
 } from "./SegmentedControl";
+export { Select, type SelectGroup, type SelectOption, type SelectProps } from "./Select";
 export { TextField, type TextFieldProps } from "./TextField";

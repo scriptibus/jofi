@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130, amended by #74
-  (contacts), #76 (applications) and #88 (company use cases); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
+  (contacts), #76 (applications), #88 (company use cases), #89 (contact use cases) and #82 (application use cases); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
 
 ## Context
 
@@ -182,6 +182,52 @@ Further rules the applications contract adds:
 - **Changelog** entries name changed detail fields with values; research notes and preference reasons
   are free text, so the description only says they changed. A company delete records the company (with
   its name) and one entry per cascaded contact (ids only, description "Deleted with its company").
+
+### Contact use cases and complete deletion (#89)
+
+- **Changelog without values**: contact entries carry no `FieldChange`s; the description names the fields
+  that changed (`Edited contact; fields: role, channels`), never what they hold. `FieldChange` needs a
+  value that changed, and a name alone must not be one.
+- **Channels** are replaced as a whole in the version-checked update (delete all, then insert), in the
+  same transaction as the `contact` row; nothing refers to a single channel.
+- **The delete reads the linked applications** through `LinkedApplicationsPort` (named interface `spi`),
+  which answers `application` entity refs built by the applications context, so the companies context
+  never names an applications type. The confirmation effect counts them
+  (`ConfirmationEffect("contact", <name>, {"applications": n})`), so a new link between the steps voids
+  the token. After the delete, each linked application gets a changelog entry of its own (entity type
+  `application`, `FieldChange("contacts", <contact id>, null)`, actor of the delete); the cascade removes
+  the links. `ContactDeleted` is published for the contexts that keep their own references (#92, #93).
+- **Complete deletion (DSGVO Art. 17, spec §13)**: the contact row, its channels (relationship notes are a
+  column of the row) and its application links are removed, not flagged. Only ids stay behind in the
+  changelog. The pending confirmation holds the contact's name in memory until it is redeemed or expires
+  (ADR-0039); backups taken before the delete still hold the contact, which the user deletes with them.
+- **Constraint names are found in the whole cause chain**: in the app, jOOQ runs with Spring's exception
+  translation, so a violation arrives as `DataIntegrityViolationException`, not jOOQ's
+  `DataAccessException`. Repositories read the PSQL error's constraint wherever it is in the chain; #89
+  fixed `CompanyRepository`'s `application_company_fk` mapping, which only looked at jOOQ's exception.
+
+### Application use cases (#82)
+
+- **Changelog with values only where they are not personal**: detail edits record `FieldChange`s for title,
+  company, location, remote share, employment type, seniority, deadline, how applied and language & tone;
+  portal notes, the pay band and the offer are only named in the description (`Edited application; also
+  changed: pay band`), never as values (free text and pay are personal, #52). Read/unread records
+  `FieldChange("unread", before, after)` without a new version; the delete keeps the title, as the company
+  delete keeps the name.
+- **The delete's effect counts what cascades** with the application, read in the delete's transaction:
+  `ConfirmationEffect("application", <title>, {"contactLinks": n, "statusChanges": m})`, so a new link or a
+  status change between the steps voids the token. Contracts that add dependants (sources and snapshots,
+  interviews, tasks) add their counts. After the delete the use case publishes `ApplicationDeleted` (ids and
+  actor only) for the contexts that keep their own references to applications.
+- **A missing company** is found by `application_company_fk` on insert and on a detail edit (the company is a
+  detail) and answered as `Invalid` (COMPANY, NOT_FOUND), a 400 on `companyId`; a missing contact likewise by
+  `application_contact_contact_fk` (CONTACTS, NOT_FOUND). The use cases do not read the company first: the
+  foreign key is the one check that cannot race.
+- **Shared persistence code**: the status history stores its actor like the changelog, so persistence adapters
+  of every context may use the kernel's persistence helpers in `shared.adapter.persistence` (`ActorColumns`,
+  `violatedConstraint()`, which moved there from the companies adapter), not only the generated jOOQ code.
+  `AdapterRules.adaptersAreIndependent` allows exactly that package to persistence adapters; web adapters
+  using it are still rejected (fixtures).
 
 ## Consequences
 

@@ -125,9 +125,10 @@ The generator lives in the `codegen` source set and has its own locked classpath
   enum names; `SetupSchemaTest` proves them. `ProviderConfigRepository.delete` takes the confirmation
   proof (`ProviderId.DELETE_OPERATION`, ADR-0039); the use case deletes the provider's secret after the
   row that references it.
-- Other contexts' repositories live in `<context>.adapter.persistence` and may use the generated
-  jOOQ code in `shared.adapter.persistence.jooq` (the one exemption from adapter independence,
-  ADR-0032).
+- Other contexts' repositories live in `<context>.adapter.persistence` and may use the shared
+  persistence code in `shared.adapter.persistence`: the generated jOOQ code, `ActorColumns` (the actor
+  column pair) and `violatedConstraint()` (the one exemption from adapter independence, ADR-0032; widened
+  from the jOOQ code alone in #82, since the status history stores actors like the changelog).
 
 ## `companies` tables (#73, #74, ADR-0041)
 
@@ -151,8 +152,8 @@ The generator lives in the `codegen` source set and has its own locked classpath
     any other failure is a `StorageFailure`.
 - `CompanyRepository` (`CompanyRepositoryPort`, #88): `update` stores only if the stored `version` is one
   below the new one (`VersionConflict` otherwise, `NotFound` without the row); `delete` checks the
-  `Confirmed` proof (ADR-0039) and maps `application_company_fk` by name (the PSQL error's constraint) to
-  `HasApplications`; `findContactIds` lists the contacts the delete cascades to. `search` matches names
+  `Confirmed` proof (ADR-0039) and maps `application_company_fk` by name (the PSQL error's constraint, anywhere in the
+  cause chain since #89, so Spring's exception translation does not hide it) to `HasApplications`; `findContactIds` lists the contacts the delete cascades to. `search` matches names
   with pg_trgm (`%`, `<%`) or an escaped `ILIKE`, all served by `company_name_trgm_idx`, best match first
   (word similarity, similarity, name, id). `CompanyRepositoryTest` proves each of these.
 - `ApplicationCountsRepository` (`applications.adapter.persistence`) implements the companies context's
@@ -174,8 +175,22 @@ The generator lives in the `codegen` source set and has its own locked classpath
   delete's count and its cascade; `contact_name_trgm_idx` fuzzy name search.
 - Contacts are **third-party personal data**: user data **covered by export/import** (#26); never log a
   row, and changelog entries for contacts name the changed fields, never their values (the changelog is
-  append-only, and a deleted contact must leave nothing personal behind). `ContactRepositoryPort` maps a
-  violation of `contact_company_fk` on insert or update to `CompanyNotFound` by its name.
+  append-only, and a deleted contact must leave nothing personal behind). `ContactRepository`
+  (`ContactRepositoryPort`, #89) maps a violation of `contact_company_fk` on insert or update to
+  `CompanyNotFound` by its name, found anywhere in the cause chain (`violatedConstraint()`: the app's
+  `DSLContext` throws Spring's translated exceptions, plain jOOQ its own); `update` stores only on top of
+  the version one below; `delete` checks the `Confirmed` proof; `search` uses the same trigram matching as
+  companies (`NameQuery`, `contact_name_trgm_idx`) and loads the page's channels in one query.
+  `ContactRepositoryTest` proves each of these.
+- **Complete deletion (DSGVO Art. 17, spec §13)**: a confirmed contact delete removes the `contact` row;
+  `contact_channel` rows and `application_contact` links go with it by `ON DELETE CASCADE`. Nothing is
+  soft-deleted. What remains are changelog entries with ids only: the contact's own (field names at most,
+  never values) and one per linked application (`FieldChange("contacts", <contact id>, null)`). The pending
+  confirmation (in memory, ADR-0039) holds the name until it is redeemed or expires. Backups made before
+  the delete still contain the contact until the user deletes them.
+- `LinkedApplicationsRepository` (`applications.adapter.persistence`) implements the companies context's
+  `LinkedApplicationsPort` (`companies.application.port.spi`, ADR-0041): the applications linked to a
+  contact as `application` entity refs, over `application_contact_contact_idx`.
 - Foreign keys **to** `contact` from other contexts (ADR-0041): link-table rows (e.g. application links,
   #90) use `ON DELETE CASCADE`; an optional reference in an entity's own row (e.g. `task.contact_id`,
   #93) uses `ON DELETE SET NULL`; never `RESTRICT`/`NO ACTION`, which would block company deletes
@@ -214,14 +229,19 @@ The generator lives in the `codegen` source set and has its own locked classpath
   existing application one entry (`SYSTEM` `status-history-backfill`). The transition matrix is the
   domain's job. `ApplicationStatusChangeSchemaTest` proves the constraints, `ApplicationStatusMigrationTest`
   the backfill. User data: **covered by export/import**.
-- `ApplicationRepositoryPort` is implemented with the use cases (#82, #84). **No write overwrites columns it
+- `ApplicationRepository` implements `ApplicationRepositoryPort` (#82; `search` answers a `StorageFailure`
+  until #83 builds the list, whose endpoint answers 501 until then). **No write overwrites columns it
   does not own** (lost updates): `updateDetails` writes only the detail columns, `version` and `updated_at`
   (never the status, the decline reason, `unread`, the scores or the links); `changeStatus` writes only
   `status`, the decline reason, `version` and `updated_at` and appends the history row, both or neither; `replaceContacts` writes `version`/`updated_at` and rewrites
   `application_contact` only when the stored set differs; both store only if the stored `version` is one
   below the new one. `setUnread` changes only the flag (no version). `delete` checks the `Confirmed` proof.
-  The repository tests (#82) prove each write leaves the other columns as they were. It maps `application_company_fk` to `CompanyNotFound` and
-  `application_contact_contact_fk` to `ContactNotFound` by name.
+  `add` stores the row, its links and the first history entry (`StatusChange.initial`). Each write sets only
+  its columns in an `ApplicationRecord` (`ApplicationRecords.detailsRecord`, `statusRecord`,
+  `versionRecord`), and jOOQ updates only the fields a record has set. `ApplicationRepositoryTest` proves each
+  write leaves the other columns as they were (and that an unchanged link set keeps its rows). It maps
+  `application_company_fk` to `CompanyNotFound` and `application_contact_contact_fk` to `ContactNotFound` by
+  name, anywhere in the cause chain (`violatedConstraint()`, `shared.adapter.persistence`).
 - Portal notes, reasons and offer text are the user's free text: changelog entries name the changed
   fields, never the text (#52). User data: **covered by export/import** (#26, #134).
 

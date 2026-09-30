@@ -3,6 +3,7 @@
 
 import { useGetSystemInfo } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
+import { AiSettingsSection } from "../ai/AiSettingsSection";
 import { PasswordChangeForm } from "../auth/PasswordChangeForm";
 import { BackupSection } from "../backup/BackupSection";
 import { AccentSwitch, LanguageSwitch, ThemeSwitch } from "../preferences";
@@ -28,6 +29,7 @@ export function SettingsPage() {
         <div className={card}>
           <PasswordChangeForm />
         </div>
+        <AiSettingsSection className={`${card} lg:col-span-2`} />
         <div className={`${card} lg:col-span-2`}>
           <BackupSection />
         </div>

@@ -69,13 +69,13 @@ Changes send `basedOnVersion`, the `version` of the last read. Responses carry `
 The slice tests' configuration root is `CompaniesWebTestApplication` (test sources), since
 `@WebMvcTest` searches the test's own package.
 
-## Contacts (#74, ADR-0041)
+## Contacts (#74, #89, ADR-0041)
 
 `companies.adapter.web.ContactController`: `GET /api/contacts?search=&companyId=&page=&size=`,
 `POST /api/contacts`, `GET|PUT /api/contacts/{id}` (PUT replaces all details and channels) and
-`DELETE /api/contacts/{id}` (two steps, `Jofi-Confirmation`). Contacts belong to the `companies` context
-but get their own resource path, since they exist without a company too. Contract only: every operation
-answers `501` until #89 (the search already answers 400 for paging out of range). `ContactProblems.of`
+`DELETE /api/contacts/{id}` (two steps, `Jofi-Confirmation`; the 428's effect counts the linked
+applications as `applications`). Contacts belong to the `companies` context but get their own resource
+path, since they exist without a company too. Each handler calls one contact use case (#89). `ContactProblems.of`
 maps each `ContactResult.Failure`; channel violations name the request field with its position
 (`channels[2].value`), an unknown company is `companyId` `NOT_FOUND`. Contacts are third-party personal
 data: their DTOs override `toString()` without it, and no `detail` names a contact.
@@ -127,8 +127,10 @@ so no `DELETE` needs a confirmation), `PUT /api/applications/{id}/status` (the s
 a decline category exactly for `DECLINED`/`REJECTED`, `409 invalid-transition` for a move it does not
 allow), `GET /api/applications/{id}/status-history` and `DELETE /api/applications/{id}` (two steps,
 `Jofi-Confirmation`). The decline reason is set by the status change, not by the details.
-Contract only: every operation answers `501` until #82, #83, #84 and #90 (the search already answers 400 for
-paging out of range). `ApplicationProblems.of` maps each `ApplicationResult.Failure`; violations name the
+Create, read, edit, read/unread and delete call their use cases (#82) as `Actor.User` and map failures with
+`orThrow()`: an unknown company is `400` (`companyId`, `NOT_FOUND`), the delete's 428 effect counts
+`contactLinks` and `statusChanges`. The list, the status change and its history and the contact links still
+answer `501` until #83, #84 and #90 (the search already answers 400 for paging out of range). `ApplicationProblems.of` maps each `ApplicationResult.Failure`; violations name the
 nested request field (`payBand.max`, `offer.salary.currency`, `contactIds`). API enums are copies of the
 domain enums (`JobSeniority` for `Seniority`, ...), mapped with `mapByName` and tested for equal constants.
 Amounts are gross, JSON numbers with at most two decimals; scores numbers with one decimal. DTOs holding

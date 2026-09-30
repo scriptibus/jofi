@@ -61,3 +61,15 @@ export const TextLink = createLink(TextLinkBase);
 
 /** A router link styled as a navigation item. */
 export const NavItem = createLink(NavItemBase);
+
+export interface ExternalLinkProps extends Omit<AriaLinkProps, "href" | "target" | "rel"> {
+  href: string;
+}
+
+/**
+ * A text link to another site: opens in a new tab, sends no referrer, gives the page no handle on
+ * Jofi's window and passes no endorsement (`noopener noreferrer nofollow`).
+ */
+export function ExternalLink(props: ExternalLinkProps) {
+  return <TextLinkBase {...props} target="_blank" rel="noopener noreferrer nofollow" />;
+}

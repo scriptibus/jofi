@@ -22,9 +22,10 @@ Owns the executable architecture rules. Test sources only; depends on every prod
 - `AdapterRules`: rules shared with `AdapterRulesFixtureTest`, which evaluates them against
   known-bad and known-good fixture classes in `io.github.scriptibus.jofi.fixture` (test sources,
   never part of the production import). Adapter independence has two narrow exemptions:
-  `..adapter.persistence..` may use the generated jOOQ code in `shared.adapter.persistence.jooq`
-  (ADR-0032), and `..adapter.web..` may use the shared web conventions in `shared.adapter.web`
-  (ADR-0041); a web adapter using jOOQ or a persistence adapter using `shared.adapter.web` is still rejected.
+  `..adapter.persistence..` may use the shared persistence code in `shared.adapter.persistence` (the
+  generated jOOQ code, `ActorColumns`, `violatedConstraint()`; ADR-0032, widened in #82), and `..adapter.web..`
+  may use the shared web conventions in `shared.adapter.web` (ADR-0041); a web adapter using the shared
+  persistence code or a persistence adapter using `shared.adapter.web` is still rejected.
 - `ConfirmationRulesTest` (ArchUnit, ADR-0039, rules in `ConfirmationRules`): `DELETE` and listed
   outward-facing handlers take the `Jofi-Confirmation` header; use cases calling `delete*`/`remove*`/
   `send*`/`purge*` port methods hold `ConfirmActionUseCase` or pass a `Confirmed`; only the gate mints
