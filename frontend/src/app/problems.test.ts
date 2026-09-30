@@ -20,6 +20,9 @@ describe("describeError", () => {
       "Your security token expired. Reload the page and try again.",
     );
     expect(describeError(problem(503, ProblemType.unavailable)).message).toMatch(/temporarily unavailable/);
+    expect(describeError(problem(412, ProblemType.confirmationInvalid)).message).toBe(
+      "The confirmation expired or no longer matches. Please start again.",
+    );
   });
 
   it("states the backoff wait from Retry-After", () => {

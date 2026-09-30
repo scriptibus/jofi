@@ -264,6 +264,60 @@
         },
         "required" : [ "currentPassword", "newPassword" ]
       },
+      "ConfirmationRequiredProblem" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/ProblemDetail"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "confirmationToken" : {
+              "type" : "string",
+              "description" : "Send it back in the Jofi-Confirmation header"
+            },
+            "effect" : {
+              "type" : "object",
+              "description" : "What would change: kind of thing, its name, and counts of what goes with it",
+              "properties" : {
+                "counts" : {
+                  "type" : "object",
+                  "additionalProperties" : {
+                    "type" : "integer",
+                    "format" : "int32"
+                  },
+                  "description" : "What goes with it, e.g. documents: 3"
+                },
+                "kind" : {
+                  "type" : "string",
+                  "description" : "Kind of thing affected, e.g. application"
+                },
+                "name" : {
+                  "type" : "string",
+                  "description" : "Display name of the target"
+                }
+              },
+              "required" : [ "counts", "kind", "name" ]
+            },
+            "expiresAt" : {
+              "type" : "string",
+              "description" : "The token is refused from then on",
+              "format" : "date-time"
+            },
+            "operation" : {
+              "type" : "string",
+              "description" : "What would run, e.g. applications.delete"
+            },
+            "targets" : {
+              "type" : "array",
+              "description" : "Ids of what it would affect",
+              "items" : {
+                "type" : "string"
+              }
+            }
+          },
+          "required" : [ "confirmationToken", "effect", "expiresAt", "operation", "targets" ]
+        } ],
+        "description" : "428 answer of a destructive or outward-facing operation: nothing ran yet. Repeat the request with confirmationToken in the Jofi-Confirmation header once the user confirmed."
+      },
       "FirstRunRequest" : {
         "type" : "object",
         "properties" : {

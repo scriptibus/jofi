@@ -21,6 +21,11 @@ Owns the executable architecture rules. Test sources only; depends on every prod
   never part of the production import). Adapter independence has one narrow exemption:
   `..adapter.persistence..` may use the generated jOOQ code in `shared.adapter.persistence.jooq`
   (ADR-0032); a web adapter doing the same is still rejected.
+- `ConfirmationRulesTest` (ArchUnit, ADR-0039, rules in `ConfirmationRules`): `DELETE` and listed
+  outward-facing handlers take the `Jofi-Confirmation` header; use cases calling `delete*`/`remove*`/
+  `send*`/`purge*` port methods hold `ConfirmActionUseCase` or pass a `Confirmed`; only the gate mints
+  confirmations. Known-bad fixtures in `fixture.adapter.web` and `fixture.application` must be rejected;
+  the allowlists (`ENDPOINTS_WITHOUT_CONFIRMATION`, `USE_CASES_WITHOUT_CONFIRMATION`) need a reason each.
 - `SourceConventionsTest` (Konsist, sources): use case naming + one public method, `*Port`
   naming, controller constructor takes use cases only, immutable domain types, no `lateinit`.
 - `ModulithTest` (Spring Modulith): contexts are application modules, `verify()` passes, only

@@ -25,6 +25,9 @@ dependencies {
     testImplementation(libs.konsist)
     // Known-bad fixtures for the JobRunr rules (ADR-0038).
     testImplementation(libs.jobrunr) { exclude(group = "org.jobrunr", module = "jobrunr-bom") }
+    // Spring MVC annotations for the known-bad controller fixtures of the confirmation rules (ADR-0039);
+    // already on the runtime classpath through bootstrap, version from the Boot BOM.
+    testImplementation(libs.spring.web)
     // Fixtures for the AI adapter's SDK exemption (AdapterRulesFixtureTest).
     testImplementation(libs.openai.java.core)
 }

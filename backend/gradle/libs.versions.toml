@@ -97,8 +97,9 @@ jackson3-databind = { module = "tools.jackson.core:jackson-databind" }
 springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
 # springdoc (via swagger-core) still reads models with Jackson 2; this module makes it honour Kotlin nullability.
 jackson2-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
-# Outbound HTTP (adapters/net). The Apache HttpClient 5 version comes from the Boot BOM.
+# Outbound HTTP (adapters/net) and Spring MVC annotations for architecture fixtures; versions from the Boot BOM.
 httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5" }
+spring-web = { module = "org.springframework:spring-web" }
 # AI providers (adapters/ai): Spring AI model modules only, no starters or auto-configuration (ADR-0040).
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
 spring-ai-openai = { module = "org.springframework.ai:spring-ai-openai" }

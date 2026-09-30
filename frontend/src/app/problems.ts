@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { CONFIRMATION_INVALID } from "../api/confirmation";
 import { ApiProblemError } from "../api/fetcher";
 import { m } from "../paraglide/messages.js";
 
 const SYSTEM = "urn:jofi:problem:system:";
 
-/** Problem types the UI tells apart (backend: `AuthProblems`, ADR-0035). */
+/** Problem types the UI tells apart (backend: `AuthProblems`, ADR-0035; `Confirmations`, ADR-0039). */
 export const ProblemType = {
   notLoggedIn: `${SYSTEM}not-logged-in`,
   csrf: `${SYSTEM}csrf`,
@@ -18,6 +19,7 @@ export const ProblemType = {
   weakPassword: `${SYSTEM}weak-password`,
   unavailable: `${SYSTEM}auth-unavailable`,
   otherSessionsRemain: `${SYSTEM}other-sessions-remain`,
+  confirmationInvalid: CONFIRMATION_INVALID,
 } as const;
 
 /** Whether `error` is a problem-details answer of the given type. */
@@ -50,6 +52,7 @@ const knownMessages: Record<string, () => string> = {
   [ProblemType.otherSessionsRemain]: m.error_other_sessions_remain,
   [ProblemType.notLoggedIn]: m.session_expired,
   [ProblemType.alreadySetUp]: m.first_run_done_elsewhere,
+  [ProblemType.confirmationInvalid]: m.error_confirmation_invalid,
 };
 
 /**

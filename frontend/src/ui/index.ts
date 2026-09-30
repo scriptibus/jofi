@@ -16,6 +16,7 @@ export {
   useTheme,
 } from "./appearance";
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
+export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
 export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export * from "./icons";
