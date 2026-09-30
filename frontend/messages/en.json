@@ -97,6 +97,27 @@
   "applications_source_manual": "By hand",
   "applications_mark_read": "Mark {title} as read",
   "applications_mark_unread": "Mark {title} as unread",
+  "applications_view_label": "View",
+  "applications_view_table": "Table",
+  "applications_view_board": "Board",
+  "applications_board_ended": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Ended ({count} application)",
+        "countPlural=other": "Ended ({count} applications)"
+      }
+    }
+  ],
+  "applications_board_empty_column": "Nothing here",
+  "applications_board_drag": "Drag {title}",
+  "applications_board_move": "Move {title} to…",
+  "applications_board_moved": "{title} moved to {status}.",
+  "applications_board_move_failed": "Not moved",
+  "applications_board_conflict": "{title} was changed elsewhere meanwhile, so it was not moved. The board shows the latest state again.",
+  "applications_board_invalid": "{title} cannot move from {from} to {to}. It may have been changed elsewhere; the board shows the latest state again.",
+  "applications_board_truncated": "The board shows the first {shown} of {total} applications. Narrow the filters to see the rest.",
   "companies_empty": "No companies yet. Add the first one with “New company”.",
   "tasks_empty": "No tasks yet. Follow-ups and reminders will show up here.",
   "chat_empty": "The chat with Jofi arrives soon. It will know your applications and help with the next step.",
