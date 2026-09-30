@@ -26,19 +26,22 @@ async function csrfHeaders(page: Page) {
   return { "X-XSRF-TOKEN": decodeURIComponent(cookie.value) };
 }
 
-async function createCompany(page: Page, name: string) {
-  const response = await page.request.post("/api/companies", {
-    data: { name },
+/** An AI provider with a stored (encrypted) key: data, a secret and the keyset all travel in a backup. */
+async function createProvider(page: Page, displayName: string) {
+  const response = await page.request.post("/api/setup/providers", {
+    data: { kind: "ANTHROPIC", displayName, apiKey: "e2e-placeholder-key" },
     headers: await csrfHeaders(page),
   });
   expect(response.status()).toBe(201);
 }
 
-async function companyNames(page: Page, search: string): Promise<string[]> {
-  const response = await page.request.get(`/api/companies?search=${encodeURIComponent(search)}`);
+async function providers(page: Page, prefix: string): Promise<{ displayName: string; apiKeySet: boolean }[]> {
+  const response = await page.request.get("/api/setup/providers");
   expect(response.status()).toBe(200);
-  const body = (await response.json()) as { companies: { name: string }[] };
-  return body.companies.map((company) => company.name);
+  const body = (await response.json()) as { displayName: string; apiKeySet: boolean }[];
+  return body
+    .filter((provider) => provider.displayName.startsWith(prefix))
+    .map(({ displayName, apiKeySet }) => ({ displayName, apiKeySet }));
 }
 
 async function chooseFile(page: Page, button: string, path: string) {
@@ -80,7 +83,7 @@ test("export, change, upload, confirm the restore: logged out, then the data is 
   await page.goto("/settings");
   await logIn(page);
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
-  await createCompany(page, kept);
+  await createProvider(page, kept);
 
   // Export: a wrong password first, then the right one.
   await page.getByRole("button", { name: "Download backup…" }).click();
@@ -109,7 +112,7 @@ test("export, change, upload, confirm the restore: logged out, then the data is 
   await snapshot(page, "backup-exported");
 
   // A change after the backup, which the restore must undo.
-  await createCompany(page, dropped);
+  await createProvider(page, dropped);
 
   // Upload the same file: the manifest summary comes first.
   await chooseFile(page, "Choose backup file…", zip);
@@ -136,7 +139,7 @@ test("export, change, upload, confirm the restore: logged out, then the data is 
   await snapshot(page, "backup-restore-confirm");
   await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).toBeHidden();
-  expect(await companyNames(page, run)).toContain(dropped);
+  expect(await providers(page, run)).toContainEqual({ displayName: dropped, apiKeySet: true });
 
   await restore.click();
   await confirm.getByRole("button", { name: "Replace all data" }).click();
@@ -153,7 +156,6 @@ test("export, change, upload, confirm the restore: logged out, then the data is 
   await expect(
     page.getByRole("heading", { level: 1, name: "Let the donkey do the donkey work." }),
   ).toBeVisible();
-  const names = await companyNames(page, run);
-  expect(names).toContain(kept);
-  expect(names).not.toContain(dropped);
+  // The provider from before the export is back with its stored key; the one created after it is gone.
+  expect(await providers(page, run)).toEqual([{ displayName: kept, apiKeySet: true }]);
 });

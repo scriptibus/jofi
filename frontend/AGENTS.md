@@ -78,8 +78,8 @@ On Podman: `COMPOSE=podman-compose CONTAINER=podman pnpm e2e`; `SKIP_BUILD=1` re
     and `ApiProblemError` from `src/api/fetcher.ts`; no hand-written `fetch` calls or DTO types.
     Errors arrive as `ApiProblemError` carrying the RFC 9457 `problem`. A non-JSON success (a download
     such as the backup zip) arrives as a `Blob`, a `File` named by `Content-Disposition` when it has
-    one. `apiFetch` echoes the `XSRF-TOKEN` cookie in `X-XSRF-TOKEN` on unsafe requests (CSRF, ADR-0035); call
-    `GET /api/auth/session` on start and after login/logout to get a fresh cookie. The client is regenerated
+    one. `apiFetch` echoes the `XSRF-TOKEN` cookie in `X-XSRF-TOKEN` on unsafe requests (CSRF,
+    ADR-0035); call `GET /api/auth/session` on start and after login/logout to get a fresh cookie. The client is regenerated
     by every `pnpm typecheck`/`test`/`build` and never committed, so a backend contract change
     shows up as a type error. To change the API, change the backend, regenerate `api/openapi.json`
     there (`./gradlew :adapters:web:updateOpenApiSpec`), then `pnpm api`. Test hooks against MSW
