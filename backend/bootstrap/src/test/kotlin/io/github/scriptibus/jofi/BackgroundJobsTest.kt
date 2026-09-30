@@ -3,6 +3,8 @@
 
 package io.github.scriptibus.jofi
 
+import io.github.scriptibus.jofi.shared.adapter.jobs.AllowlistJobMapper
+import io.github.scriptibus.jofi.shared.adapter.jobs.JofiJobRequestHandler
 import io.github.scriptibus.jofi.shared.application.port.JobHandlerPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.shared.domain.job.FailureReason
@@ -16,18 +18,28 @@ import io.github.scriptibus.jofi.shared.domain.job.JobResult
 import io.github.scriptibus.jofi.shared.domain.job.JobStatus
 import io.github.scriptibus.jofi.shared.domain.job.JobType
 import io.github.scriptibus.jofi.system.application.ListJobsUseCase
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainOnly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeInstanceOf
+import org.jobrunr.dashboard.JobRunrDashboardWebServer
 import org.jobrunr.server.BackgroundJobServer
+import org.jobrunr.storage.StorageProvider
+import org.jobrunr.storage.sql.common.DefaultSqlStorageProvider
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.web.server.context.WebServerApplicationContext
 import org.springframework.context.ConfigurableApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.core.env.Environment
+import java.io.IOException
 import java.net.CookieManager
 import java.net.URI
 import java.net.http.HttpClient
@@ -45,6 +57,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * `app` only writes jobs, the `worker` profile runs them with retries, and a missed recurring run
  * runs once when the worker comes back. Each test gets its own database.
  */
+@ExtendWith(OutputCaptureExtension::class)
 class BackgroundJobsTest {
     @TempDir
     lateinit var dataDirectory: Path
@@ -58,7 +71,9 @@ class BackgroundJobsTest {
     }
 
     @Test
-    fun `app only enqueues, the worker runs the jobs with retries and records failures without data`() {
+    fun `app only enqueues, the worker runs the jobs with retries and records failures without data`(
+        output: CapturedOutput,
+    ) {
         val database = freshDatabase()
         val app = start(database, worker = false)
         app.getBeanProvider(BackgroundJobServer::class.java).ifAvailable shouldBe null
@@ -71,7 +86,7 @@ class BackgroundJobsTest {
 
         start(database, worker = true)
         val log = app.getBean(ListJobsUseCase::class.java)
-        waitUntil { finished(log).size == 4 }
+        waitUntil({ allJobs(log) }) { finished(log).size == 4 }
 
         val byId = finished(log).associateBy { it.id }
         byId.getValue(echo).let { it.status to it.attempts } shouldBe (JobStatus.SUCCEEDED to 1)
@@ -84,6 +99,37 @@ class BackgroundJobsTest {
         TestJobs.runs.map { it.profiles } shouldContainOnly listOf(listOf("worker"))
         TestJobs.runs.first { it.type == "echo-test" }.arguments shouldBe mapOf("itemId" to "42")
         count(database, "SELECT count(*) FROM jobrunr_jobs WHERE jobasjson LIKE '%$PERSONAL_DATA%'") shouldBe 0
+        output.all shouldNotContain PERSONAL_DATA
+    }
+
+    @Test
+    fun `both profiles read the job store through the allowlist, and a tampered row never runs`() {
+        val database = freshDatabase()
+        val app = start(database, worker = false)
+        val tampered = enqueue(app.getBean(JobSchedulerPort::class.java), "echo-test")
+        // A lambda-style job calling System.exit, as a SQL injection elsewhere could write it.
+        sql(
+            database,
+            "UPDATE jobrunr_jobs SET jobasjson = replace(replace(jobasjson, '$HANDLER', 'java.lang.System'), " +
+                "'\"methodName\":\"run\"', '\"methodName\":\"exit\"') WHERE id = '${tampered.value}'",
+        )
+        val worker = start(database, worker = true)
+
+        listOf(app, worker).forEach { context ->
+            jobMapperOf(context).shouldBeInstanceOf<AllowlistJobMapper>()
+            context.getBeanProvider(JobRunrDashboardWebServer::class.java).ifAvailable shouldBe null
+        }
+        val log = app.getBean(ListJobsUseCase::class.java)
+        waitUntil { finished(log).isNotEmpty() }
+        finished(log).single().let { Triple(it.id, it.status, it.lastFailure) } shouldBe
+            Triple(tampered, JobStatus.FAILED, FailureReason("rejected-job"))
+        TestJobs.runs.shouldBeEmpty()
+    }
+
+    /** The job mapper the real storage provider bean reads rows with. */
+    private fun jobMapperOf(context: ConfigurableApplicationContext): Any? {
+        val field = DefaultSqlStorageProvider::class.java.getDeclaredField("jobMapper").apply { isAccessible = true }
+        return field.get(context.getBean(StorageProvider::class.java))
     }
 
     @Test
@@ -143,6 +189,8 @@ class BackgroundJobsTest {
         jobs: JobSchedulerPort,
         type: String,
     ): JobId = (jobs.enqueue(JobRequest(JobType(type), mapOf("itemId" to "42"))) as JobResult.Success).value
+
+    private fun allJobs(log: ListJobsUseCase) = log.execute(JobLogQuery(size = 100))
 
     private fun finished(log: ListJobsUseCase): List<JobLogEntry> {
         val statuses = setOf(JobStatus.SUCCEEDED, JobStatus.FAILED)
@@ -207,10 +255,13 @@ class BackgroundJobsTest {
         )
     }
 
-    private fun waitUntil(condition: () -> Boolean) {
+    private fun waitUntil(
+        state: () -> Any? = { null },
+        condition: () -> Boolean,
+    ) {
         val deadline = System.nanoTime() + TIMEOUT.toNanos()
         while (!condition()) {
-            check(System.nanoTime() < deadline) { "Timed out after $TIMEOUT" }
+            check(System.nanoTime() < deadline) { "Timed out after $TIMEOUT; last state: ${state()}" }
             Thread.sleep(250)
         }
     }
@@ -257,7 +308,7 @@ class BackgroundJobsTest {
 
         @Bean
         fun explodingJob(environment: Environment): JobHandlerPort =
-            handler("exploding-test", environment) { throw IllegalStateException("$PERSONAL_DATA was not found") }
+            handler("exploding-test", environment) { throw IOException("$PERSONAL_DATA was not found") }
 
         companion object {
             val runs: MutableList<Run> = CopyOnWriteArrayList()
@@ -300,6 +351,7 @@ class BackgroundJobsTest {
         val POLL_INTERVAL: Duration = Duration.ofSeconds(5)
         val TIMEOUT: Duration = Duration.ofSeconds(120)
         const val PERSONAL_DATA = "max.mustermann@example.org"
+        val HANDLER: String = JofiJobRequestHandler::class.java.name
         const val CLEANUP_JOBS = "SELECT count(*) FROM jobrunr_jobs WHERE recurringjobid = 'session-cleanup'"
     }
 }

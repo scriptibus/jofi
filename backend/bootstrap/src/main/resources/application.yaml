@@ -68,6 +68,9 @@ jofi:
 jobrunr:
   background-job-server:
     enabled: false
+    # Carbon-aware processing would call api.jobrunr.io outside adapters/net (ADR-0034); off everywhere.
+    carbon-aware-job-processing:
+      enabled: false
   # JobRunr's own dashboard stays off: it would open a second, unauthenticated web server. The job log
   # is GET /api/system/jobs behind the login.
   dashboard:

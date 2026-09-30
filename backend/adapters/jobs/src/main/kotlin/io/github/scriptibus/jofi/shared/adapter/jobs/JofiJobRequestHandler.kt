@@ -54,8 +54,9 @@ class JofiJobRequestHandler(
         val handler = byType[jobRequest.type] ?: return JobOutcome.GiveUp(FailureReason.UNKNOWN_TYPE)
         return try {
             handler.run(jobRequest.arguments.toMap())
-        } catch (exception: RuntimeException) {
-            // Ports never throw; if one does, its message may hold data: log and store the type only.
+        } catch (exception: Exception) {
+            // Ports never throw; if one does (checked exceptions included, Kotlin does not declare them),
+            // its message may hold data: log and store the type only.
             logger.error("Job {} failed unexpectedly: {}", jobRequest.type, exception.javaClass.name)
             JobOutcome.Retry(FailureReason.UNEXPECTED)
         }

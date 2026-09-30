@@ -110,7 +110,8 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
   `application` end in `UseCase`, have exactly one public method; ports are interfaces named
   `*Port`; port implementations end in `Adapter`/`Repository`; `@RestController`s end in
   `Controller`, receive only use cases and never touch ports/adapters/repositories; only
-  the `adapters/net` module uses HTTP clients, sockets or `java.net.URL` (ADR-0034); domain data
+  the `adapters/net` module uses HTTP clients, sockets or `java.net.URL` (ADR-0034); only
+  `shared.adapter.jobs` uses JobRunr, and nothing its lambda/annotation jobs (ADR-0038); domain data
   and value classes only have `val`s; no `lateinit` in domain; Spring Modulith `verify()`.
 - Coverage (Kover): `domain` and `application` >= 70 % lines.
 - Licenses (licensee): only MIT, Apache-2.0, BSD-2/3, ISC, MPL-2.0, LGPL-2.1/3.0, EPL-2.0,

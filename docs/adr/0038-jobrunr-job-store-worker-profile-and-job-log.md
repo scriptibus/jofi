@@ -60,7 +60,9 @@ schedules and missed runs behave, and how the user sees the job log without JobR
   like the auth startup checks (ADR-0035).
 - JobRunr's dashboard stays disabled (`jobrunr.dashboard.enabled: false`, the default made explicit): it
   would open a second web server on port 8000 without our login. `jobrunr.miscellaneous.allow-anonymous-data-usage`
-  is `false` (no telemetry). Carbon-aware scheduling, which would call `api.jobrunr.io`, stays off; a cron
+  is `false` (no telemetry). Carbon-aware processing, whose `CarbonIntensityApiClient` would call `api.jobrunr.io` over `HttpURLConnection`
+  outside adapters/net, is switched off explicitly (`carbon-aware-job-processing.enabled: false`, listed in ADR-0034's
+  gaps); a cron
   with a carbon-aware margin cannot be expressed through `CronSchedule` (exactly five fields).
 
 ### One job type on the wire, ids only
@@ -79,18 +81,34 @@ schedules and missed runs behave, and how the user sees the job log without JobR
 
 ### The stored JSON cannot instantiate arbitrary classes or call arbitrary code
 
-JobRunr's job JSON names the class and method to call and the classes of its parameters. Two layers keep a
-tampered row (e.g. after SQL injection elsewhere) from escalating to code execution in the worker, which
-holds the master keyset:
+JobRunr's job JSON names the class and method to call and the classes of its parameters, and JobRunr loads
+and initialises those classes (`Class.forName(name, true, ...)`) and resolves `@class` type ids before its own
+type validator runs. Three layers keep a tampered row (e.g. after SQL injection elsewhere) from escalating to
+code execution or network access in the worker, which holds the master keyset (security review of #71):
 
-1. The Jackson 3 mapper (`Jackson3JsonMapper` with our builder) gets a deserializer modifier that refuses to
-   build any bean class outside `org.jobrunr.`, `java.` and `JofiJobRequest`. JobRunr already restricts
-   polymorphic `@class` ids to its own types; the modifier also covers job parameters, whose class name JobRunr
-   reads from the JSON. A refused parameter becomes "not deserializable" instead of being instantiated.
-2. `AllowlistJobMapper` (our `JobMapper` bean) checks every job and recurring job read from the store: only
-   `JofiJobRequestHandler.run(JofiJobRequest)` passes. Anything else (a lambda, a static method, another
-   class) keeps id, state and history but runs as the `rejected-job` type, which fails without retry. A
-   tampered row neither runs nor blocks the queue. `JobStoreTest` covers both layers.
+1. **Raw JSON first** (`JobJsonGuard`, called by `AllowlistJobMapper`, our `JobMapper` bean, for every job and
+   recurring job read from the store): the row is parsed with a plain Jackson tree mapper without default
+   typing, so no class is loaded. It must call `JofiJobRequestHandler.run` (no static field) with exactly one
+   `JofiJobRequest` parameter, and every type id (`@class` and wrapper arrays) must be in an exact list: JobRunr's
+   job states, its dashboard log/progress metadata, `ConcurrentHashMap`, `CopyOnWriteArrayList` and
+   `JofiJobRequest`. Foreign job details are replaced by the `rejected-job` request before JobRunr reads the
+   JSON (id, state and history stay); a foreign type id means JobRunr never reads the row at all, and a
+   minimal job with the stored id, version and current state is built instead.
+2. **Jackson deserializers** (`AllowlistModule`): every bean, map, collection, enum, array and reference
+   deserializer of a class outside JobRunr's own model, `JofiJobRequest` and an exact list of JDK types
+   (`String`, boxed numbers, `UUID`, `Instant`, `Duration`, a few maps and lists) refuses to build it, so e.g.
+   an `InetAddress` (a DNS lookup outside adapters/net) or a `HashMap` subclass is never constructed.
+3. **After reading**, a job whose details are still not a `JofiJobRequest` becomes the minimal rejected job.
+
+A rejected job runs as `rejected-job`, which fails without retry and shows in the job log. A row JobRunr cannot
+read (it passes the guard but fails deserialization) is quarantined the same way instead of failing the whole
+read of its state. Only text that is not a JSON object with an id still fails the read, as it would without
+the guard. `JobJsonGuardTest` (static-initialiser, `HashMap` and `InetAddress` gadgets), `JobStoreTest` and
+`BackgroundJobsTest` (a tampered row in PostgreSQL ends `FAILED` with `rejected-job`, no handler runs) cover it.
+An architecture rule keeps JobRunr types in `shared.adapter.jobs` (and the wiring in `shared.config`) and bans
+JobRunr's lambda jobs, `@Job`/`@Recurring`/`@AsyncJob` and the `JobScheduler`/`BackgroundJob` APIs everywhere:
+jobs written that way would be quarantined. Handler exceptions of any kind, checked ones included, are
+recorded as `unexpected-error` without message or cause.
 
 ### Recurring jobs
 

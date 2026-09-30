@@ -103,7 +103,10 @@ ArchUnit checks our own compiled classes. It does not see:
   the rules above.
 - Libraries that fetch on their own: XML parsers resolving external entities or schemas, Tika
   fetching remote resources, image or PDF libraries loading linked content, JGit remotes. Each such
-  library needs its network features switched off where it is introduced.
+  library needs its network features switched off where it is introduced. Example: JobRunr's
+  `CarbonIntensityApiClient` calls `api.jobrunr.io` over `HttpURLConnection` when carbon-aware job
+  processing is on; Jofi switches it off explicitly (`jobrunr.background-job-server.carbon-aware-job-processing.enabled:
+  false`, ADR-0038), and `CronSchedule` cannot express a carbon-aware schedule.
 - JVM-wide settings: `socksProxyHost` may still apply to HttpClient's plain sockets; the JVM's
   system properties are deployment configuration, not user input.
 

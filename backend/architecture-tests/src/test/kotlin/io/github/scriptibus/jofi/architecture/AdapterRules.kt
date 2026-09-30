@@ -50,6 +50,53 @@ object AdapterRules {
             .belongToAnyOf(AiProviderPort::class.java)
             .because("callers use the task-based LlmPort/EmbeddingPort behind the AI gateway")
 
+    /** The job store adapter and its wiring: the only places JobRunr types may appear (ADR-0038). */
+    const val JOBS_ADAPTER = "$BASE.shared.adapter.jobs"
+    private const val SHARED_CONFIG = "$BASE.shared.config"
+
+    /**
+     * JobRunr stays behind `JobSchedulerPort`, `JobLogPort` and `JobHandlerPort`: only `shared.adapter.jobs`
+     * (and the bean wiring in `shared.config`) may use `org.jobrunr` types, like provider types in adapters/ai.
+     */
+    val onlyTheJobsAdapterUsesJobRunr: ArchRule =
+        noClasses()
+            .that()
+            .resideOutsideOfPackages("$JOBS_ADAPTER..", "$SHARED_CONFIG..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("org.jobrunr..")
+            .because("JobRunr stays behind the job ports (ADR-0038)")
+
+    /**
+     * Every job is a `JofiJobRequest` run by `JofiJobRequestHandler`; the job store allowlist rejects
+     * anything else. JobRunr's lambda jobs, `@Job`/`@Recurring`/`@AsyncJob` and the `JobScheduler` /
+     * `BackgroundJob` APIs would write jobs the allowlist quarantines, so nothing may use them.
+     */
+    val noJobRunrLambdasOrAnnotations: ArchRule =
+        noClasses()
+            .should()
+            .dependOnClassesThat(isJobRunrLambdaOrAnnotationApi())
+            .because("every job is a JofiJobRequest; the job store rejects lambda and annotated jobs (ADR-0038)")
+
+    private val JOBRUNR_BANNED =
+        setOf(
+            "org.jobrunr.scheduling.JobScheduler",
+            "org.jobrunr.scheduling.BackgroundJob",
+            "org.jobrunr.scheduling.BackgroundJobRequest",
+            "org.jobrunr.jobs.lambdas.JobLambda",
+            "org.jobrunr.jobs.lambdas.IocJobLambda",
+            "org.jobrunr.jobs.lambdas.JobLambdaFromStream",
+            "org.jobrunr.jobs.lambdas.IocJobLambdaFromStream",
+            "org.jobrunr.jobs.annotations.Job",
+            "org.jobrunr.jobs.annotations.Recurring",
+            "org.jobrunr.jobs.annotations.AsyncJob",
+        )
+
+    private fun isJobRunrLambdaOrAnnotationApi(): DescribedPredicate<JavaClass> =
+        DescribedPredicate.describe(
+            "JobRunr's lambda, annotation or JobScheduler job APIs",
+        ) { it.name in JOBRUNR_BANNED }
+
     /** The SSRF guard (threat model T1, ADR-0034). */
     const val NET_ADAPTER = "$BASE.shared.adapter.net"
 

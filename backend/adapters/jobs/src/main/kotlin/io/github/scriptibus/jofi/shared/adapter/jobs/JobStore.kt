@@ -3,33 +3,40 @@
 
 package io.github.scriptibus.jofi.shared.adapter.jobs
 
-import org.jobrunr.jobs.Job
-import org.jobrunr.jobs.JobDetails
-import org.jobrunr.jobs.RecurringJob
 import org.jobrunr.jobs.mappers.JobMapper
 import org.jobrunr.storage.StorageProvider
 import org.jobrunr.storage.StorageProviderUtils.DatabaseOptions
 import org.jobrunr.storage.sql.postgres.PostgresStorageProvider
 import org.jobrunr.utils.mapper.JsonMapper
 import org.jobrunr.utils.mapper.jackson3.Jackson3JsonMapper
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import tools.jackson.core.JsonParser
 import tools.jackson.databind.BeanDescription
 import tools.jackson.databind.DeserializationConfig
 import tools.jackson.databind.DeserializationContext
+import tools.jackson.databind.JavaType
 import tools.jackson.databind.ValueDeserializer
 import tools.jackson.databind.deser.ValueDeserializerModifier
 import tools.jackson.databind.module.SimpleModule
-import java.time.ZoneId
+import tools.jackson.databind.type.ArrayType
+import tools.jackson.databind.type.CollectionLikeType
+import tools.jackson.databind.type.CollectionType
+import tools.jackson.databind.type.MapLikeType
+import tools.jackson.databind.type.MapType
+import tools.jackson.databind.type.ReferenceType
+import java.time.Duration
+import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ConcurrentMap
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.sql.DataSource
 import tools.jackson.databind.json.JsonMapper as JacksonJsonMapper
 
 /**
  * The job store: JobRunr's tables in our PostgreSQL, created by our Flyway migration (ADR-0009),
- * read through a JSON mapper that refuses every class Jofi does not write (threat model T4/T6: the
- * job JSON names the classes to instantiate and the methods to call).
+ * read through two allowlists (ADR-0038): [JobJsonGuard] checks the raw JSON before JobRunr loads any
+ * class it names, and [AllowlistModule] keeps JobRunr's Jackson mapper from building anything else.
  */
 object JobStore {
     /**
@@ -43,38 +50,115 @@ object JobStore {
     ): StorageProvider =
         PostgresStorageProvider(dataSource, null, DatabaseOptions.NO_VALIDATE).apply { setJobMapper(jobMapper) }
 
-    /** JobRunr's Jackson 3 mapper that builds no bean outside [ALLOWED_PREFIXES] (see [AllowlistModule]). */
+    /** JobRunr's Jackson 3 mapper that builds no class outside [isAllowed] (see [AllowlistModule]). */
     fun jsonMapper(): JsonMapper = Jackson3JsonMapper(JacksonJsonMapper.builder().addModule(AllowlistModule()))
 
-    /** Classes JobRunr's mapper may build: JobRunr's own model, JDK types and our one job request. */
-    val ALLOWED_PREFIXES = listOf("org.jobrunr.", "java.")
-    val ALLOWED_CLASSES = setOf(JofiJobRequest::class.java.name)
+    /** JobRunr's own model classes (states, job details, enums). */
+    private const val JOBRUNR_PACKAGE = "org.jobrunr."
+
+    /** The exact JDK types the job JSON contains; anything wider (e.g. `InetAddress`) could act on read. */
+    private val ALLOWED_CLASSES: Set<Class<*>> =
+        setOf(
+            JofiJobRequest::class.java,
+            Any::class.java,
+            String::class.java,
+            Long::class.javaObjectType,
+            Int::class.javaObjectType,
+            Boolean::class.javaObjectType,
+            Double::class.javaObjectType,
+            UUID::class.java,
+            Instant::class.java,
+            Duration::class.java,
+            Map::class.java,
+            LinkedHashMap::class.java,
+            HashMap::class.java,
+            ConcurrentMap::class.java,
+            ConcurrentHashMap::class.java,
+            List::class.java,
+            Collection::class.java,
+            ArrayList::class.java,
+            CopyOnWriteArrayList::class.java,
+            ConcurrentLinkedQueue::class.java,
+        )
 
     fun isAllowed(type: Class<*>): Boolean =
         when {
             type.isPrimitive -> true
             type.isArray -> isAllowed(type.componentType)
-            else -> type.name in ALLOWED_CLASSES || ALLOWED_PREFIXES.any { type.name.startsWith(it) }
+            else -> type in ALLOWED_CLASSES || type.name.startsWith(JOBRUNR_PACKAGE)
         }
 }
 
 /**
- * Replaces the deserializer of every bean class outside the allowlist by one that refuses to build
- * it. JobRunr reads a job parameter's class name from the stored JSON; a refused parameter becomes
- * "not deserializable" and the job fails instead of instantiating an arbitrary class.
+ * Second layer: replaces the deserializer of every class outside [JobStore.isAllowed] (beans, maps,
+ * collections, enums, arrays, references) by one that refuses to build it. The first layer,
+ * [JobJsonGuard], already rejects such JSON before JobRunr sees it.
  */
 internal class AllowlistModule : SimpleModule("jofi-job-allowlist") {
     init {
-        setDeserializerModifier(
-            object : ValueDeserializerModifier() {
-                override fun modifyDeserializer(
-                    config: DeserializationConfig,
-                    description: BeanDescription.Supplier,
-                    deserializer: ValueDeserializer<*>,
-                ): ValueDeserializer<*> =
-                    if (JobStore.isAllowed(description.beanClass)) deserializer else Refused(description.beanClass.name)
-            },
-        )
+        setDeserializerModifier(Guard())
+    }
+
+    private class Guard : ValueDeserializerModifier() {
+        private fun allowOrRefuse(
+            type: Class<*>,
+            deserializer: ValueDeserializer<*>,
+        ): ValueDeserializer<*> = if (JobStore.isAllowed(type)) deserializer else Refused(type.name)
+
+        override fun modifyDeserializer(
+            config: DeserializationConfig,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(description.beanClass, deserializer)
+
+        override fun modifyEnumDeserializer(
+            config: DeserializationConfig,
+            type: JavaType,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(type.rawClass, deserializer)
+
+        override fun modifyReferenceDeserializer(
+            config: DeserializationConfig,
+            type: ReferenceType,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(type.rawClass, deserializer)
+
+        override fun modifyArrayDeserializer(
+            config: DeserializationConfig,
+            type: ArrayType,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(type.rawClass, deserializer)
+
+        override fun modifyCollectionDeserializer(
+            config: DeserializationConfig,
+            type: CollectionType,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(type.rawClass, deserializer)
+
+        override fun modifyCollectionLikeDeserializer(
+            config: DeserializationConfig,
+            type: CollectionLikeType,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(type.rawClass, deserializer)
+
+        override fun modifyMapDeserializer(
+            config: DeserializationConfig,
+            type: MapType,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(type.rawClass, deserializer)
+
+        override fun modifyMapLikeDeserializer(
+            config: DeserializationConfig,
+            type: MapLikeType,
+            description: BeanDescription.Supplier,
+            deserializer: ValueDeserializer<*>,
+        ) = allowOrRefuse(type.rawClass, deserializer)
     }
 
     private class Refused(
@@ -84,46 +168,5 @@ internal class AllowlistModule : SimpleModule("jofi-job-allowlist") {
             parser: JsonParser,
             context: DeserializationContext,
         ): Any = error("Class $className is not allowed in the job store")
-    }
-}
-
-/**
- * Reads jobs and recurring jobs, and quarantines any whose details were not written by Jofi (a
- * lambda, a static method, another class): they keep id, state and history, but run as the
- * [JofiJobRequest.REJECTED_TYPE] job, which fails without retry. A tampered row therefore neither
- * runs nor blocks the queue.
- */
-class AllowlistJobMapper(
-    jsonMapper: JsonMapper,
-) : JobMapper(jsonMapper) {
-    override fun deserializeJob(serializedJobAsString: String): Job {
-        val job = super.deserializeJob(serializedJobAsString)
-        if (JofiJobRequest.isJofiJob(job.jobDetails)) return job
-        logger.error("Job {} in the job store was not written by Jofi and will not run", job.id)
-        return Job(job.id, job.version, rejected(), job.jobStates, ConcurrentHashMap(job.metadata)).also {
-            it.jobName = JofiJobRequest.REJECTED_TYPE
-            job.recurringJobId.ifPresent(it::setRecurringJobId)
-        }
-    }
-
-    override fun deserializeRecurringJob(serializedJobAsString: String): RecurringJob {
-        val job = super.deserializeRecurringJob(serializedJobAsString)
-        if (JofiJobRequest.isJofiJob(job.jobDetails)) return job
-        logger.error("Recurring job {} in the job store was not written by Jofi and will not run", job.id)
-        return RecurringJob(
-            job.id,
-            job.version,
-            rejected(),
-            job.schedule,
-            ZoneId.of(job.zoneId),
-            job.createdBy,
-            job.createdAt,
-        ).also { it.jobName = JofiJobRequest.REJECTED_TYPE }
-    }
-
-    private fun rejected() = JobDetails(JofiJobRequest(type = JofiJobRequest.REJECTED_TYPE))
-
-    private companion object {
-        val logger: Logger = LoggerFactory.getLogger(AllowlistJobMapper::class.java)
     }
 }

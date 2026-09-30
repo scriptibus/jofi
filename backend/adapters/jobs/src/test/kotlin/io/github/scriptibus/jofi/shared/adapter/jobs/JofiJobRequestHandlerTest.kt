@@ -92,6 +92,18 @@ class JofiJobRequestHandlerTest {
     }
 
     @Test
+    fun `a checked exception is redacted too`() {
+        val jobs =
+            dispatcher(handler("scanner-run") { throw java.io.IOException("cannot read /home/max.mustermann/cv.pdf") })
+
+        val failure = shouldThrow<JobRunFailedException> { jobs.run(JofiJobRequest("scanner-run")) }
+
+        failure.message shouldBe "unexpected-error"
+        failure.cause shouldBe null
+        failure.stackTraceToString() shouldNotContain "max.mustermann"
+    }
+
+    @Test
     fun `a job without a handler and a quarantined job fail for good`() {
         val jobs = dispatcher()
 

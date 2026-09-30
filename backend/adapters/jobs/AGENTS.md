@@ -20,9 +20,13 @@ Packages: `shared.adapter.jobs` (the job store) and `<context>.adapter.jobs` (jo
 - `JofiJobRequest` + `JofiJobRequestHandler`: the one job payload (type, id arguments, random delay) and the
   dispatcher to the `JobHandlerPort` of that type. Failures become `JobRunFailedException(reason code)`
   without a cause, because JobRunr stores message and stack trace.
-- `JobStore`: the storage provider (Flyway owns the tables, `NO_VALIDATE`, no connection at startup), the
-  Jackson 3 mapper with the class allowlist, and `AllowlistJobMapper`, which quarantines stored jobs that do
-  not call `JofiJobRequestHandler.run(JofiJobRequest)` as `rejected-job`.
+- `JobStore`, `JobJsonGuard`, `AllowlistJobMapper`: the storage provider (Flyway owns the tables,
+  `NO_VALIDATE`, no connection at startup) and three layers against tampered rows (ADR-0038): the raw JSON is
+  checked with a plain tree mapper before JobRunr loads any class it names (handler, method, parameter and an
+  exact list of type ids); JobRunr's Jackson 3 mapper builds no class outside JobRunr's model, `JofiJobRequest`
+  and an exact list of JDK types (beans, maps, collections, enums, arrays); anything foreign or unreadable is
+  quarantined as `rejected-job` with its id and state. A new job-JSON type (e.g. new JobRunr metadata after an
+  upgrade) must be added to `JobJsonGuard.TYPE_IDS` deliberately; `JobJsonGuardTest` shows what is written.
 - `system.adapter.jobs.SessionCleanupJobAdapter`: the hourly housekeeping job.
 
 ## Rules
@@ -36,8 +40,9 @@ Packages: `shared.adapter.jobs` (the job store) and `<context>.adapter.jobs` (jo
 - **Reason codes are slugs** (`FailureReason`), never exception messages.
 - Mutations inside a job write a changelog entry with the job's actor (`Actor.System(<job type>)`, or
   `Actor.Scanner(<name>)` for scanners), in the same transaction as the change.
-- Never use JobRunr lambdas (`BackgroundJob.enqueue { ... }`), `@Job`/`@Recurring` annotations, `JobScheduler`
-  or the dashboard: they would bypass the allowlist, which rejects every job that is not a `JofiJobRequest`.
+- Never use JobRunr lambdas (`BackgroundJob.enqueue { ... }`), `@Job`/`@Recurring`/`@AsyncJob`, `JobScheduler`
+  or the dashboard: the allowlist rejects every job that is not a `JofiJobRequest`, and `AdapterRulesTest` fails
+  the build. JobRunr types stay in `shared.adapter.jobs` (plus the wiring in `bootstrap`'s `shared.config`).
 - Enqueueing is not transactional with the caller's database work: commit first, then enqueue.
 
 ## Tests
