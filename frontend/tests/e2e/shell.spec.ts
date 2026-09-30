@@ -7,12 +7,13 @@ import { choose, expectNoA11yViolations, mainNav, onStack, snapshot } from "./he
 // Every test starts logged in (storage state of the `seed` project).
 test.skip(!onStack, "Needs the full stack: run `pnpm e2e`.");
 
+// `placeholder`: the area shows the "Nothing here yet" empty state until its feature exists.
 const AREAS = [
-  { link: "Applications", heading: "Applications", path: "/applications" },
-  { link: "Companies", heading: "Companies", path: "/companies" },
-  { link: "Tasks", heading: "Tasks", path: "/tasks" },
-  { link: "Chat", heading: "Chat", path: "/chat" },
-  { link: "Dashboard", heading: "Let the donkey do the donkey work.", path: "/" },
+  { link: "Applications", heading: "Applications", path: "/applications", placeholder: true },
+  { link: "Companies", heading: "Companies", path: "/companies", placeholder: false },
+  { link: "Tasks", heading: "Tasks", path: "/tasks", placeholder: true },
+  { link: "Chat", heading: "Chat", path: "/chat", placeholder: true },
+  { link: "Dashboard", heading: "Let the donkey do the donkey work.", path: "/", placeholder: true },
 ];
 
 test("shell: navigation to every area, landmarks, skip link, accessibility", async ({ page }, testInfo) => {
@@ -33,7 +34,8 @@ test("shell: navigation to every area, landmarks, skip link, accessibility", asy
       "aria-current",
       "page",
     );
-    await expect(page.getByRole("heading", { level: 2, name: "Nothing here yet" })).toBeVisible();
+    if (area.placeholder)
+      await expect(page.getByRole("heading", { level: 2, name: "Nothing here yet" })).toBeVisible();
   }
   await page.goto("/applications");
   await expectNoA11yViolations(page);

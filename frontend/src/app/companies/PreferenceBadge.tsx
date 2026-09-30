@@ -10,7 +10,7 @@ export function PreferenceBadge({ preference }: { preference: Preference }) {
   const Icon = preference === "FAVOURITE" ? FavouriteIcon : BlacklistedIcon;
   const tone = preference === "FAVOURITE" ? "text-good" : "text-bad";
   return (
-    <span className="inline-flex items-center gap-1.5 rounded border border-line bg-sunken px-2 py-0.5 font-semibold text-body">
+    <span className="inline-flex w-fit items-center gap-1.5 rounded border border-line bg-sunken px-2 py-0.5 font-semibold text-body">
       <Icon className={`size-4 ${tone}`} aria-hidden="true" />
       {preferenceLabel(preference)}
     </span>
