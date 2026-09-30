@@ -24,8 +24,6 @@ object InboundPortRules {
         mapOf(
             "SearchApplicationsPort" to "#83",
             "LinkApplicationContactsPort" to "#90",
-            "ChangeApplicationStatusPort" to "#84",
-            "GetApplicationStatusHistoryPort" to "#84",
             "AddApplicationSourcePort" to "#96",
             "RecordDescriptionSnapshotPort" to "#86",
             "ListDescriptionSnapshotsPort" to "#86",

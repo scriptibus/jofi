@@ -108,8 +108,10 @@ interface DeleteApplicationPort {
  * the reason becomes the application's decline reason; any other status clears it, and a category there is
  * `Invalid` (NOT_APPLICABLE). A move the matrix does not allow is `InvalidTransition`; moving to the current
  * status with the same reason is a no-op. Stores through `ApplicationRepositoryPort.changeStatus` (the
- * history entry with it), writes a changelog entry (field `status`, before and after; the reason's text
- * stays out of it) and publishes `ApplicationStatusChanged`. If the move `freezesDescriptions` (the application is
+ * history entry with it), writes a changelog entry (field `status`, before and after, plus `declineReason`, the
+ * category before and after, when that changes; a self-move correcting the reason records only `declineReason`;
+ * the reason's text stays out of it) and publishes `ApplicationStatusChanged` (whose `from` equals `to` for such a
+ * correction). If the move `freezesDescriptions` (the application is
  * first applied to, ADR-0046), it freezes the job descriptions in the same transaction through
  * `DescriptionSnapshotRepositoryPort.freeze` (as of the change's time), writing one changelog entry per frozen snapshot
  * (entity `description_snapshot`, same actor), so a status change and its freeze are stored together or not at all.

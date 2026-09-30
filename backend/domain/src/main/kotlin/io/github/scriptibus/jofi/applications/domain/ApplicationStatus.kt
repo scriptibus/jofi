@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.applications.domain
 
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.DomainEvent
 import io.github.scriptibus.jofi.shared.domain.text.textProblem
 import java.time.Instant
 
@@ -52,8 +53,8 @@ enum class ApplicationStatus {
 
     /**
      * Whether an application in this status may move to [target]. The pipeline moves freely (forward
-     * skips and backward corrections); moving to the same status is only a transition for [DECLINED] and
-     * [REJECTED], where it corrects the reason.
+     * skips and backward corrections), and every terminal status reopens to every pipeline status; moving to
+     * the same status is only a transition for [DECLINED] and [REJECTED], where it corrects the reason.
      */
     fun canMoveTo(target: ApplicationStatus): Boolean = target in successors()
 
@@ -61,12 +62,12 @@ enum class ApplicationStatus {
         when (this) {
             DISCOVERED, SHORTLISTED, PREPARING -> PIPELINE - this + DECLINED
             APPLIED, INTERVIEWING -> PIPELINE - this + setOf(REJECTED, WITHDRAWN, GHOSTED)
-            OFFER -> PIPELINE - this + setOf(ACCEPTED, REJECTED, DECLINED)
-            ACCEPTED -> setOf(OFFER)
-            REJECTED -> setOf(REJECTED, APPLIED, INTERVIEWING, OFFER)
-            WITHDRAWN -> setOf(APPLIED, INTERVIEWING)
-            DECLINED -> setOf(DECLINED, DISCOVERED, SHORTLISTED, PREPARING, OFFER)
-            GHOSTED -> setOf(APPLIED, INTERVIEWING, OFFER, REJECTED, WITHDRAWN)
+            OFFER -> PIPELINE - this + setOf(ACCEPTED, REJECTED, DECLINED, GHOSTED)
+            ACCEPTED -> PIPELINE + setOf(REJECTED, DECLINED)
+            REJECTED -> PIPELINE + REJECTED
+            WITHDRAWN -> PIPELINE
+            DECLINED -> PIPELINE + DECLINED
+            GHOSTED -> PIPELINE + setOf(REJECTED, WITHDRAWN)
         }
 
     companion object {
@@ -194,8 +195,9 @@ sealed interface StatusTransition {
 
 /**
  * Domain event: [actor] moved [application] [from] one status [to] another at [occurredAt] (the Ghosted
- * suggestion, #85, the description freeze, #86, and the views react to it). It carries no reason, since
- * reasons are free text.
+ * suggestion, #85, and the views react to it). It carries no reason, since reasons are free text.
+ * **[from] may equal [to]**: `DECLINED → DECLINED` and `REJECTED → REJECTED` correct the decline reason
+ * (ADR-0044), so consumers must tolerate a move that leaves the status as it was.
  */
 data class ApplicationStatusChanged(
     val application: ApplicationId,
@@ -203,7 +205,7 @@ data class ApplicationStatusChanged(
     val to: ApplicationStatus,
     val actor: Actor,
     val occurredAt: Instant,
-) {
+) : DomainEvent {
     /**
      * The move is the application being applied to (or a later stage skipped to), so the use case that makes
      * it freezes the descriptions in the same transaction (spec §6.1, ADR-0046): per source the newest snapshot
