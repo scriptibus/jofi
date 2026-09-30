@@ -49,3 +49,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0038](0038-jobrunr-job-store-worker-profile-and-job-log.md) | JobRunr job store, worker profile and job log | accepted |
 | [0039](0039-server-enforced-two-step-confirmation.md) | Server-enforced two-step confirmation for deletes and outward-facing actions | accepted |
 | [0040](0040-ai-providers-through-spring-ai-and-vendor-sdk-cores-on-the-guarded-transport.md) | AI providers through Spring AI and the vendor SDK cores on the guarded transport | accepted |
+| [0041](0041-context-contracts-inbound-ports-input-validation-and-versions.md) | Context contracts: inbound ports, validation as values, optimistic versions | accepted |

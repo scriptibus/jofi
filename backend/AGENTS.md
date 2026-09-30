@@ -59,7 +59,8 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
 `tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
-providers, per-task models, capabilities, costs, budget) and `shared` exist.
+providers, per-task models, capabilities, costs, budget), `companies` (contract: company model,
+ports, table, API shape) and `shared` exist.
 The only class allowed directly in the base package is the application class; the only class
 allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 
@@ -166,6 +167,11 @@ the setup checks. Costs and the budget are in USD only.
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).
   Then regenerate and commit the API contract (see "API contract" below).
 - **A context**: create `<context>` packages in the modules you need, following the convention.
+- **A context contract** (ADR-0041, `companies` is the example): domain model with a raw `*Input` whose
+  `validate()` returns violations as values, a `version` for optimistic locking, the changelog entity
+  type on the id (`ENTITY_TYPE`, `toEntityRef()`), a sealed store result and a sealed use-case result;
+  a repository port plus one inbound `<Verb><Noun>Port` per use case (implemented later by
+  `<Verb><Noun>UseCase`); the migration with a schema test; a controller with typed DTOs answering 501.
 - **A dependency or plugin**: look up the latest stable version at the official source, read its
   current docs, add it to `gradle/libs.versions.toml`, then refresh locks and checksums. List
   version + doc link in the PR (spec 4.10).

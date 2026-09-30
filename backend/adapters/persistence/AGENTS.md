@@ -93,6 +93,31 @@ The generator lives in the `codegen` source set and has its own locked classpath
   jOOQ code in `shared.adapter.persistence.jooq` (the one exemption from adapter independence,
   ADR-0032).
 
+## `companies` tables (#73, ADR-0041)
+
+- `company` (spec §5): details (trimmed name, http(s) website and careers page without user info,
+  industry, size band, ordered `locations text[]`, research notes), the AI profile placeholder
+  (`profile` + `profile_generated_at`, both or neither), the preference (`NONE`/`FAVOURITE`/`BLACKLISTED`,
+  a reason only with a flag) and `version` for optimistic locking. Check constraints mirror
+  `CompanyDetails`, `CompanyPreference` and `CompanyProfile`; `CompanySchemaTest` proves them.
+  `company_name_trgm_idx` (GIN, `gin_trgm_ops`) serves fuzzy name search and duplicate detection
+  (spec §8.4); pg_trgm ignores case. User data: **covered by export/import** (#26).
+- `CompanyRepositoryPort` is implemented with the use cases (#88). Its `update` stores only if the
+  stored `version` is one below the new one; `delete` checks the `Confirmed` proof (ADR-0039) and answers
+  `HasApplications` while applications reference the company (their foreign key, #76).
+- Changelog: research notes and profiles are free text that may hold personal data; record that they
+  changed (in the description, e.g. "Research notes edited"), never their text in a `FieldChange`,
+  until redaction exists (#52).
+
+## Changelog entity types
+
+`EntityRef.type` is stored in every changelog entry, so these names never change. Each is a constant on
+the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
+
+| Entity type | Aggregate | Constant |
+|---|---|---|
+| `company` | `companies.domain.Company` | `CompanyId.ENTITY_TYPE` |
+
 ## Tests
 
 Plain JUnit against a real PostgreSQL (`PostgresTestDatabase`: one container per test JVM, Flyway

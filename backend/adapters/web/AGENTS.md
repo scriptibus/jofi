@@ -41,6 +41,17 @@ parameter makes the contract document the 428 `ConfirmationRequiredProblem` auto
 `ConfirmationRulesTest` fails a `DELETE` handler without it. Never log the token or put it in a URL.
 `ConfirmationFlowTest` (bootstrap) shows the pattern end to end behind the security filter chain.
 
+## Companies (#73, ADR-0041)
+
+`companies.adapter.web.CompanyController`: `GET /api/companies?search=&preference=&page=&size=`,
+`POST /api/companies`, `GET|PUT /api/companies/{id}`, `PUT /api/companies/{id}/preference` and
+`DELETE /api/companies/{id}` (two steps, `Jofi-Confirmation`). Contract only: every operation answers
+`501` until #88 injects the use cases. Then: `Invalid` -> 400 with the violations (`field`, `problem`),
+`NotFound` -> 404, `VersionConflict` -> 409, `HasApplications` -> 409, each with a
+`urn:jofi:problem:companies:*` type; `Unconfirmed` -> `Confirmations.problem`. Changes send
+`basedOnVersion`, the `version` of the last read. The slice tests' configuration root is
+`CompaniesWebTestApplication` (test sources), since `@WebMvcTest` searches the test's own package.
+
 ## Authentication (ADR-0035)
 
 - `system.adapter.web.AuthController`: `GET /api/auth/session`, `POST /api/auth/first-run`,
