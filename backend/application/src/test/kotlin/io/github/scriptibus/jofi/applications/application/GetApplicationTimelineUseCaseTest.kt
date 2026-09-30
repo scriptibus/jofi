@@ -29,7 +29,7 @@ class GetApplicationTimelineUseCaseTest {
     private val timeline = GetApplicationTimelineUseCase(repository, tasks)
     private val id = ApplicationId(UUID.randomUUID())
     private val status = TimelineEntry.StatusChanged(1, AT, Actor.User, null, ApplicationStatus.DISCOVERED, null)
-    private val change = TimelineEntry.Change(2, AT.plusSeconds(2), Actor.Ai, listOf("title"))
+    private val change = TimelineEntry.Change(2, AT.plusSeconds(2), Actor.Ai, emptyList())
     private val task = LinkedTasksPort.LinkedTask(UUID.randomUUID(), "Call Erika", AT.plusSeconds(1), null)
 
     @Test

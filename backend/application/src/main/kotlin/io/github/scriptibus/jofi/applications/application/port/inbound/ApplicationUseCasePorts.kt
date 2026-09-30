@@ -133,8 +133,9 @@ interface GetApplicationStatusHistoryPort {
 }
 
 /**
- * One page of the application's timeline (#87), newest first: its changes (field names only), status changes,
- * captured job descriptions, interviews (at their start) and linked tasks, merged from one read per source.
+ * One page of the application's timeline (#87), newest first: its changes (values only for
+ * `TimelineEntry.Change.VALUED_FIELDS`), status changes, captured job descriptions, interviews (at their start) and
+ * linked tasks, merged from one read per source.
  * `NotFound` if there is no such application, `StorageFailure` if a source cannot be read.
  */
 interface GetApplicationTimelinePort {

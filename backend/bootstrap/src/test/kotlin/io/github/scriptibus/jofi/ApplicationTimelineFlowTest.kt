@@ -83,7 +83,7 @@ class ApplicationTimelineFlowTest(
                 "STATUS_CHANGE",
                 "CHANGE",
             )
-        entries.first()["change"]["fields"].toList().map { it.asString() } shouldBe listOf("title")
+        entries.first()["change"]["fields"].toString() shouldBe """[{"field":"title","before":null,"after":null}]"""
         entries.first()["change"]["actor"]["kind"].asString() shouldBe "USER"
         entries[1]["task"]["title"].asString() shouldBe "Send the portfolio"
         entries.filterNot { it["statusChange"].isNull }.map { it["statusChange"]["to"].asString() } shouldContainExactly

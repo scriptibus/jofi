@@ -134,12 +134,13 @@ class ApplicationTimelineOnPostgresTest {
     }
 
     @Test
-    fun `a change names its fields but none of their values, a task has its title and completion`() {
+    fun `a change has values only for structured fields, never free text, a task has its title and completion`() {
         seed()
 
         val entries = page(TimelineQuery()).entries
         val created = entries.last().shouldBeInstanceOf<TimelineEntry.Change>()
-        created.fields shouldBe listOf("title", "company")
+        created.fields shouldBe
+            listOf(TimelineEntry.ChangedField("title", null, null), TimelineEntry.ChangedField("company", null, "c"))
         created.actor shouldBe Actor.User
         created.toString() shouldNotContain "Backend Engineer"
         val done = entries[1].shouldBeInstanceOf<TimelineEntry.TaskAdded>()

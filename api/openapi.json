@@ -6479,7 +6479,7 @@
           "fields" : {
             "type" : "array",
             "items" : {
-              "type" : "string"
+              "$ref" : "#/components/schemas/TimelineFieldChangeDto"
             }
           }
         }
@@ -6528,6 +6528,23 @@
             "allOf" : [ {
               "$ref" : "#/components/schemas/TimelineTaskDto"
             } ]
+          }
+        }
+      },
+      "TimelineFieldChangeDto" : {
+        "required" : [ "field" ],
+        "type" : "object",
+        "properties" : {
+          "after" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "before" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "field" : {
+            "type" : "string"
           }
         }
       },

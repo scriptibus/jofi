@@ -87,7 +87,8 @@ class ApplicationTimelineControllerTest(
                 "3",
                 "00",
                 "change",
-                """{"actor":{"kind":"USER","name":null},"fields":["title","location"]}""",
+                """{"actor":{"kind":"USER","name":null},"fields":[{"field":"title","before":null,"after":null},""" +
+                    """{"field":"seniority","before":null,"after":"SENIOR"}]}""",
             ),
         )
 
@@ -100,7 +101,7 @@ class ApplicationTimelineControllerTest(
 
     @Test
     fun `every kind of entry has its own detail property, newest first`() {
-        every { repository.entries(id, TimelineQuery()) } returns ApplicationStoreResult.Success(ownEntries())
+        every { repository.entries(id, TimelineQuery()) } returns ApplicationStoreResult.Success(ownEntries)
         every { tasks.linkedTasks(id.value, null, TimelineQuery.DEFAULT_LIMIT + 1) } returns
             LinkedTasksPort.Tasks.Listed(
                 listOf(LinkedTasksPort.LinkedTask(task, "Call Erika", AT.plusSeconds(4), AT.plusSeconds(5))),
@@ -132,8 +133,8 @@ class ApplicationTimelineControllerTest(
 
     @Test
     fun `a full page names the next one, whose cursor continues after its last entry`() {
-        val newer = TimelineEntry.Change(4, AT.plusSeconds(1), Actor.User, listOf("title"))
-        val older = TimelineEntry.Change(3, AT, Actor.User, listOf("title"))
+        val newer = TimelineEntry.Change(4, AT.plusSeconds(1), Actor.User, emptyList())
+        val older = TimelineEntry.Change(3, AT, Actor.User, emptyList())
         every { repository.entries(id, TimelineQuery(null, 1)) } returns
             ApplicationStoreResult.Success(listOf(newer, older))
         every { repository.entries(id, TimelineQuery(newer.position, 1)) } returns
@@ -202,7 +203,7 @@ class ApplicationTimelineControllerTest(
         TimelineKind.entries.map { it.name } shouldBe TimelineEntryKind.entries.map { it.name }
     }
 
-    private fun ownEntries(): List<TimelineEntry> =
+    private val ownEntries: List<TimelineEntry> =
         listOf(
             TimelineEntry.InterviewPlanned(
                 InterviewId(UUID.fromString("00000000-0000-0000-0000-0000000000e1")),
@@ -226,7 +227,15 @@ class ApplicationTimelineControllerTest(
                 ApplicationStatus.REJECTED,
                 DeclineCategory.SKILLS,
             ),
-            TimelineEntry.Change(3, AT, Actor.User, listOf("title", "location")),
+            TimelineEntry.Change(
+                3,
+                AT,
+                Actor.User,
+                listOf(
+                    TimelineEntry.ChangedField("title", null, null),
+                    TimelineEntry.ChangedField("seniority", null, "SENIOR"),
+                ),
+            ),
         )
 
     class UseCases {

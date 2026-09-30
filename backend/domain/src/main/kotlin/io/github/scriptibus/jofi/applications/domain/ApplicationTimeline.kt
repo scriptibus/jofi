@@ -105,22 +105,51 @@ data class TimelinePosition(
 
 /**
  * One entry of an application's timeline (#87), a read model over what other parts record. Entries carry no free
- * text beyond what their own API shows: a change names its fields but no values, a status change has no reason, an
- * interview no notes. [toString] of a task leaves out its title.
+ * text beyond what their own API shows: a change has values only for [TimelineEntry.Change.VALUED_FIELDS], a status
+ * change has no reason, an interview no notes. [toString] of a task leaves out its title.
  */
 sealed interface TimelineEntry {
     val occurredAt: Instant
     val position: TimelinePosition
 
-    /** A changelog entry of the application, by [actor], naming the [fields] with values it changed. */
+    /** A changelog entry of the application by [actor], with the [fields] it changed. */
     data class Change(
         val id: Long,
         override val occurredAt: Instant,
         val actor: Actor,
-        val fields: List<String>,
+        val fields: List<ChangedField>,
     ) : TimelineEntry {
         override val position get() = TimelinePosition(occurredAt, TimelineEntryKind.CHANGE, id.toString())
+
+        companion object {
+            /**
+             * The fields whose values a change shows: flags, numbers, dates, codes and ids, never text someone wrote
+             * (the title and location are free text; notes, pay and the offer are never in the changelog with values).
+             */
+            val VALUED_FIELDS: Set<String> =
+                setOf(
+                    "unread",
+                    "company",
+                    "contacts",
+                    "remoteShare",
+                    "employmentType",
+                    "seniority",
+                    "deadline",
+                    "howApplied",
+                    "postingLanguage",
+                    "applicationLanguage",
+                    "formOfAddress",
+                    "tone",
+                )
+        }
     }
+
+    /** One field of a [Change]; [before] and [after] are absent for fields outside [Change.VALUED_FIELDS]. */
+    data class ChangedField(
+        val field: String,
+        val before: String?,
+        val after: String?,
+    )
 
     /** [actor] moved the application [from] one status [to] another; [from] is absent for the first entry. */
     data class StatusChanged(

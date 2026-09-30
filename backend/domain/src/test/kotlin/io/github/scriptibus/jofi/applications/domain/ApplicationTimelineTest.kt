@@ -64,7 +64,7 @@ class ApplicationTimelineTest {
 
     @Test
     fun `merging keeps the newest entries of all sources up to the limit and names where the next page starts`() {
-        val change = TimelineEntry.Change(1, AT, Actor.User, listOf("title"))
+        val change = TimelineEntry.Change(1, AT, Actor.User, listOf(TimelineEntry.ChangedField("title", null, null)))
         val status = TimelineEntry.StatusChanged(1, AT, Actor.Ai, null, ApplicationStatus.DISCOVERED, null)
         val task = TimelineEntry.TaskAdded(HIGH, AT.plusSeconds(1), "Call Erika", null)
         val interview =

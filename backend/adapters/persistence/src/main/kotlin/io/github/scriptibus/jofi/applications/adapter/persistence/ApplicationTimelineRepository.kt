@@ -41,7 +41,8 @@ import java.time.ZoneOffset
  * The timeline sources of the applications context (#87): one keyset query per source, newest first, each served by
  * its index on the application (`changelog_entry_entity_idx`, `application_status_change_application_idx`,
  * `application_source_application_idx`, `interview_application_idx`). Only the columns an entry shows are read: a
- * change's field names but not their values, no reasons, notes or description texts.
+ * change's values only for `TimelineEntry.Change.VALUED_FIELDS` (never free text), no reasons, notes or description
+ * texts.
  */
 @Component
 class ApplicationTimelineRepository(
@@ -71,7 +72,8 @@ class ApplicationTimelineRepository(
     ): List<TimelineEntry> {
         val entry = CHANGELOG_ENTRY
         return dsl
-            .select(entry.ID, entry.OCCURRED_AT, entry.ACTOR_KIND, entry.ACTOR_NAME, FIELD_NAMES)
+            .select(entry.ID, entry.OCCURRED_AT, entry.ACTOR_KIND, entry.ACTOR_NAME)
+            .select(FIELD_NAMES, VALUES_BEFORE, VALUES_AFTER)
             .from(entry)
             .where(entry.ENTITY_TYPE.eq(ApplicationId.ENTITY_TYPE))
             .and(entry.ENTITY_ID.eq(id.value.toString()))
@@ -84,7 +86,9 @@ class ApplicationTimelineRepository(
                     row[entry.ID],
                     row[entry.OCCURRED_AT].toInstant(),
                     ActorColumns.toActor(row[entry.ACTOR_KIND], row[entry.ACTOR_NAME]),
-                    row[FIELD_NAMES].distinct(),
+                    row[FIELD_NAMES].mapIndexed { index, field ->
+                        TimelineEntry.ChangedField(field, row[VALUES_BEFORE][index], row[VALUES_AFTER][index])
+                    },
                 )
             }
     }
@@ -171,10 +175,28 @@ class ApplicationTimelineRepository(
     private companion object {
         val log: Logger = LoggerFactory.getLogger(ApplicationTimelineRepository::class.java)
 
-        /** The names of the changed fields; their values never leave the database. */
-        val FIELD_NAMES: Field<Array<String>> =
+        /** The names of the changed fields, in the order of the entry. */
+        val FIELD_NAMES: Field<Array<String>> = fieldChanges("change ->> 'field'")
+
+        /**
+         * The values before, by position: only those of `TimelineEntry.Change.VALUED_FIELDS` leave the database,
+         * the others (free text) are null.
+         */
+        val VALUES_BEFORE: Field<Array<String>> = fieldChanges(valued("before"))
+
+        /** The values after, as [VALUES_BEFORE]. */
+        val VALUES_AFTER: Field<Array<String>> = fieldChanges(valued("after"))
+
+        private fun valued(value: String): String =
+            "case when change ->> 'field' in (" +
+                TimelineEntry.Change.VALUED_FIELDS.joinToString { "'$it'" } +
+                ") then change ->> '$value' end"
+
+        /** [expression] of every field change (`change`) of the entry, in the entry's order. */
+        private fun fieldChanges(expression: String): Field<Array<String>> =
             DSL.field(
-                "array(select change ->> 'field' from jsonb_array_elements({0}) change)",
+                "array(select $expression from jsonb_array_elements({0}) with ordinality as element(change, ordinal) " +
+                    "order by ordinal)",
                 SQLDataType.VARCHAR.array(),
                 CHANGELOG_ENTRY.FIELD_CHANGES,
             )

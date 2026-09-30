@@ -33,7 +33,7 @@ data class TimelineEntryResponse(
             val base = TimelineEntryResponse(position.kind.mapByName(), position.id, entry.occurredAt)
             return when (entry) {
                 is TimelineEntry.Change -> {
-                    base.copy(change = TimelineChangeDto(ChangeActorDto.from(entry.actor), entry.fields))
+                    base.copy(change = TimelineChangeDto.from(entry))
                 }
 
                 is TimelineEntry.StatusChanged -> {
@@ -59,10 +59,31 @@ data class TimelineEntryResponse(
     }
 }
 
-/** [actor] changed the application's [fields] (names only; a field with personal or free-text values is not named). */
+/**
+ * [actor] changed the application's [fields]. Fields the changelog records without values (portal notes, pay band,
+ * offer) are not listed.
+ */
 data class TimelineChangeDto(
     val actor: ChangeActorDto,
-    val fields: List<String>,
+    val fields: List<TimelineFieldChangeDto>,
+) {
+    companion object {
+        fun from(entry: TimelineEntry.Change): TimelineChangeDto =
+            TimelineChangeDto(
+                ChangeActorDto.from(entry.actor),
+                entry.fields.map { TimelineFieldChangeDto(it.field, it.before, it.after) },
+            )
+    }
+}
+
+/**
+ * One changed [field] with its values [before] and [after] (as text), or without both for free text such as the
+ * title or location, which the timeline never shows.
+ */
+data class TimelineFieldChangeDto(
+    val field: String,
+    val before: String?,
+    val after: String?,
 )
 
 /** [actor] moved the application [from] one status [to] another; the reason is in the status history. */

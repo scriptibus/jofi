@@ -11,8 +11,9 @@ import io.github.scriptibus.jofi.applications.domain.TimelineQuery
 /**
  * Reads the timeline sources the applications context owns (#87): the application's changelog entries (without
  * those a status change writes, which its history entry shows), its status history, the description snapshots of
- * its sources and its interviews. One query per source, never one per entry; values and free text stay in the
- * database, so a change entry carries field names only. Implementations never throw and never log row data.
+ * its sources and its interviews. One query per source, never one per entry; free text stays in the database: a
+ * change entry has values only for `TimelineEntry.Change.VALUED_FIELDS`. Implementations never throw and never log
+ * row data.
  */
 interface ApplicationTimelineRepositoryPort {
     /**
