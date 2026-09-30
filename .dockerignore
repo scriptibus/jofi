@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Build context for the Jofi image (Dockerfile): only sources of backend and frontend.
+*
+!backend/
+!frontend/
+
+# Local build output, caches and secrets never enter the image.
+**/build/
+**/.gradle/
+**/.kotlin/
+**/node_modules/
+**/dist/
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/*.tsbuildinfo
+frontend/src/paraglide/
+**/.env
+**/.env.*
