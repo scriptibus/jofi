@@ -38,7 +38,7 @@ function start(path: string, data: Partial<FakeTaskState> = {}) {
   );
   const app = createApp(createMemoryHistory({ initialEntries: [path] }));
   render(<App app={app} />);
-  return { state: tasks.state, router: app.router, user: userEvent.setup() };
+  return { state: tasks.state, router: app.router, queryClient: app.queryClient, user: userEvent.setup() };
 }
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -147,6 +147,19 @@ describe("complete and undo", () => {
     // Based on the version the complete answered with.
     expect(state.stateChanges[1]).toEqual({ done: false, basedOnVersion: 4 });
     expect(screen.getByRole("checkbox", { name: "Call Anna" })).not.toBeChecked();
+  });
+
+  it("brings a reopened task back when the list was reloaded after it was done", async () => {
+    const { user, state, queryClient } = start("/tasks", { tasks: [aTask({ title: "Call Anna" })] });
+    await user.click(await screen.findByRole("checkbox", { name: "Call Anna" }));
+    await screen.findByText("“Call Anna” is done.");
+    // A reload meanwhile (e.g. on window focus): the server lists open tasks only.
+    await queryClient.refetchQueries({ queryKey: ["/api/tasks"] });
+    await waitFor(() => expect(screen.queryByRole("checkbox", { name: "Call Anna" })).toBeNull());
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByRole("checkbox", { name: "Call Anna" })).not.toBeChecked();
+    expect(state.stateChanges.map(({ done }) => done)).toEqual([true, false]);
   });
 
   it("reopens with the checkbox too", async () => {

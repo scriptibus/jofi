@@ -27,6 +27,12 @@ import { DELETE_OPERATION, describeTiming } from "./task";
 import { TaskLinkChip } from "./taskLinks";
 import { isTaskVersionConflict } from "./taskProblems";
 
+/** Whether the cached grouped list holds the task with `id`. */
+function isListed(queryClient: QueryClient, key: QueryKey, id: string): boolean {
+  const list = queryClient.getQueryData<TaskGroupListResponse>(key);
+  return list?.groups.some((group) => group.tasks.some((task) => task.id === id)) ?? false;
+}
+
 /** Replaces `task` wherever it is in the cached grouped list (it keeps its place). */
 function patchList(queryClient: QueryClient, key: QueryKey, task: TaskResponse) {
   queryClient.setQueryData<TaskGroupListResponse>(key, (list) =>
@@ -69,7 +75,10 @@ export function useSetTaskDone(listKey: QueryKey) {
       if (isTaskVersionConflict(error)) void queryClient.invalidateQueries({ queryKey: listKey });
     },
     onSuccess: (saved) => {
-      patchList(queryClient, listKey, saved);
+      // A reload meanwhile drops a done task (the server lists open ones only): reopened, it must come back.
+      if (!isListed(queryClient, listKey, saved.id))
+        void queryClient.invalidateQueries({ queryKey: listKey });
+      else patchList(queryClient, listKey, saved);
       queryClient.setQueryData(getGetTaskQueryKey(saved.id), saved);
     },
   });
