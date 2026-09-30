@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.applications.config
 import io.github.scriptibus.jofi.applications.application.DeleteInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.GetInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.ListInterviewsUseCase
+import io.github.scriptibus.jofi.applications.application.ListUpcomingInterviewsUseCase
 import io.github.scriptibus.jofi.applications.application.LogInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
@@ -16,7 +17,10 @@ import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
-/** The interview and call use cases of an application (#91, ADR-0048): log, edit, read, list and delete. */
+/**
+ * The interview and call use cases (ADR-0048): log, edit, read, list and delete those of an application (#91), and
+ * list the ones still to come across all applications (#92).
+ */
 @Configuration(proxyBeanMethods = false)
 class InterviewsConfiguration {
     @Bean
@@ -48,6 +52,12 @@ class InterviewsConfiguration {
         applications: ApplicationRepositoryPort,
         interviews: InterviewRepositoryPort,
     ): ListInterviewsUseCase = ListInterviewsUseCase(applications, interviews)
+
+    @Bean
+    fun listUpcomingInterviewsUseCase(
+        interviews: InterviewRepositoryPort,
+        audit: ApplicationAudit,
+    ): ListUpcomingInterviewsUseCase = ListUpcomingInterviewsUseCase(interviews, audit.clock)
 
     @Bean
     fun deleteInterviewUseCase(

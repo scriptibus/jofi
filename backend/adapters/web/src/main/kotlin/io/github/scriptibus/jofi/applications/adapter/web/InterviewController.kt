@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.applications.adapter.web
 import io.github.scriptibus.jofi.applications.application.DeleteInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.GetInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.ListInterviewsUseCase
+import io.github.scriptibus.jofi.applications.application.ListUpcomingInterviewsUseCase
 import io.github.scriptibus.jofi.applications.application.LogInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateInterviewUseCase
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -16,8 +17,6 @@ import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
-import org.springframework.http.ProblemDetail
-import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -32,8 +31,8 @@ import java.util.UUID
 
 /**
  * Interviews and calls of an application (spec §6.1, ADR-0048), for the logged-in user. Log, edit, read, list and
- * delete (#91) call their use case and map its `ApplicationResult.Failure` with [ApplicationProblems.of]; the list of
- * upcoming ones answers `501 Not Implemented` until #92. None of them changes the application's version.
+ * delete (#91) and the list of upcoming ones across all applications (#92) call their use case and map its
+ * `ApplicationResult.Failure` with [ApplicationProblems.of]. None of them changes the application's version.
  */
 @RestController
 @RequestMapping("/api")
@@ -43,6 +42,7 @@ class InterviewController(
     private val getInterview: GetInterviewUseCase,
     private val listInterviews: ListInterviewsUseCase,
     private val deleteInterview: DeleteInterviewUseCase,
+    private val listUpcomingInterviews: ListUpcomingInterviewsUseCase,
 ) {
     /** The application's interviews and calls in the order they start. */
     @GetMapping("/applications/{id}/interviews")
@@ -107,13 +107,8 @@ class InterviewController(
             ).orThrow()
     }
 
-    /** The interviews and calls still to come across all applications, soonest first (at most 100); #92. */
+    /** The interviews and calls still to come across all applications, soonest first (at most 100), not cancelled. */
     @GetMapping("/interviews/upcoming")
-    fun listUpcomingInterviews(): UpcomingInterviewListResponse = throw notImplemented()
-
-    private fun notImplemented(): ErrorResponseException {
-        val problem =
-            ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Upcoming interviews are not available yet")
-        return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
-    }
+    fun listUpcomingInterviews(): UpcomingInterviewListResponse =
+        UpcomingInterviewListResponse.from(listUpcomingInterviews.execute().orThrow())
 }

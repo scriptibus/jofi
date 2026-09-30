@@ -32,6 +32,9 @@ class ContactFixtures {
 
     /** Application links per contact, as the applications context reports them. */
     val links = mutableMapOf<ContactId, List<EntityRef>>()
+
+    /** Interviews per contact it takes part in, as the applications context reports them. */
+    val participations = mutableMapOf<ContactId, List<EntityRef>>()
     val entries get() = shared.entries
     val events get() = shared.events
     val changelog get() = shared.changelog
@@ -80,9 +83,20 @@ class ContactFixtures {
                 proof: ConfirmationResult.Confirmed,
             ): ContactStoreResult<Unit> =
                 when {
-                    !proof.covers(Contact.DELETE_OPERATION, id.value.toString()) -> ContactStoreResult.NotConfirmed
-                    contacts.remove(id) == null -> ContactStoreResult.NotFound
-                    else -> ContactStoreResult.Success(Unit).also { links.remove(id) }
+                    !proof.covers(Contact.DELETE_OPERATION, id.value.toString()) -> {
+                        ContactStoreResult.NotConfirmed
+                    }
+
+                    contacts.remove(id) == null -> {
+                        ContactStoreResult.NotFound
+                    }
+
+                    else -> {
+                        ContactStoreResult.Success(Unit).also {
+                            links.remove(id)
+                            participations.remove(id)
+                        }
+                    }
                 }
         }
 
@@ -90,7 +104,10 @@ class ContactFixtures {
         object : LinkedApplicationsPort {
             override fun linkedTo(contact: UUID): LinkedApplicationsPort.Linked =
                 if (linksAvailable) {
-                    LinkedApplicationsPort.Linked.Found(links[ContactId(contact)].orEmpty())
+                    LinkedApplicationsPort.Linked.Found(
+                        links[ContactId(contact)].orEmpty(),
+                        participations[ContactId(contact)].orEmpty(),
+                    )
                 } else {
                     LinkedApplicationsPort.Linked.Unavailable
                 }
