@@ -46,41 +46,54 @@ class TaskTest {
 
     @Test
     fun `completing and reopening set and clear the completion time`() {
-        val done = open.moveTo(TaskState.DONE, later).shouldBeInstanceOf<TaskStateChange.Changed>().task
+        val done = open.apply(TaskTransition.COMPLETE, later).shouldBeInstanceOf<TaskStateChange.Changed>().task
 
         done shouldBe open.copy(state = TaskState.DONE, completedAt = later, version = 1, updatedAt = later)
-        done.moveTo(TaskState.OPEN, later.plusSeconds(1)).shouldBeInstanceOf<TaskStateChange.Changed>().task shouldBe
+        done
+            .apply(
+                TaskTransition.REOPEN,
+                later.plusSeconds(1),
+            ).shouldBeInstanceOf<TaskStateChange.Changed>()
+            .task shouldBe
             done.copy(state = TaskState.OPEN, completedAt = null, version = 2, updatedAt = later.plusSeconds(1))
-        done.moveTo(TaskState.DONE, later) shouldBe TaskStateChange.Unchanged
+        done.apply(TaskTransition.COMPLETE, later) shouldBe TaskStateChange.Unchanged
+        open.apply(TaskTransition.REOPEN, later) shouldBe TaskStateChange.Unchanged
     }
 
     @Test
     fun `a suggestion is accepted or dismissed, and a dismissed one stays so`() {
-        val accepted = suggested.moveTo(TaskState.OPEN, later).shouldBeInstanceOf<TaskStateChange.Changed>().task
-        val dismissed = suggested.moveTo(TaskState.DISMISSED, later).shouldBeInstanceOf<TaskStateChange.Changed>().task
+        val accepted = suggested.apply(TaskTransition.ACCEPT, later).shouldBeInstanceOf<TaskStateChange.Changed>().task
+        val dismissed =
+            suggested.apply(TaskTransition.DISMISS, later).shouldBeInstanceOf<TaskStateChange.Changed>().task
 
         accepted.state shouldBe TaskState.OPEN
         accepted.origin shouldBe suggestion
         dismissed.state shouldBe TaskState.DISMISSED
-        TaskState.entries.filter { it != TaskState.DISMISSED }.forEach {
-            dismissed.moveTo(it, later) shouldBe TaskStateChange.NotAllowed(TaskState.DISMISSED, it)
+        TaskTransition.entries.filter { it != TaskTransition.DISMISS }.forEach {
+            dismissed.apply(it, later) shouldBe TaskStateChange.NotAllowed(TaskState.DISMISSED, it.to)
         }
     }
 
     @Test
-    fun `only the moves of the state machine are allowed`() {
-        val allowed =
-            TaskState.entries.flatMap { from -> TaskState.entries.filter(from::canMoveTo).map { from to it } }
+    fun `each transition starts from exactly one state, so no operation does another's job`() {
+        val done = (open.apply(TaskTransition.COMPLETE, later) as TaskStateChange.Changed).task
 
-        allowed.toSet() shouldBe
+        suggested.apply(TaskTransition.REOPEN, later) shouldBe
+            TaskStateChange.NotAllowed(TaskState.SUGGESTED, TaskState.OPEN)
+        suggested.apply(TaskTransition.COMPLETE, later) shouldBe
+            TaskStateChange.NotAllowed(TaskState.SUGGESTED, TaskState.DONE)
+        done.apply(TaskTransition.ACCEPT, later) shouldBe TaskStateChange.NotAllowed(TaskState.DONE, TaskState.OPEN)
+        done.apply(TaskTransition.DISMISS, later) shouldBe
+            TaskStateChange.NotAllowed(TaskState.DONE, TaskState.DISMISSED)
+        open.apply(TaskTransition.DISMISS, later) shouldBe
+            TaskStateChange.NotAllowed(TaskState.OPEN, TaskState.DISMISSED)
+        TaskTransition.entries.map { it.from to it.to }.toSet() shouldBe
             setOf(
                 TaskState.SUGGESTED to TaskState.OPEN,
                 TaskState.SUGGESTED to TaskState.DISMISSED,
                 TaskState.OPEN to TaskState.DONE,
                 TaskState.DONE to TaskState.OPEN,
             )
-        open.moveTo(TaskState.DISMISSED, later) shouldBe TaskStateChange.NotAllowed(TaskState.OPEN, TaskState.DISMISSED)
-        open.moveTo(TaskState.SUGGESTED, later) shouldBe TaskStateChange.NotAllowed(TaskState.OPEN, TaskState.SUGGESTED)
     }
 
     @ParameterizedTest

@@ -26,6 +26,7 @@ import io.github.scriptibus.jofi.tasks.domain.TaskState
 import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.github.scriptibus.jofi.tasks.domain.TaskTimingInput
+import io.github.scriptibus.jofi.tasks.domain.TaskTransition
 import io.github.scriptibus.jofi.tasks.domain.TimeBucket
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
@@ -112,7 +113,7 @@ class TaskDtosTest {
                 TaskOrigin.Suggested("follow-up", "application:a1"),
                 at,
             )
-        val done = (task.moveTo(TaskState.DONE, at) as TaskStateChange.Changed).task
+        val done = (task.apply(TaskTransition.COMPLETE, at) as TaskStateChange.Changed).task
 
         TaskResponse.from(suggested).origin shouldBe TaskOriginKind.SUGGESTED
         TaskResponse.from(suggested).suggestionRule shouldBe "follow-up"

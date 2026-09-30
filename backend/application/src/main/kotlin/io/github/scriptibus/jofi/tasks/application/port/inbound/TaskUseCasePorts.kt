@@ -19,7 +19,8 @@ import java.time.ZoneId
 // `LinkNotFound`). Mutations take the acting `Actor` and write a changelog entry (entity `task`) that names the changed
 // fields, never the title or notes. `basedOnVersion` is the `Task.version` the caller last read: a stale one is
 // `VersionConflict`, checked first, even for a no-op. Timestamps are `clock.instant().truncatedTo(ChronoUnit.MICROS)`,
-// which is also the instant a bucket is resolved with (`TaskInput.validate`).
+// which is also the instant a bucket is resolved with (`TaskInput.validate`). State changes go through `Task.apply`
+// with one `TaskTransition` per port, so no port does another's job (reopen never accepts a suggestion).
 
 /** Creates an open task (#93): [origin] is `Manual` from the app, `Chat` from the built-in chat or an MCP client. */
 interface CreateTaskPort {
@@ -47,7 +48,7 @@ interface GetTaskPort {
     fun execute(id: TaskId): TaskResult<Task>
 }
 
-/** Marks an open task done (#93); a task in another state is `InvalidTransition`, a done one is unchanged. */
+/** Marks an open task done (#93, `TaskTransition.COMPLETE`); a done one is unchanged, any other `InvalidTransition`. */
 interface CompleteTaskPort {
     fun execute(
         id: TaskId,
@@ -56,7 +57,7 @@ interface CompleteTaskPort {
     ): TaskResult<Task>
 }
 
-/** Opens a done task again (#93); a task in another state is `InvalidTransition`, an open one is unchanged. */
+/** Opens a done task again (#93, `TaskTransition.REOPEN`); an open one is unchanged, a suggestion `InvalidTransition`. */
 interface ReopenTaskPort {
     fun execute(
         id: TaskId,
@@ -91,7 +92,10 @@ interface ListSuggestedTasksPort {
     fun execute(): TaskResult<List<Task>>
 }
 
-/** Accepts a suggestion (#95): it becomes an open task of the user. Any other state is `InvalidTransition`. */
+/**
+ * Accepts a suggestion (#95, `TaskTransition.ACCEPT`): it becomes an open task of the user. An open task is
+ * unchanged; a done or dismissed one is `InvalidTransition`.
+ */
 interface AcceptTaskSuggestionPort {
     fun execute(
         id: TaskId,
@@ -102,7 +106,8 @@ interface AcceptTaskSuggestionPort {
 
 /**
  * Dismisses a suggestion (#95), by the user or, when it is obsolete, by its rule (`Actor.System`). It stays stored
- * as dismissed, so the rule does not suggest it again. Any other state is `InvalidTransition`.
+ * as dismissed, so the rule does not suggest it again (`TaskTransition.DISMISS`). A dismissed one is unchanged, any other
+ * state `InvalidTransition`.
  */
 interface DismissTaskSuggestionPort {
     fun execute(

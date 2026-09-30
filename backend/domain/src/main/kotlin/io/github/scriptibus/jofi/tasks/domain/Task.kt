@@ -67,16 +67,20 @@ enum class TaskState {
     OPEN,
     DONE,
     DISMISSED,
-    ;
+}
 
-    /** Whether a task may move from this state to [target]: accept, dismiss, complete or reopen. */
-    fun canMoveTo(target: TaskState): Boolean =
-        when (this) {
-            SUGGESTED -> target == OPEN || target == DISMISSED
-            OPEN -> target == DONE
-            DONE -> target == OPEN
-            DISMISSED -> false
-        }
+/**
+ * The state changes of a task, each from exactly one state [from] to [to] (accept, dismiss, complete, reopen), so an
+ * operation never does another one's job: reopening a suggestion or accepting a done task is not allowed.
+ */
+enum class TaskTransition(
+    val from: TaskState,
+    val to: TaskState,
+) {
+    ACCEPT(TaskState.SUGGESTED, TaskState.OPEN),
+    DISMISS(TaskState.SUGGESTED, TaskState.DISMISSED),
+    COMPLETE(TaskState.OPEN, TaskState.DONE),
+    REOPEN(TaskState.DONE, TaskState.OPEN),
 }
 
 /**
@@ -110,15 +114,19 @@ data class Task(
         at: Instant,
     ): Task = if (details == this.details) this else copy(details = details, version = version + 1, updatedAt = at)
 
-    /** The task moved to [target] [at] (see [TaskState.canMoveTo]). Callers check the client's version before. */
-    fun moveTo(
-        target: TaskState,
+    /**
+     * The task after [transition] [at]: [TaskStateChange.Unchanged] if it is in the target state already (e.g. a done
+     * task completed again), [TaskStateChange.NotAllowed] unless it is in the transition's source state. Callers
+     * check the client's version before.
+     */
+    fun apply(
+        transition: TaskTransition,
         at: Instant,
     ): TaskStateChange =
-        when {
-            target == state -> TaskStateChange.Unchanged
-            !state.canMoveTo(target) -> TaskStateChange.NotAllowed(state, target)
-            else -> TaskStateChange.Changed(moved(target, at))
+        when (state) {
+            transition.to -> TaskStateChange.Unchanged
+            transition.from -> TaskStateChange.Changed(moved(transition.to, at))
+            else -> TaskStateChange.NotAllowed(state, transition.to)
         }
 
     private fun moved(
@@ -158,14 +166,14 @@ data class Task(
     }
 }
 
-/** Outcome of [Task.moveTo]. */
+/** Outcome of [Task.apply]. */
 sealed interface TaskStateChange {
     /** The new version to store. */
     data class Changed(
         val task: Task,
     ) : TaskStateChange
 
-    /** The task is in the requested state already: nothing to store, no changelog entry. */
+    /** The task is in the transition's target state already: nothing to store, no changelog entry. */
     data object Unchanged : TaskStateChange
 
     /** The task cannot move [from] its state [to] the requested one. */

@@ -66,6 +66,9 @@ The row changes without a new `version`, as the link is gone rather than edited.
 ### States and origins
 
 `TaskState`: `SUGGESTED` → `OPEN` (accept) or `DISMISSED`; `OPEN` → `DONE` (complete); `DONE` → `OPEN` (reopen).
+Each is a `TaskTransition` with exactly one source state (`ACCEPT`, `DISMISS`, `COMPLETE`, `REOPEN`), applied with
+`Task.apply`: a task already in the target state is unchanged, one in any other state is not allowed, so reopening
+never accepts a suggestion and accepting never reopens a done task.
 Nothing leaves `DISMISSED`. `completed_at` is set exactly while `DONE`. `TaskOrigin` is `Manual` (the app), `Chat`
 (the built-in chat or an MCP client) or `Suggested(rule, key)`; only suggestions are ever `SUGGESTED` or
 `DISMISSED`. Every change, a state change too, is a new `version` with `basedOnVersion` (ADR-0041).

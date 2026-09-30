@@ -23,7 +23,6 @@ import io.github.scriptibus.jofi.tasks.domain.TaskInput
 import io.github.scriptibus.jofi.tasks.domain.TaskLink
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskState
-import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.github.scriptibus.jofi.tasks.domain.TaskTimingInput
 import io.github.scriptibus.jofi.tasks.domain.TaskValidation
@@ -249,7 +248,7 @@ class TaskSchemaTest {
     private fun moved(
         task: Task,
         state: TaskState,
-    ): Task = (task.moveTo(state, at.plusSeconds(1)) as TaskStateChange.Changed).task
+    ): Task = task.copy(state = state, completedAt = at.takeIf { state == TaskState.DONE }, version = 1)
 
     private fun latestDue() =
         TaskTiming.LATEST
