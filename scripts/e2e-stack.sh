@@ -12,7 +12,7 @@
 #   scripts/e2e-stack.sh seed | check | logs | down
 #
 # Env: SKIP_BUILD=1 reuses localhost/jofi:local; E2E_KEEP_STACK=1 keeps the stack after `test`;
-# E2E_REUSE_STACK=1 skips build and start when the stack already answers; COMPOSE / CONTAINER as in
+# E2E_REUSE_STACK=1 skips build and start when the stack already answers (and then leaves it running); COMPOSE / CONTAINER as in
 # scripts/compose-smoke-test.sh (e.g. COMPOSE=podman-compose CONTAINER=podman).
 set -euo pipefail
 
@@ -26,6 +26,7 @@ base_url="http://127.0.0.1:${JOFI_E2E_PORT}"
 timeout_seconds="${E2E_TIMEOUT_SECONDS:-300}"
 seed_provider="00000000-0000-4000-8000-0000000e2e01"
 log_file="${repo_root}/frontend/test-results/e2e-stack.log"
+reused_stack=0
 
 # The e2e stack never uses the values of a local .env: a throwaway database password, and loopback
 # binding so first run needs no setup token (#16).
@@ -46,6 +47,8 @@ app_is_up() {
 up() {
   if [[ "${E2E_REUSE_STACK:-0}" == "1" ]] && app_is_up; then
     pass "reusing the running e2e stack at ${base_url}"
+    # Started elsewhere (`pnpm e2e:up`): `test` leaves it running.
+    reused_stack=1
   else
     [[ "${SKIP_BUILD:-0}" == "1" ]] || compose build app
     # The seed is not started here; it runs below, once Flyway has migrated.
@@ -115,7 +118,9 @@ run_tests() {
       compose ps >&2 || true
       logs
     fi
-    [[ "${E2E_KEEP_STACK:-0}" == "1" ]] || down >/dev/null 2>&1 || true
+    if [[ "${E2E_KEEP_STACK:-0}" != "1" && "${reused_stack}" != "1" ]]; then
+      down >/dev/null 2>&1 || true
+    fi
     exit "${status}"
   }
   trap finish EXIT

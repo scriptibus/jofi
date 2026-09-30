@@ -6,7 +6,8 @@
 #  1. compose.yaml alone, with or without `--profile e2e`, defines exactly app, worker and db, and its
 #     resolved configuration names no e2e service, network or setting;
 #  2. the production image holds none of the e2e files (fake AI, fixtures, seed, edge), checked in the
-#     file names and in every entry of the application jar, decompressed.
+#     file names and in every entry of every jar (app.jar and lib/*.jar: all modules and libraries),
+#     decompressed.
 # The app itself has no e2e code path at all: the e2e user is created through the public first-run API.
 #
 # Usage (repository root, after the image is built, e.g. by scripts/e2e-stack.sh or the smoke test):
@@ -68,11 +69,16 @@ hits = []
 for path in root.rglob("*"):
     if pattern.search(str(path.relative_to(root)).encode()):
         hits.append(str(path))
-jar = root / "app.jar"
-with zipfile.ZipFile(jar) as archive:
-    for entry in archive.infolist():
-        if pattern.search(entry.filename.encode()) or pattern.search(archive.read(entry)):
-            hits.append(f"app.jar!/{entry.filename}")
+# The extracted layout keeps only bootstrap in app.jar; every other module and library is in lib/.
+jars = sorted(root.rglob("*.jar"))
+if not any(jar.name == "app.jar" for jar in jars) or len(jars) < 2:
+    print(f"expected app.jar and lib/*.jar under {root}, found {len(jars)} jars")
+    sys.exit(1)
+for jar in jars:
+    with zipfile.ZipFile(jar) as archive:
+        for entry in archive.infolist():
+            if pattern.search(entry.filename.encode()) or pattern.search(archive.read(entry)):
+                hits.append(f"{jar.relative_to(root)}!/{entry.filename}")
 if hits:
     print("\n".join(hits))
     sys.exit(1)
