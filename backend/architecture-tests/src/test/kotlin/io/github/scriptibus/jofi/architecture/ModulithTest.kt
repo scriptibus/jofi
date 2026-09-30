@@ -4,8 +4,22 @@
 package io.github.scriptibus.jofi.architecture
 
 import io.github.scriptibus.jofi.JofiApplication
-import io.kotest.matchers.collections.shouldContain
+import io.github.scriptibus.jofi.setup.domain.ModelAssignment
+import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
+import io.github.scriptibus.jofi.shared.application.port.EmbeddingPort
+import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
+import io.github.scriptibus.jofi.shared.application.port.LlmPort
+import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
+import io.github.scriptibus.jofi.shared.application.port.SecretStorePort
+import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ChangelogEntry
+import io.github.scriptibus.jofi.shared.domain.ai.AiTask
+import io.github.scriptibus.jofi.system.domain.SystemInfo
+import io.kotest.matchers.collections.shouldContainAll
+import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import org.springframework.modulith.core.ApplicationModule
 import org.springframework.modulith.core.ApplicationModules
 
 /**
@@ -18,11 +32,53 @@ class ModulithTest {
 
     @Test
     fun `bounded contexts are detected as application modules`() {
-        modules.map { it.identifier.toString() } shouldContain "system"
+        modules.map { it.identifier.toString() } shouldContainAll listOf("shared", "setup", "system")
     }
 
     @Test
     fun `application modules respect their boundaries`() {
         modules.verify()
     }
+
+    @Test
+    fun `only the shared kernel is an open module`() {
+        modules.filter { it.isOpen }.map { it.identifier.toString() } shouldContainExactly listOf("shared")
+    }
+
+    @Test
+    fun `the shared kernel exposes its domain types and ports to every context`() {
+        val exposed =
+            listOf(
+                Actor::class,
+                Actor.Scanner::class,
+                ChangelogEntry::class,
+                ChangelogPort::class,
+                AiTask::class,
+                LlmPort::class,
+                EmbeddingPort::class,
+                OutboundHttpPort::class,
+                JobSchedulerPort::class,
+                SecretStorePort::class,
+            )
+
+        exposed.forEach { type -> module("shared").isExposed(type.java) shouldBe true }
+    }
+
+    @Test
+    fun `a second context depends on the shared kernel and still verifies`() {
+        // setup.domain.ModelAssignment uses shared.domain.ai.AiTask: before `shared` was open,
+        // this dependency on an internal package failed verify().
+        module("setup").contains(ModelAssignment::class.java) shouldBe true
+        module("setup").getDirectDependencies(modules).containsModuleNamed("shared") shouldBe true
+        module("setup").detectDependencies(modules).hasViolations() shouldBe false
+    }
+
+    @Test
+    fun `other contexts keep their sub-packages internal`() {
+        module("system").isExposed(SystemInfo::class.java) shouldBe false
+        module("setup").isExposed(ModelAssignment::class.java) shouldBe false
+    }
+
+    private fun module(name: String): ApplicationModule =
+        modules.getModuleByName(name).orElseThrow { AssertionError("No application module '$name'") }
 }

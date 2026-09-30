@@ -13,7 +13,9 @@ Owns the executable architecture rules. Test sources only; depends on every prod
   ports are interfaces.
 - `SourceConventionsTest` (Konsist, sources): use case naming + one public method, `*Port`
   naming, controller constructor takes use cases only, immutable domain types, no `lateinit`.
-- `ModulithTest` (Spring Modulith): contexts are application modules and `verify()` passes.
+- `ModulithTest` (Spring Modulith): contexts are application modules, `verify()` passes, only
+  `shared` is open and exposes its domain types and ports, a second context (`setup`) depends on
+  it, other contexts keep their sub-packages internal.
 
 Rules:
 - Never weaken or delete a rule to make a change pass; fix the code. Changing a rule needs a

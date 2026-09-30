@@ -56,15 +56,32 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 - `config` for Spring wiring (in `bootstrap/`)
 
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
-`tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring) and `shared`
-(`Actor`, `ChangelogEntry`, `ChangelogPort`) exist.
-The only class allowed directly in the base package is the application class.
+`tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
+providers, per-task models, capabilities, costs, budget) and `shared` exist.
+The only class allowed directly in the base package is the application class; the only class
+allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 
 A context spans Gradle modules (e.g. `system.domain` lives in `domain/`, `system.adapter.web` in
 `adapters/web/`). Spring Modulith sees each context as one application module; its sub-packages
-are internal, so other contexts may not reach into them. Cross-context APIs will be exposed
-deliberately (Modulith named interfaces or the `shared` kernel) when the first one is needed;
-that includes making `shared.domain` and `shared.application.port` visible to the other contexts.
+are internal, so other contexts may not reach into them. `shared` is the exception: an **open**
+module (`bootstrap/.../shared/ModuleMetadata.kt`, ADR-0032) whose domain types and ports every
+context may use. Cross-context APIs of other contexts are exposed deliberately through Modulith
+named interfaces when the first one is needed.
+
+## Shared kernel ports (ADR-0032)
+
+Use these instead of reaching for a framework; each returns a sealed result and never throws.
+
+| Port | For | Adapter |
+|---|---|---|
+| `ChangelogPort` | the audit trail of every mutation | `adapters/persistence` |
+| `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | `adapters/ai` (#19), behind the gateway (#20) |
+| `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (#18) |
+| `JobSchedulerPort` | background jobs (ids-only arguments) | `adapters/jobs` (#17) |
+| `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | Tink, #16 |
+
+Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for that reason; the
+`setup` context owns what it configures around it.
 
 ## Rules (all fail `check`)
 

@@ -58,6 +58,15 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `TRUNCATE`. Before/after values can hold personal data; until erasure/redaction exists (#52),
   keep large or sensitive free text (CV bodies, notes) out of `FieldChange` values.
 
+## Secrets and `setup` tables
+
+- `secret`: Tink AES-GCM ciphertext per `SecretId` (#16 implements `SecretStorePort`). Never store
+  or log a key in clear text anywhere else; provider configs reference a secret id.
+- `ai_provider_config`, `ai_model_assignment` (one row per `AiTask`), `ai_cost_entry` (append-only
+  meter, integer micros + ISO currency, no FK to the provider so history survives its deletion),
+  `ai_monthly_budget` (single row). Check constraints mirror the `setup` domain invariants and the
+  enum names; `SetupSchemaTest` proves them. Repositories come with the use cases (#23, #24).
+
 ## Tests
 
 Plain JUnit against a real PostgreSQL (`PostgresTestDatabase`: one container per test JVM, Flyway
