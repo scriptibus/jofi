@@ -50,6 +50,7 @@ spring-boot-starter-webmvc-test = { module = "org.springframework.boot:spring-bo
 spring-boot-starter-actuator-test = { module = "org.springframework.boot:spring-boot-starter-actuator-test" }
 spring-modulith-bom = { module = "org.springframework.modulith:spring-modulith-bom", version.ref = "spring-modulith" }
 spring-modulith-core = { module = "org.springframework.modulith:spring-modulith-core" }
+spring-modulith-api = { module = "org.springframework.modulith:spring-modulith-api" }
 jackson-module-kotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 

@@ -40,4 +40,5 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0029](0029-docker-compose-deployment-localhost-by-default.md) | Docker Compose deployment, localhost by default | accepted |
 | [0030](0030-persistence-baseline-codegen-and-append-only-changelog.md) | Persistence baseline: build-time jOOQ codegen and an append-only changelog | accepted |
 | [0031](0031-general-code-review-with-the-code-review-plugin-on-the-workflow-token.md) | General code review with the code-review plugin on the workflow token | accepted |
-| [0032](0032-api-contract-pipeline-committed-spec-generated-client.md) | API contract pipeline: committed spec, build-time client, oasdiff with a human override | accepted |
+| [0032](0032-cross-context-ports-in-an-open-shared-kernel.md) | Cross-context ports live in an open `shared` kernel | accepted |
+| [0033](0033-api-contract-pipeline-committed-spec-generated-client.md) | API contract pipeline: committed spec, build-time client, oasdiff with a human override | accepted |

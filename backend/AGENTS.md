@@ -40,7 +40,8 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
 - `adapters/<kind>`: framework code (web, persistence, later ai, net, ...); depends on `application`.
-  Adapters never depend on each other.
+  Adapters never depend on each other (one exemption: persistence adapters of every context use
+  the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
   adapters that belong nowhere else (e.g. build info).
 - `architecture-tests`: ArchUnit, Konsist and Spring Modulith rules over all production code.
@@ -57,15 +58,38 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 - `config` for Spring wiring (in `bootstrap/`)
 
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
-`tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring) and `shared`
-(`Actor`, `ChangelogEntry`, `ChangelogPort`) exist.
-The only class allowed directly in the base package is the application class.
+`tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
+providers, per-task models, capabilities, costs, budget) and `shared` exist.
+The only class allowed directly in the base package is the application class; the only class
+allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 
 A context spans Gradle modules (e.g. `system.domain` lives in `domain/`, `system.adapter.web` in
 `adapters/web/`). Spring Modulith sees each context as one application module; its sub-packages
-are internal, so other contexts may not reach into them. Cross-context APIs will be exposed
-deliberately (Modulith named interfaces or the `shared` kernel) when the first one is needed;
-that includes making `shared.domain` and `shared.application.port` visible to the other contexts.
+are internal, so other contexts may not reach into them. `shared` is the exception: an **open**
+module (`bootstrap/.../shared/ModuleMetadata.kt`, ADR-0032) whose domain types and ports every
+context may use. Cross-context APIs of other contexts are exposed deliberately through Modulith
+named interfaces when the first one is needed.
+
+## Shared kernel ports (ADR-0032)
+
+Use these instead of reaching for a framework; each returns a sealed result and never throws.
+
+| Port | For | Adapter |
+|---|---|---|
+| `ChangelogPort` | the audit trail of every mutation | `adapters/persistence` |
+| `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | the AI gateway (`setup.adapter.ai`, module `adapters/ai`, #20) |
+| `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (#18) |
+| `JobSchedulerPort` | background jobs (ids-only arguments) | `adapters/jobs` (#17) |
+| `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | Tink, #16 |
+
+Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for that reason; the
+`setup` context owns what it configures around it.
+
+AI calls: callers use only `LlmPort`/`EmbeddingPort`. The gateway behind them resolves the task's
+model once per call, checks capabilities, applies the "never send to AI" filter and the budget,
+meters the cost, and calls `AiProviderPort` (`setup.application.port`), which Spring AI implements
+in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProviderPort`
+(architecture test). Costs and the budget are in USD only.
 
 ## Rules (all fail `check`)
 
@@ -113,7 +137,7 @@ that includes making `shared.domain` and `shared.application.port` visible to th
   current docs, add it to `gradle/libs.versions.toml`, then refresh locks and checksums. List
   version + doc link in the PR (spec 4.10).
 
-## API contract (ADR-0016, ADR-0032)
+## API contract (ADR-0016, ADR-0033)
 
 - `api/openapi.json` at the repository root is the contract the frontend client is generated from.
   `OpenApiSpecTest` (in `adapters/web`, part of `check`) renders it from all controllers with

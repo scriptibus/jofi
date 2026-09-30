@@ -14,6 +14,9 @@ dependencies {
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.jackson.module.kotlin)
+    // Module metadata annotations only (`shared.ModuleMetadata`); no Modulith runtime.
+    implementation(platform(libs.spring.modulith.bom))
+    implementation(libs.spring.modulith.api)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.starter.webmvc.test)

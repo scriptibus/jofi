@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Jofi contributors
 SPDX-License-Identifier: AGPL-3.0-or-later
 -->
 
-# ADR 0032: API contract pipeline: committed spec, build-time client, oasdiff with a human override
+# ADR 0033: API contract pipeline: committed spec, build-time client, oasdiff with a human override
 
 - Status: accepted
 - Date: 2026-09-30

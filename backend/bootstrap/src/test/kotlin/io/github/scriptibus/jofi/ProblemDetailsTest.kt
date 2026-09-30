@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 
-/** The one error contract of the API (ADR-0032): every error is RFC 9457 problem details. */
+/** The one error contract of the API (ADR-0033): every error is RFC 9457 problem details. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(PostgresTestConfiguration::class, ProblemDetailsTest.SealedResultController::class)
