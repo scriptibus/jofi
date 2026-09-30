@@ -98,11 +98,17 @@ Contacts are the first contract holding other people's personal data (spec §13)
 - records changes in the changelog by field name, never by value (the changelog is append-only, and a
   deleted contact must leave nothing personal behind);
 - deletes with confirmation (ADR-0039) and cascades to everything that only describes the person
-  (`contact_channel`); tables in other contexts that link to it react to `ContactDeleted` and use
-  `ON DELETE CASCADE` on their own link rows as well, so a missed event cannot keep a dangling reference;
+  (`contact_channel`); tables in other contexts that refer to it react to `ContactDeleted`, and their
+  foreign keys to `contact` never keep a dangling or blocking reference: link-table rows (e.g. application
+  links) use `ON DELETE CASCADE`, an optional reference in an entity's own row (e.g. `task.contact_id`)
+  uses `ON DELETE SET NULL`, and none uses `RESTRICT`/`NO ACTION`, which would block company deletes
+  through `contact_company_fk`;
 - validates contact data without over-restricting international formats: email addresses need an `@` with
   text on both sides (the address is kept as entered), phone numbers a digit (no E.164 normalisation,
   numbers are often noted without a country code), anything else is free text with a length limit.
+  Text never contains U+0000, which PostgreSQL `text` cannot store (this applies to every context).
+
+The company delete (#88) records one changelog entry per cascaded contact (ids only) besides its own.
 
 The company delete (#88) reads the ids of the company's contacts (`ContactRepositoryPort.findIdsByCompany`)
 in its transaction, counts them in the confirmation effect and publishes `ContactDeleted` for each, since

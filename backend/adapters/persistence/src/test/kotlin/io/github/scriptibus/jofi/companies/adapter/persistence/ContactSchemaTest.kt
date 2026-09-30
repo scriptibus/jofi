@@ -304,4 +304,11 @@ class ContactSchemaTest {
     private companion object {
         val NOW: OffsetDateTime = OffsetDateTime.parse("2026-09-30T08:00:00Z")
     }
+
+    @Test
+    fun `PostgreSQL cannot store U+0000, which is why the domain rejects it`() {
+        shouldThrow<DataAccessException> { insertContact { name = "Eri\u0000ka" } }
+        ContactInput("Eri\u0000ka").validate().shouldBeInstanceOf<ContactValidation.Invalid>()
+        dsl.fetchCount(CONTACT) shouldBe 0
+    }
 }

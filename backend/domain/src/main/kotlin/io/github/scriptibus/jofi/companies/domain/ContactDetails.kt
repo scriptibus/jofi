@@ -67,6 +67,7 @@ data class ContactChannel(
         ): ViolationKind? =
             when {
                 value.isBlank() || value != value.trim() -> ViolationKind.REQUIRED
+                value.hasUnstorableCharacter() -> ViolationKind.INVALID_CHARACTER
                 kind == ChannelKind.WEB -> ViolationKind.INVALID_URL.takeIf { WebAddress.parse(value) == null }
                 value.length > maxLength(kind) -> ViolationKind.TOO_LONG
                 kind == ChannelKind.EMAIL -> ViolationKind.INVALID_EMAIL.takeUnless { isEmail(value) }
@@ -153,13 +154,14 @@ internal object ContactRules {
     ): ContactViolation? =
         when {
             value.isBlank() || value != value.trim() -> ContactViolation(field, ViolationKind.REQUIRED)
+            value.hasUnstorableCharacter() -> ContactViolation(field, ViolationKind.INVALID_CHARACTER)
             value.length > maxLength -> ContactViolation(field, ViolationKind.TOO_LONG)
             else -> null
         }
 }
 
-/** Whether [value] is trimmed, not blank and at most [maxLength] characters long. */
+/** Whether [value] is trimmed, not blank, storable and at most [maxLength] characters long. */
 internal fun isValidText(
     value: String,
     maxLength: Int,
-): Boolean = value.isNotBlank() && value == value.trim() && value.length <= maxLength
+): Boolean = value.isNotBlank() && value == value.trim() && !value.hasUnstorableCharacter() && value.length <= maxLength

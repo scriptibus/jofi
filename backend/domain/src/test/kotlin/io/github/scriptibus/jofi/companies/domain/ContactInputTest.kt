@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.companies.domain
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -128,7 +129,7 @@ class ContactInputTest {
     @Test
     fun `phone numbers need a digit, no control characters and a bounded length`() {
         ContactChannel.problemOf(ChannelKind.PHONE, "call me") shouldBe ViolationKind.INVALID_PHONE
-        ContactChannel.problemOf(ChannelKind.PHONE, "030\u0000123") shouldBe ViolationKind.INVALID_PHONE
+        ContactChannel.problemOf(ChannelKind.PHONE, "030\u0007123") shouldBe ViolationKind.INVALID_PHONE
         ContactChannel.problemOf(ChannelKind.PHONE, "1".repeat(ContactChannel.MAX_PHONE_LENGTH + 1)) shouldBe
             ViolationKind.TOO_LONG
         ContactChannel.problemOf(ChannelKind.PHONE, "1".repeat(ContactChannel.MAX_PHONE_LENGTH)).shouldBeNull()
@@ -148,4 +149,30 @@ class ContactInputTest {
 
     private fun valid(input: ContactInput): ContactDetails =
         input.validate().shouldBeInstanceOf<ContactValidation.Valid<ContactDetails>>().value
+
+    @Test
+    fun `text with U+0000, which PostgreSQL cannot store, is rejected in every field and channel`() {
+        val nul = "\u0000"
+        val input =
+            ContactInput(
+                name = "Eri${nul}ka",
+                role = "Recruiter$nul",
+                channels =
+                    ChannelKind.entries.map { ChannelInput(it, "+49$nul@x.example") } +
+                        ChannelInput(ChannelKind.OTHER, "@erika", "wo${nul}rk"),
+                relationshipNotes = "Met$nul",
+            )
+
+        input.validate().shouldBeInstanceOf<ContactValidation.Invalid>().violations shouldContainExactlyInAnyOrder
+            listOf(
+                ContactViolation(ContactField.NAME, ViolationKind.INVALID_CHARACTER),
+                ContactViolation(ContactField.ROLE, ViolationKind.INVALID_CHARACTER),
+                ContactViolation(ContactField.RELATIONSHIP_NOTES, ViolationKind.INVALID_CHARACTER),
+                ContactViolation(ContactField.CHANNEL_LABEL, ViolationKind.INVALID_CHARACTER, ChannelKind.entries.size),
+            ) +
+            ChannelKind.entries.indices.map {
+                ContactViolation(ContactField.CHANNEL_VALUE, ViolationKind.INVALID_CHARACTER, it)
+            }
+        shouldThrow<IllegalArgumentException> { ContactChannel(ChannelKind.OTHER, "@erika", "wo${nul}rk") }
+    }
 }

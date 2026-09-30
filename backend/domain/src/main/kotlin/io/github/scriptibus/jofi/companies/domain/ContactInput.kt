@@ -62,14 +62,19 @@ data class ChannelInput(
                 ContactChannel.problemOf(kind, value)?.let {
                     ContactViolation(ContactField.CHANNEL_VALUE, it, position)
                 },
-                ContactViolation(ContactField.CHANNEL_LABEL, ViolationKind.TOO_LONG, position).takeIf {
-                    label != null && label.length > ContactChannel.MAX_LABEL_LENGTH
-                },
+                label?.let { labelProblem(it) }?.let { ContactViolation(ContactField.CHANNEL_LABEL, it, position) },
             )
         return ParsedChannel(if (violations.isEmpty()) ContactChannel(kind, value, label) else null, violations)
     }
 
     override fun toString(): String = "ChannelInput(kind=$kind)"
+
+    private fun labelProblem(label: String): ViolationKind? =
+        when {
+            label.hasUnstorableCharacter() -> ViolationKind.INVALID_CHARACTER
+            label.length > ContactChannel.MAX_LABEL_LENGTH -> ViolationKind.TOO_LONG
+            else -> null
+        }
 }
 
 internal class ParsedChannel(

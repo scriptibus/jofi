@@ -294,4 +294,11 @@ class CompanySchemaTest {
     private companion object {
         val NOW: OffsetDateTime = OffsetDateTime.parse("2026-09-30T08:00:00Z")
     }
+
+    @Test
+    fun `PostgreSQL cannot store U+0000, which is why the domain rejects it`() {
+        shouldThrow<DataAccessException> { insertCompany { name = "AC\u0000ME" } }
+        CompanyInput("AC\u0000ME").validate().shouldBeInstanceOf<CompanyValidation.Invalid>()
+        dsl.fetchCount(COMPANY) shouldBe 0
+    }
 }

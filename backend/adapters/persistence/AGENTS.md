@@ -150,6 +150,15 @@ The generator lives in the `codegen` source set and has its own locked classpath
   row, and changelog entries for contacts name the changed fields, never their values (the changelog is
   append-only, and a deleted contact must leave nothing personal behind). `ContactRepositoryPort` maps a
   violation of `contact_company_fk` on insert or update to `CompanyNotFound` by its name.
+- Foreign keys **to** `contact` from other contexts (ADR-0041): link-table rows (e.g. application links,
+  #90) use `ON DELETE CASCADE`; an optional reference in an entity's own row (e.g. `task.contact_id`,
+  #93) uses `ON DELETE SET NULL`; never `RESTRICT`/`NO ACTION`, which would block company deletes
+  through `contact_company_fk`. They also react to `ContactDeleted`.
+- Channels have no stable id (`(contact_id, position)` changes on every edit), so nothing may reference a
+  single channel; the repository replaces all of a contact's channels (delete, then insert) in the
+  version-checked update.
+- Text columns never hold U+0000 (PostgreSQL `text` rejects it); the domain rejects it first, so a valid
+  entity never fails to store.
 
 ## Changelog entity types
 
