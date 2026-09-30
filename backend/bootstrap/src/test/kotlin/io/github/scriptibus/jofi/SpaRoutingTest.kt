@@ -36,7 +36,8 @@ class SpaRoutingTest(
         val handler = (resources as SimpleUrlHandlerMapping).urlMap["/**"]
         handler
             .shouldBeInstanceOf<ResourceHttpRequestHandler>()
-            .resourceResolvers.shouldHaveSingleElement { it is SpaFallbackResourceResolver }
+            .resourceResolvers
+            .shouldHaveSingleElement { it is SpaFallbackResourceResolver }
     }
 
     @Test
