@@ -3,7 +3,6 @@
 
 package io.github.scriptibus.jofi.companies.application.port
 
-import io.github.scriptibus.jofi.companies.domain.CompanyId
 import io.github.scriptibus.jofi.companies.domain.CompanyPage
 import io.github.scriptibus.jofi.companies.domain.Contact
 import io.github.scriptibus.jofi.companies.domain.ContactId
@@ -15,6 +14,7 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
  * Stores contacts (tables `contact` and `contact_channel`; implemented with the use cases in #89).
  * The use case that changes a contact appends its changelog entry in the same transaction
  * (`TransactionPort`). Implementations never throw and never log row data (third-party personal data).
+ * The company delete reads the contacts it cascades to through `CompanyRepositoryPort.findContactIds` (#88).
  */
 interface ContactRepositoryPort {
     /**
@@ -33,12 +33,6 @@ interface ContactRepositoryPort {
     fun findById(id: ContactId): ContactStoreResult<Contact>
 
     fun search(search: ContactSearch): ContactStoreResult<CompanyPage<Contact>>
-
-    /**
-     * The contacts of [company], which are deleted with it (`ON DELETE CASCADE`, ADR-0041): the company
-     * delete counts them for its confirmation effect and announces each as `ContactDeleted`.
-     */
-    fun findIdsByCompany(company: CompanyId): ContactStoreResult<List<ContactId>>
 
     /**
      * Deletes the contact and, by `ON DELETE CASCADE`, its channels: nothing personal is left

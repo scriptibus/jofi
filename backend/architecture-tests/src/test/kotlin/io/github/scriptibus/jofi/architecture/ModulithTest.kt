@@ -4,6 +4,8 @@
 package io.github.scriptibus.jofi.architecture
 
 import io.github.scriptibus.jofi.JofiApplication
+import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
+import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.EmbeddingPort
@@ -77,6 +79,17 @@ class ModulithTest {
     fun `other contexts keep their sub-packages internal`() {
         module("system").isExposed(SystemInfo::class.java) shouldBe false
         module("setup").isExposed(ModelAssignment::class.java) shouldBe false
+    }
+
+    @Test
+    fun `companies exposes only its SPI to the applications context, which depends on it (ADR-0041)`() {
+        val companies = module("companies")
+
+        companies.namedInterfaces.getByName("spi").isPresent shouldBe true
+        companies.isExposed(ApplicationCountsPort::class.java) shouldBe true
+        companies.isExposed(CompanyRepositoryPort::class.java) shouldBe false
+        module("applications").getDirectDependencies(modules).containsModuleNamed("companies") shouldBe true
+        companies.getDirectDependencies(modules).containsModuleNamed("applications") shouldBe false
     }
 
     private fun module(name: String): ApplicationModule =

@@ -9,6 +9,7 @@ import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.github.scriptibus.jofi.architecture.JofiPackages.ADAPTER
 import io.github.scriptibus.jofi.architecture.JofiPackages.PORT
+import io.github.scriptibus.jofi.architecture.JofiPackages.SPI_METADATA
 import org.junit.jupiter.api.Test
 
 /** Adapter naming and "controllers only call use cases", checked on the compiled classes. */
@@ -93,6 +94,8 @@ class AdapterRulesTest {
             .resideInAPackage(PORT)
             .and()
             .areTopLevelClasses()
+            .and()
+            .doNotHaveFullyQualifiedName(SPI_METADATA)
             .should()
             .beInterfaces()
             .check(classes)

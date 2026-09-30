@@ -44,6 +44,9 @@ Rules:
   dashboard off and its telemetry disabled; `application-worker.yaml` (profile `worker`, compose's `worker`
   service) turns the server on. `system.config.HousekeepingStartup` (a runner, never under `worker`)
   registers the recurring housekeeping jobs. `BackgroundJobsTest` starts `app` and `worker` on one database.
+- `shared.adapter.events.SpringDomainEventAdapter` (`DomainEventPort`) publishes domain events as Spring
+  application events; listeners react after the commit (`@ApplicationModuleListener`). `companies.application.port.spi.ModuleMetadata`
+  makes that package the Modulith named interface `spi` (ADR-0041).
 - `InMemoryLoginThrottleAdapter` (backoff counts) and `SpringSessionUserSessionsAdapter` (ending
   sessions) are framework-bound adapters here.
 - AI gateway wiring (ADR-0043): `setup.config.AiProviderConfiguration` builds `AiGatewayAdapter`, the

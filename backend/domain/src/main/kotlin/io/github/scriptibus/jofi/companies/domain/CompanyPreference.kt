@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.companies.domain
 
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.DomainEvent
 import java.time.Instant
 
 /**
@@ -79,7 +80,7 @@ data class CompanyPreferenceChanged(
     val after: CompanyPreference,
     val actor: Actor,
     val occurredAt: Instant,
-) {
+) : DomainEvent {
     init {
         require(before != after) { "A preference change must change the preference" }
     }
