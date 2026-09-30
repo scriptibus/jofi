@@ -11,11 +11,13 @@ import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.UpdateTaskUseCase
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
+import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
@@ -36,8 +38,9 @@ import java.util.UUID
 /**
  * Tasks with exact or rough timing (spec §10.2, ADR-0049), for the logged-in user. Create, read, edit, complete,
  * reopen and delete (#93) call their use case as `Actor.User` (tasks created here are `Manual`) and map each
- * `TaskResult.Failure` with [TaskProblems.of]. The grouped list (#94) and the suggestions (#95) are still the contract
- * only and answer `501 Not Implemented`; their parameters only declare it, hence the suppressed unused-parameter rule.
+ * `TaskResult.Failure` with [TaskProblems.of]; so does the grouped list (#94). The suggestions (#95) are still the
+ * contract only and answer `501 Not Implemented`; their parameters only declare it, hence the suppressed
+ * unused-parameter rule.
  */
 @Suppress("UnusedParameter", "TooManyFunctions")
 @RestController
@@ -45,6 +48,7 @@ import java.util.UUID
 class TaskController(
     private val createTask: CreateTaskUseCase,
     private val getTask: GetTaskUseCase,
+    private val listTaskGroups: ListTaskGroupsUseCase,
     private val updateTask: UpdateTaskUseCase,
     private val completeTask: CompleteTaskUseCase,
     private val reopenTask: ReopenTaskUseCase,
@@ -52,13 +56,16 @@ class TaskController(
 ) {
     /**
      * The open tasks grouped by when they are due, as seen on the calendar of [timeZone] (the viewer's zone, e.g.
-     * `Europe/Berlin`; weeks start on Monday).
+     * `Europe/Berlin` or `+02:00`; weeks start on Monday). An unknown zone is a 400 naming `timeZone`.
      */
     @GetMapping
     @ProblemResponses(ProblemKind.INVALID_INPUT)
     fun listTaskGroups(
         @RequestParam timeZone: String,
-    ): TaskGroupListResponse = throw notImplemented()
+    ): TaskGroupListResponse {
+        val zone = TaskTiming.zoneOf(timeZone) ?: throw TaskProblems.invalidViewerZone()
+        return TaskGroupListResponse.from(listTaskGroups.execute(zone).orThrow())
+    }
 
     /** The suggestions waiting to be accepted or dismissed, newest first. */
     @GetMapping("/suggestions")

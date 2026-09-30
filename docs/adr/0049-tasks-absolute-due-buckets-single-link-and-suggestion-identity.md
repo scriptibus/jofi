@@ -44,6 +44,16 @@ viewer's zone (`GET /api/tasks?timeZone=`, `GET /api/dashboard/countdowns?timeZo
 overdue, today, this week, next week, this month, later, someday, where later holds what is due after this month
 (spec §10.2 names no group for it). Jofi has no stored user time zone; if one comes, clients may stop sending it.
 
+The groups (`TaskCalendar`, #94) take "now" and "today" in the viewer's zone. An exact time is overdue once it has
+passed, else grouped by its day on the viewer's clocks. A bucket is overdue from the day after it ends. One that has
+begun is due now and groups by its span: a day is today, a week this week, a month this month (not by its first day,
+which would put the current month into overdue or this week). A later week groups by its Monday like a day (next
+week, this month or later); a later month is later. The rest of this month is what falls after next week and before
+the next first day, so it is empty when next week reaches into the next month. Each group lists its tasks soonest
+first by the end of their timing (the exact time, or the start of the day after the bucket, in the viewer's zone),
+then oldest first; someday by age. Only open tasks are listed, read in one query by state (`task_state_idx`); done
+tasks, pending suggestions (`GET /suggestions`) and dismissed ones are not.
+
 Custom countdowns count down to a `LocalDate` (`countdown.target_date`), counted on the viewer's calendar like
 buckets. The derived dashboard countdowns (next interview, application and offer answer deadlines; the end of
 employment in M2) are queries over the other contexts (#112) and never stored.

@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.FieldViolation
 import io.github.scriptibus.jofi.shared.adapter.web.ValidationProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskField
+import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
@@ -24,6 +25,9 @@ object TaskProblems {
     const val VERSION_CONFLICT = "urn:jofi:problem:tasks:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:tasks:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:tasks:storage-unavailable"
+
+    /** The query parameter naming the viewer's zone of a list. */
+    const val VIEWER_ZONE = "timeZone"
 
     fun of(failure: TaskResult.Failure): ErrorResponseException =
         when (failure) {
@@ -62,6 +66,10 @@ object TaskProblems {
                 problem(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, "Tasks cannot be stored right now")
             }
         }
+
+    /** The viewer's zone of a list (query parameter `timeZone`) is not one Java knows. */
+    fun invalidViewerZone(): ErrorResponseException =
+        ValidationProblem.of(INVALID, listOf(FieldViolation(VIEWER_ZONE, TaskProblem.INVALID_TIME_ZONE.name)))
 
     /** The request field a violation belongs to, e.g. `timing.localDue`, so clients can show it there. */
     fun apiName(field: TaskField): String =
