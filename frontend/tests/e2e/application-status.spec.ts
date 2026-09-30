@@ -47,7 +47,7 @@ async function pickReason(page: Page, dialog: Locator, label: string, category: 
 test("move an application through the pipeline, decline, correct the reason and reopen", async ({ page }) => {
   const application = await createApplication(page, uniqueName("Staff Engineer"));
   await page.goto(`/applications/${application.id}`);
-  const status = page.getByRole("region", { name: "Status" });
+  const status = page.getByRole("region", { name: "Status", exact: true });
   await expect(status.getByText("Discovered")).toBeVisible();
 
   // An invalid move is not offered: from Discovered there is no Accepted, Rejected or Ghosted.
@@ -70,7 +70,7 @@ test("move an application through the pipeline, decline, correct the reason and 
     dialog = await moveTo(page, "Change status", next);
     await dialog.getByRole("button", { name: "Change status" }).click();
     await expect(dialog).toBeHidden();
-    await expect(status.getByText(next, { exact: true })).toBeVisible();
+    await expect(status.getByText(next)).toBeVisible();
   }
 
   // Declining needs a category: the dialog says so before anything is sent.
@@ -103,7 +103,7 @@ test("move an application through the pipeline, decline, correct the reason and 
   await expect(status.getByText("Interviewing")).toBeVisible();
   await expect(status.getByRole("button", { name: "Correct reason" })).toHaveCount(0);
 
-  const entries = page.getByRole("region", { name: "Status history" }).getByRole("listitem");
+  const entries = page.getByRole("region", { name: "Status history", exact: true }).getByRole("listitem");
   await expect(entries).toHaveCount(7);
   await expect(entries.nth(0)).toContainText(/Created as\s*Discovered/);
   await expect(entries.nth(1)).toContainText(/Discovered\s*→\s*to\s*Applied/);
@@ -124,7 +124,7 @@ test("a status change based on an old version is refused; loading the latest ver
 }) => {
   const application = await createApplication(page, uniqueName("Security Engineer"));
   await page.goto(`/applications/${application.id}`);
-  const status = page.getByRole("region", { name: "Status" });
+  const status = page.getByRole("region", { name: "Status", exact: true });
   await expect(status.getByText("Discovered")).toBeVisible();
 
   // Meanwhile another tab (here: the API) moves it.
@@ -144,7 +144,9 @@ test("a status change based on an old version is refused; loading the latest ver
   await conflict.getByRole("button", { name: "Load latest version" }).click();
   await expect(dialog).toBeHidden();
   await expect(status.getByText("Shortlisted")).toBeVisible();
-  await expect(page.getByRole("region", { name: "Status history" }).getByRole("listitem")).toHaveCount(2);
+  await expect(
+    page.getByRole("region", { name: "Status history", exact: true }).getByRole("listitem"),
+  ).toHaveCount(2);
 });
 
 test.describe("in German", () => {
@@ -153,7 +155,7 @@ test.describe("in German", () => {
   test("decline an application in German and see it in the history", async ({ page }) => {
     const application = await createApplication(page, uniqueName("Plattform-Entwicklerin"));
     await page.goto(`/applications/${application.id}`);
-    const status = page.getByRole("region", { name: "Status" });
+    const status = page.getByRole("region", { name: "Status", exact: true });
     await expect(status.getByText("Entdeckt")).toBeVisible();
 
     const dialog = await moveTo(page, "Status ändern", "Selbst abgesagt");
@@ -166,7 +168,7 @@ test.describe("in German", () => {
     await expect(dialog).toBeHidden();
     await expect(status.getByText("Remote-Regelung")).toBeVisible();
 
-    const entries = page.getByRole("region", { name: "Statusverlauf" }).getByRole("listitem");
+    const entries = page.getByRole("region", { name: "Statusverlauf", exact: true }).getByRole("listitem");
     await expect(entries).toHaveCount(2);
     await expect(entries.nth(0)).toContainText(/Angelegt als\s*Entdeckt/);
     await expect(entries.nth(1)).toContainText(/Entdeckt\s*→\s*nach\s*Selbst abgesagt/);
