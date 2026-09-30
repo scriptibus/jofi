@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.applications.adapter.web
 import io.github.scriptibus.jofi.applications.domain.ApplicationField
 import io.github.scriptibus.jofi.applications.domain.ApplicationProblem
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.FieldViolation
@@ -56,6 +57,11 @@ class ApplicationProblemsTest {
     fun `each other failure has its status and problem type`() {
         expect(ApplicationResult.NotFound, HttpStatus.NOT_FOUND, ApplicationProblems.NOT_FOUND)
         expect(ApplicationResult.VersionConflict, HttpStatus.CONFLICT, ApplicationProblems.VERSION_CONFLICT)
+        expect(
+            ApplicationResult.InvalidTransition(ApplicationStatus.DISCOVERED, ApplicationStatus.ACCEPTED),
+            HttpStatus.CONFLICT,
+            ApplicationProblems.INVALID_TRANSITION,
+        )
         expect(
             ApplicationResult.StorageFailure("find-application"),
             HttpStatus.SERVICE_UNAVAILABLE,

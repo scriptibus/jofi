@@ -3,15 +3,24 @@
 
 package io.github.scriptibus.jofi.setup.application
 
+import io.github.scriptibus.jofi.setup.application.port.CostEntryPort
 import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCapabilityPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCatalogPort
+import io.github.scriptibus.jofi.setup.application.port.MonthlyBudgetPort
 import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
+import io.github.scriptibus.jofi.setup.domain.BillingMonth
 import io.github.scriptibus.jofi.setup.domain.Capability
+import io.github.scriptibus.jofi.setup.domain.CostEntry
+import io.github.scriptibus.jofi.setup.domain.CostGroup
+import io.github.scriptibus.jofi.setup.domain.CostTotals
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
 import io.github.scriptibus.jofi.setup.domain.ModelCapabilities
 import io.github.scriptibus.jofi.setup.domain.ModelCapabilityProfile
+import io.github.scriptibus.jofi.setup.domain.ModelKey
 import io.github.scriptibus.jofi.setup.domain.ModelName
+import io.github.scriptibus.jofi.setup.domain.Money
+import io.github.scriptibus.jofi.setup.domain.MonthlyBudget
 import io.github.scriptibus.jofi.setup.domain.ProviderConfig
 import io.github.scriptibus.jofi.setup.domain.ProviderId
 import io.github.scriptibus.jofi.setup.domain.ProviderKind
@@ -27,6 +36,7 @@ import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.ai.AiResult
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
+import io.github.scriptibus.jofi.shared.domain.ai.TokenUsage
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
@@ -50,6 +60,9 @@ class SetupFixtures {
     val profiles = linkedMapOf<Pair<ProviderId, ModelName>, ModelCapabilityProfile>()
     val secrets = linkedMapOf<SecretId, SecretValue>()
     val entries = mutableListOf<ChangelogEntry>()
+    val costs = mutableListOf<CostEntry>()
+    var budget: MonthlyBudget? = null
+    var failingCostReads = false
 
     /** What a read still sees of providers another transaction deleted meanwhile (the update/delete race). */
     val staleReads = linkedMapOf<ProviderId, ProviderConfig>()
@@ -117,6 +130,82 @@ class SetupFixtures {
                         profile
                 }
         }
+
+    val budgetPort =
+        object : MonthlyBudgetPort {
+            override fun find() = read(budget)
+
+            override fun save(budget: MonthlyBudget) = write { this@SetupFixtures.budget = budget }
+
+            override fun clear() = write { budget = null }
+        }
+
+    /** Sums like the repository does, over the entries in [from, until). */
+    val costPort =
+        object : CostEntryPort {
+            override fun append(entry: CostEntry) = write { costs += entry }
+
+            override fun findBetween(
+                from: Instant,
+                until: Instant,
+            ) = costRead { costs.filter { it.occurredAt >= from && it.occurredAt < until } }
+
+            override fun totalBetween(
+                from: Instant,
+                until: Instant,
+            ) = costRead { totalsOf(costs.filter { it.occurredAt >= from && it.occurredAt < until }).knownCost }
+
+            override fun summarizeBetween(
+                from: Instant,
+                until: Instant,
+            ) = costRead {
+                costs
+                    .filter { it.occurredAt >= from && it.occurredAt < until }
+                    .groupBy { it.task to ModelKey(it.providerKind, it.model) }
+                    .map { (key, entries) -> CostGroup(key.first, key.second, totalsOf(entries)) }
+            }
+
+            override fun totalsByMonth(
+                first: BillingMonth,
+                last: BillingMonth,
+            ) = costRead {
+                costs
+                    .filter { it.occurredAt >= first.start && it.occurredAt < last.end }
+                    .groupBy { BillingMonth.of(it.occurredAt) }
+                    .mapValues { (_, entries) -> totalsOf(entries) }
+            }
+        }
+
+    private fun <T> costRead(value: () -> T): SetupStoreResult<T> =
+        if (failingCostReads) SetupStoreResult.StorageFailure("costs") else SetupStoreResult.Success(value())
+
+    private fun totalsOf(entries: List<CostEntry>): CostTotals =
+        CostTotals(
+            calls = entries.size.toLong(),
+            usage = entries.map { it.usage }.fold(TokenUsage(0, 0), TokenUsage::plus),
+            knownCost = entries.mapNotNull { it.estimatedCost }.fold(Money.usd(0), Money::plus),
+            unknownCostCalls = entries.count { it.estimatedCost == null }.toLong(),
+        )
+
+    /** A metered call of [task] at [at] with [micros] as its cost (null: unknown). */
+    fun cost(
+        at: Instant,
+        micros: Long?,
+        task: AiTask = AiTask.CHAT,
+        kind: ProviderKind = ProviderKind.OPENAI,
+        model: String = "gpt-5-mini",
+    ) {
+        costs +=
+            CostEntry(
+                task = task,
+                provider = ProviderId(UUID(0, 1)),
+                providerKind = kind,
+                model = ModelName(model),
+                usage = TokenUsage(100, 10),
+                estimatedCost = micros?.let(Money::usd),
+                occurredAt = at,
+            )
+    }
 
     val catalog =
         object : ModelCatalogPort {
@@ -203,6 +292,7 @@ class SetupFixtures {
         private val profilesBefore = profiles.toMap()
         private val secretsBefore = secrets.toMap()
         private val entriesBefore = entries.toList()
+        private val budgetBefore = budget
 
         fun restore() {
             providers.clear()
@@ -215,6 +305,7 @@ class SetupFixtures {
             secrets.putAll(secretsBefore)
             entries.clear()
             entries.addAll(entriesBefore)
+            budget = budgetBefore
         }
     }
 

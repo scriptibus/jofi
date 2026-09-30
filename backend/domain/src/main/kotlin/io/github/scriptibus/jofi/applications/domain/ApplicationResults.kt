@@ -26,7 +26,6 @@ enum class ApplicationField {
     PAY_ESTIMATE_CONFIDENCE,
     POSTING_LANGUAGE,
     APPLICATION_LANGUAGE,
-    DECLINE_REASON_TEXT,
     OFFER_SALARY,
     OFFER_SALARY_CURRENCY,
     OFFER_BONUS,
@@ -37,6 +36,12 @@ enum class ApplicationField {
 
     /** The linked contacts: too many, or one that does not exist. */
     CONTACTS,
+
+    /** Why the status changes ([StatusChangeInput.reason]). */
+    STATUS_REASON,
+
+    /** The decline category of a status change: required for `DECLINED` and `REJECTED`, absent otherwise. */
+    DECLINE_CATEGORY,
 }
 
 enum class ApplicationProblem {
@@ -69,6 +74,9 @@ enum class ApplicationProblem {
 
     /** The referenced entity (the company, a contact) does not exist. */
     NOT_FOUND,
+
+    /** The field does not apply here, e.g. a decline category for a status other than Declined or Rejected. */
+    NOT_APPLICABLE,
 }
 
 /** Shared by the invariants and [ApplicationInput.validate]. */
@@ -86,7 +94,7 @@ internal object ApplicationRules {
 }
 
 /**
- * Outcome of an application use case (#82, #83, #90). Callers map every case: the REST controller to
+ * Outcome of an application use case (#82, #83, #84, #90). Callers map every case: the REST controller to
  * a status and problem type, an MCP tool to a tool error.
  */
 sealed interface ApplicationResult<out T> {
@@ -109,6 +117,12 @@ sealed interface ApplicationResult<out T> {
 
     /** The change was based on an older version of the application; nothing was changed. */
     data object VersionConflict : Failure
+
+    /** The status matrix (ADR-0044) has no move [from] the application's status [to] the requested one. */
+    data class InvalidTransition(
+        val from: ApplicationStatus,
+        val to: ApplicationStatus,
+    ) : Failure
 
     /** The delete needs (another) confirmation step (ADR-0039); nothing was deleted. */
     data class Unconfirmed(

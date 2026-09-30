@@ -8,12 +8,12 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationInput
 import io.github.scriptibus.jofi.applications.domain.ApplicationPage
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.applications.domain.CurrencyCode
 import io.github.scriptibus.jofi.applications.domain.DeclineCategory
 import io.github.scriptibus.jofi.applications.domain.DeclineReason
-import io.github.scriptibus.jofi.applications.domain.DeclineReasonInput
 import io.github.scriptibus.jofi.applications.domain.EmploymentType
 import io.github.scriptibus.jofi.applications.domain.EstimateConfidence
 import io.github.scriptibus.jofi.applications.domain.FormOfAddress
@@ -83,7 +83,6 @@ class ApplicationDtosTest {
                     PayEstimateConfidence.LOW,
                 ),
             languageAndTone = LanguageAndToneDto("de", " en ", AddressForm.SIE, WritingTone.PROFESSIONAL),
-            declineReason = DeclineReasonDto(DeclineReasonCategory.POSITION_FILLED, "Filled"),
             offer = OfferDto(PayDto(BigDecimal.TEN, "EUR", PayInterval.MONTH), bonus = "10 %", vacationDays = 30),
         )
 
@@ -108,7 +107,6 @@ class ApplicationDtosTest {
                 EstimateConfidence.LOW,
             ),
             LanguageAndToneInput("de", " en ", FormOfAddress.SIE, Tone.PROFESSIONAL),
-            DeclineReasonInput(DeclineCategory.POSITION_FILLED, "Filled"),
             OfferInput(PayInput(BigDecimal.TEN, "EUR", PayPeriod.MONTH), bonus = "10 %", vacationDays = 30),
         )
 
@@ -134,13 +132,14 @@ class ApplicationDtosTest {
                 portalNotes = "Secret portal notes",
                 payBand = PayBand(null, amount, CurrencyCode("EUR"), PayPeriod.YEAR, PaySource.Recruiter),
                 languageAndTone = LanguageAndTone(LanguageTag("de"), null, FormOfAddress.DU, Tone.PERSONAL),
-                declineReason = DeclineReason(DeclineCategory.SALARY, "Secret reason"),
                 offer = OfferDetails(Pay(amount, CurrencyCode("EUR"), PayPeriod.YEAR), benefits = "Secret benefits"),
             ),
             contacts = setOf(ContactRef(contactUuid)),
             unread = true,
             wantScore = Score(35),
             fitScore = null,
+            status = ApplicationStatus.REJECTED,
+            declineReason = DeclineReason(DeclineCategory.SALARY, "Secret reason"),
             version = 2,
             createdAt = at,
             updatedAt = at.plusSeconds(60),
@@ -164,8 +163,9 @@ class ApplicationDtosTest {
                 portalNotes = "Secret portal notes",
                 payBand = PayBandDto(null, amount, "EUR", PayInterval.YEAR, PayBandSource.RECRUITER),
                 languageAndTone = LanguageAndToneDto("de", null, AddressForm.DU, WritingTone.PERSONAL),
-                declineReason = DeclineReasonDto(DeclineReasonCategory.SALARY, "Secret reason"),
                 offer = OfferDto(PayDto(amount, "EUR", PayInterval.YEAR), benefits = "Secret benefits"),
+                status = PipelineStatus.REJECTED,
+                declineReason = DeclineReasonDto(DeclineReasonCategory.SALARY, "Secret reason"),
                 contactIds = listOf(contactUuid),
                 unread = true,
                 wantScore = BigDecimal("3.5"),
@@ -227,6 +227,7 @@ class ApplicationDtosTest {
                 Arguments.of(AddressForm::class, FormOfAddress::class),
                 Arguments.of(WritingTone::class, Tone::class),
                 Arguments.of(DeclineReasonCategory::class, DeclineCategory::class),
+                Arguments.of(PipelineStatus::class, ApplicationStatus::class),
             )
     }
 }

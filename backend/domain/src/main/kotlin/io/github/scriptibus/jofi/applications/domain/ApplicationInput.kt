@@ -42,7 +42,6 @@ data class ApplicationInput(
     val portalNotes: String? = null,
     val payBand: PayBandInput? = null,
     val languageAndTone: LanguageAndToneInput? = null,
-    val declineReason: DeclineReasonInput? = null,
     val offer: OfferInput? = null,
 ) {
     fun validate(): ApplicationValidation<ApplicationDetails> {
@@ -53,7 +52,6 @@ data class ApplicationInput(
         val portalNotes = checks.text(ApplicationField.PORTAL_NOTES, portalNotes, ApplicationDetails.MAX_NOTES_LENGTH)
         val payBand = payBand?.parse(checks)
         val languageAndTone = languageAndTone?.parse(checks) ?: LanguageAndTone.UNKNOWN
-        val declineReason = declineReason?.parse(checks)
         val offer = offer?.parse(checks)
         if (title == null || checks.count > 0) return ApplicationValidation.Invalid(checks.violations)
         return ApplicationValidation.Valid(
@@ -69,7 +67,6 @@ data class ApplicationInput(
                 portalNotes,
                 payBand,
                 languageAndTone,
-                declineReason,
                 offer,
             ),
         )
@@ -144,20 +141,6 @@ data class LanguageAndToneInput(
             formOfAddress,
             tone,
         )
-}
-
-/** A decline or rejection reason as entered; [toString] leaves out the text. */
-data class DeclineReasonInput(
-    val category: DeclineCategory,
-    val text: String? = null,
-) {
-    internal fun parse(checks: InputChecks): DeclineReason? {
-        val before = checks.count
-        val text = checks.text(ApplicationField.DECLINE_REASON_TEXT, text, DeclineReason.MAX_TEXT_LENGTH)
-        return if (checks.count > before) null else DeclineReason(category, text)
-    }
-
-    override fun toString(): String = "DeclineReasonInput(category=$category)"
 }
 
 /** An offer as entered; an offer without any detail counts as no offer. [toString] leaves out the text. */

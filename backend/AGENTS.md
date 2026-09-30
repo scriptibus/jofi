@@ -61,7 +61,8 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
 `tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
 providers, per-task models, capabilities, costs, budget), `companies` (companies with their use cases, #88; contacts as a
-contract), `applications` (contract: the application aggregate) and `shared` exist.
+contract), `applications` (contracts: the application aggregate and its status pipeline, ADR-0044) and
+`shared` exist.
 The only class allowed directly in the base package is the application class; the only class
 allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 
@@ -102,7 +103,7 @@ meters the cost, and calls `AiProviderPort` (`setup.application.port`), which Sp
 in `setup.adapter.ai` (#19, ADR-0040, ADR-0043). Only the gateway implements `LlmPort`/`EmbeddingPort`
 and calls `AiProviderPort`; nothing outside `setup.adapter.ai` may use `AiProviderPort` (architecture
 tests). The setup use cases (#23: providers, keys, model refresh, capability corrections, task
-assignments) accept only `Actor.User`, since the provider config decides where prompts go and feeds
+assignments; #24: the monthly budget cap) accept only `Actor.User`, since the provider config decides where prompts go and feeds
 the AI transport's allowlist; never expose them as MCP or AI tools. `SetupRules` (architecture tests)
 enforces it: only `setup.adapter.web` (and `setup.config`) may depend on the mutating setup use cases and
 inbound ports, and only `..adapter.web..` may name `Actor.User` (reviewed allowlist in `SetupRules`). Mark text copied from a stored

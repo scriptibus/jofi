@@ -61,11 +61,11 @@ internal class BackupDomainSeeds(
                 "portal_notes, pay_min, pay_max, pay_currency, pay_period, pay_source, pay_estimate_basis, " +
                 "pay_estimate_confidence, posting_language, application_language, form_of_address, tone, " +
                 "decline_category, decline_reason, offer_salary, offer_salary_currency, offer_salary_period, " +
-                "offer_vacation_days, offer_start_date, unread, want_score, version, created_at, updated_at) " +
+                "offer_vacation_days, offer_start_date, unread, want_score, status, version, created_at, updated_at) " +
                 "values (?, ?, 'Backend \"Kotlin\", Berlin', 'Zürich, CH', 40, 'FULL_TIME', '2026-10-31', " +
                 "'Login: jj,\r\nref \"A-1\";\nsee mail', 70000.50, 9999999999.99, 'EUR', 'YEAR', 'ESTIMATED', " +
                 "'levels, \"senior\"', 'MEDIUM', 'gsw-CH', 'zh-Hant-TW', 'SIE', 'PROFESSIONAL', 'SALARY', " +
-                "'Too low,\r\nsorry', 0.01, 'CHF', 'MONTH', 30, '2027-01-01', true, 3.5, 4, " +
+                "'Too low,\r\nsorry', 0.01, 'CHF', 'MONTH', 30, '2027-01-01', true, 3.5, 'REJECTED', 4, " +
                 "?::timestamptz, ?::timestamptz)",
             application,
             company,
@@ -81,6 +81,24 @@ internal class BackupDomainSeeds(
             at,
         )
         dsl.execute("insert into application_contact (application_id, contact_id) values (?, ?)", application, contact)
+        seedStatusHistory(application)
+    }
+
+    // The first entry (no from status), a scanner with a quoted name, a rejection with CR/LF in its reason.
+    private fun seedStatusHistory(application: UUID) {
+        dsl.execute(
+            "insert into application_status_change (application_id, from_status, to_status, reason, " +
+                "decline_category, actor_kind, actor_name, changed_at) values " +
+                "(?, null, 'DISCOVERED', null, null, 'SCANNER', 'Feed \"Jobs, Berlin\"', ?::timestamptz), " +
+                "(?, 'DISCOVERED', 'APPLIED', 'Sent via portal; ref \"A-1\"', null, 'USER', null, ?::timestamptz), " +
+                "(?, 'APPLIED', 'REJECTED', 'Too low,\r\nsorry', 'SALARY', 'EXTERNAL_CLIENT', 'mcp', ?::timestamptz)",
+            application,
+            at,
+            application,
+            at,
+            application,
+            at,
+        )
     }
 
     private fun seedChannels(contact: UUID) {

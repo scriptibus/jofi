@@ -389,6 +389,130 @@
         "tags" : [ "application-controller" ]
       }
     },
+    "/api/applications/{id}/status" : {
+      "put" : {
+        "operationId" : "changeApplicationStatus",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChangeApplicationStatusRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      }
+    },
+    "/api/applications/{id}/status-history" : {
+      "get" : {
+        "operationId" : "getApplicationStatusHistory",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StatusHistoryResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      }
+    },
     "/api/applications/{id}/unread" : {
       "put" : {
         "operationId" : "setApplicationUnread",
@@ -1363,6 +1487,177 @@
         "tags" : [ "task-assignment-controller" ]
       }
     },
+    "/api/setup/budget" : {
+      "get" : {
+        "operationId" : "getMonthlyBudget",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MonthlyBudgetResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "monthly-budget-controller" ]
+      },
+      "put" : {
+        "operationId" : "setMonthlyBudget",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SetMonthlyBudgetRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/MonthlyBudgetResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "monthly-budget-controller" ]
+      }
+    },
+    "/api/setup/costs" : {
+      "get" : {
+        "operationId" : "getCostSummary",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "month",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CostSummaryResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-cost-controller" ]
+      }
+    },
+    "/api/setup/costs/history" : {
+      "get" : {
+        "operationId" : "getCostHistory",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "months",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 12
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/MonthlyCostResponse"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-cost-controller" ]
+      }
+    },
     "/api/setup/providers" : {
       "get" : {
         "operationId" : "listProviders",
@@ -1438,6 +1733,34 @@
           }
         },
         "tags" : [ "ai-provider-controller" ]
+      }
+    },
+    "/api/setup/providers/privacy" : {
+      "get" : {
+        "operationId" : "listProviderPrivacyInfo",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProviderPrivacyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "provider-privacy-controller" ]
       }
     },
     "/api/setup/providers/{id}" : {
@@ -1988,12 +2311,6 @@
             "format" : "date",
             "nullable" : true
           },
-          "declineReason" : {
-            "nullable" : true,
-            "allOf" : [ {
-              "$ref" : "#/components/schemas/DeclineReasonDto"
-            } ]
-          },
           "employmentType" : {
             "type" : "string",
             "nullable" : true,
@@ -2070,7 +2387,7 @@
         }
       },
       "ApplicationResponse" : {
-        "required" : [ "companyId", "contactIds", "createdAt", "id", "languageAndTone", "title", "unread", "updatedAt", "version" ],
+        "required" : [ "companyId", "contactIds", "createdAt", "id", "languageAndTone", "status", "title", "unread", "updatedAt", "version" ],
         "type" : "object",
         "properties" : {
           "companyId" : {
@@ -2149,6 +2466,10 @@
             "type" : "string",
             "nullable" : true,
             "enum" : [ "ENTRY", "JUNIOR", "MID", "SENIOR", "LEAD", "PRINCIPAL", "EXECUTIVE" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
           },
           "title" : {
             "type" : "string"
@@ -2231,6 +2552,43 @@
             "type" : "integer",
             "format" : "int32",
             "nullable" : true
+          }
+        }
+      },
+      "ChangeActorDto" : {
+        "required" : [ "kind" ],
+        "type" : "object",
+        "properties" : {
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "USER", "AI", "SCANNER", "EXTERNAL_CLIENT", "SYSTEM" ]
+          },
+          "name" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
+      "ChangeApplicationStatusRequest" : {
+        "required" : [ "basedOnVersion", "status" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "declineCategory" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "SALARY", "LOCATION", "REMOTE_POLICY", "ROLE", "COMPANY", "SKILLS", "TIMING", "OTHER_OFFER", "POSITION_FILLED", "NO_REASON_GIVEN", "OTHER" ]
+          },
+          "reason" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
           }
         }
       },
@@ -2597,6 +2955,71 @@
           }
         }
       },
+      "CostSummaryResponse" : {
+        "required" : [ "byModel", "byProviderKind", "byTask", "currency", "month", "total" ],
+        "type" : "object",
+        "properties" : {
+          "budget" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/MonthlyBudgetResponse"
+            } ]
+          },
+          "byModel" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ModelCostResponse"
+            }
+          },
+          "byProviderKind" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ProviderKindCostResponse"
+            }
+          },
+          "byTask" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskCostResponse"
+            }
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "total" : {
+            "$ref" : "#/components/schemas/CostTotalsResponse"
+          }
+        }
+      },
+      "CostTotalsResponse" : {
+        "required" : [ "calls", "inputTokens", "knownCostMicros", "outputTokens", "unknownCostCalls" ],
+        "type" : "object",
+        "properties" : {
+          "calls" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "inputTokens" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "knownCostMicros" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "outputTokens" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "unknownCostCalls" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
       "CreateProviderRequest" : {
         "required" : [ "displayName", "kind" ],
         "type" : "object",
@@ -2727,12 +3150,40 @@
           }
         }
       },
+      "LocalizedTextResponse" : {
+        "required" : [ "de", "en" ],
+        "type" : "object",
+        "properties" : {
+          "de" : {
+            "type" : "string"
+          },
+          "en" : {
+            "type" : "string"
+          }
+        }
+      },
       "LoginRequest" : {
         "required" : [ "password" ],
         "type" : "object",
         "properties" : {
           "password" : {
             "type" : "string"
+          }
+        }
+      },
+      "ModelCostResponse" : {
+        "required" : [ "model", "providerKind", "totals" ],
+        "type" : "object",
+        "properties" : {
+          "model" : {
+            "type" : "string"
+          },
+          "providerKind" : {
+            "type" : "string",
+            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          },
+          "totals" : {
+            "$ref" : "#/components/schemas/CostTotalsResponse"
           }
         }
       },
@@ -2762,6 +3213,60 @@
           "updatedAt" : {
             "type" : "string",
             "format" : "date-time"
+          }
+        }
+      },
+      "MonthlyBudgetResponse" : {
+        "required" : [ "currency", "month", "pausedTasks", "spentMicros", "state" ],
+        "type" : "object",
+        "properties" : {
+          "capMicros" : {
+            "type" : "integer",
+            "format" : "int64",
+            "nullable" : true
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "month" : {
+            "type" : "string"
+          },
+          "pausedTasks" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SCANNER_PRE_SCORING", "CLASSIFICATION", "LANGUAGE_TONE_DETECTION", "EXTRACTION", "KNOWLEDGE_INTERVIEW", "DOCUMENT_GENERATION", "INTERVIEW_TRAINING", "CHAT", "EMBEDDING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH" ]
+            }
+          },
+          "pausedUntil" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "remainingMicros" : {
+            "type" : "integer",
+            "format" : "int64",
+            "nullable" : true
+          },
+          "spentMicros" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "state" : {
+            "type" : "string",
+            "enum" : [ "NO_CAP", "WITHIN_BUDGET", "REACHED" ]
+          }
+        }
+      },
+      "MonthlyCostResponse" : {
+        "required" : [ "month", "totals" ],
+        "type" : "object",
+        "properties" : {
+          "month" : {
+            "type" : "string"
+          },
+          "totals" : {
+            "$ref" : "#/components/schemas/CostTotalsResponse"
           }
         }
       },
@@ -2858,6 +3363,49 @@
           }
         }
       },
+      "PrivacyClaimResponse" : {
+        "required" : [ "evidence", "status", "summary" ],
+        "type" : "object",
+        "properties" : {
+          "evidence" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PrivacyEvidenceResponse"
+            }
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "YES", "ON_REQUEST", "CONDITIONAL", "NO", "DEPENDS_ON_ENDPOINT", "UNKNOWN" ]
+          },
+          "summary" : {
+            "$ref" : "#/components/schemas/LocalizedTextResponse"
+          }
+        }
+      },
+      "PrivacyDisclaimerResponse" : {
+        "required" : [ "key", "text" ],
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "text" : {
+            "$ref" : "#/components/schemas/LocalizedTextResponse"
+          }
+        }
+      },
+      "PrivacyEvidenceResponse" : {
+        "required" : [ "quote", "source" ],
+        "type" : "object",
+        "properties" : {
+          "quote" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string"
+          }
+        }
+      },
       "ProblemDetail" : {
         "type" : "object",
         "additionalProperties" : true,
@@ -2888,6 +3436,68 @@
           }
         }
       },
+      "ProviderKindCostResponse" : {
+        "required" : [ "providerKind", "totals" ],
+        "type" : "object",
+        "properties" : {
+          "providerKind" : {
+            "type" : "string",
+            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          },
+          "totals" : {
+            "$ref" : "#/components/schemas/CostTotalsResponse"
+          }
+        }
+      },
+      "ProviderPrivacyEntryResponse" : {
+        "required" : [ "checkedOn", "dataLocation", "kind", "noTraining", "stale", "zeroDataRetention" ],
+        "type" : "object",
+        "properties" : {
+          "checkedOn" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "dataLocation" : {
+            "$ref" : "#/components/schemas/PrivacyClaimResponse"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          },
+          "noTraining" : {
+            "$ref" : "#/components/schemas/PrivacyClaimResponse"
+          },
+          "stale" : {
+            "type" : "boolean"
+          },
+          "zeroDataRetention" : {
+            "$ref" : "#/components/schemas/PrivacyClaimResponse"
+          }
+        }
+      },
+      "ProviderPrivacyResponse" : {
+        "required" : [ "checkedOn", "disclaimer", "providers", "staleAfterMonths" ],
+        "type" : "object",
+        "properties" : {
+          "checkedOn" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "disclaimer" : {
+            "$ref" : "#/components/schemas/PrivacyDisclaimerResponse"
+          },
+          "providers" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ProviderPrivacyEntryResponse"
+            }
+          },
+          "staleAfterMonths" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
       "ProviderResponse" : {
         "required" : [ "apiKeySet", "displayName", "id", "kind" ],
         "type" : "object",
@@ -2909,6 +3519,17 @@
           "kind" : {
             "type" : "string",
             "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          }
+        }
+      },
+      "SetMonthlyBudgetRequest" : {
+        "required" : [ "capMicros" ],
+        "type" : "object",
+        "properties" : {
+          "capMicros" : {
+            "type" : "integer",
+            "format" : "int64",
+            "nullable" : true
           }
         }
       },
@@ -2947,6 +3568,49 @@
           }
         }
       },
+      "StatusChangeResponse" : {
+        "required" : [ "actor", "at", "to" ],
+        "type" : "object",
+        "properties" : {
+          "actor" : {
+            "$ref" : "#/components/schemas/ChangeActorDto"
+          },
+          "at" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "declineCategory" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "SALARY", "LOCATION", "REMOTE_POLICY", "ROLE", "COMPANY", "SKILLS", "TIMING", "OTHER_OFFER", "POSITION_FILLED", "NO_REASON_GIVEN", "OTHER" ]
+          },
+          "from" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
+          },
+          "reason" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "to" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
+          }
+        }
+      },
+      "StatusHistoryResponse" : {
+        "required" : [ "changes" ],
+        "type" : "object",
+        "properties" : {
+          "changes" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StatusChangeResponse"
+            }
+          }
+        }
+      },
       "SystemInfoResponse" : {
         "required" : [ "name", "version" ],
         "type" : "object",
@@ -2981,6 +3645,19 @@
           "task" : {
             "type" : "string",
             "enum" : [ "SCANNER_PRE_SCORING", "CLASSIFICATION", "LANGUAGE_TONE_DETECTION", "EXTRACTION", "KNOWLEDGE_INTERVIEW", "DOCUMENT_GENERATION", "INTERVIEW_TRAINING", "CHAT", "EMBEDDING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH" ]
+          }
+        }
+      },
+      "TaskCostResponse" : {
+        "required" : [ "task", "totals" ],
+        "type" : "object",
+        "properties" : {
+          "task" : {
+            "type" : "string",
+            "enum" : [ "SCANNER_PRE_SCORING", "CLASSIFICATION", "LANGUAGE_TONE_DETECTION", "EXTRACTION", "KNOWLEDGE_INTERVIEW", "DOCUMENT_GENERATION", "INTERVIEW_TRAINING", "CHAT", "EMBEDDING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH" ]
+          },
+          "totals" : {
+            "$ref" : "#/components/schemas/CostTotalsResponse"
           }
         }
       },
