@@ -9,7 +9,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Date: 2026-09-30
 - Source: spec §6.3 (list with filters and saved views), §6.2 (Ghosted after 14 weeks, configurable), §6.1
   (follow-up rules); issue #81 (M1-C2f); builds on ADR-0041 and the list of #83 (PR #162). Amended by #85 (M1-1d):
-  the settings use cases and the Ghosted suggestion
+  the settings use cases and the Ghosted suggestion; by #99 (M1-7a1): the saved view use cases
 
 ## Context
 
@@ -62,6 +62,20 @@ the filter as a deleted company or contact. Only an id stays behind, as in the c
 refuse a taken name as `InvalidView` (`name`, `TAKEN`). The database's `saved_view_name_unique` only rejects exactly
 equal names, which the domain also rejects, so it catches races without being stricter. Deleting a view is a
 confirmed delete (`saved-views.delete`, ADR-0039) although it only removes a query: every delete is.
+
+### Saved view use cases (amended by #99)
+
+- `Create|Update|Get|List|DeleteSavedViewUseCase` behind `GET|POST /api/applications/saved-views` and
+  `GET|PUT|DELETE /api/applications/saved-views/{id}` (`Actor.User`). An update checks the version first, then the
+  input, then the name; unchanged details store and record nothing unless the view came back adjusted.
+- The name check reads every view (`list()`) in the transaction of the write and refuses a name another view has
+  ignoring case; a save racing past it with exactly the same name is caught by `saved_view_name_unique` and answers
+  the same `name` `TAKEN`. Two racing saves differing only in case can both succeed; that is accepted for a
+  single-user app (the check is advisory there, never stricter than the domain).
+- The changelog names the view (`name` before/after: it names a query, not a person) and says only that the filter
+  changed (`...; also changed: filter`), never its values, since the search text may quote a title.
+- A stored document the reader cannot use at all (an unknown format, broken JSON) fails that read (and the list) as
+  a storage failure (503) instead of showing a different filter.
 
 ### Application settings: an optional single row
 
