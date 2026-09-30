@@ -28,6 +28,9 @@ anything (2 turns, about 3 s, no comment), and nothing noticed. Two things made 
 - The action gets `github_token: ${{ github.token }}` (claude-code-action v1.0.237, `docs/security.md` and
   `docs/setup.md`): the job's own token, scoped to `contents: read`, `issues: read`, `pull-requests: write`
   and expiring with the job. No `id-token: write`. Comments come from `github-actions[bot]`.
+- `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`. The first run on the workflow token showed the actual root
+  cause: Claude started the plugin's eligibility subagent in the background and ended its turn to wait for
+  it. The action stops reading at the first result message, so the review ended after 2 turns.
 - `--allowedTools` lists exactly the tools in the plugin's `commands/code-review.md` frontmatter.
 - After the run, a step prints only safe metadata from the execution file (plugins, tool names, turns,
   denied tools, the final summary), and another step fails the job unless the review posted a
