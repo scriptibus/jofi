@@ -21,7 +21,10 @@ import java.time.Instant
  * by name) is [ApplicationStoreResult.NotFound].
  */
 interface DescriptionSnapshotRepositoryPort {
-    /** Stores a new snapshot ([DescriptionSnapshot.next], never a frozen one). */
+    /**
+     * Stores a new snapshot: [DescriptionSnapshot.next], never frozen, or a source's first one
+     * ([DescriptionSnapshot.firstOf]), frozen at once if the application is applied to already.
+     */
     fun add(snapshot: DescriptionSnapshot): ApplicationStoreResult<Unit>
 
     /**
