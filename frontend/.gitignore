@@ -17,3 +17,5 @@ src/api/generated/
 # inlang project: only settings.json is source (cache, .lix, meta are generated)
 project.inlang/*
 !project.inlang/settings.json
+# Logged-in browser state of the full-stack e2e run (tests/stack/seed.setup.ts)
+playwright/.auth/

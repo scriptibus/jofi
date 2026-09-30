@@ -178,6 +178,11 @@ from zero, jOOQ round-trips), never an in-memory database. Bootstrap: `@SpringBo
 (context + `/actuator/health`) with `PostgresTestConfiguration` as the service connection.
 Keep `./gradlew check` green before you finish.
 
+Full-stack e2e (`cd frontend && pnpm e2e`, ADR-0036) runs the real image against a wire-level fake AI
+provider, seeded as an `OPENAI_COMPATIBLE` provider with model `fake-<task>` per task. The backend has
+**no e2e code, profile or flag**: seed through the public API (or SQL in `frontend/tests/stack/seed/db`
+for data without an API yet). `scripts/e2e-isolation-test.sh` fails if e2e markers reach the image.
+
 ## Container image
 
 The repository-root `Dockerfile` builds the frontend, then `:bootstrap:bootJar` (the SPA goes into

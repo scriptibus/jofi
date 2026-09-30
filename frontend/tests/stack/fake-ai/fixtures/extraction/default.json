@@ -1,0 +1,8 @@
+{
+  "description": "Structured fields extracted from a posting (untrusted input, no tools).",
+  "turns": [
+    {
+      "text": "{\"title\": \"Senior Kotlin Developer\", \"company\": \"ACME GmbH\", \"location\": \"Berlin\", \"remote\": \"hybrid\"}"
+    }
+  ]
+}

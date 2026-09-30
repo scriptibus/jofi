@@ -1,0 +1,122 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# The e2e stack (issue #21, ADR-0027, ADR-0036): an overlay on compose.yaml plus the `e2e` profile. Never
+# used in production: only scripts/e2e-stack.sh reads this file (`pnpm e2e` in frontend/), and a
+# deployment runs `docker compose up` on compose.yaml alone, which has no e2e service, network or setting
+# (scripts/e2e-isolation-test.sh proves it in CI).
+#
+#   docker compose --env-file /dev/null -f compose.yaml -f compose.e2e.yaml --profile e2e up -d  (as the script does)
+#
+# The production services app, worker and db keep their definitions (image, hardening, healthchecks)
+# and move to `e2e-internal`, a network without a route to the internet. The fake AI provider and
+# WireMock (placeholder scanner sources) live there too. `edge` is the one way in: it publishes
+# 127.0.0.1:${JOFI_E2E_PORT:-8180} and forwards TCP to the app.
+name: jofi-e2e
+
+x-e2e-node: &e2e-node
+  image: docker.io/library/node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe
+  profiles: [e2e]
+  user: "1000:1000"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  # Their own tag, so the e2e build never overwrites or stands in for a deployment's localhost/jofi:local.
+  app:
+    image: localhost/jofi:e2e
+    ports: !reset []
+    networks: [e2e-internal]
+
+  worker:
+    image: localhost/jofi:e2e
+    networks: [e2e-internal]
+
+  db:
+    networks: [e2e-internal]
+
+  # Deterministic OpenAI-compatible fake (frontend/tests/stack/fake-ai). Jofi reaches it as the
+  # OPENAI_COMPATIBLE provider seeded below, so the real AI gateway, privacy filter, Spring AI adapter
+  # and SSRF guard all run in e2e. It refuses to start without JOFI_FAKE_AI=e2e.
+  fake-ai:
+    <<: *e2e-node
+    command: ["node", "/opt/fake-ai/server.ts"]
+    environment:
+      JOFI_FAKE_AI: e2e
+    volumes:
+      - ./frontend/tests/stack/fake-ai:/opt/fake-ai:ro,z
+    networks: [e2e-internal]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # Stubs for external HTTP sources. Placeholders until the scanners arrive (M4).
+  wiremock:
+    image: docker.io/wiremock/wiremock:3.13.2@sha256:0d4ecb3e4dc8213fd7a4d37d6a78f6e6b553a6d2e15bd51b0999781282ac61b3
+    profiles: [e2e]
+    command: ["--port", "8080", "--disable-banner"]
+    volumes:
+      - ./frontend/tests/stack/wiremock/mappings:/home/wiremock/mappings:ro,z
+    networks: [e2e-internal]
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  # Applies frontend/tests/stack/seed/db/*.sql in order, each in one transaction. Run by the script
+  # once the app is healthy (Flyway has migrated), and safe to run again.
+  seed:
+    image: docker.io/pgvector/pgvector:0.8.6-pg18-trixie@sha256:78bf48b801e792f99e3ac62b5036fd3876e9be48afda16c1e331af1c75ceb2ff
+    profiles: [e2e]
+    user: postgres
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - for file in /opt/seed/*.sql; do psql --no-psqlrc --quiet -v ON_ERROR_STOP=1 --single-transaction --file "$$file" || exit 1; done
+    environment:
+      PGHOST: db
+      PGDATABASE: jofi
+      PGUSER: ${JOFI_DB_USERNAME:-jofi}
+      PGPASSWORD: ${JOFI_DB_PASSWORD:?set JOFI_DB_PASSWORD (scripts/e2e-stack.sh sets one)}
+    volumes:
+      - ./frontend/tests/stack/seed/db:/opt/seed:ro,z
+    networks: [e2e-internal]
+    depends_on:
+      db:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  edge:
+    <<: *e2e-node
+    command: ["node", "/opt/edge/forward.ts"]
+    volumes:
+      - ./frontend/tests/stack/edge:/opt/edge:ro,z
+    networks: [e2e-internal, e2e-edge]
+    ports:
+      - 127.0.0.1:${JOFI_E2E_PORT:-8180}:8080
+    depends_on:
+      app:
+        condition: service_healthy
+      fake-ai:
+        condition: service_healthy
+      wiremock:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('node:net').connect(8080, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+networks:
+  e2e-internal:
+    internal: true
+  e2e-edge: {}

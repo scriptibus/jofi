@@ -1,0 +1,9 @@
+{
+  "description": "The request does not fit the context window (AiResult.ContextTooLong).",
+  "error": {
+    "status": 400,
+    "type": "invalid_request_error",
+    "code": "context_length_exceeded",
+    "message": "This model's maximum context length is 128000 tokens (fake AI)."
+  }
+}

@@ -21,8 +21,11 @@ Spec: `docs/spec/04-tech-stack-proposal.md` (3.4, 4.5, 4.6, 4.6a, 4.8a, 4.10) an
 | `pnpm format` | Biome autofix + format |
 | `pnpm api` | Generate the typed API client from `../api/openapi.json` into `src/api/generated/` (orval) |
 | `pnpm typecheck` | Compile Paraglide messages, generate the API client, then `tsc` for app and node configs |
-| `pnpm test` | Generate the API client, then Vitest (jsdom + Testing Library, MSW for HTTP) |
-| `pnpm e2e` | Playwright: builds, runs `vite preview`, tests light/dark/phone incl. axe WCAG 2.2 AA |
+| `pnpm test` | Generate the API client, then Vitest (jsdom + Testing Library, MSW for HTTP), then `pnpm test:stack` |
+| `pnpm test:stack` | `node --test` for the e2e stack's own code (fake AI provider, fixtures) |
+| `pnpm e2e` | Full-stack Playwright (see below): builds the image, starts and seeds the `e2e` compose stack, checks it, tests light/dark/phone incl. axe WCAG 2.2 AA, tears it down |
+| `pnpm e2e:up` / `pnpm e2e:down` | Start (build, seed, check) / remove the e2e stack; while it runs, `E2E_REUSE_STACK=1 pnpm e2e` skips the start |
+| `pnpm e2e:preview` | The same Playwright tests against `vite preview` only (no backend; stack-only tests skip) |
 | `pnpm run license-check` | Every installed package against the AGPL-compatible allowlist |
 | `pnpm check` | lint + typecheck + test + build + license-check (run before every commit) |
 
@@ -32,6 +35,7 @@ the npm tarball, which Corepack verifies); `pnpm-lock.yaml` records the same ver
 
 First e2e run on a machine: `pnpm exec playwright install chromium`.
 Screenshots: `SCREENSHOT_DIR=/some/dir pnpm e2e` writes one PNG per project and step.
+On Podman: `COMPOSE=podman-compose CONTAINER=podman pnpm e2e`; `SKIP_BUILD=1` reuses the `localhost/jofi:e2e` image.
 
 ## Rules
 
@@ -62,6 +66,7 @@ Screenshots: `SCREENSHOT_DIR=/some/dir pnpm e2e` writes one PNG per project and 
    sleeps); rely on web-first assertions.
 7. **Verify in a headless browser.** For UI changes, run `pnpm e2e` (axe must report zero
    violations in light, dark and phone) and attach screenshots (`SCREENSHOT_DIR`) to the PR.
+   Tests run against the full stack; never mock the backend in e2e (use seed data and fake AI scenarios).
 8. **SPDX headers** on every source file: the copyright + licence lines from the root
    `AGENTS.md` section 4, as `//` comments in TS/JS, `/* */` in CSS and `<!-- -->` in HTML/MD.
    JSON can't carry them (REUSE.toml covers it).
@@ -79,6 +84,59 @@ Screenshots: `SCREENSHOT_DIR=/some/dir pnpm e2e` writes one PNG per project and 
 11. **Install scripts.** Dependencies may not run install scripts unless listed under
     `allowBuilds` in `pnpm-workspace.yaml` (after review).
 
+## Full-stack e2e (ADR-0036)
+
+`pnpm e2e` runs `../scripts/e2e-stack.sh test`: `compose.yaml` + `compose.e2e.yaml` with the `e2e`
+profile. `app`, `worker` and `db` are the production services on an internal network without internet,
+next to `fake-ai` and `wiremock`; `edge` publishes the app on `http://127.0.0.1:8180` (`JOFI_E2E_PORT`).
+The script ignores `.env`, seeds, checks the stack (seed idempotent, fake AI reachable, no internet), runs Playwright
+with `JOFI_E2E_BASE_URL`, and on failure writes the container logs to `test-results/e2e-stack.log`.
+Nothing here ships in the image; `../scripts/e2e-isolation-test.sh` proves it in CI (job `e2e`).
+
+**Seed data.** Two idempotent formats; later milestones extend them:
+
+- **API steps** (preferred): functions in `tests/stack/seed/api.ts`, called from the `seed` setup
+  project (`tests/stack/seed.setup.ts`), which every browser project depends on. They call Jofi's
+  public API like a user. Today: first run + login (#16) with `E2E_PASSWORD` and the one-time setup
+  token (the script reads `/data/secrets/setup-token` from the app container and passes it as
+  `JOFI_E2E_SETUP_TOKEN`), saved as storage state (`playwright/.auth/e2e.json`), so every test starts
+  logged in. All requests reach the app from the one `edge` address, so the login backoff sees one
+  client: tests that enter wrong passwords need their own stack. Make each step safe to repeat (check
+  before create).
+- **SQL steps** for data without an API yet: `tests/stack/seed/db/NNNN-<name>.sql`, applied in name order,
+  each in one transaction, by the `seed` service after Flyway ran. Use fixed ids and
+  `ON CONFLICT ... DO UPDATE` so reruns converge, and append a `changelog_entry` (actor `SYSTEM`, name
+  `e2e-seed`) only when a row is first created. Move a step to the API once its endpoint exists.
+  `0001-ai-provider.sql` seeds the fake AI as `OPENAI_COMPATIBLE` provider (`http://fake-ai:8080/v1`),
+  assigns model `fake-<task>` to every text task and `EMBEDDING`, with capabilities.
+
+**Fake AI** (`tests/stack/fake-ai`, OpenAI-compatible: chat completions with tools and SSE streaming,
+embeddings, models). The real gateway, privacy filter, Spring AI adapter and SSRF guard run in front
+of it. Pick responses with fixture files `fixtures/<task>/<scenario>.json` (`<task>` = AiTask in kebab
+case). A request's model `fake-<task>` selects the task; a `[[scenario:<name>]]` marker anywhere in the
+messages (e.g. in text a test types or in seeded data) selects the scenario, else `default`. Formats
+(`description` is required, plus exactly one of `turns`, `dimensions`, `error`):
+
+```text
+{ "description": "…", "turns": [
+    { "toolCalls": [{ "name": "find_company", "arguments": { "name": "ACME GmbH" } }] },
+    { "text": "…", "chunks": ["optional ", "stream ", "fragments"], "finishReason": "stop",
+      "usage": { "inputTokens": 10, "outputTokens": 5 } } ] }
+{ "description": "…", "dimensions": 16 }
+{ "description": "…", "error": { "status": 429, "type": "requests", "code": "rate_limit_exceeded",
+    "message": "…", "retryAfterSeconds": 2 } }
+```
+
+The n-th answer in a conversation is `turns[n]` (n = assistant messages so far; the last turn repeats),
+so a tool round trip is two turns. Without `chunks` a stream sends one delta per word; without `usage`
+tokens are about 4 characters each. Embeddings are unit vectors from each text's SHA-256. Unknown
+models, scenarios, or tool calls the request does not offer are loud 4xx errors. Add a scenario per
+behaviour a test needs (errors included: `rate-limited`, `unavailable`, `auth-failed`,
+`context-too-long`, `truncated` exist for `chat`) and cover new fixture logic in `fake-ai.test.ts`.
+
+**WireMock** (`tests/stack/wiremock/mappings/*.json`): stubs for external sources, reachable in the
+stack as `http://wiremock:8080`. Only a placeholder today; each scanner source (M4) adds its mappings.
+
 ## Layout
 
 ```
@@ -92,7 +150,8 @@ src/
 messages/         de.json, en.json
 project.inlang/   Paraglide/inlang settings (plugin loaded from node_modules, no CDN)
 public/           appearance-boot.js (applies theme/accent before first paint), favicon
-tests/e2e/        Playwright
+tests/e2e/        Playwright specs (run against the full stack by `pnpm e2e`)
+tests/stack/      the e2e stack: fake-ai/, seed/, seed.setup.ts, wiremock/, edge/ (not part of the app build)
 scripts/          license check
 orval.config.ts   API client generation (input: ../api/openapi.json)
 lint/             Biome GritQL plugins

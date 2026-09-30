@@ -1,0 +1,10 @@
+{
+  "description": "The provider throttles the call (AiResult.RateLimited, retry after 2 s).",
+  "error": {
+    "status": 429,
+    "type": "requests",
+    "code": "rate_limit_exceeded",
+    "message": "Rate limit reached (fake AI).",
+    "retryAfterSeconds": 2
+  }
+}

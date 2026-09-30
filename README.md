@@ -53,6 +53,13 @@ in [AGENTS.md](AGENTS.md#9-commands). The backend build and tests start PostgreS
 they need Docker or Podman (with its Docker-compatible socket). `./gradlew :bootstrap:bootTestRun` runs the app
 against a throwaway database; a real one is configured with `JOFI_DB_URL`, `JOFI_DB_USERNAME` and `JOFI_DB_PASSWORD`.
 
+**End-to-end tests** run Playwright against the whole stack: `cd frontend && pnpm e2e` builds the image, starts
+the `e2e` compose profile (`compose.yaml` + `compose.e2e.yaml`: the app on a network without internet, a
+deterministic fake AI provider, WireMock and seeded demo data, published on <http://127.0.0.1:8180>), runs the
+tests in light, dark and phone layouts with an accessibility check, and removes the stack again. No API keys
+or internet needed. With Podman: `COMPOSE=podman-compose CONTAINER=podman pnpm e2e`. Details, the fake AI's
+fixture format and the seed format are in [frontend/AGENTS.md](frontend/AGENTS.md#full-stack-e2e-adr-0036).
+
 ## Contributing
 
 Jofi is mostly built by coding agents working on one issue each, reviewed by CI, review lenses and a human.
