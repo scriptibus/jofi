@@ -94,11 +94,12 @@ test("the server's errors show next to their fields, and nothing is created", as
   await expect(companyPicker(page, "Company (required)")).toContainText(company.name);
   await page.getByLabel("Job title (required)").fill(title);
   const pay = page.getByRole("group", { name: "Pay band" });
+  await pay.getByLabel("Minimum").fill("50000");
   await choose(page, "Source", "Estimated");
   await pay.getByLabel("Basis of the estimate").fill("Salary survey");
   await page.getByRole("button", { name: "Create application" }).click();
   // An estimate needs a confidence: the server names `payBand.estimateConfidence`.
-  await expect(pay.getByText("Enter a value.")).toBeVisible();
+  await expect(pay.getByText("Enter a value.").first()).toBeVisible();
   await expect(page).toHaveURL(/\/applications\/new\?/);
   await expectNoA11yViolations(page);
   await snapshot(page, "application-new-invalid");
@@ -123,7 +124,7 @@ test.describe("in German", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Neue Bewerbung" })).toBeVisible();
     await expect(companyPicker(page, "Firma (Pflichtfeld)")).toContainText(company.name);
     await page.getByLabel("Stellentitel (Pflichtfeld)").fill(title);
-    await page.getByLabel("Ort").fill("Köln");
+    await page.getByRole("textbox", { name: "Ort", exact: true }).fill("Köln");
     await expectNoA11yViolations(page);
     await snapshot(page, "application-new-de");
     await page.getByRole("button", { name: "Bewerbung anlegen" }).click();
