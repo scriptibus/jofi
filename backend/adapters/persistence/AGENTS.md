@@ -6,7 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 # adapters/persistence
 
 Owns the database: Flyway migrations, the jOOQ code generated from them and the jOOQ
-repositories that implement persistence ports (ADR-0008, ADR-0009). Packages:
+repositories that implement persistence ports (ADR-0008, ADR-0009, ADR-0030). Packages:
 `io.github.scriptibus.jofi.<context>.adapter.persistence`.
 
 ## Database
@@ -54,7 +54,8 @@ The generator lives in the `codegen` source set and has its own locked classpath
 - Actors are stored as `actor_kind` + `actor_name`; a check constraint requires a name exactly for
   the named kinds. Field changes are a JSONB array of `{field, before, after}`.
 - The table is append-only: a trigger rejects `UPDATE` and `DELETE`. Restores replace it with
-  `TRUNCATE`.
+  `TRUNCATE`. Before/after values can hold personal data; until erasure/redaction exists (#52),
+  keep large or sensitive free text (CV bodies, notes) out of `FieldChange` values.
 
 ## Tests
 

@@ -38,3 +38,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0027](0027-ai-verifiable-ui-with-a-headless-browser-and-a-fake-ai-provi.md) | AI-verifiable UI with a headless browser and a fake AI provider | accepted |
 | [0028](0028-always-use-current-versions-and-current-documentation.md) | Always use current versions and current documentation | accepted |
 | [0029](0029-docker-compose-deployment-localhost-by-default.md) | Docker Compose deployment, localhost by default | accepted |
+| [0030](0030-persistence-baseline-codegen-and-append-only-changelog.md) | Persistence baseline: build-time jOOQ codegen and an append-only changelog | accepted |
