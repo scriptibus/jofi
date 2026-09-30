@@ -8,9 +8,9 @@ import { m } from "../../paraglide/messages.js";
 import { Alert, Button, Dialog, Form, RefreshIcon, SegmentedControl, TextArea } from "../../ui";
 import { useFieldErrors } from "../auth/useFieldErrors";
 import type { ErrorDescription } from "../problems";
+import { FailureMessage } from "./CompanyLoadFailure";
 import { fieldErrorsOf, PREFERENCES, type Preference, preferenceLabel } from "./company";
 import { storeSaved } from "./companyCache";
-import { FailureMessage } from "./CompanyLoadFailure";
 import { describeCompanyError, isVersionConflict } from "./companyProblems";
 
 export interface PreferenceDialogProps {

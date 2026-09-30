@@ -15,10 +15,10 @@ import { Alert, Button, RefreshIcon } from "../../ui";
 import { useFieldErrors } from "../auth/useFieldErrors";
 import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
-import { type CompanyFormValues, fieldErrorsOf, formValues, toDetailsRequest } from "./company";
-import { storeSaved } from "./companyCache";
 import { CompanyForm } from "./CompanyForm";
 import { CompanyLoadFailure, FailureMessage } from "./CompanyLoadFailure";
+import { type CompanyFormValues, fieldErrorsOf, formValues, toDetailsRequest } from "./company";
+import { storeSaved } from "./companyCache";
 import { describeCompanyError, isVersionConflict } from "./companyProblems";
 
 const editRoute = getRouteApi("/_app/companies/$companyId/edit");

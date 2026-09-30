@@ -28,7 +28,8 @@ export function isNotFound(error: unknown): boolean {
 export function describeCompanyError(error: unknown): ErrorDescription {
   if (error instanceof ConfirmationMismatchError) return { message: m.company_error_mismatch() };
   if (isVersionConflict(error)) return { message: m.company_error_version_conflict() };
-  if (isProblem(error, CompanyProblemType.hasApplications)) return { message: m.company_error_has_applications() };
+  if (isProblem(error, CompanyProblemType.hasApplications))
+    return { message: m.company_error_has_applications() };
   if (isNotFound(error)) return { message: m.company_error_not_found() };
   if (isProblem(error, CompanyProblemType.unavailable)) return { message: m.error_unavailable() };
   return describeError(error);

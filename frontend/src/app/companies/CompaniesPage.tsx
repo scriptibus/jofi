@@ -4,7 +4,11 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { type CompanyResponse, type SearchCompaniesParams, useSearchCompanies } from "../../api/generated/jofi";
+import {
+  type CompanyResponse,
+  type SearchCompaniesParams,
+  useSearchCompanies,
+} from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { AddIcon, Button, EmptyState, SegmentedControl, TextField, TextLink } from "../../ui";
 import { PageHeader } from "../pages/PlaceholderPage";
@@ -28,8 +32,10 @@ export interface CompaniesSearch {
 export function parseCompaniesSearch(search: Record<string, unknown>): CompaniesSearch {
   const result: CompaniesSearch = {};
   if (typeof search.q === "string" && search.q.trim() !== "") result.q = search.q.trim();
-  if (PREFERENCES.includes(search.preference as Preference)) result.preference = search.preference as Preference;
-  if (typeof search.page === "number" && Number.isInteger(search.page) && search.page > 0) result.page = search.page;
+  if (PREFERENCES.includes(search.preference as Preference))
+    result.preference = search.preference as Preference;
+  if (typeof search.page === "number" && Number.isInteger(search.page) && search.page > 0)
+    result.page = search.page;
   return result;
 }
 

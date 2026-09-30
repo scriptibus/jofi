@@ -6,8 +6,8 @@ import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import type { ConfirmationEffect } from "../../api/confirmation";
 import { type CompanyResponse, deleteCompany, useGetCompany } from "../../api/generated/jofi";
-import { getLocale } from "../../paraglide/runtime.js";
 import { m } from "../../paraglide/messages.js";
+import { getLocale } from "../../paraglide/runtime.js";
 import {
   BackIcon,
   Button,
@@ -21,9 +21,9 @@ import {
 import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
 import { useConfirmation } from "../useConfirmation";
+import { CompanyLoadFailure, FailureMessage } from "./CompanyLoadFailure";
 import { DELETE_OPERATION, preferenceLabel, sizeLabel } from "./company";
 import { forgetDeleted } from "./companyCache";
-import { CompanyLoadFailure, FailureMessage } from "./CompanyLoadFailure";
 import { describeCompanyError } from "./companyProblems";
 import { PreferenceBadge } from "./PreferenceBadge";
 import { PreferenceDialog } from "./PreferenceDialog";
@@ -46,7 +46,8 @@ export function CompanyDetailPage() {
     const reload = async () => (await company.refetch()).data;
     return <CompanyDetail company={company.data} onReload={reload} />;
   }
-  if (company.isError) return <CompanyLoadFailure error={company.error} onRetry={() => void company.refetch()} />;
+  if (company.isError)
+    return <CompanyLoadFailure error={company.error} onRetry={() => void company.refetch()} />;
   return <p role="status">{m.loading()}</p>;
 }
 
@@ -112,7 +113,8 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 function CompanyFacts({ company }: { company: CompanyResponse }) {
   const none = <span className="text-muted">{m.company_value_none()}</span>;
   // Website and careers page are http(s) only (checked by the server), so they can be links.
-  const link = (href: string | null | undefined) => (href ? <ExternalLink href={href}>{href}</ExternalLink> : none);
+  const link = (href: string | null | undefined) =>
+    href ? <ExternalLink href={href}>{href}</ExternalLink> : none;
   return (
     <section aria-labelledby="company-facts-heading" className={sectionCard}>
       <h2 id="company-facts-heading" className="text-h2">

@@ -31,7 +31,7 @@
   "dashboard_heading": "Lass den Esel die Eselsarbeit machen.",
   "dashboard_empty": "Deine Übersicht füllt sich, sobald du Bewerbungen, Aufgaben und Gespräche erfasst.",
   "applications_empty": "Noch keine Bewerbungen. Bald kannst du sie hier anlegen oder eine Stellenanzeige mit Jofi teilen.",
-  "companies_empty": "Noch keine Firmen. Sie erscheinen hier, wenn du Bewerbungen und Kontakte anlegst.",
+  "companies_empty": "Noch keine Firmen. Lege die erste mit „Neue Firma“ an.",
   "tasks_empty": "Noch keine Aufgaben. Nachfassen und Erinnerungen tauchen hier auf.",
   "chat_empty": "Der Chat mit Jofi kommt bald. Er kennt deine Bewerbungen und hilft beim nächsten Schritt.",
   "empty_heading": "Hier ist noch nichts",
@@ -293,5 +293,127 @@
   "ai_privacy_status_depends_on_endpoint": "Hängt vom Endpunkt ab",
   "ai_privacy_status_unknown": "Nicht angegeben",
   "ai_privacy_sources": "Quellen:",
-  "ai_privacy_quotes": "Was die Seiten sagen (Zitate, auf Englisch)"
+  "ai_privacy_quotes": "Was die Seiten sagen (Zitate, auf Englisch)",
+  "companies_search_label": "Firmen suchen",
+  "companies_search_hint": "Nach Name; kleine Tippfehler sind kein Problem.",
+  "companies_new": "Neue Firma",
+  "companies_filter_label": "Anzeigen",
+  "companies_filter_all": "Alle",
+  "companies_filter_none": "Ohne Markierung",
+  "companies_results_heading": "Ergebnisse",
+  "companies_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Firma",
+        "countPlural=other": "{count} Firmen"
+      }
+    }
+  ],
+  "companies_count_matching": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Firma passt",
+        "countPlural=other": "{count} Firmen passen"
+      }
+    }
+  ],
+  "companies_pages_label": "Seiten",
+  "companies_page_previous": "Vorherige Seite",
+  "companies_page_next": "Nächste Seite",
+  "companies_page_of": "Seite {page} von {pages}",
+  "company_eyebrow": "Firma",
+  "company_back_to_list": "Alle Firmen",
+  "company_application_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Bewerbung",
+        "countPlural=other": "{count} Bewerbungen"
+      }
+    }
+  ],
+  "company_facts_heading": "Angaben",
+  "company_value_none": "Nicht angegeben",
+  "company_field_name": "Name (Pflichtfeld)",
+  "company_field_website": "Website",
+  "company_field_careers_page": "Karriereseite",
+  "company_field_url_hint": "Eine vollständige Adresse, die mit https:// oder http:// beginnt.",
+  "company_field_industry": "Branche",
+  "company_field_size": "Größe (Mitarbeitende)",
+  "company_field_locations": "Standorte",
+  "company_field_locations_hint": "Einer pro Zeile, der Hauptstandort zuerst.",
+  "company_field_research_notes": "Recherche-Notizen",
+  "company_field_markdown_hint": "Markdown: **fett**, *kursiv*, Listen und Links. HTML und Bilder werden nicht angezeigt.",
+  "company_size_unknown": "Unbekannt",
+  "company_size_micro": "1–9",
+  "company_size_small": "10–49",
+  "company_size_medium": "50–249",
+  "company_size_large": "250–4.999",
+  "company_size_enterprise": "5.000+",
+  "company_new_heading": "Neue Firma",
+  "company_create_submit": "Firma anlegen",
+  "company_edit": "Bearbeiten",
+  "company_edit_heading": "{name} bearbeiten",
+  "company_save_submit": "Änderungen speichern",
+  "company_notes_empty": "Noch keine Recherche-Notizen.",
+  "company_profile_heading": "KI-Profil",
+  "company_profile_note": "Von KI am {date} aus öffentlichen Quellen erstellt. Es kann Fehler enthalten; Links öffnen andere Websites.",
+  "company_preference_heading": "Markierung",
+  "company_preference_none": "Keine Markierung",
+  "company_preference_favourite": "Favorit",
+  "company_preference_blacklisted": "Gesperrt",
+  "company_preference_change": "Markierung ändern …",
+  "company_preference_dialog_title": "Firma markieren",
+  "company_preference_label": "Markierung",
+  "company_preference_reason_label": "Grund",
+  "company_preference_reason_hint": "Optional: warum, damit du es später noch weißt.",
+  "company_preference_save": "Markierung speichern",
+  "company_conflict_title": "Inzwischen geändert",
+  "company_conflict_edit": "Diese Firma wurde woanders geändert (anderer Tab oder anderes Gerät), nachdem du sie geöffnet hast. Deine Änderungen wurden daher nicht gespeichert. Lade die neueste Fassung, um sie erneut zu bearbeiten; deine Änderungen hier werden dabei ersetzt.",
+  "company_conflict_preference": "Diese Firma wurde woanders geändert, nachdem du sie geöffnet hast. Die Markierung wurde daher nicht gespeichert. Lade die neueste Fassung und speichere deine Auswahl dann erneut.",
+  "company_conflict_reload": "Neueste Fassung laden",
+  "company_contacts_heading": "Kontakte",
+  "company_contacts_empty": "Noch keine Kontakte bei dieser Firma.",
+  "company_applications_heading": "Bewerbungen",
+  "company_applications_empty": "Noch keine Bewerbungen bei dieser Firma.",
+  "company_applications_not_yet": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Bewerbung. Die Liste folgt mit den Bewerbungsseiten.",
+        "countPlural=other": "{count} Bewerbungen. Die Liste folgt mit den Bewerbungsseiten."
+      }
+    }
+  ],
+  "company_delete": "Löschen …",
+  "company_delete_title": "Diese Firma löschen?",
+  "company_delete_action": "Firma löschen",
+  "company_delete_confirm_alone": "{name} wird gelöscht. Das lässt sich nicht rückgängig machen.",
+  "company_delete_confirm_with_contacts": [
+    {
+      "declarations": ["input contacts", "local contactsPlural = contacts: plural"],
+      "selectors": ["contactsPlural"],
+      "match": {
+        "contactsPlural=one": "{name} wird zusammen mit {contacts} Kontakt gelöscht. Das lässt sich nicht rückgängig machen.",
+        "contactsPlural=other": "{name} wird zusammen mit {contacts} Kontakten gelöscht. Das lässt sich nicht rückgängig machen."
+      }
+    }
+  ],
+  "company_not_found_heading": "Firma nicht gefunden",
+  "company_error_not_found": "Diese Firma gibt es nicht (mehr).",
+  "company_error_version_conflict": "Diese Firma wurde inzwischen woanders geändert. Lade sie neu und versuche es noch einmal.",
+  "company_error_has_applications": "Diese Firma hat noch Bewerbungen und kann deshalb nicht gelöscht werden. Lösche zuerst ihre Bewerbungen.",
+  "company_error_mismatch": "Der Server wollte etwas anderes bestätigen lassen als das Löschen dieser Firma. Es wurde nichts gelöscht; bitte versuche es noch einmal.",
+  "company_violation_required": "Bitte gib einen Wert ein.",
+  "company_violation_too_long": "Das ist zu lang.",
+  "company_violation_too_many": "Das sind zu viele Einträge.",
+  "company_violation_invalid_url": "Gib eine vollständige Webadresse ein, die mit https:// oder http:// beginnt.",
+  "company_violation_invalid_character": "Das enthält ein Zeichen, das Jofi nicht speichern kann.",
+  "company_violation_other": "Dieser Wert ist ungültig."
 }
