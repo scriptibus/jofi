@@ -44,14 +44,24 @@ parameter makes the contract document the 428 `ConfirmationRequiredProblem` auto
 ## Companies (#73, ADR-0041)
 
 `companies.adapter.web.CompanyController`: `GET /api/companies?search=&preference=&page=&size=`,
-`POST /api/companies`, `GET|PUT /api/companies/{id}`, `PUT /api/companies/{id}/preference` and
-`DELETE /api/companies/{id}` (two steps, `Jofi-Confirmation`). Contract only: every operation answers
-`501` until #88 injects the use cases. Then: search parameters through `CompanySearch.of` (`null` ->
-400 `urn:jofi:problem:companies:invalid-search`), `Invalid` -> 400 with the violations (`field`, `problem`),
-`NotFound` -> 404, `VersionConflict` -> 409, `HasApplications` -> 409, each with a
-`urn:jofi:problem:companies:*` type; `Unconfirmed` -> `Confirmations.problem`. Changes send
-`basedOnVersion`, the `version` of the last read. The slice tests' configuration root is
-`CompaniesWebTestApplication` (test sources), since `@WebMvcTest` searches the test's own package.
+`POST /api/companies`, `GET|PUT /api/companies/{id}` (PUT replaces all details),
+`PUT /api/companies/{id}/preference` and `DELETE /api/companies/{id}` (two steps, `Jofi-Confirmation`;
+deletes the company's contacts too). Contract only: every operation answers `501` until #88 injects the
+use cases (the search already answers 400 for paging out of range). `CompanyProblems.of` maps each
+`CompanyResult.Failure`: `Invalid` -> 400 `ValidationProblem` (`violations: [{field, problem}]`, request
+field names), `NotFound` -> 404, `VersionConflict` and `HasApplications` -> 409 with their own
+`urn:jofi:problem:companies:*` type, `Unconfirmed` -> `Confirmations.problem`, `StorageFailure` -> 503.
+Changes send `basedOnVersion`, the `version` of the last read. Responses carry `applicationCount`.
+The slice tests' configuration root is `CompaniesWebTestApplication` (test sources), since
+`@WebMvcTest` searches the test's own package.
+
+## Documented problem responses (ADR-0041)
+
+Annotate a handler with `@ProblemResponses(ProblemKind.INVALID_INPUT, NOT_FOUND, CONFLICT)`
+(`shared.adapter.web`); the contract renderer (`ProblemResponsesCustomizer`, test sources) adds the 400
+(`ValidationProblem`), 404 and 409 responses. Throw `ValidationProblem.of(type, violations)` for 400s.
+Web adapters of every context may use `shared.adapter.web` (the one exemption from adapter
+independence for web, `AdapterRules`).
 
 ## Authentication (ADR-0035)
 

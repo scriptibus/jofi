@@ -199,6 +199,16 @@
             },
             "description" : "OK"
           },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
           "default" : {
             "content" : {
               "application/problem+json" : {
@@ -234,6 +244,16 @@
               }
             },
             "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
           },
           "default" : {
             "content" : {
@@ -271,6 +291,26 @@
         "responses" : {
           "204" : {
             "description" : "No Content"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
           },
           "428" : {
             "content" : {
@@ -317,6 +357,16 @@
             },
             "description" : "OK"
           },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
           "default" : {
             "content" : {
               "application/problem+json" : {
@@ -361,6 +411,36 @@
               }
             },
             "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
           },
           "default" : {
             "content" : {
@@ -408,6 +488,36 @@
               }
             },
             "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
           },
           "default" : {
             "content" : {
@@ -629,9 +739,13 @@
         }
       },
       "CompanyResponse" : {
-        "required" : [ "createdAt", "id", "locations", "name", "preference", "updatedAt", "version" ],
+        "required" : [ "applicationCount", "createdAt", "id", "locations", "name", "preference", "updatedAt", "version" ],
         "type" : "object",
         "properties" : {
+          "applicationCount" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
           "careersPage" : {
             "type" : "string",
             "nullable" : true
@@ -881,6 +995,35 @@
             "$ref" : "#/components/schemas/CompanyDetailsRequest"
           }
         }
+      },
+      "ValidationProblem" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/ProblemDetail"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "violations" : {
+              "type" : "array",
+              "description" : "Every broken rule",
+              "items" : {
+                "type" : "object",
+                "properties" : {
+                  "field" : {
+                    "type" : "string",
+                    "description" : "The request field, e.g. name or careersPage"
+                  },
+                  "problem" : {
+                    "type" : "string",
+                    "description" : "REQUIRED, TOO_LONG, TOO_MANY, INVALID_URL or OUT_OF_RANGE"
+                  }
+                },
+                "required" : [ "field", "problem" ]
+              }
+            }
+          },
+          "required" : [ "violations" ]
+        } ],
+        "description" : "400 answer for input that breaks the rules: nothing changed."
       }
     }
   }

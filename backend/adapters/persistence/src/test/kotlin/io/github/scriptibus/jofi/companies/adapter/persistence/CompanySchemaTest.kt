@@ -4,10 +4,13 @@
 package io.github.scriptibus.jofi.companies.adapter.persistence
 
 import io.github.scriptibus.jofi.companies.domain.CompanyDetails
+import io.github.scriptibus.jofi.companies.domain.CompanyInput
 import io.github.scriptibus.jofi.companies.domain.CompanyPreference
 import io.github.scriptibus.jofi.companies.domain.CompanyProfile
 import io.github.scriptibus.jofi.companies.domain.CompanySize
+import io.github.scriptibus.jofi.companies.domain.CompanyValidation
 import io.github.scriptibus.jofi.companies.domain.PreferenceKind
+import io.github.scriptibus.jofi.companies.domain.WebAddress
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.CompanyRecord
@@ -15,6 +18,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
@@ -82,12 +86,92 @@ class CompanySchemaTest {
     }
 
     @Test
+    fun `accepts every text, list and address at exactly its domain limit`() {
+        val prefix = "https://acme.example/"
+        insertCompany {
+            name = "n".repeat(CompanyDetails.MAX_NAME_LENGTH)
+            website = prefix + "w".repeat(WebAddress.MAX_LENGTH - prefix.length)
+            industry = "i".repeat(CompanyDetails.MAX_INDUSTRY_LENGTH)
+            locations =
+                Array(CompanyDetails.MAX_LOCATIONS) { "City $it".padEnd(CompanyDetails.MAX_LOCATION_LENGTH, 'x') }
+            careersPage = prefix + "c".repeat(WebAddress.MAX_LENGTH - prefix.length)
+            researchNotes = "r".repeat(CompanyDetails.MAX_NOTES_LENGTH)
+            profile = "p".repeat(CompanyProfile.MAX_LENGTH)
+            profileGeneratedAt = NOW
+            preference = "BLACKLISTED"
+            preferenceReason = "b".repeat(CompanyPreference.MAX_REASON_LENGTH)
+        }
+
+        dsl.fetchCount(COMPANY) shouldBe 1
+    }
+
+    @Test
+    fun `stores whatever the domain accepts`() {
+        val input =
+            CompanyInput(
+                name = "Mu\u0308ller Ölwerke GmbH",
+                website = "https://bücher.example/stellen/köln",
+                industry = "Öl & Gas",
+                locations = listOf("İstanbul", "istanbul", "Köln", "Remote"),
+                careersPage = "https://my_team.example/careers?q=kotlin#open",
+                researchNotes = "# Notizen\n\n\u00a0Straße",
+            )
+        val details = input.validate().shouldBeInstanceOf<CompanyValidation.Valid<CompanyDetails>>().value
+
+        insertCompany {
+            name = details.name
+            website = details.website?.value
+            industry = details.industry
+            locations = details.locations.toTypedArray()
+            careersPage = details.careersPage?.value
+            researchNotes = details.researchNotes
+            preference = "FAVOURITE"
+            preferenceReason = "Tolle Leute"
+        }
+
+        dsl
+            .selectFrom(COMPANY)
+            .fetchSingle()
+            .locations
+            .toList() shouldBe
+            listOf("İstanbul", "istanbul", "Köln", "Remote")
+    }
+
+    @Test
+    fun `every constraint has a name of its own`() {
+        val names =
+            dsl.fetchValues(
+                "select conname from pg_constraint " +
+                    "where conrelid = 'company'::regclass and contype <> 'n' order by conname",
+            )
+
+        names.map(Any?::toString) shouldBe
+            listOf(
+                "company_careers_page_valid",
+                "company_industry_valid",
+                "company_locations_valid",
+                "company_name_valid",
+                "company_pk",
+                "company_preference_reason_valid",
+                "company_preference_valid",
+                "company_profile_has_generation_time",
+                "company_profile_valid",
+                "company_reason_needs_preference",
+                "company_research_notes_valid",
+                "company_size_valid",
+                "company_updated_after_created",
+                "company_version_valid",
+                "company_website_valid",
+            )
+    }
+
+    @Test
     fun `rejects names the domain rejects`() {
-        rejects { insertCompany { name = " " } }
-        rejects { insertCompany { name = " ACME" } }
-        rejects { insertCompany { name = "\tACME" } }
-        rejects { insertCompany { name = "ACME\n" } }
-        rejects { insertCompany { name = "x".repeat(CompanyDetails.MAX_NAME_LENGTH + 1) } }
+        rejects("company_name_valid") { insertCompany { name = " " } }
+        rejects("company_name_valid") { insertCompany { name = " ACME" } }
+        rejects("company_name_valid") { insertCompany { name = "\tACME" } }
+        rejects("company_name_valid") { insertCompany { name = "ACME\n" } }
+        rejects("company_name_valid") { insertCompany { name = "x".repeat(CompanyDetails.MAX_NAME_LENGTH + 1) } }
     }
 
     @ParameterizedTest
@@ -101,56 +185,64 @@ class CompanySchemaTest {
         ],
     )
     fun `rejects web addresses that are not http(s) or carry credentials`(address: String) {
-        rejects { insertCompany { website = address } }
-        rejects { insertCompany { careersPage = address } }
+        rejects("company_website_valid") { insertCompany { website = address } }
+        rejects("company_careers_page_valid") { insertCompany { careersPage = address } }
+    }
+
+    @Test
+    fun `rejects web addresses beyond the limit`() {
+        val tooLong = "https://acme.example/" + "x".repeat(WebAddress.MAX_LENGTH)
+
+        rejects("company_website_valid") { insertCompany { website = tooLong } }
+        rejects("company_careers_page_valid") { insertCompany { careersPage = tooLong } }
     }
 
     @Test
     fun `rejects unknown sizes and preferences and a reason without a preference`() {
-        rejects { insertCompany { size = "HUGE" } }
-        rejects { insertCompany { preference = "MAYBE" } }
-        rejects { insertCompany { preferenceReason = "Nice" } }
-        rejects {
-            insertCompany {
-                preference = "BLACKLISTED"
-                preferenceReason = " "
-            }
+        rejects("company_size_valid") { insertCompany { size = "HUGE" } }
+        rejects("company_preference_valid") { insertCompany { preference = "MAYBE" } }
+        rejects("company_reason_needs_preference") { insertCompany { preferenceReason = "Nice" } }
+        rejects("company_preference_reason_valid") { flagged(" ") }
+        rejects("company_preference_reason_valid") { flagged("Great\t") }
+        rejects("company_preference_reason_valid") { flagged("x".repeat(CompanyPreference.MAX_REASON_LENGTH + 1)) }
+    }
+
+    @Test
+    fun `rejects bad locations`() {
+        rejects("company_locations_valid") { insertCompany { locations = arrayOf("Berlin", null) } }
+        rejects("company_locations_valid") { insertCompany { locations = arrayOf("Berlin", " ") } }
+        rejects("company_locations_valid") { insertCompany { locations = arrayOf("Berlin", " Hamburg") } }
+        rejects("company_locations_valid") { insertCompany { locations = arrayOf("Berlin", "Berlin") } }
+        rejects("company_locations_valid") {
+            insertCompany { locations = arrayOf("x".repeat(CompanyDetails.MAX_LOCATION_LENGTH + 1)) }
         }
-        rejects {
-            insertCompany {
-                preference = "BLACKLISTED"
-                preferenceReason = "x".repeat(CompanyPreference.MAX_REASON_LENGTH + 1)
-            }
+        rejects("company_locations_valid") {
+            insertCompany { locations = Array(CompanyDetails.MAX_LOCATIONS + 1) { "City $it" } }
         }
     }
 
     @Test
-    fun `rejects bad locations, texts, profiles, versions and times`() {
-        rejects { insertCompany { locations = arrayOf("Berlin", null) } }
-        rejects { insertCompany { locations = arrayOf("Berlin", " ") } }
-        rejects { insertCompany { locations = arrayOf("Berlin", " Hamburg") } }
-        rejects { insertCompany { locations = arrayOf("Berlin", "BERLIN") } }
-        rejects { insertCompany { locations = arrayOf("x".repeat(CompanyDetails.MAX_LOCATION_LENGTH + 1)) } }
-        rejects { insertCompany { researchNotes = "# Notes\n" } }
-        rejects {
-            insertCompany {
-                preference = "FAVOURITE"
-                preferenceReason = "Great\t"
-            }
-        }
-        rejects { insertCompany { locations = Array(CompanyDetails.MAX_LOCATIONS + 1) { "City $it" } } }
-        rejects { insertCompany { industry = "" } }
-        rejects { insertCompany { researchNotes = " " } }
-        rejects { insertCompany { profile = "Builds anvils." } }
-        rejects { insertCompany { profileGeneratedAt = NOW } }
-        rejects {
+    fun `accepts locations that differ only in case, which the domain decides about`() {
+        insertCompany { locations = arrayOf("Berlin", "BERLIN", "İstanbul", "istanbul") }
+
+        dsl.fetchCount(COMPANY) shouldBe 1
+    }
+
+    @Test
+    fun `rejects bad texts, profiles, versions and times`() {
+        rejects("company_research_notes_valid") { insertCompany { researchNotes = "# Notes\n" } }
+        rejects("company_research_notes_valid") { insertCompany { researchNotes = " " } }
+        rejects("company_industry_valid") { insertCompany { industry = "" } }
+        rejects("company_profile_has_generation_time") { insertCompany { profile = "Builds anvils." } }
+        rejects("company_profile_has_generation_time") { insertCompany { profileGeneratedAt = NOW } }
+        rejects("company_profile_valid") {
             insertCompany {
                 profile = "x".repeat(CompanyProfile.MAX_LENGTH + 1)
                 profileGeneratedAt = NOW
             }
         }
-        rejects { insertCompany { version = -1 } }
-        rejects { insertCompany { updatedAt = NOW.minusSeconds(1) } }
+        rejects("company_version_valid") { insertCompany { version = -1 } }
+        rejects("company_updated_after_created") { insertCompany { updatedAt = NOW.minusSeconds(1) } }
         dsl.fetchCount(COMPANY) shouldBe 0
     }
 
@@ -185,8 +277,18 @@ class CompanySchemaTest {
             }.insert()
     }
 
-    private fun rejects(statement: () -> Unit) {
-        shouldThrow<DataAccessException> { statement() }
+    private fun flagged(reason: String) =
+        insertCompany {
+            preference = "BLACKLISTED"
+            preferenceReason = reason
+        }
+
+    /** The statement fails on exactly the named constraint (repositories map violations by name). */
+    private fun rejects(
+        constraint: String,
+        statement: () -> Unit,
+    ) {
+        shouldThrow<DataAccessException> { statement() }.message shouldContain "\"$constraint\""
     }
 
     private companion object {

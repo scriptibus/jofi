@@ -11,6 +11,7 @@ import io.github.scriptibus.jofi.companies.domain.CompanyPage
 import io.github.scriptibus.jofi.companies.domain.CompanyPreference
 import io.github.scriptibus.jofi.companies.domain.CompanyProfile
 import io.github.scriptibus.jofi.companies.domain.CompanySize
+import io.github.scriptibus.jofi.companies.domain.CompanyView
 import io.github.scriptibus.jofi.companies.domain.PreferenceInput
 import io.github.scriptibus.jofi.companies.domain.PreferenceKind
 import io.github.scriptibus.jofi.companies.domain.WebAddress
@@ -18,7 +19,6 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
-import java.net.URI
 import java.time.Instant
 import java.util.UUID
 
@@ -53,11 +53,11 @@ class CompanyDtosTest {
             details =
                 CompanyDetails(
                     name = "ACME GmbH",
-                    website = WebAddress(URI("https://acme.example")),
+                    website = WebAddress("https://acme.example"),
                     industry = "Robotics",
                     size = CompanySize.LARGE,
                     locations = listOf("Berlin", "Remote"),
-                    careersPage = WebAddress(URI("https://jobs.example/acme")),
+                    careersPage = WebAddress("https://jobs.example/acme"),
                     researchNotes = "# Notes",
                 ),
             profile = CompanyProfile("Builds anvils.", at),
@@ -69,7 +69,8 @@ class CompanyDtosTest {
 
     @Test
     fun `a company becomes a response with every field`() {
-        val response = CompanyResponse.from(company)
+        val view = CompanyView(company, applicationCount = 2)
+        val response = CompanyResponse.from(view)
 
         response shouldBe
             CompanyResponse(
@@ -85,16 +86,17 @@ class CompanyDtosTest {
                 preference = CompanyPreferenceKind.BLACKLISTED,
                 preferenceReason = "Declined twice",
                 version = 4,
+                applicationCount = 2,
                 createdAt = at,
                 updatedAt = at.plusSeconds(60),
             )
-        CompanyPageResponse.from(CompanyPage(listOf(company), total = 9), 1, 1) shouldBe
+        CompanyPageResponse.from(CompanyPage(listOf(view), total = 9), 1, 1) shouldBe
             CompanyPageResponse(listOf(response), page = 1, size = 1, total = 9)
     }
 
     @Test
     fun `a new company has no optional fields in its response`() {
-        val response = CompanyResponse.from(Company.create(CompanyId(uuid), CompanyDetails("ACME"), at))
+        val response = CompanyResponse.from(CompanyView(Company.create(CompanyId(uuid), CompanyDetails("ACME"), at), 0))
 
         response.website shouldBe null
         response.size shouldBe null

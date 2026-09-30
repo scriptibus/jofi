@@ -9,6 +9,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
@@ -44,6 +45,19 @@ class CompanyTest {
         edited.version shouldBe company.version + 1
         edited.createdAt shouldBe created
         edited.updatedAt shouldBe later
+    }
+
+    @Test
+    fun `editing to the same details changes nothing, not even the version`() {
+        val edited = company.edit(CompanyDetails("ACME GmbH"), later)
+
+        edited shouldBeSameInstanceAs company
+    }
+
+    @Test
+    fun `a view counts the company's applications`() {
+        CompanyView(company, applicationCount = 3).applicationCount shouldBe 3
+        shouldThrow<IllegalArgumentException> { CompanyView(company, applicationCount = -1) }
     }
 
     @Test

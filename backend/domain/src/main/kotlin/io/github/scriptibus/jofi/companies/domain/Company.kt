@@ -43,11 +43,15 @@ data class Company(
         require(!updatedAt.isBefore(createdAt)) { "A company cannot be updated before it was created" }
     }
 
-    /** The company with new [details], changed [at]. */
+    /**
+     * The company with new [details], changed [at]; the same company (no new version, nothing to
+     * record) if the details are unchanged. Callers check the client's version before, so a stale
+     * edit is a conflict even when it would change nothing.
+     */
     fun edit(
         details: CompanyDetails,
         at: Instant,
-    ): Company = copy(details = details, version = version + 1, updatedAt = at)
+    ): Company = if (details == this.details) this else copy(details = details, version = version + 1, updatedAt = at)
 
     /**
      * The company with [preference], set by [actor] [at], and the event that announces it (scanners and

@@ -14,28 +14,31 @@ sealed interface CompanyResult<out T> {
         val value: T,
     ) : CompanyResult<T>
 
+    /** Every outcome but [Success]: nothing was changed. */
+    sealed interface Failure : CompanyResult<Nothing>
+
     /** The input breaks the rules of [CompanyInput] or [PreferenceInput]; nothing was changed. */
     data class Invalid(
         val violations: List<CompanyViolation>,
-    ) : CompanyResult<Nothing>
+    ) : Failure
 
-    data object NotFound : CompanyResult<Nothing>
+    data object NotFound : Failure
 
     /** The change was based on an older version of the company; nothing was changed. */
-    data object VersionConflict : CompanyResult<Nothing>
+    data object VersionConflict : Failure
 
     /** A company with applications cannot be deleted. */
-    data object HasApplications : CompanyResult<Nothing>
+    data object HasApplications : Failure
 
     /** The delete needs (another) confirmation step (ADR-0039); nothing was deleted. */
     data class Unconfirmed(
         val outcome: ConfirmationResult.Unconfirmed,
-    ) : CompanyResult<Nothing>
+    ) : Failure
 
     /** The store could not complete [operation]; nothing was changed. */
     data class StorageFailure(
         val operation: String,
-    ) : CompanyResult<Nothing>
+    ) : Failure
 }
 
 /** Outcome of a company repository call; storage failures are values, not exceptions. */
@@ -100,12 +103,25 @@ data class CompanySearch(
     }
 }
 
-/** One page of companies and the number of all companies matching the search. */
-data class CompanyPage(
-    val companies: List<Company>,
+/** One page of [items] and the number of all items matching the search. */
+data class CompanyPage<out T>(
+    val items: List<T>,
     val total: Long,
 ) {
     init {
-        require(total >= companies.size) { "The total cannot be smaller than the page" }
+        require(total >= items.size) { "The total cannot be smaller than the page" }
+    }
+}
+
+/**
+ * A company as the use cases answer it: with the number of its applications, which the
+ * applications context counts (through its public API, #88).
+ */
+data class CompanyView(
+    val company: Company,
+    val applicationCount: Int,
+) {
+    init {
+        require(applicationCount >= 0) { "An application count must not be negative" }
     }
 }

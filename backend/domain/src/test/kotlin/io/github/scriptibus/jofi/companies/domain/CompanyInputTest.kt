@@ -11,7 +11,6 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
-import java.net.URI
 
 class CompanyInputTest {
     @Test
@@ -32,11 +31,11 @@ class CompanyInputTest {
         details shouldBe
             CompanyDetails(
                 name = "ACME GmbH",
-                website = WebAddress(URI("https://acme.example")),
+                website = WebAddress("https://acme.example"),
                 industry = null,
                 size = CompanySize.MEDIUM,
                 locations = listOf("Berlin", "Remote"),
-                careersPage = WebAddress(URI("https://jobs.example/acme?team=backend#open")),
+                careersPage = WebAddress("https://jobs.example/acme?team=backend#open"),
                 researchNotes = "# Notes\nFriendly.",
             )
     }
@@ -100,8 +99,50 @@ class CompanyInputTest {
         val tooLong = "https://acme.example/" + "x".repeat(WebAddress.MAX_LENGTH)
 
         WebAddress.parse(tooLong).shouldBeNull()
-        shouldThrow<IllegalArgumentException> { WebAddress(URI("ftp://acme.example")) }
+        shouldThrow<IllegalArgumentException> { WebAddress("ftp://acme.example") }
         WebAddress.parse("HTTP://ACME.example/Jobs").toString() shouldBe "HTTP://ACME.example/Jobs"
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "https://bücher.example/jobs",
+            "https://xn--bcher-kva.example",
+            "https://my_team.example/careers",
+            "http://jobs.example:8080/list?q=kotlin&page=2#top",
+            "https://jobs.example/@acme",
+            "https://jobs.example/stellen/köln",
+        ],
+    )
+    fun `internationalised and underscore hosts, ports, paths and queries are fine`(raw: String) {
+        WebAddress.parse(raw)?.value shouldBe raw
+    }
+
+    @Test
+    fun `a web address may be exactly as long as the limit`() {
+        val prefix = "https://acme.example/"
+        val longest = prefix + "x".repeat(WebAddress.MAX_LENGTH - prefix.length)
+
+        WebAddress.parse(longest)?.value shouldBe longest
+        WebAddress.parse(longest + "x").shouldBeNull()
+        WebAddress.parse("https://acme.example:port").shouldBeNull()
+    }
+
+    @Test
+    fun `text is normalized to NFC, so the same name typed twice is one string`() {
+        val decomposed = "Mu\u0308ller GmbH" // "Müller" with a combining diaeresis
+        val details = valid(CompanyInput(decomposed, locations = listOf("Ko\u0308ln", "Köln")))
+
+        details.name shouldBe "Müller GmbH"
+        details.locations shouldBe listOf("Köln")
+    }
+
+    @Test
+    fun `locations that differ only in case are one location, by the root locale's lower case`() {
+        val locations = listOf("Berlin", "BERLIN", "İstanbul", "istanbul")
+
+        // "İstanbul".lowercase() is "i̇stanbul" (with a combining dot), so both spellings stay.
+        valid(CompanyInput("ACME", locations = locations)).locations shouldBe listOf("Berlin", "İstanbul", "istanbul")
     }
 
     @Test

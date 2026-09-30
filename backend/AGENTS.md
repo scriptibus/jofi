@@ -40,8 +40,9 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
 - `adapters/<kind>`: framework code (web, persistence, net, crypto, jobs, ai, ...); depends on `application`.
-  Adapters never depend on each other (one exemption: persistence adapters of every context use
-  the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032).
+  Adapters never depend on each other (two exemptions: persistence adapters of every context use
+  the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032; web adapters use the shared
+  web conventions in `shared.adapter.web`, ADR-0041).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
   adapters that belong nowhere else (e.g. build info).
 - `architecture-tests`: ArchUnit, Konsist and Spring Modulith rules over all production code.
@@ -112,7 +113,8 @@ the setup checks. Costs and the budget are in USD only.
   layers only point inwards; adapters independent; no cycles between contexts; classes in
   `application` end in `UseCase`, have exactly one public method; ports are interfaces named
   `*Port`; port implementations end in `Adapter`/`Repository`; `@RestController`s end in
-  `Controller`, receive only use cases and never touch ports/adapters/repositories; only
+  `Controller`, receive only use cases and never touch ports/adapters/repositories; every inbound
+  port has exactly its use case as implementor (`InboundPortRules`); only
   the `adapters/net` module uses HTTP clients, sockets or `java.net.URL` (ADR-0034; the AI adapter
   may use a named list of vendor SDK types, ADR-0040); only
   `shared.adapter.jobs` uses JobRunr, and nothing its lambda/annotation jobs (ADR-0038); domain data
@@ -168,10 +170,13 @@ the setup checks. Costs and the budget are in USD only.
   Then regenerate and commit the API contract (see "API contract" below).
 - **A context**: create `<context>` packages in the modules you need, following the convention.
 - **A context contract** (ADR-0041, `companies` is the example): domain model with a raw `*Input` whose
-  `validate()` returns violations as values, a `version` for optimistic locking, the changelog entity
-  type on the id (`ENTITY_TYPE`, `toEntityRef()`), a sealed store result and a sealed use-case result;
-  a repository port plus one inbound `<Verb><Noun>Port` per use case (implemented later by
-  `<Verb><Noun>UseCase`); the migration with a schema test; a controller with typed DTOs answering 501.
+  `validate()` normalizes (NFC, trim) and returns violations as values, a `version` for optimistic
+  locking, the changelog entity type on the id (`ENTITY_TYPE`, `toEntityRef()`), a sealed store result
+  and a sealed use-case result with a `Failure` branch; a repository port plus one inbound
+  `<Verb><Noun>Port` per use case in `<context>.application.port.inbound` (listed in
+  `InboundPortRules.AWAITING_USE_CASE` until `<Verb><Noun>UseCase` implements it); the migration with named
+  constraints never stricter than the domain and a schema test at every limit; a controller with typed
+  DTOs and `@ProblemResponses`, answering 501, plus a `<Context>Problems` mapping.
 - **A dependency or plugin**: look up the latest stable version at the official source, read its
   current docs, add it to `gradle/libs.versions.toml`, then refresh locks and checksums. List
   version + doc link in the PR (spec 4.10).

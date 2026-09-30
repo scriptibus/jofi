@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.companies.domain
 
+import java.net.IDN
 import java.net.URI
 
 /**
@@ -57,31 +58,40 @@ enum class CompanySize {
 
 /**
  * An absolute http(s) URL with a host and without user info (credentials never belong in a stored
- * link), at most [MAX_LENGTH] characters.
+ * link), at most [MAX_LENGTH] characters, kept as entered. Hosts may be internationalised
+ * (`bücher.example`) or contain underscores (`my_team.example`), which `java.net.URI` alone does not
+ * accept as a host, so the host is checked as its ASCII form (`IDN.toASCII`) and the rest as a URI.
  */
 @JvmInline
 value class WebAddress(
-    val value: URI,
+    val value: String,
 ) {
     init {
         require(isValid(value)) { "A web address must be an absolute http(s) URL with a host and no user info" }
     }
 
-    override fun toString(): String = value.toString()
+    override fun toString(): String = value
 
     companion object {
         const val MAX_LENGTH = 2_048
-        private val SCHEMES = setOf("http", "https")
+
+        // scheme, authority (no user info, no whitespace), then an optional path, query or fragment
+        private val SHAPE = Regex("""^(?i)https?://([^/?#@\s]+)([/?#]\S*)?$""")
+        private val PORT = Regex(""":\d{1,5}$""")
 
         /** The address [raw] names, or `null` if it is not a valid web address. */
-        fun parse(raw: String): WebAddress? = runCatching { URI(raw) }.getOrNull()?.takeIf(::isValid)?.let(::WebAddress)
+        fun parse(raw: String): WebAddress? = raw.takeIf(::isValid)?.let(::WebAddress)
 
-        private fun isValid(uri: URI): Boolean =
-            uri.toString().length <= MAX_LENGTH &&
-                uri.isAbsolute &&
-                uri.scheme.lowercase() in SCHEMES &&
-                !uri.host.isNullOrBlank() &&
-                uri.rawUserInfo == null
+        private fun isValid(raw: String): Boolean {
+            val authority = SHAPE.matchEntire(raw)?.groups?.get(1) ?: return false
+            val host = authority.value.replace(PORT, "")
+            // The URI check sees a placeholder host, since URI rejects some valid hosts (underscores).
+            val rest = raw.substring(authority.range.last + 1)
+            return raw.length <= MAX_LENGTH &&
+                ':' !in host &&
+                !runCatching { IDN.toASCII(host) }.getOrNull().isNullOrEmpty() &&
+                runCatching { URI("http://host.invalid$rest") }.isSuccess
+        }
     }
 }
 

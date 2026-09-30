@@ -3,10 +3,10 @@
 
 package io.github.scriptibus.jofi.companies.adapter.web
 
-import io.github.scriptibus.jofi.companies.domain.Company
 import io.github.scriptibus.jofi.companies.domain.CompanyInput
 import io.github.scriptibus.jofi.companies.domain.CompanyPage
 import io.github.scriptibus.jofi.companies.domain.CompanySize
+import io.github.scriptibus.jofi.companies.domain.CompanyView
 import io.github.scriptibus.jofi.companies.domain.PreferenceInput
 import io.github.scriptibus.jofi.companies.domain.PreferenceKind
 import java.time.Instant
@@ -82,7 +82,10 @@ data class CompanyProfileResponse(
     val generatedAt: Instant,
 )
 
-/** One company. [version] goes back as `basedOnVersion` with the next change. */
+/**
+ * One company. [version] goes back as `basedOnVersion` with the next change. [researchNotes] and
+ * [profile] are Markdown; the profile is untrusted, AI-generated text: render both sanitised.
+ */
 data class CompanyResponse(
     val id: UUID,
     val name: String,
@@ -96,12 +99,15 @@ data class CompanyResponse(
     val preference: CompanyPreferenceKind,
     val preferenceReason: String?,
     val version: Long,
+    /** How many applications belong to the company; it cannot be deleted while this is not 0. */
+    val applicationCount: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
 ) {
     companion object {
-        fun from(company: Company): CompanyResponse =
-            with(company.details) {
+        fun from(view: CompanyView): CompanyResponse {
+            val company = view.company
+            return with(company.details) {
                 CompanyResponse(
                     id = company.id.value,
                     name = name,
@@ -115,10 +121,12 @@ data class CompanyResponse(
                     preference = CompanyPreferenceKind.from(company.preference.kind),
                     preferenceReason = company.preference.reason,
                     version = company.version,
+                    applicationCount = view.applicationCount,
                     createdAt = company.createdAt,
                     updatedAt = company.updatedAt,
                 )
             }
+        }
     }
 }
 
@@ -132,10 +140,9 @@ data class CompanyPageResponse(
 ) {
     companion object {
         fun from(
-            page: CompanyPage,
+            page: CompanyPage<CompanyView>,
             number: Int,
             size: Int,
-        ): CompanyPageResponse =
-            CompanyPageResponse(page.companies.map(CompanyResponse::from), number, size, page.total)
+        ): CompanyPageResponse = CompanyPageResponse(page.items.map(CompanyResponse::from), number, size, page.total)
     }
 }

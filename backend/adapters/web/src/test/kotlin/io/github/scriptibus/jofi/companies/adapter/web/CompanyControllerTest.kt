@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.companies.adapter.web
 
+import io.github.scriptibus.jofi.companies.domain.CompanySearch
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -77,6 +78,22 @@ class CompanyControllerTest(
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"preference":"BLACKLISTED"}"""),
         )
+    }
+
+    @Test
+    fun `search parameters out of range are a 400 naming them`() {
+        mvc
+            .get()
+            .uri("/api/companies?size=${CompanySearch.MAX_SIZE + 1}")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """
+                {"type":"${CompanyProblems.INVALID_SEARCH}",
+                 "violations":[{"field":"size","problem":"OUT_OF_RANGE"}]}
+                """.trimIndent(),
+            )
     }
 
     private fun notImplemented(request: MockMvcTester.MockMvcRequestBuilder) {

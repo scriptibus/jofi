@@ -3,6 +3,8 @@
 
 package io.github.scriptibus.jofi.companies.domain
 
+import java.text.Normalizer
+
 /** Result of validating untrusted input: the domain value, or every problem found. */
 sealed interface CompanyValidation<out T> {
     data class Valid<out T>(
@@ -19,9 +21,10 @@ sealed interface CompanyValidation<out T> {
 }
 
 /**
- * Company details as the user, the AI or an external client entered them. [validate] trims text,
- * treats blank optional fields as absent, drops blank and duplicate locations (ignoring case) and
- * reports what is still wrong.
+ * Company details as the user, the AI or an external client entered them. [validate] normalizes text
+ * to Unicode NFC (so the same name typed on two systems is the same string) and trims it, treats
+ * blank optional fields as absent, drops blank and duplicate locations (ignoring case) and reports
+ * what is still wrong.
  */
 data class CompanyInput(
     val name: String,
@@ -37,10 +40,10 @@ data class CompanyInput(
         val careersPage = address(CompanyField.CAREERS_PAGE, careersPage)
         val locations =
             locations
-                .map(String::trim)
+                .map { it.normalized().trim() }
                 .filter(String::isNotEmpty)
                 .distinctBy(String::lowercase)
-        val name = name.trim()
+        val name = name.normalized().trim()
         val industry = industry.trimmedOrNull()
         val researchNotes = researchNotes.trimmedOrNull()
         val violations =
@@ -85,4 +88,6 @@ data class PreferenceInput(
     }
 }
 
-private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf(String::isNotEmpty)
+private fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFC)
+
+private fun String?.trimmedOrNull(): String? = this?.normalized()?.trim()?.takeIf(String::isNotEmpty)

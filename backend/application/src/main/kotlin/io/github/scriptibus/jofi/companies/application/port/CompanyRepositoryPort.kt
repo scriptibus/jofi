@@ -26,12 +26,15 @@ interface CompanyRepositoryPort {
 
     fun findById(id: CompanyId): CompanyStoreResult<Company>
 
-    fun search(search: CompanySearch): CompanyStoreResult<CompanyPage>
+    fun search(search: CompanySearch): CompanyStoreResult<CompanyPage<Company>>
 
     /**
-     * Deletes the company. [proof] is what the confirmation gate returned (ADR-0039): the adapter
-     * answers [CompanyStoreResult.NotConfirmed] unless `proof.covers(Company.DELETE_OPERATION,
-     * id.value.toString())`, and [CompanyStoreResult.HasApplications] while applications refer to it.
+     * Deletes the company and, by `ON DELETE CASCADE`, its contacts. [proof] is what the confirmation
+     * gate returned (ADR-0039): the adapter answers [CompanyStoreResult.NotConfirmed] unless
+     * `proof.covers(Company.DELETE_OPERATION, id.value.toString())`. While applications refer to the
+     * company, their `ON DELETE RESTRICT` foreign key rejects the delete; the adapter maps that
+     * violation **by constraint name** (`application_company_fk`, ADR-0041), never by SQL state alone,
+     * to [CompanyStoreResult.HasApplications]. Any other failure is a `StorageFailure`.
      */
     fun delete(
         id: CompanyId,
