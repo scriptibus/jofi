@@ -36,10 +36,10 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * The task API behind the real filter chain and database (#93): create with a bucket resolved in the user's zone,
+ * The task API behind the real filter chain and database (#93, #94): create with a bucket resolved in the user's zone,
  * complete, reopen, edit to an exact time and the two-step delete, each recorded with the user as actor and without
- * the title; a link to nothing is a 400 found by its foreign key through Spring's exception translation; no session is
- * 401, no CSRF token 403.
+ * the title; the open tasks grouped in the viewer's zone; a link to nothing is a 400 found by its foreign key through
+ * Spring's exception translation; no session is 401, no CSRF token 403.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -152,6 +152,40 @@ class TaskFlowTest(
     }
 
     @Test
+    fun `the open tasks are grouped in the viewer's zone, an unknown zone is a 400`() {
+        val browser = owner()
+
+        fun create(bucket: String) =
+            browser
+                .post("/api/tasks", """{"title":"X","timing":{"timeZone":"Europe/Berlin","bucket":"$bucket"}}""")
+                .ok(201)["id"]
+                .asString()
+        val someday = create("SOMEDAY")
+        val done = create("SOMEDAY")
+        browser.post("/api/tasks/$done/complete", """{"basedOnVersion":0}""").ok()
+        val nextWeek = create("NEXT_WEEK")
+
+        val groups: List<JsonNode> =
+            browser
+                .get("/api/tasks?timeZone=Europe/Berlin")
+                .ok()
+                .path("groups")
+                .toList()
+        val ids: Map<String, List<String>> =
+            groups.associate { group ->
+                group.path("group").asString() to group.path("tasks").toList().map { it.path("id").asString() }
+            }
+
+        ids.keys.toList() shouldBe
+            listOf("OVERDUE", "TODAY", "THIS_WEEK", "NEXT_WEEK", "THIS_MONTH", "LATER", "SOMEDAY")
+        ids.filterValues { it.isNotEmpty() } shouldBe
+            mapOf("NEXT_WEEK" to listOf(nextWeek), "SOMEDAY" to listOf(someday))
+        val refused = browser.get("/api/tasks?timeZone=Mars/Olympus")
+        refused.response.status shouldBe 400
+        refused.body()["violations"].toString() shouldBe """[{"field":"timeZone","problem":"INVALID_TIME_ZONE"}]"""
+    }
+
+    @Test
     fun `a link to something that does not exist is a 400 on the link field`() {
         val browser = owner()
         val request =
@@ -175,6 +209,7 @@ class TaskFlowTest(
         val someId = UUID.randomUUID()
 
         anonymous.get("/api/tasks/$someId").response.status shouldBe 401
+        anonymous.get("/api/tasks?timeZone=UTC").response.status shouldBe 401
         anonymous.post("/api/tasks", task).response.status shouldBe 401
         browser.post("/api/tasks", task, csrf = null).response.status shouldBe 403
         browser.post("/api/tasks/$someId/complete", """{"basedOnVersion":0}""", csrf = null).response.status shouldBe

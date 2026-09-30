@@ -71,7 +71,10 @@ class TaskFixtures {
                 }
 
             override fun listByState(state: TaskState): TaskStoreResult<List<Task>> =
-                error("Not used by these use cases")
+                when {
+                    failingStore -> TaskStoreResult.StorageFailure("listByState")
+                    else -> TaskStoreResult.Success(tasks.values.filter { it.state == state })
+                }
 
             override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> = error("Not used by these use cases")
 
