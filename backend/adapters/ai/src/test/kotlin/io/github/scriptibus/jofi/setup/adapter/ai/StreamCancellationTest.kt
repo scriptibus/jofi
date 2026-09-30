@@ -79,7 +79,7 @@ class StreamCancellationTest {
         provider.answerAnd { adapter.complete(stub.target(ProviderKind.ANTHROPIC), request()) }
     }
 
-    @Test
+    @org.junit.jupiter.api.RepeatedTest(50)
     fun `an Anthropic stream cancelled while waiting for headers releases its connection`() {
         val provider = stalling(firstFragment(ProviderKind.ANTHROPIC), headerDelay = Duration.ofSeconds(1))
         val adapter = stub.adapterOn(provider.port)

@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
  * socket anyway, which stayed open with nobody to close it.
  */
 class CancelWhileConnectingTest {
-    @Test
+    @org.junit.jupiter.api.RepeatedTest(50)
     fun `a request cancelled while its host is resolved never connects`() {
         ServerSocket(0, 1, LOOPBACK).use { server ->
             val resolving = CountDownLatch(1)
