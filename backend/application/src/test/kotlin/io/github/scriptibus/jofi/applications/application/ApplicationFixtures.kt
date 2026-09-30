@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.application
 
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -15,11 +16,14 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
+import io.github.scriptibus.jofi.applications.domain.Interview
+import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.SnapshotId
 import io.github.scriptibus.jofi.applications.domain.SnapshotSummary
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
+import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
@@ -206,6 +210,100 @@ class ApplicationFixtures {
 
                     else -> {
                         history.removeAll { it.application == id }
+                        interviews.values.removeAll { it.application == id }
+                        ApplicationStoreResult.Success(Unit)
+                    }
+                }
+        }
+
+    /** The stored interviews (#91); like the database, they go with their application. */
+    val interviews = linkedMapOf<InterviewId, Interview>()
+
+    /** An interview version another client stored between this use case's read and its write. */
+    var concurrentInterviewVersion: Long? = null
+
+    val interviewPort =
+        object : InterviewRepositoryPort {
+            override fun add(interview: Interview): ApplicationStoreResult<Unit> =
+                when {
+                    failingStore -> {
+                        ApplicationStoreResult.StorageFailure("add interview")
+                    }
+
+                    interview.application !in applications -> {
+                        ApplicationStoreResult.NotFound
+                    }
+
+                    !contacts.containsAll(interview.details.participants) -> {
+                        ApplicationStoreResult.ContactNotFound
+                    }
+
+                    else -> {
+                        interviews[interview.id] = interview
+                        ApplicationStoreResult.Success(Unit)
+                    }
+                }
+
+            override fun update(interview: Interview): ApplicationStoreResult<Unit> {
+                val stored = interviews[interview.id]?.takeIf { it.application == interview.application }
+                return when {
+                    stored == null -> {
+                        ApplicationStoreResult.NotFound
+                    }
+
+                    (concurrentInterviewVersion ?: stored.version) != interview.version - 1 -> {
+                        ApplicationStoreResult.VersionConflict
+                    }
+
+                    !contacts.containsAll(interview.details.participants) -> {
+                        ApplicationStoreResult.ContactNotFound
+                    }
+
+                    else -> {
+                        interviews[interview.id] = interview
+                        ApplicationStoreResult.Success(Unit)
+                    }
+                }
+            }
+
+            override fun findById(
+                application: ApplicationId,
+                id: InterviewId,
+            ): ApplicationStoreResult<Interview> =
+                interviews[id]?.takeIf { it.application == application }?.let { ApplicationStoreResult.Success(it) }
+                    ?: ApplicationStoreResult.NotFound
+
+            override fun listByApplication(application: ApplicationId): ApplicationStoreResult<List<Interview>> =
+                ApplicationStoreResult.Success(
+                    interviews.values
+                        .filter { it.application == application }
+                        .sortedWith(compareBy({ it.details.time.startsAt }, { it.id.value })),
+                )
+
+            override fun countByApplication(application: ApplicationId): ApplicationStoreResult<Int> =
+                ApplicationStoreResult.Success(interviews.values.count { it.application == application })
+
+            override fun upcoming(
+                from: Instant,
+                limit: Int,
+            ): ApplicationStoreResult<List<UpcomingInterview>> = error("Not used by these use cases")
+
+            override fun delete(
+                application: ApplicationId,
+                id: InterviewId,
+                proof: ConfirmationResult.Confirmed,
+            ): ApplicationStoreResult<Unit> =
+                when {
+                    !proof.covers(Interview.DELETE_OPERATION, id.value.toString()) -> {
+                        ApplicationStoreResult.NotConfirmed
+                    }
+
+                    interviews[id]?.application != application -> {
+                        ApplicationStoreResult.NotFound
+                    }
+
+                    else -> {
+                        interviews.remove(id)
                         ApplicationStoreResult.Success(Unit)
                     }
                 }
@@ -291,6 +389,7 @@ class ApplicationFixtures {
                 val eventsBefore = events.toList()
                 val frozenBefore = frozenAt.toMap()
                 val descriptionsBefore = descriptions.toList()
+                val interviewsBefore = interviews.toMap()
                 val result = work()
                 if (!commitIf(result)) {
                     applications.clear()
@@ -305,6 +404,8 @@ class ApplicationFixtures {
                     frozenAt.putAll(frozenBefore)
                     descriptions.clear()
                     descriptions.addAll(descriptionsBefore)
+                    interviews.clear()
+                    interviews.putAll(interviewsBefore)
                 }
                 return result
             }

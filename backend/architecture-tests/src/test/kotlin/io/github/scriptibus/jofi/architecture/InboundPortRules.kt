@@ -23,11 +23,6 @@ object InboundPortRules {
     val AWAITING_USE_CASE: Map<String, String> =
         mapOf(
             "AddApplicationSourcePort" to "#96",
-            "LogInterviewPort" to "#91",
-            "UpdateInterviewPort" to "#91",
-            "GetInterviewPort" to "#91",
-            "ListInterviewsPort" to "#91",
-            "DeleteInterviewPort" to "#91",
             "ListUpcomingInterviewsPort" to "#92",
             "AcceptTaskSuggestionPort" to "#95",
             "CreateCountdownPort" to "#112",
@@ -35,11 +30,6 @@ object InboundPortRules {
             "DeleteCountdownPort" to "#112",
             "ListCountdownsPort" to "#112",
             "ListDashboardCountdownsPort" to "#112",
-            "CreateSavedViewPort" to "#99",
-            "UpdateSavedViewPort" to "#99",
-            "GetSavedViewPort" to "#99",
-            "ListSavedViewsPort" to "#99",
-            "DeleteSavedViewPort" to "#99",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */

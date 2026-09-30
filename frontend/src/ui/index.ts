@@ -17,6 +17,7 @@ export {
 } from "./appearance";
 export { BoardColumn, type BoardColumnProps, type DragTypesView } from "./BoardColumn";
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
+export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
 export { Dialog, type DialogProps } from "./Dialog";
 export { Disclosure, type DisclosureProps } from "./Disclosure";
@@ -24,7 +25,7 @@ export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { FilePicker, type FilePickerProps } from "./FilePicker";
 export * from "./icons";
-export { AppLink, ExternalLink, type ExternalLinkProps, NavItem, TextLink } from "./Link";
+export { AppLink, ChipLink, ExternalLink, type ExternalLinkProps, NavItem, TextLink } from "./Link";
 export { MARKDOWN_SCHEMA, Markdown, type MarkdownProps, safeHref } from "./Markdown";
 export { type MenuAction, MenuButton, type MenuButtonProps, type MenuGroup } from "./Menu";
 export { NumberField, type NumberFieldProps } from "./NumberField";

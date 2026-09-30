@@ -12,7 +12,7 @@ import {
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { AppLink, ExternalLink, NavItem, TextLink } from "./Link";
+import { AppLink, ChipLink, ExternalLink, NavItem, TextLink } from "./Link";
 
 // A throwaway route tree: the links are typed against the app's router, so `to` is cast here.
 function renderAt(path: string) {
@@ -28,6 +28,7 @@ function renderAt(path: string) {
           </NavItem>
         </nav>
         <TextLink to={"/tasks" as "/"}>Open tasks</TextLink>
+        <ChipLink to={"/tasks" as "/"}>Task chip</ChipLink>
         <Outlet />
       </>
     ),
@@ -59,6 +60,14 @@ describe("NavItem and TextLink", () => {
     expect(await screen.findByRole("heading", { name: "Tasks page" })).toBeVisible();
     expect(router.state.location.pathname).toBe("/tasks");
     expect(screen.getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks");
+  });
+
+  it("ChipLink is a router link too", async () => {
+    const router = renderAt("/");
+    await screen.findByRole("heading", { name: "Home page" });
+    await userEvent.setup().click(screen.getByRole("link", { name: "Task chip" }));
+    expect(await screen.findByRole("heading", { name: "Tasks page" })).toBeVisible();
+    expect(router.state.location.pathname).toBe("/tasks");
   });
 });
 

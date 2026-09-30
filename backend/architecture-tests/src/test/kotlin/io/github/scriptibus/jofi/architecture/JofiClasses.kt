@@ -17,10 +17,11 @@ object JofiPackages {
     const val CONFIG = "..config.."
 
     /**
-     * The Spring Modulith metadata (in bootstrap) that makes `companies.application.port.spi` a named
-     * interface (ADR-0041): one of the two classes in a port package that are no interface and use Spring.
+     * Matches the Spring Modulith metadata (in bootstrap) that makes `companies.application.port.spi` and
+     * `applications.application.port.spi` named interfaces (ADR-0041), which with [API_METADATA] are the only
+     * classes in a port package that are no interfaces and use Spring.
      */
-    const val SPI_METADATA = "$BASE.companies.application.port.spi.ModuleMetadata"
+    val SPI_METADATA = Regex.escape(BASE) + "\\.(companies|applications)\\.application\\.port\\.spi\\.ModuleMetadata"
 
     /** The same for `applications.application.port.api`, the ports other contexts call (#85). */
     const val API_METADATA = "$BASE.applications.application.port.api.ModuleMetadata"

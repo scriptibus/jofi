@@ -43,6 +43,9 @@ interface InterviewRepositoryPort {
      */
     fun listByApplication(application: ApplicationId): ApplicationStoreResult<List<Interview>>
 
+    /** How many interviews [application] has (0 for none), which its delete removes by `ON DELETE CASCADE`. */
+    fun countByApplication(application: ApplicationId): ApplicationStoreResult<Int>
+
     /**
      * The interviews of every application that start at or after [from] and are not `CANCELLED`, soonest first
      * (then by id), at most [limit] (`interview_starts_at_idx`), each with its application's title.

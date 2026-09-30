@@ -119,7 +119,7 @@
   "applications_board_invalid": "{title} kann nicht von {from} nach {to} wechseln. Vielleicht wurde die Bewerbung anderswo geändert; das Board zeigt wieder den aktuellen Stand.",
   "applications_board_truncated": "Das Board zeigt die ersten {shown} von {total} Bewerbungen. Grenze die Filter ein, um den Rest zu sehen.",
   "companies_empty": "Noch keine Firmen. Lege die erste mit „Neue Firma“ an.",
-  "tasks_empty": "Noch keine Aufgaben. Nachfassen und Erinnerungen tauchen hier auf.",
+  "tasks_empty": "Gerade gibt es nichts zu tun. Lege oben eine Aufgabe an; Nachfassen und Erinnerungen tauchen hier auf.",
   "chat_empty": "Der Chat mit Jofi kommt bald. Er kennt deine Bewerbungen und hilft beim nächsten Schritt.",
   "empty_heading": "Hier ist noch nichts",
   "not_found_heading": "Seite nicht gefunden",
@@ -805,6 +805,16 @@
       }
     }
   ],
+  "application_delete_interviews": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Gespräch oder Telefonat",
+        "countPlural=other": "{count} Gespräche und Telefonate"
+      }
+    }
+  ],
   "application_delete_snapshots": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -814,5 +824,70 @@
         "countPlural=other": "{count} gespeicherte Stellenbeschreibungen"
       }
     }
-  ]
+  ],
+  "tasks_empty_heading": "Keine offenen Aufgaben",
+  "task_quick_add_heading": "Schnell hinzufügen",
+  "task_add": "Aufgabe hinzufügen",
+  "task_more_details": "Neue Aufgabe mit allen Angaben",
+  "task_field_title": "Aufgabe (Pflichtfeld)",
+  "task_field_notes": "Notizen",
+  "task_field_when": "Wann",
+  "task_timing_choice_exact": "Zu einer festen Zeit",
+  "task_field_due": "Datum und Uhrzeit (Pflichtfeld)",
+  "task_field_due_zone": "Uhrzeit in {zone}.",
+  "task_field_link": "Worum es geht",
+  "task_bucket_today": "Heute",
+  "task_bucket_this_week": "Diese Woche",
+  "task_bucket_next_week": "Nächste Woche",
+  "task_bucket_this_month": "Diesen Monat",
+  "task_bucket_someday": "Irgendwann",
+  "task_group_overdue": "Überfällig",
+  "task_group_today": "Heute",
+  "task_group_this_week": "Diese Woche",
+  "task_group_next_week": "Nächste Woche",
+  "task_group_this_month": "Diesen Monat",
+  "task_group_later": "Später",
+  "task_group_someday": "Irgendwann",
+  "task_group_heading": "{group} ({count})",
+  "task_link_none": "Nichts",
+  "task_link_application": "Bewerbung",
+  "task_link_company": "Firma",
+  "task_link_contact": "Kontakt",
+  "task_link_choose": "Auswählen …",
+  "task_link_application_label": "{title} · {company}",
+  "task_link_chip": "{kind}: {name}",
+  "task_timing_exact": "Fällig {when}",
+  "task_timing_other_zone": "{when} ({local} in {zone})",
+  "task_timing_day": "Fällig am {date}",
+  "task_timing_week": "Woche ab {date}",
+  "task_overdue": "Überfällig",
+  "task_done": "Erledigt",
+  "task_notes": "Notizen",
+  "task_edit_named": "Bearbeiten: Aufgabe {title}",
+  "task_delete": "Löschen",
+  "task_delete_named": "Löschen: Aufgabe {title}",
+  "task_delete_title": "Diese Aufgabe löschen?",
+  "task_delete_action": "Aufgabe löschen",
+  "task_delete_confirm": "„{title}“ wird gelöscht. Das lässt sich nicht rückgängig machen.",
+  "task_done_message": "„{title}“ ist erledigt.",
+  "task_undo": "Rückgängig",
+  "task_added_message": "„{title}“ hinzugefügt.",
+  "task_deleted_message": "„{title}“ gelöscht.",
+  "task_reopened_message": "„{title}“ ist wieder offen.",
+  "task_new_heading": "Neue Aufgabe",
+  "task_create_submit": "Aufgabe anlegen",
+  "task_edit_heading": "Aufgabe bearbeiten",
+  "task_edit_timing_passed": "Diese Aufgabe war fällig: {timing}. Wähle, wann sie jetzt fällig ist.",
+  "task_conflict_edit": "Diese Aufgabe wurde woanders geändert (in einem anderen Tab oder Gerät), nachdem du sie geöffnet hast. Deine Änderungen wurden nicht gespeichert. Lade die neueste Version, um sie erneut zu bearbeiten; deine Änderungen hier werden dabei ersetzt.",
+  "task_not_found_heading": "Aufgabe nicht gefunden",
+  "task_back_to_list": "Zurück zu den Aufgaben",
+  "task_error_not_found": "Diese Aufgabe gibt es nicht (mehr).",
+  "task_error_version_conflict": "Diese Aufgabe wurde inzwischen woanders geändert. Die Liste wurde neu geladen; bitte versuche es noch einmal.",
+  "task_error_mismatch": "Der Server wollte etwas anderes bestätigen lassen als das Löschen dieser Aufgabe. Es wurde nichts gelöscht; bitte versuche es noch einmal.",
+  "task_violation_timing": "Wähle, wann sie fällig ist.",
+  "task_violation_due_required": "Gib ein Datum und eine Uhrzeit ein.",
+  "task_violation_out_of_range": "Gib ein Datum zwischen 2000 und 2099 ein.",
+  "task_violation_time_zone": "Diese Zeitzone ist unbekannt.",
+  "task_violation_link_not_found": "Diesen Eintrag gibt es nicht (mehr). Wähle einen anderen.",
+  "task_violation_link_required": "Wähle einen aus oder wähle „Nichts“."
 }

@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { type FakeAuthState, fakeAuthBackend } from "../test/fakeAuthBackend";
+import { fakeTaskBackend } from "../test/fakeTaskBackend";
 import { App, createApp } from "./App";
 
 const server = setupServer();
@@ -149,6 +150,7 @@ describe("first run", () => {
 
 describe("the shell", () => {
   it("navigates between the areas and marks the current one", async () => {
+    server.use(...fakeTaskBackend().handlers);
     const { router, user } = start("/", { authenticated: true });
     const nav = await screen.findByRole("navigation", { name: "Main" });
     for (const name of ["Dashboard", "Applications", "Companies", "Tasks", "Chat", "Settings"]) {
@@ -162,6 +164,7 @@ describe("the shell", () => {
     expect(within(nav).getByRole("link", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
     expect(pathname(router)).toBe("/tasks");
     expect(document.title).toBe("Tasks · Jofi");
+    expect(await screen.findByRole("heading", { name: "No open tasks" })).toBeVisible();
   });
 
   it("logs out and says so", async () => {
