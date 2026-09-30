@@ -138,6 +138,7 @@ test("filter by company and status, sort by deadline, keep it all in the URL", a
   await expect(status).toContainText("Applied");
   await expect(status).toContainText("Offer");
 
+  await page.getByRole("button", { name: "More filters" }).click();
   await pick(page, "Application language", "English");
   await expect(page.getByText("1 application matches")).toBeVisible();
   await pick(page, "Last updated", "In the last 7 days");

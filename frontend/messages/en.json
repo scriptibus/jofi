@@ -51,6 +51,7 @@
   "applications_filter_show_all": "All",
   "applications_filter_show_unread": "Unread only",
   "applications_filters_reset": "Reset filters",
+  "applications_filters_more": "More filters",
   "applications_count": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],

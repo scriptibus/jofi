@@ -18,6 +18,7 @@ export {
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
 export { Dialog, type DialogProps } from "./Dialog";
+export { Disclosure, type DisclosureProps } from "./Disclosure";
 export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { FilePicker, type FilePickerProps } from "./FilePicker";

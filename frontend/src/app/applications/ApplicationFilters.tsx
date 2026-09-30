@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { m } from "../../paraglide/messages.js";
-import { Button, MultiSelect, NumberField, SegmentedControl, Select, TextField } from "../../ui";
+import { Button, Disclosure, MultiSelect, NumberField, SegmentedControl, Select, TextField } from "../../ui";
 import type { CompanyChoices } from "../contacts/companyChoices";
 import {
   type ApplicationsSearch,
@@ -30,6 +30,11 @@ export interface ApplicationFiltersProps {
   text: string;
   onText: (text: string) => void;
   companies: CompanyChoices;
+}
+
+/** The less-used filters sit behind "More filters", open when one of them is set. */
+function hasMoreFilters({ source, language, updated, wantMin, fitMin }: ApplicationsSearch): boolean {
+  return [source, language, updated, wantMin, fitMin].some((value) => value !== undefined);
 }
 
 /** Every filter of the list; each change lands in the URL (and back on the first page). */
@@ -72,41 +77,6 @@ export function ApplicationFilters({ search, onSearch, text, onText, companies }
             },
           ]}
         />
-        <MultiSelect
-          label={m.applications_filter_source()}
-          placeholder={m.applications_filter_source_any()}
-          value={search.source ?? []}
-          onChange={(ids) => set("source", SOURCE_KINDS.filter((kind) => ids.includes(kind)) as SourceKind[])}
-          groups={[{ id: "sources", options: SOURCE_KINDS.map((id) => ({ id, label: sourceLabels[id]() })) }]}
-        />
-        <Select
-          label={m.applications_filter_language()}
-          placeholder={m.applications_filter_language_any()}
-          value={search.language ?? ANY}
-          onChange={(id) => set("language", id === ANY ? undefined : id)}
-          groups={[
-            { id: "any-language", options: [{ id: ANY, label: m.applications_filter_language_any() }] },
-            { id: "languages", options: languages.map((tag) => ({ id: tag, label: languageName(tag) })) },
-          ]}
-        />
-        <Select
-          label={m.applications_filter_updated()}
-          placeholder={m.applications_filter_updated_any()}
-          value={search.updated ? String(search.updated) : ANY}
-          onChange={(id) => set("updated", id === ANY ? undefined : (Number(id) as UpdatedWithin))}
-          groups={[
-            {
-              id: "updated",
-              options: [
-                { id: ANY, label: m.applications_filter_updated_any() },
-                ...UPDATED_WITHIN.map((days) => ({
-                  id: String(days),
-                  label: m.applications_filter_updated_within({ days }),
-                })),
-              ],
-            },
-          ]}
-        />
         <SegmentedControl<"all" | "unread">
           label={m.applications_filter_show()}
           value={search.unread ? "unread" : "all"}
@@ -116,25 +86,68 @@ export function ApplicationFilters({ search, onSearch, text, onText, companies }
             { value: "unread", label: m.applications_filter_show_unread() },
           ]}
         />
-        <NumberField
-          label={m.applications_filter_want_min()}
-          description={m.applications_filter_score_hint()}
-          minValue={0}
-          maxValue={5}
-          step={0.5}
-          value={search.wantMin ?? Number.NaN}
-          onChange={(value) => set("wantMin", score(value))}
-        />
-        <NumberField
-          label={m.applications_filter_fit_min()}
-          description={m.applications_filter_score_hint()}
-          minValue={0}
-          maxValue={5}
-          step={0.5}
-          value={search.fitMin ?? Number.NaN}
-          onChange={(value) => set("fitMin", score(value))}
-        />
       </div>
+      <Disclosure label={m.applications_filters_more()} defaultExpanded={hasMoreFilters(search)}>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MultiSelect
+            label={m.applications_filter_source()}
+            placeholder={m.applications_filter_source_any()}
+            value={search.source ?? []}
+            onChange={(ids) =>
+              set("source", SOURCE_KINDS.filter((kind) => ids.includes(kind)) as SourceKind[])
+            }
+            groups={[
+              { id: "sources", options: SOURCE_KINDS.map((id) => ({ id, label: sourceLabels[id]() })) },
+            ]}
+          />
+          <Select
+            label={m.applications_filter_language()}
+            placeholder={m.applications_filter_language_any()}
+            value={search.language ?? ANY}
+            onChange={(id) => set("language", id === ANY ? undefined : id)}
+            groups={[
+              { id: "any-language", options: [{ id: ANY, label: m.applications_filter_language_any() }] },
+              { id: "languages", options: languages.map((tag) => ({ id: tag, label: languageName(tag) })) },
+            ]}
+          />
+          <Select
+            label={m.applications_filter_updated()}
+            placeholder={m.applications_filter_updated_any()}
+            value={search.updated ? String(search.updated) : ANY}
+            onChange={(id) => set("updated", id === ANY ? undefined : (Number(id) as UpdatedWithin))}
+            groups={[
+              {
+                id: "updated",
+                options: [
+                  { id: ANY, label: m.applications_filter_updated_any() },
+                  ...UPDATED_WITHIN.map((days) => ({
+                    id: String(days),
+                    label: m.applications_filter_updated_within({ days }),
+                  })),
+                ],
+              },
+            ]}
+          />
+          <NumberField
+            label={m.applications_filter_want_min()}
+            description={m.applications_filter_score_hint()}
+            minValue={0}
+            maxValue={5}
+            step={0.5}
+            value={search.wantMin ?? Number.NaN}
+            onChange={(value) => set("wantMin", score(value))}
+          />
+          <NumberField
+            label={m.applications_filter_fit_min()}
+            description={m.applications_filter_score_hint()}
+            minValue={0}
+            maxValue={5}
+            step={0.5}
+            value={search.fitMin ?? Number.NaN}
+            onChange={(value) => set("fitMin", score(value))}
+          />
+        </div>
+      </Disclosure>
       {isFiltered(search) ? (
         <Button variant="secondary" className="self-start" onPress={() => onSearch(withoutFilters(search))}>
           {m.applications_filters_reset()}

@@ -147,9 +147,19 @@ describe("Applications list", () => {
     expect(screen.getByRole("button", { name: /Globex.*Company/ })).toBeVisible();
     expect(state.searches.at(-1)?.get("companyId")).toBe(globex.id);
 
+    const more = screen.getByRole("button", { name: "More filters" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    await user.click(more);
     await pick(user, /Application language/, "German");
     expect(await screen.findByText("No application matches these filters.")).toBeVisible();
     expect(state.searches.at(-1)?.getAll("language")).toEqual(["de"]);
+  });
+
+  it("opens the more filters when one of them comes from the URL", async () => {
+    start("/applications?updated=30", { applications: [designer] });
+    expect(await screen.findByText("1 application matches")).toBeVisible();
+    expect(screen.getByRole("button", { name: "More filters" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /In the last 30 days.*Last updated/ })).toBeVisible();
   });
 
   it("shows only unread ones on request", async () => {
