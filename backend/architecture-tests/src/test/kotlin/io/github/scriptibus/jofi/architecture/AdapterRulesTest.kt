@@ -95,7 +95,7 @@ class AdapterRulesTest {
             .and()
             .areTopLevelClasses()
             .and()
-            .doNotHaveFullyQualifiedName(SPI_METADATA)
+            .haveNameNotMatching(SPI_METADATA)
             .should()
             .beInterfaces()
             .check(classes)

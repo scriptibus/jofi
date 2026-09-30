@@ -36,7 +36,7 @@ class LayerDependencyTest {
             .that()
             .resideInAnyPackage(DOMAIN, APPLICATION)
             .and()
-            .doNotHaveFullyQualifiedName(SPI_METADATA)
+            .haveNameNotMatching(SPI_METADATA)
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(*FRAMEWORK_PACKAGES)
@@ -46,13 +46,13 @@ class LayerDependencyTest {
 
     /**
      * The one exception to the rule above: the `ModuleMetadata` (in bootstrap) that makes the companies
-     * SPI package a Spring Modulith named interface (ADR-0041) may use Spring Modulith, nothing else.
+     * or applications SPI package a Spring Modulith named interface (ADR-0041) may use Spring Modulith, nothing else.
      */
     @Test
     fun `named interface metadata only uses Spring Modulith`() {
         classes()
             .that()
-            .haveFullyQualifiedName(SPI_METADATA)
+            .haveNameMatching(SPI_METADATA)
             .should()
             .onlyDependOnClassesThat()
             .resideInAnyPackage("org.springframework.modulith..", "java..", "kotlin..", "org.jetbrains.annotations..")
@@ -68,6 +68,18 @@ class LayerDependencyTest {
             .should()
             .dependOnClassesThat()
             .resideInAPackage("$BASE.applications..")
+            .check(classes)
+    }
+
+    /** ADR-0041: dependencies run tasks -> applications; applications declares ports the tasks context implements. */
+    @Test
+    fun `the applications context never depends on the tasks context`() {
+        noClasses()
+            .that()
+            .resideInAPackage("$BASE.applications..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("$BASE.tasks..")
             .check(classes)
     }
 

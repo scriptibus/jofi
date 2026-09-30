@@ -4,6 +4,8 @@
 package io.github.scriptibus.jofi.architecture
 
 import io.github.scriptibus.jofi.JofiApplication
+import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
@@ -93,6 +95,17 @@ class ModulithTest {
         companies.isExposed(CompanyRepositoryPort::class.java) shouldBe false
         module("applications").getDirectDependencies(modules).containsModuleNamed("companies") shouldBe true
         companies.getDirectDependencies(modules).containsModuleNamed("applications") shouldBe false
+    }
+
+    @Test
+    fun `applications exposes only its SPI to the tasks context, which depends on it (ADR-0041)`() {
+        val applications = module("applications")
+
+        applications.namedInterfaces.getByName("spi").isPresent shouldBe true
+        applications.isExposed(LinkedTasksPort::class.java) shouldBe true
+        applications.isExposed(ApplicationRepositoryPort::class.java) shouldBe false
+        module("tasks").getDirectDependencies(modules).containsModuleNamed("applications") shouldBe true
+        applications.getDirectDependencies(modules).containsModuleNamed("tasks") shouldBe false
     }
 
     private fun module(name: String): ApplicationModule =
