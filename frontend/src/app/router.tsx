@@ -62,7 +62,8 @@ const loginRoute = createRoute({
     const result: LoginSearch = {};
     const target = safeRedirect(search.redirect);
     if (target) result.redirect = target;
-    if (search.reason === "expired" || search.reason === "logged-out") result.reason = search.reason;
+    if (search.reason === "expired" || search.reason === "logged-out" || search.reason === "restored")
+      result.reason = search.reason;
     return result;
   },
   beforeLoad: async ({ context, search }) => {

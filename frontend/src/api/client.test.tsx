@@ -7,7 +7,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import type { ReactNode } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { ApiProblemError, apiFetch, parseRetryAfter } from "./fetcher";
+import { ApiProblemError, apiFetch, attachmentName, parseRetryAfter } from "./fetcher";
 import { getGetSystemInfoUrl, type SystemInfoResponse, useGetSystemInfo } from "./generated/jofi";
 import { GetSystemInfoResponse } from "./generated/jofi.zod";
 
@@ -120,6 +120,50 @@ describe("generated API client", () => {
     expect(parseRetryAfter("Wed, 30 Sep 2026 09:00:00 GMT", now)).toBe(0);
     expect(parseRetryAfter("soon", now)).toBeUndefined();
     expect(parseRetryAfter(null, now)).toBeUndefined();
+  });
+
+  it("returns a non-JSON answer as a file named by Content-Disposition", async () => {
+    const url = new URL("/api/test/file", window.location.origin).href;
+    server.use(
+      http.post(url, () =>
+        HttpResponse.arrayBuffer(new Uint8Array([0x50, 0x4b, 3, 4]).buffer, {
+          headers: {
+            "Content-Type": "application/zip",
+            "Content-Disposition": 'attachment; filename="jofi-backup-20260930-120000.zip"',
+          },
+        }),
+      ),
+    );
+
+    const file = await apiFetch<Blob>("/api/test/file", { method: "POST" });
+
+    expect(file).toBeInstanceOf(File);
+    expect((file as File).name).toBe("jofi-backup-20260930-120000.zip");
+    expect(file.size).toBe(4);
+  });
+
+  it("returns a plain blob when the file has no name", async () => {
+    const url = new URL("/api/test/file", window.location.origin).href;
+    server.use(
+      http.get(url, () => new HttpResponse("zip", { headers: { "Content-Type": "application/zip" } })),
+    );
+
+    const blob = await apiFetch<Blob>("/api/test/file");
+
+    expect(blob).not.toBeInstanceOf(File);
+    expect(await blob.text()).toBe("zip");
+  });
+
+  it("reads only a safe file name from Content-Disposition", () => {
+    expect(attachmentName('attachment; filename="a.zip"')).toBe("a.zip");
+    expect(attachmentName("attachment; filename=b.zip")).toBe("b.zip");
+    expect(attachmentName("attachment; filename=\"x.zip\"; filename*=UTF-8''J%C3%B6fi.zip")).toBe("Jöfi.zip");
+    expect(attachmentName('attachment; filename="../../etc/passwd"')).toBe("passwd");
+    expect(attachmentName('attachment; filename="..\\evil.zip"')).toBe("evil.zip");
+    expect(attachmentName('attachment; filename=".."')).toBeUndefined();
+    expect(attachmentName("attachment; filename*=UTF-8''%E0%A4%A.zip")).toBeUndefined();
+    expect(attachmentName("attachment")).toBeUndefined();
+    expect(attachmentName(null)).toBeUndefined();
   });
 
   it("the Zod schema rejects a response that breaks the contract", () => {

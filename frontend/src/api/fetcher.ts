@@ -32,8 +32,7 @@ export function parseRetryAfter(value: string | null, now: number = Date.now()):
 export type ErrorType<P> = ApiProblemError<P extends ProblemDetail ? P : ProblemDetail>;
 
 async function readProblem(response: Response): Promise<ProblemDetail> {
-  const isJson = response.headers.get("content-type")?.includes("json") ?? false;
-  const body: unknown = isJson ? await response.json().catch(() => undefined) : undefined;
+  const body: unknown = isJson(response) ? await response.json().catch(() => undefined) : undefined;
   return typeof body === "object" && body !== null ? (body as ProblemDetail) : { status: response.status };
 }
 
@@ -74,5 +73,39 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (response.status === 204) {
     return undefined as T;
   }
+  if (!isJson(response)) {
+    // A file (e.g. a backup zip): the generated function types it as Blob. A File is a Blob that also
+    // keeps the server's file name from Content-Disposition.
+    return (await fileOf(response)) as T;
+  }
   return (await response.json()) as T;
+}
+
+function isJson(response: Response): boolean {
+  return response.headers.get("content-type")?.includes("json") ?? false;
+}
+
+async function fileOf(response: Response): Promise<Blob> {
+  const blob = await response.blob();
+  const name = attachmentName(response.headers.get("Content-Disposition"));
+  return name === undefined ? blob : new File([blob], name, { type: blob.type });
+}
+
+/**
+ * The file name of a `Content-Disposition` header (RFC 6266): `filename*=UTF-8''…` wins over
+ * `filename=`; only the last path segment is kept, so a name can never point into a directory.
+ */
+export function attachmentName(header: string | null): string | undefined {
+  if (header === null) return undefined;
+  const extended = /filename\*\s*=\s*UTF-8''([^;]+)/i.exec(header)?.[1];
+  const plain = /filename\s*=\s*"([^"]*)"|filename\s*=\s*([^;]+)/i.exec(header);
+  let name: string | undefined;
+  try {
+    name = extended === undefined ? undefined : decodeURIComponent(extended.trim());
+  } catch {
+    name = undefined;
+  }
+  name ??= (plain?.[1] ?? plain?.[2])?.trim();
+  const base = name?.split(/[/\\]/).pop()?.trim();
+  return base === undefined || base === "" || base === "." || base === ".." ? undefined : base;
 }

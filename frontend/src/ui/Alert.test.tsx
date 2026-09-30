@@ -17,6 +17,17 @@ describe("Alert", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("shows a warning as a standing note, not a live region", () => {
+    render(
+      <Alert tone="warning" title="Store it safely">
+        A backup grants full access.
+      </Alert>,
+    );
+    expect(screen.getByRole("note")).toHaveTextContent("Store it safely");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("has a labelled close button only when it can be dismissed", async () => {
     const onDismiss = vi.fn();
     const { rerender } = render(<Alert tone="info">Hello</Alert>);

@@ -51,6 +51,15 @@ const target: PlaywrightTestConfig = stackUrl
           dependencies: browsers.map((project) => project.name ?? ""),
           use: { ...devices["Desktop Chrome"], colorScheme: "light" },
         },
+        // Backup export and restore: wrong passwords, the one backup lock, and a restore that ends every
+        // session, so they run after everything else, alone (tests/backup/backup.spec.ts).
+        {
+          name: "backup",
+          testDir: "./tests/backup",
+          fullyParallel: false,
+          dependencies: ["auth"],
+          use: { ...devices["Desktop Chrome"], colorScheme: "light" },
+        },
       ],
     }
   : {
