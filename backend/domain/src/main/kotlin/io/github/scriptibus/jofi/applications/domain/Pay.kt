@@ -9,8 +9,9 @@ import java.math.RoundingMode
 
 /**
  * The pay a posting, a recruiter or an estimate names (spec §6.1): [min] and [max] (at least one, min
- * not above max) in [currency] per [period]. Amounts are money with exactly two decimals (see
- * [Amount]), so an amount read back from the database equals the one stored.
+ * not above max) in [currency] per [period]. Amounts are **gross** (before tax and deductions) and money
+ * with exactly two decimals (see [Amount]), so an amount read back from the database equals the one
+ * stored. Pay is personal: [toString] shows no amount.
  */
 data class PayBand(
     val min: BigDecimal?,
@@ -24,9 +25,11 @@ data class PayBand(
         require(listOfNotNull(min, max).all(Amount::isValid)) { "A pay band amount breaks an invariant" }
         require(min == null || max == null || min <= max) { "A pay band's minimum cannot exceed its maximum" }
     }
+
+    override fun toString(): String = "PayBand(currency=$currency, period=$period, source=$source)"
 }
 
-/** One amount of money in [currency] per [period], e.g. the salary of an offer. */
+/** One gross amount of money in [currency] per [period], e.g. the salary of an offer; [toString] hides it. */
 data class Pay(
     val amount: BigDecimal,
     val currency: CurrencyCode,
@@ -35,6 +38,8 @@ data class Pay(
     init {
         require(Amount.isValid(amount)) { "A pay amount breaks an invariant" }
     }
+
+    override fun toString(): String = "Pay(currency=$currency, period=$period)"
 }
 
 /** The rules for amounts of money: 0 to [MAX], stored with exactly [SCALE] decimals. */
@@ -92,6 +97,8 @@ sealed interface PaySource {
         init {
             require(textProblem(basis, MAX_BASIS_LENGTH) == null) { "An estimate basis breaks an invariant" }
         }
+
+        override fun toString(): String = "Estimated(confidence=$confidence)"
 
         companion object {
             const val MAX_BASIS_LENGTH = 2_000

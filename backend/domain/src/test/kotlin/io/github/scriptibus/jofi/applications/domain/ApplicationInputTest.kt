@@ -58,7 +58,7 @@ class ApplicationInputTest {
                 PaySourceKind.POSTING,
                 "ignored",
             ),
-            LanguageAndToneInput(" de ", "en-GB", FormOfAddress.DU, Tone.PERSONAL),
+            LanguageAndToneInput(" DE ", "en-gb", FormOfAddress.DU, Tone.PERSONAL),
             DeclineReasonInput(DeclineCategory.SALARY, "Too low"),
             OfferInput(PayInput(BigDecimal("80000"), "EUR", PayPeriod.YEAR), " 10 % ", vacationDays = 30),
         )

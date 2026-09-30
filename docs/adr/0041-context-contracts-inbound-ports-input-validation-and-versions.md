@@ -126,21 +126,36 @@ the applications context reacts to `ContactDeleted` (#90).
   id type. The database's foreign keys keep the reference valid, and the store result names a missing
   target (`CompanyNotFound`, `ContactNotFound`, mapped by constraint name). The contract needs no named
   interface and no dependency between contexts.
-- The first feature that needs a type-level dependency (#88 counts, #90 events) exposes it through a
-  Modulith named interface and picks the direction so that no cycle forms; this contract does not
-  pre-empt that.
+- **Dependencies run applications → companies only** (Lucas's decision in the review of PR #141). The
+  companies context never depends on the applications context. What it needs from applications it
+  declares as **outbound ports of its own** in `companies.application.port`, which the applications
+  context implements (dependency inversion, so no cycle):
+  - `ApplicationCountsPort` (#88): the number of applications per company, for `applicationCount`.
+  - `LinkedApplicationsPort` (#89/#90): the ids of the applications linked to a contact, read in the
+    contact delete's transaction **before** the delete, so it can write one changelog entry per affected
+    application (ids only); the `application_contact_contact_fk` cascade then removes the links. No
+    `ContactDeleted` listener is needed for link cleanup.
+
+  The ports and the Modulith named interface that lets the applications context implement them come with
+  #88 and #90; this contract only records the direction.
 - Text rules every context applies (NFC, trim, no U+0000, length) live in `shared.domain.text`; each
   context keeps its own violation enums, since the API names fields and problems per context.
 
 Further rules the applications contract adds:
 
+- **No write overwrites what it does not own** (lost updates): the repository stores details
+  (`updateDetails`: detail columns, `version`, `updated_at`) and contact links (`replaceContacts`: rewrites
+  the link rows only when the set differs) separately, each under the version check, and neither touches
+  `unread` or the scores; `setUnread` touches only the flag.
 - **Links to another aggregate are a set replaced as a whole** (`PUT /api/applications/{id}/contacts`
   with `basedOnVersion`), like any other update, so unlinking is not a `DELETE` and needs no confirmation.
 - **Read/unread is not a change of the application**: it keeps `version` and `updatedAt`, so opening an
   application never conflicts with an edit. It still writes a changelog entry.
 - **Money** is a decimal with exactly two places (`numeric(12,2)`), normalized on input, so what is read
-  back equals what was stored; more places is `TOO_PRECISE`, never rounded. Currencies are ISO 4217 codes,
-  language tags BCP 47 tags kept as entered.
+  back equals what was stored; more places is `TOO_PRECISE`, never rounded. Amounts are gross.
+  Currencies are ISO 4217 codes. Language tags are BCP 47, brought into canonical case on input
+  (language lower-case, script title-case, region upper-case, with `Locale.ROOT`); the database accepts
+  any case, so it stays at most as strict as the domain. `toString()` of pay types shows no amount and no estimate basis.
 - API enums map to domain enums by name through one helper (`mapByName`), and a test compares their
   constants.
 

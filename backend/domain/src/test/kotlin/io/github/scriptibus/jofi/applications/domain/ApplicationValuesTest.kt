@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -68,6 +69,55 @@ class ApplicationValuesTest {
     @ValueSource(strings = ["d", "deutsch", "de_DE", "de-", "de-toolongsubtag", "dé", " de", ""])
     fun `anything else is not a language tag`(tag: String) {
         LanguageTag.isValid(tag) shouldBe false
+    }
+
+    @ParameterizedTest
+    @CsvSource(
+        "de, de",
+        "DE, de",
+        "de-ch, de-CH",
+        "EN-gb, en-GB",
+        "zh-hant-tw, zh-Hant-TW",
+        "SR-LATN, sr-Latn",
+        "es-419, es-419",
+        "de-1996, de-1996",
+        "gsw-CH, gsw-CH",
+        "de-CH-1996, de-CH-1996",
+        "en-US-x-TWAIN, en-US-x-twain",
+        "de-a-BB-cc, de-a-bb-cc",
+        "en-GB-OXENDICT, en-GB-oxendict",
+    )
+    fun `language tags are brought into canonical case`(
+        tag: String,
+        canonical: String,
+    ) {
+        LanguageTag.canonical(tag) shouldBe canonical
+    }
+
+    @Test
+    fun `canonical case does not depend on the default locale`() {
+        val default = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"))
+            LanguageTag.canonical("TR-latn-IT") shouldBe "tr-Latn-IT"
+            LanguageTag.canonical("IT") shouldBe "it"
+        } finally {
+            java.util.Locale.setDefault(default)
+        }
+    }
+
+    @Test
+    fun `pay prints neither amounts nor the estimate basis`() {
+        val amount = BigDecimal("98765.43")
+        val estimate = PaySource.Estimated("Secret basis", EstimateConfidence.HIGH)
+        listOf(
+            PayBand(amount, amount, eur, PayPeriod.YEAR, estimate),
+            Pay(amount, eur, PayPeriod.MONTH),
+            estimate,
+        ).forEach {
+            it.toString() shouldNotContain "98765"
+            it.toString() shouldNotContain "Secret"
+        }
     }
 
     @Test

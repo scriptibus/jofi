@@ -25,8 +25,9 @@ sealed interface ApplicationValidation<out T> {
 /**
  * Application details as the user, the AI, a scanner or an external client entered them. [validate]
  * normalizes text to Unicode NFC and trims it, treats blank optional text as absent, upper-cases
- * currency codes, gives amounts two decimals, and reports what is still wrong. Whether [company] exists
- * is the use case's check. [toString] leaves out the user's notes.
+ * currency codes, brings language tags into canonical case, gives amounts two decimals, and reports
+ * what is still wrong. Whether [company] exists is the use case's check. [toString] leaves out the
+ * user's notes.
  */
 data class ApplicationInput(
     val title: String,
@@ -129,7 +130,7 @@ data class PayBandInput(
     }
 }
 
-/** Language and tone as entered; language tags are kept as entered once trimmed (`de`, `en-GB`). */
+/** Language and tone as entered; language tags are trimmed and brought into canonical case (`de`, `en-GB`). */
 data class LanguageAndToneInput(
     val postingLanguage: String? = null,
     val applicationLanguage: String? = null,
@@ -270,6 +271,6 @@ internal class InputChecks {
     ): LanguageTag? {
         val tag = raw?.trim()?.takeIf(String::isNotEmpty) ?: return null
         if (!LanguageTag.isValid(tag)) report(field, ApplicationProblem.INVALID_LANGUAGE)
-        return tag.takeIf(LanguageTag::isValid)?.let(::LanguageTag)
+        return tag.takeIf(LanguageTag::isValid)?.let { LanguageTag(LanguageTag.canonical(it)) }
     }
 }

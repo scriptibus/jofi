@@ -107,8 +107,8 @@ Contract only: every operation answers `501` until #82, #83 and #90 (the search 
 paging out of range). `ApplicationProblems.of` maps each `ApplicationResult.Failure`; violations name the
 nested request field (`payBand.max`, `offer.salary.currency`, `contactIds`). API enums are copies of the
 domain enums (`JobSeniority` for `Seniority`, ...), mapped with `mapByName` and tested for equal constants.
-Amounts are JSON numbers with at most two decimals, scores numbers with one decimal. DTOs holding notes
-or reasons print none of them.
+Amounts are gross, JSON numbers with at most two decimals; scores numbers with one decimal. DTOs holding
+notes, reasons, pay amounts or an estimate basis print none of them.
 
 ## Documented problem responses (ADR-0041)
 

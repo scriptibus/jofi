@@ -32,7 +32,9 @@ interface CreateApplicationPort {
 
 /**
  * Replaces **all** details with [input] (a PUT, not a patch): a field left out is cleared. Contacts,
- * the unread flag and the scores stay. Unchanged details store nothing and write no changelog entry.
+ * the unread flag and the scores stay: the use case stores through `ApplicationRepositoryPort.updateDetails`,
+ * which never writes them, so a concurrent read/unread toggle is not lost. Unchanged details store nothing
+ * and write no changelog entry.
  */
 interface UpdateApplicationPort {
     fun execute(
@@ -67,7 +69,8 @@ interface SetApplicationUnreadPort {
 /**
  * Links exactly [contacts] to the application (#90), replacing the linked set: linking and unlinking are
  * both "read, change the set, send it back with the version". At most `Application.MAX_CONTACTS`
- * (`Invalid`, CONTACTS, TOO_MANY). An unchanged set is a no-op.
+ * (`Invalid`, CONTACTS, TOO_MANY). An unchanged set is a no-op. Stores through
+ * `ApplicationRepositoryPort.replaceContacts`, which never writes the details, the flag or the scores.
  */
 interface LinkApplicationContactsPort {
     fun execute(

@@ -181,10 +181,10 @@ The generator lives in the `codegen` source set and has its own locked classpath
 
 - `application` (spec §6.1): title, `company_id` (**`ON DELETE RESTRICT`**, `application_company_fk`, so a
   company with applications cannot be deleted), location, remote share (percent), employment type,
-  seniority, deadline, how applied + portal notes, the pay band (`pay_min`/`pay_max` `numeric(12,2)`,
+  seniority, deadline, how applied + portal notes, the pay band (gross `pay_min`/`pay_max` `numeric(12,2)`,
   ISO 4217 `pay_currency`, `pay_period`, `pay_source` with `pay_estimate_basis`/`_confidence` exactly for
-  `ESTIMATED`), language & tone (BCP 47 `posting_language`/`application_language` as entered, a null
-  application language follows the posting's; `form_of_address`, `tone`), the decline/rejection reason
+  `ESTIMATED`), language & tone (BCP 47 `posting_language`/`application_language`, canonical case from
+  the domain but any case accepted here; a null application language follows the posting's; `form_of_address`, `tone`), the decline/rejection reason
   (category + text), the offer (`offer_*`, salary as amount + currency + period together), `unread`,
   `want_score`/`fit_score` placeholders (`numeric(2,1)`, 0 to 5) and `version`. No status column: the
   status pipeline and its history come with #77. Named check constraints mirror the domain, never
@@ -196,9 +196,12 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `ON DELETE CASCADE` (`application_contact_application_fk`, `application_contact_contact_fk`), so deleting
   a contact or its company unlinks it and is never blocked. `ApplicationContactSchemaTest` proves both
   cascades and the RESTRICT on `company`. `application_contact_contact_idx` serves "applications per contact".
-- `ApplicationRepositoryPort` is implemented with the use cases (#82). Its `update` replaces the contact
-  links in the version-checked update; `setUnread` changes only the flag (no version); `delete` checks the
-  `Confirmed` proof. It maps `application_company_fk` to `CompanyNotFound` and
+- `ApplicationRepositoryPort` is implemented with the use cases (#82). **No write overwrites columns it
+  does not own** (lost updates): `updateDetails` writes only the detail columns, `version` and `updated_at`
+  (never `unread`, the scores or the links); `replaceContacts` writes `version`/`updated_at` and rewrites
+  `application_contact` only when the stored set differs; both store only if the stored `version` is one
+  below the new one. `setUnread` changes only the flag (no version). `delete` checks the `Confirmed` proof.
+  The repository tests (#82) prove each write leaves the other columns as they were. It maps `application_company_fk` to `CompanyNotFound` and
   `application_contact_contact_fk` to `ContactNotFound` by name.
 - Portal notes, reasons and offer text are the user's free text: changelog entries name the changed
   fields, never the text (#52). User data: **covered by export/import** (#26, #134).

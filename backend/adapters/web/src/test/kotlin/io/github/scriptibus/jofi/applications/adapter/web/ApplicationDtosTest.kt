@@ -207,6 +207,11 @@ class ApplicationDtosTest {
         val response = ApplicationResponse.from(application)
         listOf(response, response.declineReason, response.offer, ApplicationDetailsRequest("Secret title", companyUuid))
             .forEach { it.toString() shouldNotContain "Secret" }
+        val estimate = PayBandDto(amount, amount, "EUR", PayInterval.YEAR, PayBandSource.ESTIMATED, "Secret basis")
+        listOf(estimate, PayDto(amount, "EUR", PayInterval.YEAR)).forEach {
+            it.toString() shouldNotContain "85000"
+            it.toString() shouldNotContain "Secret"
+        }
     }
 
     companion object {

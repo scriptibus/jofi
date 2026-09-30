@@ -69,7 +69,7 @@ data class ApplicationDetailsRequest(
 }
 
 /**
- * A pay band: [min] and/or [max] (two decimals at most) in [currency] (ISO 4217) per [period].
+ * A pay band: gross [min] and/or [max] (two decimals at most) in [currency] (ISO 4217) per [period].
  * [estimateBasis] and [estimateConfidence] are required for `ESTIMATED` and absent otherwise.
  */
 data class PayBandDto(
@@ -91,6 +91,8 @@ data class PayBandDto(
             estimateBasis,
             estimateConfidence?.mapByName(),
         )
+
+    override fun toString(): String = "PayBandDto(currency=$currency, period=$period, source=$source)"
 
     companion object {
         fun from(band: PayBand): PayBandDto {
@@ -114,13 +116,15 @@ data class PayBandDto(
     }
 }
 
-/** An amount in [currency] (ISO 4217) per [period]. */
+/** A gross amount in [currency] (ISO 4217) per [period]. */
 data class PayDto(
     val amount: BigDecimal,
     val currency: String,
     val period: PayInterval,
 ) {
     fun toInput(): PayInput = PayInput(amount, currency, period.mapByName())
+
+    override fun toString(): String = "PayDto(currency=$currency, period=$period)"
 
     companion object {
         fun from(pay: Pay): PayDto = PayDto(pay.amount, pay.currency.value, pay.period.mapByName())

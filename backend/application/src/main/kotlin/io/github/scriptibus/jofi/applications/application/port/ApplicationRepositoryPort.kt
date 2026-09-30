@@ -23,11 +23,20 @@ interface ApplicationRepositoryPort {
     fun add(application: Application): ApplicationStoreResult<Unit>
 
     /**
-     * Replaces the stored application and all its contact links if its version is exactly one below
-     * [application]'s (see [Application.edit], [Application.linkContacts]);
-     * [ApplicationStoreResult.VersionConflict] if someone else changed it meanwhile.
+     * Stores [application]'s details: writes only the detail columns, `version` and `updated_at`, never
+     * `unread`, the scores or the contact links, and only if the stored version is exactly one below
+     * [application]'s (see [Application.edit]); [ApplicationStoreResult.VersionConflict] otherwise. So a
+     * concurrent read/unread toggle or score update is never overwritten by a detail edit.
      */
-    fun update(application: Application): ApplicationStoreResult<Unit>
+    fun updateDetails(application: Application): ApplicationStoreResult<Unit>
+
+    /**
+     * Stores [application]'s contact links: writes `version` and `updated_at` and rewrites
+     * `application_contact` only when the stored set differs, under the same version check as
+     * [updateDetails] (see [Application.linkContacts]). Never touches the detail columns, `unread` or the
+     * scores.
+     */
+    fun replaceContacts(application: Application): ApplicationStoreResult<Unit>
 
     /** Sets only the unread flag, without a version check or a new version ([Application.markUnread]). */
     fun setUnread(
