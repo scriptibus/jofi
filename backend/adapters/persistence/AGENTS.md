@@ -275,6 +275,7 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 | `application` | `applications.domain.Application` | `ApplicationId.ENTITY_TYPE` |
 | `application_source` | `applications.domain.ApplicationSource` | `SourceId.ENTITY_TYPE` |
 | `description_snapshot` | `applications.domain.DescriptionSnapshot` (recorded and frozen) | `SnapshotId.ENTITY_TYPE` |
+| `interview` | `applications.domain.Interview` (with its participants) | `InterviewId.ENTITY_TYPE` |
 
 ## Tests
 

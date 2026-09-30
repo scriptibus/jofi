@@ -55,3 +55,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0044](0044-application-status-pipeline-transition-matrix-and-history.md) | Application status pipeline: transition matrix, decline reason and history | accepted |
 | [0045](0045-dated-provider-privacy-info.md) | Dated provider privacy info with quoted sources | accepted |
 | [0046](0046-application-sources-description-snapshots-hash-and-freeze.md) | Application sources and job description snapshots: content hash and freezing on applying | accepted |
+| [0048](0048-interviews-scheduled-times-as-instant-and-planning-zone.md) | Interviews and calls: an aggregate of their own, scheduled as an instant plus the zone planned in | accepted |

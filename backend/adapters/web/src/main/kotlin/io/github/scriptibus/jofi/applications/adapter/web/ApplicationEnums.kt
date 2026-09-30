@@ -82,5 +82,11 @@ enum class SnapshotCaptureReason { DISCOVERY, CHANGE_DETECTED, MANUAL }
 /** Copy of `DiffOperation`. */
 enum class DiffSegmentOperation { UNCHANGED, ADDED, REMOVED }
 
+/** Copy of `InterviewType`: what kind of interview or call. */
+enum class InterviewKind { PHONE_SCREEN, HR, TECHNICAL, CASE, ON_SITE, FINAL, OTHER }
+
+/** Copy of `InterviewOutcome`: how it ended for the user; absent while it is to come or undecided. */
+enum class InterviewResultKind { PASSED, REJECTED, WITHDRAWN, CANCELLED }
+
 /** The constant of [T] with this constant's name (API enum to domain enum and back). */
 internal inline fun <reified T : Enum<T>> Enum<*>.mapByName(): T = enumValueOf<T>(name)

@@ -36,6 +36,12 @@ object InboundPortRules {
             "ListDescriptionSnapshotsPort" to "#86",
             "GetDescriptionSnapshotPort" to "#86",
             "DiffDescriptionSnapshotsPort" to "#86",
+            "LogInterviewPort" to "#91",
+            "UpdateInterviewPort" to "#91",
+            "GetInterviewPort" to "#91",
+            "ListInterviewsPort" to "#91",
+            "DeleteInterviewPort" to "#91",
+            "ListUpcomingInterviewsPort" to "#92",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */

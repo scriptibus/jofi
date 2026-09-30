@@ -54,6 +54,21 @@ enum class ApplicationField {
 
     /** A job description's text (a source's first one, or a new version). */
     DESCRIPTION,
+
+    /** When an interview starts: within `InterviewTime.EARLIEST` and `InterviewTime.LATEST`. */
+    INTERVIEW_START,
+
+    /** The time zone an interview was planned in. */
+    TIME_ZONE,
+
+    /** An interview's participants: too many, or one that does not exist. */
+    PARTICIPANTS,
+
+    /** The notes to prepare an interview. */
+    PREPARATION_NOTES,
+
+    /** The user's notes after an interview. */
+    INTERVIEW_NOTES,
 }
 
 enum class ApplicationProblem {
@@ -92,6 +107,9 @@ enum class ApplicationProblem {
 
     /** Not an absolute http(s) URL with a host and without user info. */
     INVALID_URL,
+
+    /** Not a time zone Java knows: an IANA id such as `Europe/Berlin`, or an offset such as `+02:00`. */
+    INVALID_TIME_ZONE,
 }
 
 /** Shared by the invariants and [ApplicationInput.validate]. */
@@ -109,8 +127,8 @@ internal object ApplicationRules {
 }
 
 /**
- * Outcome of an application use case (#82, #83, #84, #86, #90, #96). Callers map every case: the REST controller to
- * a status and problem type, an MCP tool to a tool error.
+ * Outcome of an application use case (#82, #83, #84, #86, #90, #91, #92, #96). Callers map every case: the REST
+ * controller to a status and problem type, an MCP tool to a tool error.
  */
 sealed interface ApplicationResult<out T> {
     data class Success<out T>(
@@ -136,7 +154,10 @@ sealed interface ApplicationResult<out T> {
     /** The application has no description snapshot with the requested id. */
     data object SnapshotNotFound : Failure
 
-    /** The change was based on an older version of the application; nothing was changed. */
+    /** The application has no interview with the requested id. */
+    data object InterviewNotFound : Failure
+
+    /** The change was based on an older version of the application (or interview); nothing was changed. */
     data object VersionConflict : Failure
 
     /** The status matrix (ADR-0044) has no move [from] the application's status [to] the requested one. */
@@ -163,18 +184,21 @@ sealed interface ApplicationStoreResult<out T> {
     ) : ApplicationStoreResult<T>
 
     /**
-     * No application with the requested id, or the source or snapshot asked for does not exist (for that
-     * application); an insert whose application or source is gone (by its foreign key's name) too.
+     * No application with the requested id, or the source, snapshot or interview asked for does not exist (for
+     * that application); an insert whose application or source is gone (by its foreign key's name) too.
      */
     data object NotFound : ApplicationStoreResult<Nothing>
 
-    /** The stored application has a newer version than the change was based on; reload and retry. */
+    /** The stored application (or interview) has a newer version than the change was based on; reload and retry. */
     data object VersionConflict : ApplicationStoreResult<Nothing>
 
     /** The application's company does not exist (any more): `application_company_fk` rejected it. */
     data object CompanyNotFound : ApplicationStoreResult<Nothing>
 
-    /** A linked contact does not exist (any more): `application_contact_contact_fk` rejected it. */
+    /**
+     * A linked contact or an interview participant does not exist (any more): `application_contact_contact_fk` or
+     * `interview_participant_contact_fk` rejected it.
+     */
     data object ContactNotFound : ApplicationStoreResult<Nothing>
 
     /** The application has [Application.MAX_SOURCES] sources already (counted under a lock); nothing was added. */

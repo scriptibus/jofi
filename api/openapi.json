@@ -452,6 +452,319 @@
         "tags" : [ "application-source-controller" ]
       }
     },
+    "/api/applications/{id}/interviews" : {
+      "get" : {
+        "operationId" : "listInterviews",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InterviewListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "interview-controller" ]
+      },
+      "post" : {
+        "operationId" : "logInterview",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/InterviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InterviewResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "interview-controller" ]
+      }
+    },
+    "/api/applications/{id}/interviews/{interviewId}" : {
+      "delete" : {
+        "operationId" : "deleteInterview",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "path",
+          "name" : "interviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Jofi-Confirmation",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "428" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConfirmationRequiredProblem"
+                }
+              }
+            },
+            "description" : "Nothing ran yet: confirm, then repeat with the token (ADR-0039)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "interview-controller" ]
+      },
+      "get" : {
+        "operationId" : "getInterview",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "path",
+          "name" : "interviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InterviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "interview-controller" ]
+      },
+      "put" : {
+        "operationId" : "updateInterview",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "path",
+          "name" : "interviewId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateInterviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InterviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "interview-controller" ]
+      }
+    },
     "/api/applications/{id}/snapshots/{snapshotId}" : {
       "get" : {
         "operationId" : "getDescriptionSnapshot",
@@ -1700,6 +2013,34 @@
           }
         },
         "tags" : [ "contact-controller" ]
+      }
+    },
+    "/api/interviews/upcoming" : {
+      "get" : {
+        "operationId" : "listUpcomingInterviews",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/UpcomingInterviewListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "interview-controller" ]
       }
     },
     "/api/setup/assignments" : {
@@ -3566,6 +3907,120 @@
           }
         }
       },
+      "InterviewListResponse" : {
+        "required" : [ "interviews" ],
+        "type" : "object",
+        "properties" : {
+          "interviews" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/InterviewResponse"
+            }
+          }
+        }
+      },
+      "InterviewRequest" : {
+        "required" : [ "localStart", "participantIds", "timeZone", "type" ],
+        "type" : "object",
+        "properties" : {
+          "localStart" : {
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?$",
+            "type" : "string",
+            "description" : "A date and time on a clock, without zone or offset (ISO 8601)",
+            "example" : "2026-10-05T10:00:00"
+          },
+          "notes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "outcome" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "PASSED", "REJECTED", "WITHDRAWN", "CANCELLED" ]
+          },
+          "participantIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "preparationNotes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "timeZone" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "PHONE_SCREEN", "HR", "TECHNICAL", "CASE", "ON_SITE", "FINAL", "OTHER" ]
+          }
+        }
+      },
+      "InterviewResponse" : {
+        "required" : [ "applicationId", "createdAt", "id", "localStart", "participantIds", "startsAt", "timeZone", "type", "updatedAt", "version" ],
+        "type" : "object",
+        "properties" : {
+          "applicationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "localStart" : {
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?$",
+            "type" : "string",
+            "description" : "A date and time on a clock, without zone or offset (ISO 8601)",
+            "example" : "2026-10-05T10:00:00"
+          },
+          "notes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "outcome" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "PASSED", "REJECTED", "WITHDRAWN", "CANCELLED" ]
+          },
+          "participantIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "preparationNotes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "startsAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "timeZone" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "PHONE_SCREEN", "HR", "TECHNICAL", "CASE", "ON_SITE", "FINAL", "OTHER" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
       "JobLogEntryResponse" : {
         "required" : [ "attempts", "createdAt", "id", "name", "status", "updatedAt" ],
         "type" : "object",
@@ -4166,6 +4621,30 @@
           }
         }
       },
+      "UpcomingInterviewListResponse" : {
+        "required" : [ "interviews" ],
+        "type" : "object",
+        "properties" : {
+          "interviews" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/UpcomingInterviewResponse"
+            }
+          }
+        }
+      },
+      "UpcomingInterviewResponse" : {
+        "required" : [ "applicationTitle", "interview" ],
+        "type" : "object",
+        "properties" : {
+          "applicationTitle" : {
+            "type" : "string"
+          },
+          "interview" : {
+            "$ref" : "#/components/schemas/InterviewResponse"
+          }
+        }
+      },
       "UpdateApplicationRequest" : {
         "required" : [ "basedOnVersion", "details" ],
         "type" : "object",
@@ -4202,6 +4681,19 @@
           },
           "details" : {
             "$ref" : "#/components/schemas/ContactDetailsRequest"
+          }
+        }
+      },
+      "UpdateInterviewRequest" : {
+        "required" : [ "basedOnVersion", "details" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "details" : {
+            "$ref" : "#/components/schemas/InterviewRequest"
           }
         }
       },
