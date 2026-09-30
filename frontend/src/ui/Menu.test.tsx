@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MenuButton } from "./index";
@@ -53,6 +53,6 @@ describe("MenuButton", () => {
     await user.keyboard("{ArrowDown}{Enter}");
     expect(onAction).toHaveBeenCalledWith("OFFER");
     expect(screen.queryByRole("menu")).toBeNull();
-    expect(button).toHaveFocus();
+    await waitFor(() => expect(button).toHaveFocus());
   });
 });
