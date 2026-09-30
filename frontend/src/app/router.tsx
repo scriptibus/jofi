@@ -15,6 +15,9 @@ import { m } from "../paraglide/messages.js";
 import { FirstRunPage } from "./auth/FirstRunPage";
 import { LoginPage, type LoginReason } from "./auth/LoginPage";
 import { authState, refreshSession, safeRedirect, sessionQueryOptions } from "./auth/session";
+import { CompaniesPage, parseCompaniesSearch } from "./companies/CompaniesPage";
+import { CompanyDetailPage } from "./companies/CompanyDetailPage";
+import { EditCompanyPage, NewCompanyPage } from "./companies/CompanyEditPages";
 import type { NoticeStore } from "./notices";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -114,9 +117,34 @@ function placeholder<const TPath extends string>(
 
 const dashboardRoute = placeholder("/", m.dashboard_heading, m.dashboard_empty, m.dashboard_eyebrow);
 const applicationsRoute = placeholder("applications", m.nav_applications, m.applications_empty);
-const companiesRoute = placeholder("companies", m.nav_companies, m.companies_empty);
 const tasksRoute = placeholder("tasks", m.nav_tasks, m.tasks_empty);
 const chatRoute = placeholder("chat", m.nav_chat, m.chat_empty);
+
+// Companies (spec §5): list with search and filter, create, detail, edit.
+const companiesRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "companies",
+  validateSearch: parseCompaniesSearch,
+  component: CompaniesPage,
+});
+
+const newCompanyRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "companies/new",
+  component: NewCompanyPage,
+});
+
+const companyRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "companies/$companyId",
+  component: CompanyDetailPage,
+});
+
+const editCompanyRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "companies/$companyId/edit",
+  component: EditCompanyPage,
+});
 
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -145,6 +173,9 @@ export const routeTree = rootRoute.addChildren([
     dashboardRoute,
     applicationsRoute,
     companiesRoute,
+    newCompanyRoute,
+    companyRoute,
+    editCompanyRoute,
     tasksRoute,
     chatRoute,
     settingsRoute,

@@ -37,6 +37,8 @@
     "react": "19.3.0",
     "react-aria-components": "1.21.1",
     "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "rehype-sanitize": "6.0.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
