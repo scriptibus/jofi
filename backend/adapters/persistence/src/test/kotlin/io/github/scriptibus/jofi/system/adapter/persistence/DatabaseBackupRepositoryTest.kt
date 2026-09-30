@@ -125,7 +125,7 @@ class DatabaseBackupRepositoryTest {
 
     @Test
     fun `a backup of an older schema is migrated in a scratch database and then restores`() {
-        seedEveryTable()
+        seedEveryTable(olderSchema = true)
         val before = contents()
         val older = olderDump()
 
@@ -133,18 +133,18 @@ class DatabaseBackupRepositoryTest {
 
         migrated.schemaVersion shouldBe (repository.runningSchema() as SystemStoreResult.Success).value.version
         migrated.tables.map { it.name } shouldBe BackupTables.exported.map { it.name }
-        migrated.tables.single { it.name == "company" }.rows shouldBe 0
+        LATER_TABLES.forEach { name -> migrated.tables.single { it.name == name }.rows shouldBe 0 }
         dsl.fetchValues("select datname from pg_database").none { it.toString().startsWith("jofi_restore_") } shouldBe
             true
         transaction.execute { repository.replaceAll(staged(migrated), confirmed(staged(migrated))) } shouldBe
             DatabaseRestoreResult.Restored
-        contents() - "company" shouldBe before - "company"
-        dsl.fetchCount(DSL.table("company")) shouldBe 0
+        contents() - LATER_TABLES shouldBe before - LATER_TABLES
+        LATER_TABLES.forEach { dsl.fetchCount(DSL.table(it)) shouldBe 0 }
     }
 
     @Test
     fun `an older backup whose dumps do not fit its schema is refused, and nothing else changes`() {
-        seedEveryTable()
+        seedEveryTable(olderSchema = true)
         val before = contents()
         val older = olderDump()
         val claimingCompany = older.copy(tables = older.tables + TableDump("company", 0))
@@ -161,8 +161,12 @@ class DatabaseBackupRepositoryTest {
     // A dump as the schema before the company table (#130) made it: the same tables without `company`.
     private fun olderDump(): DatabaseDump {
         val dump = (repository.dump(directory) as SystemStoreResult.Success).value
-        Files.delete(directory.resolve("company.csv"))
-        return DatabaseDump(SchemaVersion(OLDER_SCHEMA), dump.tables.filterNot { it.name == "company" }, dump.takenAt)
+        LATER_TABLES.forEach { Files.delete(directory.resolve("$it.csv")) }
+        return DatabaseDump(
+            SchemaVersion(OLDER_SCHEMA),
+            dump.tables.filterNot { it.name in LATER_TABLES },
+            dump.takenAt,
+        )
     }
 
     @Test
@@ -256,10 +260,12 @@ class DatabaseBackupRepositoryTest {
         TestConfirmations.confirm(BackupRestore.action(backup))
 
     // Values that break naive dumps: quotes, commas, line breaks, NULL next to text, bytes, arrays, JSON, µs.
-    private fun seedEveryTable() {
+    // [olderSchema]: only values the schema before #130 accepts (e.g. no cost without an amount).
+    private fun seedEveryTable(olderSchema: Boolean = false) {
         dsl.execute(CHANGELOG_INSERT, "USER", null, "Said \"hi\", then\nleft; ü€", null)
         dsl.execute(CHANGELOG_INSERT, "SCANNER", "rss", "found, \"quoted\"", "why,\r\nnot")
         seedSetup()
+        if (!olderSchema) seedUnknownCost()
         dsl.execute(
             "insert into user_account (account_id, password_hash, created_at, password_changed_at) " +
                 "values (?, '\$argon2id\$v=19\$m=19456,t=2,p=1\$c2FsdA\$aGFzaA', ?::timestamptz, ?::timestamptz)",
@@ -288,9 +294,58 @@ class DatabaseBackupRepositoryTest {
                 "preference_reason, version, created_at, updated_at) values (?, 'ACME, \"Inc.\"', " +
                 "'https://acme.example', 'SMALL', '{\"Berlin, Mitte\",Köln}', 'Notes\nwith lines', 'FAVOURITE', " +
                 "'Nice', 3, ?::timestamptz, ?::timestamptz)",
-            UUID.randomUUID(),
+            COMPANY,
             AT,
             AT,
+        )
+        seedContacts()
+    }
+
+    // A quoted email local part, CR/LF in notes, a non-ASCII phone number, several channels, NULL labels.
+    private fun seedContacts() {
+        val contact = UUID.fromString("00000000-0000-0000-0000-0000000000c1")
+        dsl.execute(
+            "insert into contact (id, company_id, name, role, relationship_notes, version, created_at, updated_at) " +
+                "values (?, ?, 'Jördis \"JJ\" Müller-Lüdenscheidt', 'Head of, well, \"people\"', " +
+                "'Met at the meetup,\r\nsaid \"call me\";\nfollow up in Q4', 2, ?::timestamptz, ?::timestamptz)",
+            contact,
+            COMPANY,
+            AT,
+            AT,
+        )
+        dsl.execute(
+            "insert into contact (id, company_id, name, version, created_at, updated_at) " +
+                "values (?, null, 'Without company', 0, ?::timestamptz, ?::timestamptz)",
+            UUID.fromString("00000000-0000-0000-0000-0000000000c2"),
+            AT,
+            AT,
+        )
+        seedChannels(contact)
+    }
+
+    private fun seedChannels(contact: UUID) {
+        listOf(
+            Triple("EMAIL", "\"jj, müller\"@acme.example", "work"),
+            Triple("PHONE", "+49 (0) 30 – 123 456 ☎", null),
+            Triple("WEB", "https://acme.example/team?who=jj", "profile, public"),
+        ).forEachIndexed { position, (kind, value, label) ->
+            dsl.execute(
+                "insert into contact_channel (contact_id, position, kind, value, label) values (?, ?, ?, ?, ?)",
+                contact,
+                position.toShort(),
+                kind,
+                value,
+                label,
+            )
+        }
+    }
+
+    private fun seedUnknownCost() {
+        dsl.execute(
+            "insert into ai_cost_entry (task, provider_id, provider_kind, model, input_tokens, output_tokens, " +
+                "cost_micros, currency, occurred_at) " +
+                "values ('EMBEDDING', ?, 'OPENAI', 'gpt', 5, 0, null, 'USD', now())",
+            UUID.fromString("00000000-0000-0000-0000-000000000002"),
         )
     }
 
@@ -367,6 +422,10 @@ class DatabaseBackupRepositoryTest {
     private companion object {
         const val AT = "2026-09-30 10:00:00.123456+00"
         const val OLDER_SCHEMA = "20260930064000"
+
+        /** Tables the schema before the company table (#130) did not have yet. */
+        val LATER_TABLES = setOf("company", "contact", "contact_channel")
+        val COMPANY: UUID = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
         const val CHANGELOG_INSERT =
             "insert into changelog_entry (entity_type, entity_id, actor_kind, actor_name, occurred_at, description, " +
                 "field_changes, reason) values ('thing', '1', ?, ?, now(), ?, " +

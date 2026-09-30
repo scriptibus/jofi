@@ -828,6 +828,141 @@
         "tags" : [ "contact-controller" ]
       }
     },
+    "/api/system/backup/exports" : {
+      "post" : {
+        "operationId" : "exportBackup",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BackupPasswordRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/zip" : {
+                "schema" : {
+                  "type" : "string",
+                  "format" : "binary"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "backup-controller" ]
+      }
+    },
+    "/api/system/backup/restores" : {
+      "post" : {
+        "operationId" : "stageBackupRestore",
+        "requestBody" : {
+          "content" : {
+            "application/zip" : {
+              "schema" : {
+                "type" : "string",
+                "format" : "binary"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/StagedBackupResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "backup-controller" ]
+      }
+    },
+    "/api/system/backup/restores/{id}" : {
+      "post" : {
+        "operationId" : "restoreBackup",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Jofi-Confirmation",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/BackupPasswordRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "428" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConfirmationRequiredProblem"
+                }
+              }
+            },
+            "description" : "Nothing ran yet: confirm, then repeat with the token (ADR-0039)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "backup-controller" ]
+      }
+    },
     "/api/system/info" : {
       "get" : {
         "operationId" : "getSystemInfo",
@@ -926,6 +1061,15 @@
           },
           "setupTokenRequired" : {
             "type" : "boolean"
+          }
+        }
+      },
+      "BackupPasswordRequest" : {
+        "required" : [ "password" ],
+        "type" : "object",
+        "properties" : {
+          "password" : {
+            "type" : "string"
           }
         }
       },
@@ -1377,6 +1521,41 @@
             "type" : "string",
             "description" : "Identifies the problem type",
             "format" : "uri"
+          }
+        }
+      },
+      "StagedBackupResponse" : {
+        "required" : [ "appVersion", "createdAt", "files", "id", "includesKeyset", "rows", "schemaVersion" ],
+        "type" : "object",
+        "properties" : {
+          "appVersion" : {
+            "type" : "string"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "files" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "includesKeyset" : {
+            "type" : "boolean"
+          },
+          "migratedFrom" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "rows" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "schemaVersion" : {
+            "type" : "string"
           }
         }
       },
