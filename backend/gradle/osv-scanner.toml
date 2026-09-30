@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OSV-Scanner overrides for gradle/verification-metadata.xml only (this file applies to its own directory).
+# The checksum file lists every artifact Gradle touched, including build-tool internals that never reach
+# the application. Each entry needs a reason and an expiry; the lockfiles are scanned without overrides.
+# Docs: https://google.github.io/osv-scanner/configuration/
+
+[[PackageOverrides]]
+name = "ch.qos.logback:logback-core"
+version = "1.3.16"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Build-time only: runtime classpath of the ktlint/Spotless tooling. The app uses logback 1.5.x (see lockfiles)."
+
+[[PackageOverrides]]
+name = "org.jetbrains.kotlin:kotlin-gradle-plugin"
+version = "2.4.10"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Build-time only: pulled by detekt 2.0.0-alpha.6 (ADR-0007). The build uses the Kotlin Gradle plugin 2.4.20."
+
+[[PackageOverrides]]
+name = "tools.jackson.core:jackson-databind"
+version = "3.1.5"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Only the .module metadata is listed (read during resolution before the security constraint raises it to 3.1.7). No 3.1.5 jar is used."
