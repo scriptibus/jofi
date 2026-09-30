@@ -26,6 +26,9 @@ flyway = "13.7.0"
 springdoc = "3.1.1"
 # Latest stable; 4.x is still beta.
 wiremock = "3.13.2"
+# Secret encryption (adapters/crypto, ADR-0017) and the argon2id implementation behind Spring Security's encoder.
+tink = "1.23.0"
+bouncycastle = "1.86"
 
 # Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
 # Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
@@ -67,6 +70,15 @@ flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
+
+# Authentication and secrets (ADR-0017). Spring Security and Spring Session versions come from the Boot BOM.
+spring-boot-starter = { module = "org.springframework.boot:spring-boot-starter" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-security-test = { module = "org.springframework.boot:spring-boot-starter-security-test" }
+spring-boot-starter-session-jdbc = { module = "org.springframework.boot:spring-boot-starter-session-jdbc" }
+spring-security-crypto = { module = "org.springframework.security:spring-security-crypto" }
+tink = { module = "com.google.crypto.tink:tink", version.ref = "tink" }
+bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 
 # API contract (adapters/web tests): generates the committed OpenAPI spec, see adapters/web/AGENTS.md.
 springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }

@@ -25,12 +25,36 @@ async function readProblem(response: Response): Promise<ProblemDetail> {
   return typeof body === "object" && body !== null ? (body as ProblemDetail) : { status: response.status };
 }
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
+
+/** The CSRF token the backend keeps in the `XSRF-TOKEN` cookie (Spring Security `csrf.spa()`). */
+function csrfToken(): string | undefined {
+  const cookie = document.cookie.split("; ").find((entry) => entry.startsWith("XSRF-TOKEN="));
+  return cookie === undefined ? undefined : decodeURIComponent(cookie.slice("XSRF-TOKEN=".length));
+}
+
+/**
+ * Echoes the CSRF cookie in the `X-XSRF-TOKEN` header of every unsafe request, as the backend
+ * requires (ADR-0035). `GET /api/auth/session` hands out the cookie before the first login.
+ */
+function withCsrf(init: RequestInit | undefined): RequestInit | undefined {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const token = csrfToken();
+  if (SAFE_METHODS.has(method) || token === undefined) {
+    return init;
+  }
+  const headers = new Headers(init?.headers);
+  headers.set("X-XSRF-TOKEN", token);
+  return { ...init, headers };
+}
+
 /**
  * The fetch every generated operation goes through (orval `mutator`). Paths are relative to the
- * app's origin: the backend serves the SPA and the API from the same host.
+ * app's origin: the backend serves the SPA and the API from the same host, so the session cookie
+ * travels with every request.
  */
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(new URL(path, window.location.origin), init);
+  const response = await fetch(new URL(path, window.location.origin), withCsrf(init));
   if (!response.ok) {
     throw new ApiProblemError(response.status, await readProblem(response));
   }

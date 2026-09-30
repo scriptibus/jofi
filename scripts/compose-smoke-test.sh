@@ -56,9 +56,14 @@ until app_id="$(container_id app)" && [[ -n "${app_id}" ]] \
 done
 pass "app container is healthy"
 
+status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${base_url}/api/auth/session")"
+[[ "${status}" == "200" ]] || fail "GET /api/auth/session returned ${status}, expected 200"
+pass "GET ${base_url}/api/auth/session returns 200"
+
+# Every other API call needs a login session (ADR-0035).
 status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${base_url}/api/system/info")"
-[[ "${status}" == "200" ]] || fail "GET /api/system/info returned ${status}, expected 200"
-pass "GET ${base_url}/api/system/info returns 200"
+[[ "${status}" == "401" ]] || fail "GET /api/system/info without a session returned ${status}, expected 401"
+pass "GET ${base_url}/api/system/info without a session returns 401"
 
 status="$(curl --silent --output /dev/null --write-out '%{http_code}' "${base_url}/")"
 [[ "${status}" == "200" ]] || fail "GET / (frontend) returned ${status}, expected 200"

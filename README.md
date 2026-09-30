@@ -26,13 +26,16 @@ cp .env.example .env    # set JOFI_DB_PASSWORD before the first start
 docker compose up -d    # or: podman-compose up -d (the first run builds the image)
 ```
 
-Then open <http://127.0.0.1:8080>. The stack has three containers: `app` (web UI and API), `worker`
+Then open <http://127.0.0.1:8080> and choose the login password (first run; at least 15 characters). The stack has three containers: `app` (web UI and API), `worker`
 (background jobs, same image) and `db` (PostgreSQL with pgvector). Data lives in the named volumes `jofi-db`
 and `jofi-data`; `docker compose down` keeps them, `docker compose down --volumes` deletes them.
 
 **Localhost only by default.** Jofi is published on `127.0.0.1` and can't be reached from other devices.
-To expose it on your network, set `JOFI_BIND_ADDRESS=0.0.0.0` (or one interface's address) in `.env`, and
-only once login is available. For phone access prefer [Tailscale](https://tailscale.com/) over opening ports.
+To expose it on your network, set `JOFI_BIND_ADDRESS=0.0.0.0` (or one interface's address) in `.env`.
+Every API call needs a login. While no password is set, an exposed Jofi asks for a one-time setup token
+at first run: `docker compose exec app cat /data/secrets/setup-token`. For phone access prefer
+[Tailscale](https://tailscale.com/) over opening ports, so the login travels over HTTPS.
+API keys are encrypted with a master key generated into the `jofi-data` volume: back up both volumes.
 The database is never published on the host.
 
 The containers run as non-root users on read-only root filesystems. `scripts/compose-smoke-test.sh`

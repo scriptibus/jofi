@@ -16,7 +16,7 @@ Spec: `docs/spec/04-tech-stack-proposal.md` (sections 3, 4.1, 4.2, 4.5, 4.6, 4.6
 | Fix formatting and SPDX headers | `./gradlew spotlessApply` |
 | One module's quality loop | `./gradlew :application:check` |
 | Architecture rules only | `./gradlew :architecture-tests:test` |
-| Run the app against a throwaway PostgreSQL (http://localhost:8080/api/system/info) | `./gradlew :bootstrap:bootTestRun` |
+| Run the app against a throwaway PostgreSQL (http://localhost:8080/api/auth/session; first run, then log in) | `./gradlew :bootstrap:bootTestRun` |
 | Run the app against your PostgreSQL (`JOFI_DB_URL`, `JOFI_DB_USERNAME`, `JOFI_DB_PASSWORD`) | `./gradlew :bootstrap:bootRun` |
 | Regenerate jOOQ code from the migrations | `./gradlew :adapters:persistence:generateJooq` |
 | Regenerate the API contract `../api/openapi.json` after a controller/DTO change (commit it) | `./gradlew :adapters:web:updateOpenApiSpec` |
@@ -39,7 +39,7 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
-- `adapters/<kind>`: framework code (web, persistence, net, later ai, ...); depends on `application`.
+- `adapters/<kind>`: framework code (web, persistence, net, crypto, later ai, ...); depends on `application`.
   Adapters never depend on each other (one exemption: persistence adapters of every context use
   the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
@@ -80,7 +80,9 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | the AI gateway (`setup.adapter.ai`, module `adapters/ai`, #20) |
 | `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (ADR-0034) |
 | `JobSchedulerPort` | background jobs (ids-only arguments) | `adapters/jobs` (#17) |
-| `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | Tink, #16 |
+| `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | `SecretRepository` (`adapters/persistence`) over `SecretCipherPort` (Tink, `adapters/crypto`), ADR-0035 |
+| `SecretCipherPort` | AES-GCM under the master keyset; **only secret stores use it** | `adapters/crypto` |
+| `TransactionPort` | one transaction around a mutation and its changelog entry; commit only accepted results | `adapters/persistence` |
 
 Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for that reason; the
 `setup` context owns what it configures around it.
@@ -131,7 +133,8 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
 - **A table or migration**: see `adapters/persistence/AGENTS.md` (timestamp versions, one open
   migration PR at a time, jOOQ codegen, export/import coverage, changelog on every mutation).
 - **A mutation**: append a `ChangelogEntry` with the acting `Actor` through `ChangelogPort` in the
-  same use case (spec §13). The changelog is append-only; the audit lens checks the actor.
+  same use case (spec §13), inside `TransactionPort.inTransaction` so both are stored or neither.
+  The changelog is append-only; the audit lens checks the actor.
 - **A controller**: `adapters/web/.../<context>/adapter/web/<Name>Controller.kt`; inject use cases
   only, map domain types to DTOs (`*Response`/`*Request`) in the same package. Test with a
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).
@@ -156,7 +159,8 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
   errors into `application/problem+json`; `shared.adapter.web.UnexpectedErrorAdvice` (lowest
   precedence) answers everything else: an `ErrorResponse` keeps its problem, an exception annotated
   with `@ResponseStatus` keeps that status, any other exception is a 500 without internal details.
-  (When Spring Security arrives, #16, the advice must rethrow its access/authentication exceptions.)
+  The advice rethrows Spring Security's access/authentication exceptions; the security filter chain
+  answers them (and every request without a session) with 401/403 problem details (`SecurityProblemHandler`).
   The use case returns a sealed result; the controller maps its failure cases to a `ProblemDetail`
   and hands it to Spring as an `ErrorResponse`, so the success return type (and its schema in the contract) stays typed:
   `is NotFound -> throw ErrorResponseException(HttpStatus.NOT_FOUND, ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "..."), null)`.
@@ -221,5 +225,13 @@ with `jofi.postgresImage`. Build and smoke-test the stack from the repository ro
 - **Jackson 2 on the `adapters/web` test classpath**: springdoc 3 (via swagger-core 2.2) still reads
   models with Jackson 2 and needs `com.fasterxml.jackson.module:jackson-module-kotlin` to honour
   Kotlin nullability. Test-only; the app uses Jackson 3.
+- **licensee `allowUrl("https://www.bouncycastle.org/licence.html")`**: Bouncy Castle (`bcprov-jdk18on`,
+  argon2id for Spring Security's encoder) names its licence by URL; the text is the MIT license.
+- **licensee `allowDependency` for Spring Session 4.1.1** (`spring-session-core`, `-jdbc`): the poms name
+  a "Broadcom Foundation License" by a release-tooling bug (spring-session#3910); the jars and the
+  repository are Apache-2.0. Pinned to 4.1.1 so the next version is checked again.
+- **`sun.misc.Unsafe` warning from protobuf** (via Tink): JDK 25 prints a one-time "terminally
+  deprecated method" warning when protobuf first runs. It is a runtime notice from a dependency,
+  not a deprecated API we call; it goes away when protobuf stops using `Unsafe`.
 - **licensee `allowDependency` for `org.reactivestreams:reactive-streams:1.0.4`** (via jOOQ ->
   `r2dbc-spi`): MIT-0, which the frontend already accepts as strictly more permissive than MIT.

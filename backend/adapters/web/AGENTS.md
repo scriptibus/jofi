@@ -22,3 +22,17 @@ Rules:
   `api/openapi.json`; `OpenApiSpecTest` fails `check` until you do. `OpenApiSpecApplication`
   (test sources) picks up every `@RestController` and `@RestControllerAdvice` under
   `io.github.scriptibus.jofi` and stubs their use cases, so new controllers need no extra wiring.
+
+## Authentication (ADR-0035)
+
+- `system.adapter.web.AuthController`: `GET /api/auth/session`, `POST /api/auth/first-run`,
+  `POST /api/auth/login`, `POST /api/auth/logout`, `PUT /api/auth/password`. Only the first three are
+  open without a session (`SecurityConfiguration.PUBLIC_API` in bootstrap; `AuthSecurityTest` walks
+  every mapping, so a new endpoint is protected unless you add it there on purpose).
+- `SessionSecurity` turns a successful password check into a session (new session id, new CSRF
+  token, stored security context) and defines the CSRF cookie repository the filter chain shares.
+- `SecurityProblemHandler` answers the filter chain's 401/403 as problem details; `AuthProblems`
+  maps the auth use cases' failures (types `urn:jofi:problem:system:*`, `Retry-After` on 429).
+- Request DTOs that carry passwords or tokens override `toString()` so debug logs stay clean.
+- Slice tests run without the filter chain (`@AutoConfigureMockMvc(addFilters = false)`); the
+  security behaviour is tested end to end in bootstrap.

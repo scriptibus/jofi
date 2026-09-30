@@ -7,7 +7,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import type { ReactNode } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { ApiProblemError } from "./fetcher";
+import { ApiProblemError, apiFetch } from "./fetcher";
 import { getGetSystemInfoUrl, type SystemInfoResponse, useGetSystemInfo } from "./generated/jofi";
 import { GetSystemInfoResponse } from "./generated/jofi.zod";
 
@@ -61,6 +61,40 @@ describe("generated API client", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.problem).toEqual({ status: 502 });
     expect(result.current.error?.message).toBe("HTTP 502");
+  });
+
+  it("echoes the CSRF cookie in a header on unsafe requests only", async () => {
+    const seen: Record<string, string | null> = {};
+    const url = new URL("/api/test/csrf", window.location.origin).href;
+    server.use(
+      http.all(url, ({ request }) => {
+        seen[request.method] = request.headers.get("X-XSRF-TOKEN");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    document.cookie = "XSRF-TOKEN=abc%2F123; path=/";
+
+    await apiFetch("/api/test/csrf", { method: "POST" });
+    await apiFetch("/api/test/csrf", { method: "put", headers: { "Content-Type": "application/json" } });
+    await apiFetch("/api/test/csrf");
+
+    expect(seen).toEqual({ POST: "abc/123", PUT: "abc/123", GET: null });
+    document.cookie = "XSRF-TOKEN=; max-age=0; path=/";
+  });
+
+  it("sends no CSRF header while there is no cookie", async () => {
+    let header: string | null = "unset";
+    const url = new URL("/api/test/csrf", window.location.origin).href;
+    server.use(
+      http.post(url, ({ request }) => {
+        header = request.headers.get("X-XSRF-TOKEN");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    await apiFetch("/api/test/csrf", { method: "POST" });
+
+    expect(header).toBeNull();
   });
 
   it("the Zod schema rejects a response that breaks the contract", () => {

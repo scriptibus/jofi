@@ -60,8 +60,16 @@ The generator lives in the `codegen` source set and has its own locked classpath
 
 ## Secrets and `setup` tables
 
-- `secret`: Tink AES-GCM ciphertext per `SecretId` (#16 implements `SecretStorePort`). Never store
+- `secret`: Tink AES-GCM ciphertext per `SecretId`, written by `SecretRepository` (`SecretStorePort`)
+  through `SecretCipherPort`; the key is the master keyset in the data volume (ADR-0035). Never store
   or log a key in clear text anywhere else; provider configs reference a secret id.
+- `user_account` (#16): the single user, at most one row, argon2id hash only (`UserAccountRepository`).
+  Covered by export/import.
+- `spring_session`, `spring_session_attributes`: login sessions, managed by Spring Session JDBC (schema
+  copied from spring-session-jdbc 4.1.1). Ephemeral bearer credentials: **excluded from export/import**
+  (#26), a restore starts logged out. Never log their ids.
+- `TransactionAdapter` (`TransactionPort`): Spring's JDBC transaction around several repository calls;
+  jOOQ joins it.
 - `ai_provider_config` (base URL without credentials, query or fragment; one secret per provider),
   `ai_model_capability` (per provider + model, deleted with the provider), `ai_model_assignment`
   (one row per `AiTask`: provider + model only), `ai_cost_entry` (append-only by trigger, integer

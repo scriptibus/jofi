@@ -4,6 +4,10 @@
 spring:
   application:
     name: jofi
+  autoconfigure:
+    # Jofi has its own login (AuthController); Boot's fallback in-memory user would log a generated
+    # password at startup.
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   # Every error response is RFC 9457 problem details (application/problem+json), the one error
   # schema of the API contract (api/openapi.json, ADR-0016).
   mvc:
@@ -20,6 +24,27 @@ spring:
     password: ${JOFI_DB_PASSWORD}
   jooq:
     sql-dialect: postgres
+  # Login sessions live in PostgreSQL (tables from the Flyway migration), so they survive restarts.
+  session:
+    timeout: ${JOFI_SESSION_TIMEOUT:7d}
+    jdbc:
+      initialize-schema: never
+
+server:
+  # Localhost only by default (ADR-0029). The container image binds to all interfaces and relies on
+  # the compose port mapping, which is localhost-only unless JOFI_BIND_ADDRESS says otherwise.
+  address: ${JOFI_SERVER_ADDRESS:127.0.0.1}
+  # Behind a TLS-terminating proxy (Caddy, Tailscale serve) the request counts as HTTPS, so session
+  # and CSRF cookies get the Secure flag. Tomcat only trusts these headers from private addresses.
+  # The session cookie flags are set in SecurityConfiguration (HttpOnly, SameSite=Lax, Secure on HTTPS).
+  forward-headers-strategy: native
+
+jofi:
+  # The data volume: master keyset and setup token (owner-only files), later knowledge and documents.
+  data-dir: ${JOFI_DATA_DIR:data}
+  auth:
+    # Where Jofi is reachable from. Not loopback = exposed: first run then needs the setup token.
+    bind-address: ${JOFI_BIND_ADDRESS:${server.address}}
 
 # Apache HttpClient logs request lines, headers and bodies at DEBUG; those can hold API keys and
 # personal data (threat model T4), so they stay off even when the root level is lowered.

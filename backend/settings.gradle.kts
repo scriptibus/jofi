@@ -40,6 +40,7 @@ include(
     "adapters:web",
     "adapters:persistence",
     "adapters:net",
+    "adapters:crypto",
     "bootstrap",
     "architecture-tests",
 )

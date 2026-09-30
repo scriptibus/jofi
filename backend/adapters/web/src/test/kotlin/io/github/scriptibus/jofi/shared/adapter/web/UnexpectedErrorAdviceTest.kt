@@ -3,11 +3,17 @@
 
 package io.github.scriptibus.jofi.shared.adapter.web
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeSameInstanceAs
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.AccessDeniedException
+import org.springframework.security.authentication.InsufficientAuthenticationException
+import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.server.ResponseStatusException
 
@@ -57,5 +63,32 @@ class UnexpectedErrorAdviceTest {
 
         response.statusCode shouldBe HttpStatus.GONE
         response.body?.detail.shouldBeNull()
+    }
+
+    @Test
+    fun `access denied is rethrown so the security filter chain answers 403`() {
+        val denied = AccessDeniedException("denied")
+
+        shouldThrow<AccessDeniedException> { advice.handleUnexpected(denied) } shouldBeSameInstanceAs denied
+    }
+
+    @Test
+    fun `an authentication failure is rethrown so the security filter chain answers 401`() {
+        val unauthenticated = InsufficientAuthenticationException("log in")
+
+        shouldThrow<InsufficientAuthenticationException> {
+            advice.handleUnexpected(
+                unauthenticated,
+            )
+        } shouldBeSameInstanceAs
+            unauthenticated
+    }
+
+    @Test
+    fun `an ErrorResponse keeps its headers`() {
+        val exception = ErrorResponseException(HttpStatus.TOO_MANY_REQUESTS)
+        exception.headers.set(HttpHeaders.RETRY_AFTER, "5")
+
+        advice.handleUnexpected(exception).headers.getFirst(HttpHeaders.RETRY_AFTER) shouldBe "5"
     }
 }

@@ -81,6 +81,13 @@ RUN java -XX:AOTCacheOutput=app.aot \
       -DJOFI_DB_PASSWORD=aot-training-placeholder \
       -jar app.jar
 
+# Inside the container the server listens on all interfaces; how far it is reachable is decided by the
+# published port. Without a compose file saying otherwise, assume it is exposed (first run then needs
+# the setup token from /data). The data volume holds the master keyset (ADR-0035).
+ENV JOFI_DATA_DIR=/data \
+    JOFI_SERVER_ADDRESS=0.0.0.0 \
+    JOFI_BIND_ADDRESS=0.0.0.0
+
 VOLUME ["/data"]
 # Numeric so the non-root check works without resolving names (jofi:jofi).
 USER 10001:10001
