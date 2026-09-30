@@ -56,6 +56,23 @@ function NavItemBase({ className, variant = "row", ...props }: NavItemBaseProps)
   );
 }
 
+/** A compact link to a record, e.g. what a task is about: a bordered chip with an icon and a name. */
+function ChipLinkBase({ className, ...props }: AriaLinkProps) {
+  return (
+    <AriaLink
+      {...props}
+      className={joinClasses(
+        "inline-flex w-fit max-w-full items-center gap-1.5 rounded border border-line bg-sunken px-2 py-0.5 " +
+          `font-medium text-body text-fg underline-offset-4 data-hovered:underline ${focusRing}`,
+        className,
+      )}
+    />
+  );
+}
+
+/** A router link styled as a chip. */
+export const ChipLink = createLink(ChipLinkBase);
+
 /** A router link styled as text (typed `to`, preloading, client-side navigation). */
 export const TextLink = createLink(TextLinkBase);
 

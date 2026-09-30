@@ -91,7 +91,8 @@ the application does not have is 404 `interview-not-found`.
 - A participant that is no contact (`interview_participant_contact_fk`) is `400` on `participantIds` (`NOT_FOUND`).
 - Changelog entries (entity `interview`) carry values only for `type`, `startsAt` (the instant), `timeZone` and
   `outcome`; changed participants, preparation notes and notes are named in the description ("also changed: …"),
-  never recorded. The log and delete entries also name the `application` id, so the timeline (#92) finds them.
+  never recorded. The log and delete entries also name the `application` id, so a deleted interview's entries still
+  say whose it was.
 - The delete's confirmation effect is `ConfirmationEffect("interview", "<TYPE> <localStart> <zone>")`, e.g.
   `PHONE_SCREEN 2026-10-06T14:30 Europe/Berlin`, read in the delete's transaction; a reschedule between the steps
   voids the token. The application delete's effect counts the interviews it cascades to (`interviews`).

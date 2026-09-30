@@ -67,7 +67,7 @@ internal fun describeInterview(
     return if (named.isEmpty()) action else "$action; also changed: ${named.joinToString()}"
 }
 
-/** The application an interview belongs to, as its log and delete entries name it (the timeline finds them so). */
+/** The application an interview belongs to, which its log and delete entries name (a deleted one keeps that link). */
 internal fun applicationChange(
     before: ApplicationId?,
     after: ApplicationId?,

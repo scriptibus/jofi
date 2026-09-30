@@ -25,6 +25,15 @@ class SourceConventionsTest {
             .assertFalse { file -> file.imports.any { it.name.startsWith("${JofiPackages.BASE}.applications.") } }
     }
 
+    /** ADR-0041, on the sources: tasks depend on applications (its `spi`), never the reverse. */
+    @Test
+    fun `the applications context imports nothing of the tasks context`() {
+        production
+            .files
+            .filter { it.packagee?.name?.startsWith("${JofiPackages.BASE}.applications") == true }
+            .assertFalse { file -> file.imports.any { it.name.startsWith("${JofiPackages.BASE}.tasks.") } }
+    }
+
     @Test
     fun `classes in application are use cases`() {
         jofiClasses

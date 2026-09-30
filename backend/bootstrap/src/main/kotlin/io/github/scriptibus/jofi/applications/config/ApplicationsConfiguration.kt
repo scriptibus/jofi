@@ -7,14 +7,17 @@ import io.github.scriptibus.jofi.applications.application.ChangeApplicationStatu
 import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
+import io.github.scriptibus.jofi.applications.application.GetApplicationTimelineUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.LinkApplicationContactsUseCase
 import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.ApplicationTimelineRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
@@ -103,6 +106,13 @@ class ApplicationsConfiguration {
     fun getApplicationStatusHistoryUseCase(
         applications: ApplicationRepositoryPort,
     ): GetApplicationStatusHistoryUseCase = GetApplicationStatusHistoryUseCase(applications)
+
+    /** The timeline (#87); the tasks context answers [LinkedTasksPort] (named interface `spi`, ADR-0041). */
+    @Bean
+    fun getApplicationTimelineUseCase(
+        timeline: ApplicationTimelineRepositoryPort,
+        tasks: LinkedTasksPort,
+    ): GetApplicationTimelineUseCase = GetApplicationTimelineUseCase(timeline, tasks)
 
     @Bean
     fun applicationAudit(
