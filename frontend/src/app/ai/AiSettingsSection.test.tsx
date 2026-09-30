@@ -122,6 +122,18 @@ describe("Settings > AI: providers", () => {
   });
 });
 
+describe("Settings > AI: task models", () => {
+  it("keeps the first failed suggestion on screen and stops there", async () => {
+    const { user, setup } = start({
+      models: new Map([[compatible.id, [model("big-model", ["TOOL_USE", "STREAMING"], 200_000)]]]),
+      assignFails: ["SCANNER_PRE_SCORING"],
+    });
+    await user.click(await screen.findByRole("button", { name: /Use suggested models for open tasks/ }));
+    expect(await screen.findByText(/The AI setup cannot be saved right now/)).toBeVisible();
+    expect(setup.assignments.size).toBe(0);
+  });
+});
+
 describe("Settings > AI: budget", () => {
   it("shows this month's spending against the cap", async () => {
     start({ capMicros: 20_000_000, spentMicros: 5_125_000 });

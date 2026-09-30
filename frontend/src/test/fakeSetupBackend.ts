@@ -109,6 +109,8 @@ export interface FakeSetupState {
   listed: ModelResponse[];
   /** A connection test answers 502 with this setup problem code. */
   refreshFails?: string;
+  /** Assigning these tasks answers 503 `storage-unavailable`. */
+  assignFails?: TaskAssignmentResponseTask[];
   assignments: Map<TaskAssignmentResponseTask, { providerId: string; model: string }>;
   capMicros: number | null;
   spentMicros: number;
@@ -255,6 +257,7 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
     http.get(`${origin()}/api/setup/assignments`, () => json(TASKS.map(assignment))),
     http.put(`${origin()}/api/setup/assignments/:task`, async ({ request, params }) => {
       const task = params.task as TaskAssignmentResponseTask;
+      if (state.assignFails?.includes(task)) return problem(503, setup("storage-unavailable"));
       state.assignments.set(task, (await request.json()) as { providerId: string; model: string });
       return json(assignment(task));
     }),

@@ -60,23 +60,38 @@ export function TaskAssignments() {
   const assign = useAssignTaskModel({ mutation: { meta: { errorHandledLocally: true } } });
   const byTask = new Map((assignments.data ?? []).map((entry) => [entry.task, entry]));
 
-  const choose = async (task: AiTask, providerId: string, model: string) => {
-    setFailure(null);
+  /** Assigns one task; the failure, if any, for the caller to show. */
+  const assignOne = async (task: AiTask, providerId: string, model: string) => {
     try {
       await assign.mutateAsync({ task, data: { providerId, model } });
+      return null;
     } catch (error) {
-      setFailure(describeSetupError(error));
+      return describeSetupError(error);
     }
-    await queryClient.invalidateQueries({ queryKey: getListTaskAssignmentsQueryKey() });
+  };
+  const refresh = () => queryClient.invalidateQueries({ queryKey: getListTaskAssignmentsQueryKey() });
+
+  const choose = async (task: AiTask, providerId: string, model: string) => {
+    setFailure(null);
+    setFailure(await assignOne(task, providerId, model));
+    await refresh();
   };
 
   const suggestions = (assignments.data ?? []).flatMap((entry) => {
     const suggestion = entry.model ? undefined : suggestModel(entry.task, entry.needs, candidates);
     return suggestion ? [{ task: entry.task, suggestion }] : [];
   });
+  // Stops at the first failure and keeps it on screen: a later success must not hide it.
   const applySuggestions = async () => {
-    for (const { task, suggestion } of suggestions)
-      await choose(task, suggestion.providerId, suggestion.model.model);
+    setFailure(null);
+    for (const { task, suggestion } of suggestions) {
+      const failed = await assignOne(task, suggestion.providerId, suggestion.model.model);
+      if (failed) {
+        setFailure(failed);
+        break;
+      }
+    }
+    await refresh();
   };
 
   if (groups.length === 0) return <p className="text-muted">{m.ai_tasks_no_models()}</p>;
