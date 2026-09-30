@@ -198,6 +198,9 @@
   --text-lede--line-height: 1.5;
   --text-body: 0.9375rem;
   --text-body--line-height: 1.5;
+  /* Labels of the phone tab bar: small, without the eyebrow's wide tracking. */
+  --text-tab: 0.75rem;
+  --text-tab--line-height: 1.3;
   --text-eyebrow: 0.71875rem;
   --text-eyebrow--line-height: 1.4;
   --text-eyebrow--letter-spacing: 0.09em;

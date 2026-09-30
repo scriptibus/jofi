@@ -5,7 +5,7 @@ import "./styles/app.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./app/App";
+import { App, createApp } from "./app/App";
 import { getLocale } from "./paraglide/runtime.js";
 import { initAppearance, LocaleProvider } from "./ui";
 
@@ -18,7 +18,7 @@ if (!container) throw new Error("#root element missing in index.html");
 createRoot(container).render(
   <StrictMode>
     <LocaleProvider locale={getLocale()}>
-      <App />
+      <App app={createApp()} />
     </LocaleProvider>
   </StrictMode>,
 );

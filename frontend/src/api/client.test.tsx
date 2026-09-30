@@ -7,7 +7,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import type { ReactNode } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { ApiProblemError, apiFetch } from "./fetcher";
+import { ApiProblemError, apiFetch, parseRetryAfter } from "./fetcher";
 import { getGetSystemInfoUrl, type SystemInfoResponse, useGetSystemInfo } from "./generated/jofi";
 import { GetSystemInfoResponse } from "./generated/jofi.zod";
 
@@ -95,6 +95,31 @@ describe("generated API client", () => {
     await apiFetch("/api/test/csrf", { method: "POST" });
 
     expect(header).toBeNull();
+  });
+
+  it("carries Retry-After of a throttled answer", async () => {
+    server.use(
+      http.get(systemInfoUrl, () =>
+        HttpResponse.json(
+          { status: 429, type: "urn:jofi:problem:system:login-throttled" },
+          { status: 429, headers: { "Content-Type": "application/problem+json", "Retry-After": "8" } },
+        ),
+      ),
+    );
+
+    const { result } = renderHook(() => useGetSystemInfo(), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.retryAfterSeconds).toBe(8);
+  });
+
+  it("parses Retry-After as seconds or an HTTP date", () => {
+    const now = Date.parse("2026-09-30T10:00:00Z");
+    expect(parseRetryAfter("120", now)).toBe(120);
+    expect(parseRetryAfter("Wed, 30 Sep 2026 10:00:30 GMT", now)).toBe(30);
+    expect(parseRetryAfter("Wed, 30 Sep 2026 09:00:00 GMT", now)).toBe(0);
+    expect(parseRetryAfter("soon", now)).toBeUndefined();
+    expect(parseRetryAfter(null, now)).toBeUndefined();
   });
 
   it("the Zod schema rejects a response that breaks the contract", () => {
