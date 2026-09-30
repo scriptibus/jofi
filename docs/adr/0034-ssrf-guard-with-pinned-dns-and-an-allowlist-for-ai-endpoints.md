@@ -29,17 +29,24 @@ nothing to the problem.
 
 - **Apache HttpClient 5** (5.6.4, managed by the Spring Boot 4.1.1 BOM) in `adapters/net`, the only
   module allowed to use an HTTP client (architecture test `onlyTheNetAdapterMakesOutboundHttpCalls`:
-  JDK/Apache/OkHttp/Ktor/Jetty/Netty clients, Spring's `RestClient`/`RestTemplate`/`WebClient`,
-  request-factory implementations and Boot's HTTP client builders, sockets, `URL.openConnection` and
-  Kotlin's `URL.readText`). Its `DnsResolver` is called for every new connection and the client
+  JDK/Apache/OkHttp/Ktor/Jetty/Netty/Vert.x/JAX-RS/AsyncHttpClient/Feign/Retrofit clients, the
+  OpenAI and Anthropic SDKs, jsoup, Spring's `RestClient`/`RestTemplate`/`WebClient`,
+  request-factory implementations and Boot's HTTP client builders, TCP/TLS/UDP sockets and
+  channels, `java.net.URL` itself (use `URI`), `URLClassLoader`, `ImageIO.read(URL)` and Kotlin's
+  `URL.readText`; the exemption requires both the package and the `adapters/net` module, checked by
+  class location). Its `DnsResolver` is called for every new connection and the client
   connects to exactly the addresses it returns. `GuardedDnsResolver` resolves once, classifies
   **every** address, and returns them only if all are allowed, so the checked addresses are the
-  connected ones and TLS still verifies the host name.
+  connected ones and TLS still verifies the host name. The lookup runs on a virtual thread and is
+  abandoned after 5 s or the fetch's remaining time; at most 4 addresses are returned, so a name
+  with many dead addresses cannot multiply connect timeouts.
   Docs: https://hc.apache.org/httpcomponents-client-5.6.x/ and the 5.6.4 sources of
   `DnsResolver`, `DefaultHttpClientConnectionOperator`, `HttpClientBuilder`.
 - **Address classes** (`AddressClassifier`, IANA special-purpose registries): only global unicast is
   public. Loopback, RFC 1918, shared/CGNAT and IPv6 unique local are *internal*; link-local
-  (`169.254.0.0/16`, `fe80::/10`, so also `169.254.169.254`), `fd00:ec2::254`, multicast,
+  (`169.254.0.0/16`, `fe80::/10`, so also `169.254.169.254`), cloud metadata outside link-local
+  (`fd00:ec2::254`, Alibaba `100.100.100.200`, Azure WireServer `168.63.129.16`, classified
+  before the CGNAT/public ranges that contain them), multicast,
   unspecified, documentation, benchmarking, 6to4, Teredo, NAT64 local-use, deprecated and
   unassigned ranges are *never reachable*. IPv4-mapped and NAT64 (`64:ff9b::/96`) addresses are
   classified by the embedded IPv4 address.
@@ -48,8 +55,11 @@ nothing to the problem.
   each hop re-checked; on a cross-origin redirect only `Accept` and `Accept-Language` survive, so
   `Authorization`, `Cookie` and other caller headers never reach another origin; no cookie store,
   no automatic retries, no auth cache, no system proxy settings; `Host`, `User-Agent` and framing
-  headers cannot be set by callers. One deadline covers the whole fetch (connect and read timeouts
-  plus a check while reading); declared and actual body sizes are capped (after decompression)
+  headers cannot be set by callers. One deadline covers the whole fetch: DNS, connect, TLS
+  handshake and socket reads each get min(configured, remaining time), resolved per connection,
+  and a watchdog bounds the caller's wait. The fetch runs on a virtual thread; the caller waits
+  at most the timeout, then closes the client immediately (aborting sockets mid-connect or
+  mid-read) and returns `Timeout`, however slowly a resolver or server dribbles. Declared and actual body sizes are capped (after decompression)
   without draining the rest; accepted content types are compared without parameters; `Retry-After`
   (seconds or HTTP date) is returned with `HttpError`. Every expected failure is a `FetchResult`,
   nothing is thrown. Each fetch uses a fresh client, so a request's timeout applies to connecting
@@ -62,17 +72,42 @@ nothing to the problem.
   Fetches of user- or posting-supplied URLs get `DestinationAllowlist.NONE` (wired in
   `shared.config.OutboundHttpConfiguration`).
 - **AI client.** `bootstrap` wires the bean `aiHttpRequestFactory` (a Spring `ClientHttpRequestFactory`
-  over the same guarded HttpClient, no redirects, 10 s connect / 5 min read timeout) in
+  over the same guarded HttpClient, no redirects, 10 s connect / 5 min read timeout, idle pooled
+  connections evicted after 30 s so a removed provider's connection closes soon) in
   `setup.config.AiHttpConfiguration`. Its allowlist is the set of base URLs of the configured AI
   providers (`ProviderConfigPort`), read on each new connection so a changed configuration applies
-  immediately; if the store is absent or fails, the allowlist is empty (fail closed).
-  The AI adapter (#19) builds its RestClient-based Spring AI clients (e.g. Ollama, Mistral) on this
-  factory. Spring AI 2.0's OpenAI and Anthropic clients use OkHttp via the vendor SDKs; #19 adds
-  an OkHttp binding of the same `DestinationGuard` (an `okhttp3.Dns`) inside `adapters/net`, and
-  any exemption `setup.adapter.ai` needs from the architecture rule is added there, narrowly and
-  reviewed.
+  immediately (for new connections; an open pooled connection lives until it idles out); if the
+  store is absent or fails, the allowlist is empty (fail closed). AI response sizes are **not**
+  capped: completions stream and the destination is one the user configured.
+- **Requirements for the AI adapter (#19).**
+  - RestClient-based Spring AI clients (e.g. Ollama, Mistral) are built with
+    `RestClient.builder().requestFactory(aiHttpRequestFactory)`. An auto-configured
+    `RestClient.Builder` (or `WebClient.Builder`) without the guarded factory must not be used:
+    Boot's default factory is unguarded.
+  - Spring AI 2.0's OpenAI and Anthropic clients use OkHttp through the vendor SDKs. #19 adds an
+    OkHttp binding of the same `DestinationGuard` (an `okhttp3.Dns`) inside `adapters/net`, and the
+    customizer must also set `followRedirects(false)`, `followSslRedirects(false)`,
+    `proxy(Proxy.NO_PROXY)` and connect/read timeouts, with a test for each.
+  - Any exemption `setup.adapter.ai` needs from the architecture rule is added in #19, narrowly
+    (named types only) and reviewed.
   Docs: https://docs.spring.io/spring-ai/reference/2.0/ (`OllamaApi`, `MistralAiApi` builders take a
   `RestClient.Builder`; `OpenAiHttpClientBuilderCustomizer`, `AnthropicHttpClientBuilderCustomizer`).
+
+## What the architecture rule cannot see
+
+ArchUnit checks our own compiled classes. It does not see:
+
+- HTTP clients that Spring Boot or Spring AI auto-configure and use internally (for example a
+  `RestClient.Builder` bean that a starter picks up, or Spring AI's own OkHttp clients). Every
+  starter that brings a client needs review, a test that its client goes through the guard, and
+  the rules above.
+- Libraries that fetch on their own: XML parsers resolving external entities or schemas, Tika
+  fetching remote resources, image or PDF libraries loading linked content, JGit remotes. Each such
+  library needs its network features switched off where it is introduced.
+- JVM-wide settings: `socksProxyHost` may still apply to HttpClient's plain sockets; the JVM's
+  system properties are deployment configuration, not user input.
+
+The egress lens reviews these cases on every PR that touches the backend.
 
 ## Consequences
 

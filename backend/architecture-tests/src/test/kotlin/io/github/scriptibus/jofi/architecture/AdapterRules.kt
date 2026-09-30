@@ -51,22 +51,27 @@ object AdapterRules {
             .because("callers use the task-based LlmPort/EmbeddingPort behind the AI gateway")
 
     /** The SSRF guard (threat model T1, ADR-0034). */
-    const val NET_ADAPTER = "$BASE.shared.adapter.net.."
+    const val NET_ADAPTER = "$BASE.shared.adapter.net"
+
+    /** Where the Gradle module `adapters/net` puts its compiled classes (class dirs and jar). */
+    private const val NET_MODULE_OUTPUT = "/adapters/net/build/"
 
     /**
-     * Only `adapters/net` may use an HTTP client or open a connection, so every outbound request
-     * passes the SSRF guard. The `ClientHttpRequestFactory` interface stays usable: that is how the
-     * guarded client is handed to the AI adapter; its implementations (which would create unguarded
-     * clients) are not.
+     * Only `adapters/net` may use an HTTP client, a socket or a `URL`, so every outbound request
+     * passes the SSRF guard. The exemption needs both the package and the module: a class that
+     * merely declares the package in another module is not exempt. The `ClientHttpRequestFactory`
+     * interface stays usable, since that is how the guarded client reaches the AI adapter; its
+     * implementations (which would create unguarded clients) are not. ArchUnit only sees our own
+     * classes: ADR-0034 lists what it cannot catch (auto-configured clients, libraries that fetch
+     * on their own).
      */
     val onlyTheNetAdapterMakesOutboundHttpCalls: ArchRule =
         noClasses()
-            .that()
-            .resideOutsideOfPackage(NET_ADAPTER)
+            .that(areOutsideTheNetModule())
             .should()
             .dependOnClassesThat(isHttpClient())
             .orShould()
-            .callMethodWhere(opensAUrlConnection())
+            .callMethodWhere(readsAUrl())
             .because("adapters/net is the only outbound HTTP client (SSRF guard, threat model T1)")
 
     private val HTTP_CLIENT_PACKAGES =
@@ -75,10 +80,19 @@ object AdapterRules {
             "org.apache.hc..",
             "org.apache.http..",
             "okhttp3..",
+            "com.squareup.okhttp..",
             "io.ktor.client..",
             "org.eclipse.jetty.client..",
             "reactor.netty.http.client..",
             "io.netty.handler.codec.http..",
+            "jakarta.ws.rs.client..",
+            "org.asynchttpclient..",
+            "io.vertx..http..",
+            "feign..",
+            "retrofit2..",
+            "com.openai..",
+            "com.anthropic..",
+            "org.jsoup..",
             "org.springframework.web.client..",
             "org.springframework.web.reactive.function.client..",
             "org.springframework.http.client.reactive..",
@@ -89,17 +103,31 @@ object AdapterRules {
 
     private val CONNECTION_CLASSES =
         setOf(
+            // Use URI outside adapters/net; a URL can open connections (and has a DNS-resolving equals).
+            "java.net.URL",
+            "java.net.URLClassLoader",
             "java.net.URLConnection",
             "java.net.HttpURLConnection",
             "javax.net.ssl.HttpsURLConnection",
             "java.net.Socket",
+            "javax.net.ssl.SSLSocket",
+            "java.net.DatagramSocket",
             "java.nio.channels.SocketChannel",
+            "java.nio.channels.AsynchronousSocketChannel",
+            "java.nio.channels.DatagramChannel",
             "javax.net.SocketFactory",
             "javax.net.ssl.SSLSocketFactory",
         )
 
+    private fun areOutsideTheNetModule(): DescribedPredicate<JavaClass> =
+        DescribedPredicate.describe("are outside the adapters/net module") { javaClass ->
+            val inPackage = javaClass.packageName == NET_ADAPTER || javaClass.packageName.startsWith("$NET_ADAPTER.")
+            val inModule = javaClass.source.map { NET_MODULE_OUTPUT in it.uri.toString() }.orElse(false)
+            !(inPackage && inModule)
+        }
+
     private fun isHttpClient(): DescribedPredicate<JavaClass> =
-        DescribedPredicate.describe("HTTP clients or sockets") { javaClass ->
+        DescribedPredicate.describe("HTTP clients, sockets or URLs") { javaClass ->
             resideInAnyPackage(*HTTP_CLIENT_PACKAGES).test(javaClass) ||
                 javaClass.name in CONNECTION_CLASSES ||
                 isSpringRequestFactoryImplementation(javaClass)
@@ -110,15 +138,12 @@ object AdapterRules {
             javaClass.simpleName.endsWith("RequestFactory") &&
             !javaClass.isInterface
 
-    /** `URL.openConnection/openStream/getContent` and Kotlin's `URL.readText()`/`readBytes()`. */
-    private fun opensAUrlConnection(): DescribedPredicate<JavaMethodCall> =
-        DescribedPredicate.describe("a method that opens a URL connection") { call ->
+    /** Library calls that fetch a `URL` passed along: `ImageIO.read(URL)`, Kotlin's `URL.readText()`. */
+    private fun readsAUrl(): DescribedPredicate<JavaMethodCall> =
+        DescribedPredicate.describe("a method that reads from a URL") { call ->
             val target = call.target
-            val owner = target.owner.name
-            val opensUrl = owner == "java.net.URL" && target.name in setOf("openConnection", "openStream", "getContent")
-            val readsUrl =
-                owner == "kotlin.io.TextStreamsKt" && target.rawParameterTypes.any { it.name == "java.net.URL" }
-            opensUrl || readsUrl
+            val takesUrl = target.rawParameterTypes.any { it.name == "java.net.URL" }
+            takesUrl && target.owner.name in setOf("javax.imageio.ImageIO", "kotlin.io.TextStreamsKt")
         }
 
     private fun isTheProviderPort(): DescribedPredicate<JavaClass> =

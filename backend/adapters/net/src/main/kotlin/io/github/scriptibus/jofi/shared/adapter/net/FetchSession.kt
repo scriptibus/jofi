@@ -14,14 +14,11 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient
 import org.apache.hc.core5.http.HttpHeaders
 import org.apache.hc.core5.io.CloseMode
 import org.apache.hc.core5.io.ModalCloseable
-import org.apache.hc.core5.util.Timeout
 import java.net.URI
 import java.time.Clock
 import java.util.Locale
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.TimeSource
+import kotlin.time.TimeMark
 import kotlin.time.toJavaDuration
-import kotlin.time.toKotlinDuration
 
 /**
  * One fetch: follows redirects by hand so every hop is checked again (scheme here, addresses in the
@@ -31,8 +28,8 @@ internal class FetchSession(
     private val client: CloseableHttpClient,
     private val request: OutboundRequest,
     clock: Clock,
+    private val deadline: TimeMark,
 ) {
-    private val deadline = TimeSource.Monotonic.markNow() + request.limits.timeout.toKotlinDuration()
     private val reader = ResponseReader(request, clock, deadline)
 
     fun run(): FetchResult = follow(request.uri, request.headers, redirects = 0)
@@ -97,8 +94,7 @@ internal class FetchSession(
         headers
             .filterKeys { it.lowercase(Locale.ROOT) !in CONTROLLED_HEADERS }
             .forEach { (name, value) -> httpRequest.addHeader(name, value) }
-        // At least 1 ms: HttpClient reads a zero timeout as "wait forever".
-        val remaining = Timeout.of(maxOf(-deadline.elapsedNow(), 1.milliseconds).toJavaDuration())
+        val remaining = GuardedHttpClients.timeoutOf((-deadline.elapsedNow()).toJavaDuration())
         httpRequest.config =
             RequestConfig
                 .custom()

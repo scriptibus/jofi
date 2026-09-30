@@ -7,19 +7,25 @@ import org.apache.hc.client5.http.DnsResolver
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.UnknownHostException
+import java.time.Duration
 
 /** Thrown by [GuardedDnsResolver] so the adapter can tell a blocked destination from a DNS failure. */
 class BlockedDestinationException(
     val addressClass: AddressClass,
 ) : UnknownHostException("Destination not allowed ($addressClass)")
 
+/** Thrown by [GuardedDnsResolver] when the lookup exceeds its budget; mapped to a timeout. */
+class DnsTimeoutException : UnknownHostException("Host lookup timed out")
+
 /**
  * The pinning point: Apache HttpClient calls this for every new connection and connects to exactly
  * the addresses it returns, so the addresses checked are the addresses used (no DNS rebinding).
- * TLS still verifies the certificate against the host name.
+ * TLS still verifies the certificate against the host name. [budget] bounds each lookup (a fetch
+ * passes its remaining time).
  */
 class GuardedDnsResolver(
     private val guard: DestinationGuard,
+    private val budget: () -> Duration = { DestinationGuard.DEFAULT_RESOLUTION_TIME },
 ) : DnsResolver {
     override fun resolve(
         host: String,
@@ -34,10 +40,11 @@ class GuardedDnsResolver(
     override fun resolveCanonicalHostname(host: String): String = host
 
     private fun guardedAddresses(destination: Destination): List<InetAddress> =
-        when (val decision = guard.check(destination)) {
+        when (val decision = guard.check(destination, budget())) {
             is GuardDecision.Allowed -> decision.addresses
             is GuardDecision.Blocked -> throw BlockedDestinationException(decision.addressClass)
             GuardDecision.Unresolvable -> throw UnknownHostException("Host not resolvable")
+            GuardDecision.TimedOut -> throw DnsTimeoutException()
         }
 
     private companion object {

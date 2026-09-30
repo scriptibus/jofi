@@ -44,11 +44,22 @@ internal object FetchTarget {
         location: String,
     ): URI? =
         try {
-            current.resolve(URI(location.trim()))
+            withRootPath(current).resolve(URI(location.trim()))
         } catch (_: URISyntaxException) {
             null
         } catch (_: IllegalArgumentException) {
             null
+        }
+
+    /**
+     * `http://host` has an empty path, and `URI.resolve` would glue a relative reference straight
+     * onto the authority (`http://hostnext`); RFC 3986 §5.2.3 merges it with `/` instead.
+     */
+    private fun withRootPath(uri: URI): URI =
+        if (uri.rawPath.isNullOrEmpty() && uri.rawAuthority != null) {
+            URI("${uri.scheme}://${uri.rawAuthority}/" + uri.rawQuery?.let { "?$it" }.orEmpty())
+        } else {
+            uri
         }
 
     /** Same scheme, host and port (RFC 6454 origin). */

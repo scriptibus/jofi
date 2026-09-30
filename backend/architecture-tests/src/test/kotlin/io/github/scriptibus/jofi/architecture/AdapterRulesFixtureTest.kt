@@ -6,15 +6,22 @@ package io.github.scriptibus.jofi.architecture
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import io.github.scriptibus.jofi.fixture.adapter.persistence.JooqInPersistenceAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.AiProviderPortInWebAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.ImageIoInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JdkHttpClientInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JooqInWebAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.SocketsInWebAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.UrlClassLoaderInWebAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.UrlHolderInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlReadInWebAdapterFixture
 import io.github.scriptibus.jofi.setup.application.port.AiProviderPort
 import io.github.scriptibus.jofi.shared.adapter.net.GuardedHttpClients
+import io.github.scriptibus.jofi.shared.adapter.net.ImpostorNetAdapterFixture
 import io.github.scriptibus.jofi.shared.adapter.net.OutboundHttpAdapter
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 
 /**
  * The adapter rules against known-bad and known-good fixtures (test classes, never imported by the
@@ -43,22 +50,26 @@ class AdapterRulesFixtureTest {
         AdapterRules.onlyTheAiAdapterUsesAiProviderPort.evaluate(classes).hasViolation() shouldBe true
     }
 
-    @Test
-    fun `an adapter outside adapters net building an HTTP client is rejected`() {
-        val classes = ClassFileImporter().importClasses(JdkHttpClientInWebAdapterFixture::class.java)
+    @ParameterizedTest(name = "{0} is rejected")
+    @ValueSource(
+        classes = [
+            JdkHttpClientInWebAdapterFixture::class,
+            UrlReadInWebAdapterFixture::class,
+            UrlHolderInWebAdapterFixture::class,
+            ImageIoInWebAdapterFixture::class,
+            UrlClassLoaderInWebAdapterFixture::class,
+            SocketsInWebAdapterFixture::class,
+            ImpostorNetAdapterFixture::class,
+        ],
+    )
+    fun `network access outside the adapters net module is rejected`(fixture: Class<*>) {
+        val classes = ClassFileImporter().importClasses(fixture)
 
         AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.evaluate(classes).hasViolation() shouldBe true
     }
 
     @Test
-    fun `an adapter outside adapters net reading a URL directly is rejected`() {
-        val classes = ClassFileImporter().importClasses(UrlReadInWebAdapterFixture::class.java)
-
-        AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.evaluate(classes).hasViolation() shouldBe true
-    }
-
-    @Test
-    fun `the net adapter itself may use its HTTP client`() {
+    fun `the net adapter module itself may use its HTTP client`() {
         // Plus one unrelated adapter outside the net package, so the rule has a class to check.
         val classes =
             ClassFileImporter().importClasses(

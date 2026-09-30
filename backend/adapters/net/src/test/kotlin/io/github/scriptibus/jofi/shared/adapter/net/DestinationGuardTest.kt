@@ -5,12 +5,14 @@ package io.github.scriptibus.jofi.shared.adapter.net
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.comparables.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.UnknownHostException
+import java.time.Duration
 
 class DestinationGuardTest {
     private val ollama = Destination.of("ollama", 11434)
@@ -59,6 +61,46 @@ class DestinationGuardTest {
         val guard = DestinationGuard(allowlist = DestinationAllowlist.of(listOf(metadata)))
 
         guard.check(metadata) shouldBe GuardDecision.Blocked(AddressClass.LINK_LOCAL)
+    }
+
+    @Test
+    fun `cloud metadata outside link-local stays blocked even for an allowlisted destination`() {
+        val alibaba = Destination.of("100.100.100.200", 80)
+        val azure = Destination.of("168.63.129.16", 80)
+        val guard = DestinationGuard(allowlist = DestinationAllowlist.of(listOf(alibaba, azure)))
+
+        guard.check(alibaba) shouldBe GuardDecision.Blocked(AddressClass.CLOUD_METADATA)
+        guard.check(azure) shouldBe GuardDecision.Blocked(AddressClass.CLOUD_METADATA)
+    }
+
+    @Test
+    fun `returns at most four addresses, after checking all of them`() {
+        val many = (1..8).map { "93.184.215.$it" }
+        val guard = DestinationGuard(resolver = resolving("many.example" to many))
+
+        guard.check(Destination.of("many.example", 443)) shouldBe GuardDecision.Allowed(many.take(4).map(::ip))
+        DestinationGuard(resolver = resolving("many.example" to many + "10.0.0.1"))
+            .check(Destination.of("many.example", 443)) shouldBe GuardDecision.Blocked(AddressClass.PRIVATE)
+    }
+
+    @Test
+    fun `a slow lookup is abandoned after its budget`() {
+        val guard =
+            DestinationGuard(
+                resolver = {
+                    Thread.sleep(5_000)
+                    listOf(ip("93.184.215.14"))
+                },
+                maxResolutionTime = Duration.ofSeconds(2),
+            )
+
+        val started = System.nanoTime()
+        guard.check(Destination.of("slow.example", 443), budget = Duration.ofMillis(200)) shouldBe
+            GuardDecision.TimedOut
+        Duration.ofNanos(System.nanoTime() - started) shouldBeLessThan Duration.ofMillis(1_000)
+        shouldThrow<DnsTimeoutException> {
+            GuardedDnsResolver(guard) { Duration.ofMillis(100) }.resolve("slow.example", 443)
+        }
     }
 
     @Test

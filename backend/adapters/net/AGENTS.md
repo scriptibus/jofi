@@ -10,7 +10,8 @@ reviewed by Lucas. Package: `io.github.scriptibus.jofi.shared.adapter.net`.
 
 - `OutboundHttpAdapter` implements `OutboundHttpPort`: scheme allowlist, manual redirects with a
   limit and a re-check per hop, credentials dropped across origins, one deadline, body size cap,
-  content-type allowlist, `Retry-After`. Never throws; every failure is a `FetchResult`.
+  content-type allowlist, `Retry-After`. A watchdog bounds every fetch by its timeout (DNS,
+  connect, TLS and reads also get the remaining time). Never throws; every failure is a `FetchResult`.
 - `DestinationGuard` resolves a host once and checks every address with `AddressClassifier`;
   `GuardedDnsResolver` plugs it into Apache HttpClient 5, which then connects to exactly the checked
   addresses (no DNS rebinding). `GuardedHttpClients` builds every client (redirects, cookies,
@@ -22,7 +23,8 @@ reviewed by Lucas. Package: `io.github.scriptibus.jofi.shared.adapter.net`.
 
 Rules:
 - Nothing else in the backend may use an HTTP client or socket (architecture test
-  `onlyTheNetAdapterMakesOutboundHttpCalls`). A new transport (e.g. OkHttp for the AI SDKs) gets its
+  `onlyTheNetAdapterMakesOutboundHttpCalls`, which exempts this module only, not the package
+  elsewhere). A new transport (e.g. OkHttp for the AI SDKs) gets its
   binding to `DestinationGuard` here, never a second guard.
 - Never log header values, paths, queries or bodies; host and result kind only.
 - Tests: table-driven classifier tests for every range you touch, WireMock for adapter behaviour

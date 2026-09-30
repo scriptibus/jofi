@@ -43,6 +43,11 @@ class AddressClassifierTest {
         "169.254.169.254, LINK_LOCAL",
         "169.254.170.2, LINK_LOCAL",
         "169.254.0.0, LINK_LOCAL",
+        // Metadata services outside link-local
+        "100.100.100.200, CLOUD_METADATA",
+        "100.100.100.199, SHARED",
+        "168.63.129.16, CLOUD_METADATA",
+        "168.63.129.17, PUBLIC",
         // Special purpose
         "192.0.0.8, RESERVED",
         "192.0.2.1, RESERVED",
@@ -74,6 +79,8 @@ class AddressClassifierTest {
         "::ffff:169.254.169.254, LINK_LOCAL",
         "::ffff:10.0.0.1, PRIVATE",
         "::ffff:8.8.8.8, PUBLIC",
+        "::ffff:168.63.129.16, CLOUD_METADATA",
+        "64:ff9b::6464:64c8, CLOUD_METADATA",
         "64:ff9b::7f00:1, LOOPBACK",
         "64:ff9b::a9fe:a9fe, LINK_LOCAL",
         "64:ff9b::808:808, PUBLIC",

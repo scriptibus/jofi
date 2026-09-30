@@ -30,7 +30,7 @@ enum class AddressClass(
     /** `169.254.0.0/16` and `fe80::/10`, where cloud metadata services live. */
     LINK_LOCAL(unlockedByAllowlist = false),
 
-    /** Cloud metadata endpoints outside link-local ranges (`fd00:ec2::254`). */
+    /** Cloud metadata endpoints outside link-local ranges (Alibaba, Azure WireServer, AWS IPv6). */
     CLOUD_METADATA(unlockedByAllowlist = false),
     MULTICAST(unlockedByAllowlist = false),
     UNSPECIFIED(unlockedByAllowlist = false),
@@ -48,6 +48,10 @@ enum class AddressClass(
 object AddressClassifier {
     private val IPV4 =
         ranges(
+            // Metadata services outside link-local, before the broader ranges that contain them:
+            // Alibaba Cloud (inside CGNAT space) and Azure WireServer (a public address).
+            "100.100.100.200/32" to AddressClass.CLOUD_METADATA,
+            "168.63.129.16/32" to AddressClass.CLOUD_METADATA,
             "0.0.0.0/8" to AddressClass.UNSPECIFIED,
             "10.0.0.0/8" to AddressClass.PRIVATE,
             "100.64.0.0/10" to AddressClass.SHARED,
