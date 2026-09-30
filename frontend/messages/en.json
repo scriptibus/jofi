@@ -415,5 +415,99 @@
   "company_violation_too_many": "These are too many entries.",
   "company_violation_invalid_url": "Enter a full web address starting with https:// or http://.",
   "company_violation_invalid_character": "This contains a character Jofi cannot store.",
-  "company_violation_other": "This value is not valid."
+  "company_violation_other": "This value is not valid.",
+  "nav_contacts": "Contacts",
+  "companies_all_contacts": "All contacts",
+  "contacts_search_label": "Search contacts",
+  "contacts_search_hint": "By name; small typos are fine.",
+  "contacts_filter_company": "Company",
+  "contacts_filter_all": "All companies",
+  "contacts_new": "New contact",
+  "contacts_empty": "No contacts yet. Add the first one with “New contact”.",
+  "contacts_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} contact",
+        "countPlural=other": "{count} contacts"
+      }
+    }
+  ],
+  "contacts_count_matching": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} contact matches",
+        "countPlural=other": "{count} contacts match"
+      }
+    }
+  ],
+  "contact_eyebrow": "Contact",
+  "contact_back_to_list": "All contacts",
+  "contact_channel_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} way to reach them",
+        "countPlural=other": "{count} ways to reach them"
+      }
+    }
+  ],
+  "contact_field_name": "Name (required)",
+  "contact_field_role": "Role",
+  "contact_field_role_hint": "For example recruiter or head of engineering.",
+  "contact_field_company": "Company",
+  "contact_company_none": "No company",
+  "contact_field_channels": "Ways to reach them",
+  "contact_field_channels_hint": "Email, phone, web links and more, in the order you want to see them (at most {max}).",
+  "contact_field_notes": "Relationship notes",
+  "contact_field_notes_hint": "How you met, what was said. Markdown: **bold**, *italic*, lists and links. HTML and images are not shown.",
+  "contact_channel_email": "Email",
+  "contact_channel_phone": "Phone",
+  "contact_channel_web": "Web",
+  "contact_channel_other": "Other",
+  "contact_channel_value_email": "Email address",
+  "contact_channel_value_phone": "Phone number",
+  "contact_channel_value_web": "Web address",
+  "contact_channel_value_other": "Details",
+  "contact_channel_group": "Channel {position}",
+  "contact_channel_kind": "Type",
+  "contact_channel_label": "Label",
+  "contact_channel_label_hint": "Optional, for example work or mobile.",
+  "contact_channel_add": "Add a way to reach them",
+  "contact_channel_move_up": "Move channel {position} up",
+  "contact_channel_move_down": "Move channel {position} down",
+  "contact_channel_remove": "Remove",
+  "contact_channel_remove_named": "Remove channel {position}",
+  "contact_channels_empty": "No ways to reach them yet.",
+  "contact_notes_empty": "No relationship notes yet.",
+  "contact_applications_empty": "Not linked to any application yet.",
+  "contact_applications_not_yet": "Linked applications appear here once the applications pages exist.",
+  "contact_new_heading": "New contact",
+  "contact_create_submit": "Create contact",
+  "contact_edit_heading": "Edit {name}",
+  "contact_conflict_edit": "This contact was changed elsewhere (another tab or device) after you opened it, so your changes were not saved. Load the latest version to edit it again; your changes here will be replaced.",
+  "contact_delete_title": "Delete this contact?",
+  "contact_delete_action": "Delete contact",
+  "contact_delete_confirm_alone": "{name} will be deleted with all personal data stored about them: ways to reach them and notes. This cannot be undone.",
+  "contact_delete_confirm_linked": [
+    {
+      "declarations": ["input applications", "local applicationsPlural = applications: plural"],
+      "selectors": ["applicationsPlural"],
+      "match": {
+        "applicationsPlural=one": "{name} will be deleted with all personal data stored about them: ways to reach them and notes. The link to {applications} application is removed. This cannot be undone.",
+        "applicationsPlural=other": "{name} will be deleted with all personal data stored about them: ways to reach them and notes. The links to {applications} applications are removed. This cannot be undone."
+      }
+    }
+  ],
+  "contact_not_found_heading": "Contact not found",
+  "contact_error_not_found": "This contact does not exist (any more).",
+  "contact_error_version_conflict": "This contact was changed elsewhere meanwhile. Reload it and try again.",
+  "contact_error_mismatch": "The server asked to confirm something other than deleting this contact. Nothing was deleted; please try again.",
+  "contact_violation_invalid_email": "Enter an email address with an @, without spaces.",
+  "contact_violation_invalid_phone": "Enter a phone number with at least one digit.",
+  "contact_violation_company_not_found": "This company does not exist (any more). Choose another one."
 }

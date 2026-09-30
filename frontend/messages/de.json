@@ -415,5 +415,99 @@
   "company_violation_too_many": "Das sind zu viele Einträge.",
   "company_violation_invalid_url": "Gib eine vollständige Webadresse ein, die mit https:// oder http:// beginnt.",
   "company_violation_invalid_character": "Das enthält ein Zeichen, das Jofi nicht speichern kann.",
-  "company_violation_other": "Dieser Wert ist ungültig."
+  "company_violation_other": "Dieser Wert ist ungültig.",
+  "nav_contacts": "Kontakte",
+  "companies_all_contacts": "Alle Kontakte",
+  "contacts_search_label": "Kontakte suchen",
+  "contacts_search_hint": "Nach Name; kleine Tippfehler sind kein Problem.",
+  "contacts_filter_company": "Firma",
+  "contacts_filter_all": "Alle Firmen",
+  "contacts_new": "Neuer Kontakt",
+  "contacts_empty": "Noch keine Kontakte. Lege den ersten mit „Neuer Kontakt“ an.",
+  "contacts_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Kontakt",
+        "countPlural=other": "{count} Kontakte"
+      }
+    }
+  ],
+  "contacts_count_matching": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Kontakt passt",
+        "countPlural=other": "{count} Kontakte passen"
+      }
+    }
+  ],
+  "contact_eyebrow": "Kontakt",
+  "contact_back_to_list": "Alle Kontakte",
+  "contact_channel_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Kontaktweg",
+        "countPlural=other": "{count} Kontaktwege"
+      }
+    }
+  ],
+  "contact_field_name": "Name (Pflichtfeld)",
+  "contact_field_role": "Rolle",
+  "contact_field_role_hint": "Zum Beispiel Recruiterin oder Head of Engineering.",
+  "contact_field_company": "Firma",
+  "contact_company_none": "Keine Firma",
+  "contact_field_channels": "Kontaktwege",
+  "contact_field_channels_hint": "E-Mail, Telefon, Weblinks und mehr, in der Reihenfolge, in der du sie sehen willst (höchstens {max}).",
+  "contact_field_notes": "Notizen zur Beziehung",
+  "contact_field_notes_hint": "Wie ihr euch kennt, was besprochen wurde. Markdown: **fett**, *kursiv*, Listen und Links. HTML und Bilder werden nicht angezeigt.",
+  "contact_channel_email": "E-Mail",
+  "contact_channel_phone": "Telefon",
+  "contact_channel_web": "Web",
+  "contact_channel_other": "Sonstiges",
+  "contact_channel_value_email": "E-Mail-Adresse",
+  "contact_channel_value_phone": "Telefonnummer",
+  "contact_channel_value_web": "Webadresse",
+  "contact_channel_value_other": "Angabe",
+  "contact_channel_group": "Kontaktweg {position}",
+  "contact_channel_kind": "Art",
+  "contact_channel_label": "Bezeichnung",
+  "contact_channel_label_hint": "Optional, zum Beispiel beruflich oder mobil.",
+  "contact_channel_add": "Kontaktweg hinzufügen",
+  "contact_channel_move_up": "Kontaktweg {position} nach oben",
+  "contact_channel_move_down": "Kontaktweg {position} nach unten",
+  "contact_channel_remove": "Entfernen",
+  "contact_channel_remove_named": "Kontaktweg {position} entfernen",
+  "contact_channels_empty": "Noch keine Kontaktwege.",
+  "contact_notes_empty": "Noch keine Notizen zur Beziehung.",
+  "contact_applications_empty": "Noch mit keiner Bewerbung verknüpft.",
+  "contact_applications_not_yet": "Verknüpfte Bewerbungen erscheinen hier, sobald es die Bewerbungsseiten gibt.",
+  "contact_new_heading": "Neuer Kontakt",
+  "contact_create_submit": "Kontakt anlegen",
+  "contact_edit_heading": "{name} bearbeiten",
+  "contact_conflict_edit": "Dieser Kontakt wurde woanders geändert (anderer Tab oder anderes Gerät), nachdem du ihn geöffnet hast. Deine Änderungen wurden daher nicht gespeichert. Lade die neueste Fassung, um ihn erneut zu bearbeiten; deine Änderungen hier werden dabei ersetzt.",
+  "contact_delete_title": "Diesen Kontakt löschen?",
+  "contact_delete_action": "Kontakt löschen",
+  "contact_delete_confirm_alone": "{name} wird mit allen gespeicherten persönlichen Daten gelöscht: Kontaktwegen und Notizen. Das lässt sich nicht rückgängig machen.",
+  "contact_delete_confirm_linked": [
+    {
+      "declarations": ["input applications", "local applicationsPlural = applications: plural"],
+      "selectors": ["applicationsPlural"],
+      "match": {
+        "applicationsPlural=one": "{name} wird mit allen gespeicherten persönlichen Daten gelöscht: Kontaktwegen und Notizen. Die Verknüpfung mit {applications} Bewerbung wird entfernt. Das lässt sich nicht rückgängig machen.",
+        "applicationsPlural=other": "{name} wird mit allen gespeicherten persönlichen Daten gelöscht: Kontaktwegen und Notizen. Die Verknüpfungen mit {applications} Bewerbungen werden entfernt. Das lässt sich nicht rückgängig machen."
+      }
+    }
+  ],
+  "contact_not_found_heading": "Kontakt nicht gefunden",
+  "contact_error_not_found": "Diesen Kontakt gibt es nicht (mehr).",
+  "contact_error_version_conflict": "Dieser Kontakt wurde inzwischen woanders geändert. Lade ihn neu und versuche es noch einmal.",
+  "contact_error_mismatch": "Der Server wollte etwas anderes bestätigen lassen als das Löschen dieses Kontakts. Es wurde nichts gelöscht; bitte versuche es noch einmal.",
+  "contact_violation_invalid_email": "Gib eine E-Mail-Adresse mit @ und ohne Leerzeichen ein.",
+  "contact_violation_invalid_phone": "Gib eine Telefonnummer mit mindestens einer Ziffer ein.",
+  "contact_violation_company_not_found": "Diese Firma gibt es nicht (mehr). Wähle eine andere."
 }

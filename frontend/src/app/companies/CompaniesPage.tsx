@@ -10,7 +10,7 @@ import {
   useSearchCompanies,
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
-import { AddIcon, Button, EmptyState, SegmentedControl, TextField, TextLink } from "../../ui";
+import { AddIcon, Button, ContactsIcon, EmptyState, SegmentedControl, TextField, TextLink } from "../../ui";
 import { PageHeader } from "../pages/PlaceholderPage";
 import { useDebouncedValue } from "../useDebouncedValue";
 import { PREFERENCES, type Preference, preferenceLabel } from "./company";
@@ -88,10 +88,16 @@ export function CompaniesPage() {
           onChange={setText}
           className="md:w-96"
         />
-        <TextLink to="/companies/new" className="inline-flex items-center gap-2 self-start md:self-end">
-          <AddIcon className="size-4" aria-hidden="true" />
-          {m.companies_new()}
-        </TextLink>
+        <div className="flex flex-wrap gap-x-6 gap-y-3 self-start md:self-end">
+          <TextLink to="/companies/new" className="inline-flex items-center gap-2">
+            <AddIcon className="size-4" aria-hidden="true" />
+            {m.companies_new()}
+          </TextLink>
+          <TextLink to="/contacts" className="inline-flex items-center gap-2">
+            <ContactsIcon className="size-4" aria-hidden="true" />
+            {m.companies_all_contacts()}
+          </TextLink>
+        </div>
       </div>
       <SegmentedControl<Filter>
         label={m.companies_filter_label()}

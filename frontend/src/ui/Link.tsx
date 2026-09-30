@@ -73,3 +73,11 @@ export interface ExternalLinkProps extends Omit<AriaLinkProps, "href" | "target"
 export function ExternalLink(props: ExternalLinkProps) {
   return <TextLinkBase {...props} target="_blank" rel="noopener noreferrer nofollow" />;
 }
+
+/**
+ * A text link that another app on the device handles, such as `mailto:` (mail) or `tel:` (phone):
+ * same tab, no router. Build the `href` with a helper that encodes untrusted parts; never concatenate.
+ */
+export function AppLink(props: ExternalLinkProps) {
+  return <TextLinkBase {...props} />;
+}
