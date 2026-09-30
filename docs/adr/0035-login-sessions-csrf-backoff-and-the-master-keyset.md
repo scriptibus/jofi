@@ -115,7 +115,7 @@ loss is never accepted silently.
 The master key check, the password reset and the setup token run in an `ApplicationRunner` that is
 disabled under the `worker` profile: the worker shares image and data volume, and its restart must
 not reset anything. The runner starts after the web server; requests that arrive before it has
-finished may briefly see the state before the checks (follow-up: run them before the server
+finished may briefly see the state before the checks (#68: run them before the server
 accepts requests).
 
 ### Master keyset and secrets
