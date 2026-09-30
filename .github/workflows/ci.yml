@@ -50,7 +50,7 @@ jobs:
           fi
           bash .github/scripts/migration-lock.sh "$PR_NUMBER"
 
-  # Tests for the CI scripts themselves (this PR's copy).
+  # Tests for the CI scripts and the Claude Code hook helpers themselves (this PR's copy).
   ci-scripts:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -62,6 +62,8 @@ jobs:
           persist-credentials: false
       - name: migration-lock.sh tests (stubbed gh)
         run: bash .github/scripts/migration-lock.test.sh
+      - name: Claude Code hook tests (API client staleness)
+        run: bash .claude/hooks/lib/api-client.test.sh
 
   # Breaking changes to the API contract (api/openapi.json) against the base branch fail the PR (ADR-0033).
   # Human-only override: an entry in .github/oasdiff/breaking-changes-allowed.txt, read from the BASE
