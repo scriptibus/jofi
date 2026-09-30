@@ -3,7 +3,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Stop hook: before the agent finishes, runs the tests of every module it changed plus the
-# architecture tests. Exit 2 keeps the agent working and shows it the failure.
+# architecture tests. Frontend tests first (re)generate the git-ignored API client when it is
+# missing or out of date (lib/api-client.sh). Exit 2 keeps the agent working and shows it the failure.
 # Results are cached per diff, so a turn without new changes costs nothing.
 set -uo pipefail
 
@@ -40,7 +41,11 @@ if [[ -x backend/gradlew ]] && grep -q '^backend/' <<<"$changed"; then
 fi
 
 if [[ -d frontend/node_modules ]] && grep -q '^frontend/' <<<"$changed"; then
-  if ! out="$(cd frontend && pnpm exec vitest related --run --passWithNoTests $(grep '^frontend/src/' <<<"$changed" | sed 's#^frontend/##') 2>&1)"; then
+  # shellcheck source=lib/api-client.sh
+  source "$root/.claude/hooks/lib/api-client.sh"
+  if api_client_stale frontend && ! out="$(cd frontend && pnpm api 2>&1 && api_client_mark_fresh .)"; then
+    failures+=$'\n'"Generating the API client (pnpm api) failed:"$'\n'"$(tail -n 80 <<<"$out")"
+  elif ! out="$(cd frontend && pnpm exec vitest related --run --passWithNoTests $(grep '^frontend/src/' <<<"$changed" | sed 's#^frontend/##') 2>&1)"; then
     failures+=$'\n'"Frontend tests failed:"$'\n'"$(tail -n 80 <<<"$out")"
   fi
 fi
