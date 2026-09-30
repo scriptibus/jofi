@@ -106,6 +106,16 @@ JUnit 6 (Jupiter) + Kotest assertions + MockK. Domain and application: plain uni
 Spring. Adapters: slice tests. Bootstrap: `@SpringBootTest` smoke test (context + `/actuator/health`).
 Keep `./gradlew check` green before you finish.
 
+## Container image
+
+The repository-root `Dockerfile` builds the frontend, then `:bootstrap:bootJar` (the SPA goes into
+`classpath:/static/`), and creates the JDK AOT cache (ADR-0003) in a training run that starts the
+Spring context and exits on refresh (`-Dspring.context.exit=onRefresh`). That run has **no database
+or network**: startup code must not need them (Flyway is switched off there, `JOFI_DB_URL` gets a
+placeholder). If you add a bean that connects at startup, make it skip the training run too, or the
+image build fails. Build and smoke-test the stack from the repository root with
+`cp .env.example .env && scripts/compose-smoke-test.sh` (heavy: one build at a time).
+
 ## Documented exceptions
 
 - **detekt 2.0.0-alpha.6** (pre-release, approved by Lucas): detekt 1.23.x only supports Kotlin

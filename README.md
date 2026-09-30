@@ -17,6 +17,27 @@ your own knowledge base, tracks every application to the offer, and trains you f
 
 > **Status:** early development (milestone M0, foundation). Not usable yet.
 
+## Run it
+
+You need Docker with Compose v2, or Podman with podman-compose.
+
+```sh
+cp .env.example .env    # set JOFI_DB_PASSWORD before the first start
+docker compose up -d    # or: podman-compose up -d (the first run builds the image)
+```
+
+Then open <http://127.0.0.1:8080>. The stack has three containers: `app` (web UI and API), `worker`
+(background jobs, same image) and `db` (PostgreSQL with pgvector). Data lives in the named volumes `jofi-db`
+and `jofi-data`; `docker compose down` keeps them, `docker compose down --volumes` deletes them.
+
+**Localhost only by default.** Jofi is published on `127.0.0.1` and can't be reached from other devices.
+To expose it on your network, set `JOFI_BIND_ADDRESS=0.0.0.0` (or one interface's address) in `.env`, and
+only once login is available. For phone access prefer [Tailscale](https://tailscale.com/) over opening ports.
+The database is never published on the host.
+
+The containers run as non-root users on read-only root filesystems. `scripts/compose-smoke-test.sh`
+checks all of this and runs in CI.
+
 ## Documentation
 
 - [Requirements](docs/spec/03-requirements-spec.md) · [Tech stack](docs/spec/04-tech-stack-proposal.md) ·

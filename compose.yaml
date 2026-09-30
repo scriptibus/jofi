@@ -1,0 +1,85 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Jofi stack (ADR-0029): `cp .env.example .env && docker compose up -d`, then open http://127.0.0.1:8080.
+# Works with Docker Compose and podman-compose. Every variable is documented in .env.example.
+name: jofi
+
+x-jofi-service: &jofi-service
+  image: localhost/jofi:local
+  # Both services build the same image; the second build is a full cache hit.
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  depends_on:
+    db:
+      condition: service_healthy
+  environment: &jofi-environment
+    JOFI_DB_URL: jdbc:postgresql://db:5432/jofi
+    JOFI_DB_USERNAME: ${JOFI_DB_USERNAME:-jofi}
+    JOFI_DB_PASSWORD: ${JOFI_DB_PASSWORD:?set JOFI_DB_PASSWORD in .env (see .env.example)}
+    JAVA_TOOL_OPTIONS: ${JOFI_JAVA_OPTIONS:-}
+  volumes:
+    - jofi-data:/data
+  # Also set in the Dockerfile; repeated here because Podman's default OCI image format drops it.
+  healthcheck:
+    test: ["CMD", "jofi-healthcheck"]
+    interval: 15s
+    timeout: 5s
+    retries: 5
+    start_period: 60s
+  # Hardening: nothing but /data and /tmp is writable, no extra capabilities, no privilege escalation.
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  app:
+    <<: *jofi-service
+    ports:
+      # Localhost only by default. Exposing Jofi on a network is an explicit .env change (see .env.example).
+      - ${JOFI_BIND_ADDRESS:-127.0.0.1}:${JOFI_PORT:-8080}:8080
+
+  worker:
+    <<: *jofi-service
+    # Background jobs (ADR-0010): same image, `worker` Spring profile, no published port.
+    environment:
+      <<: *jofi-environment
+      SPRING_PROFILES_ACTIVE: worker
+
+  db:
+    image: docker.io/pgvector/pgvector:0.8.6-pg18-trixie@sha256:78bf48b801e792f99e3ac62b5036fd3876e9be48afda16c1e331af1c75ceb2ff
+    restart: unless-stopped
+    # Runs as the image's postgres user from the start instead of root + gosu.
+    user: postgres
+    environment:
+      POSTGRES_DB: jofi
+      POSTGRES_USER: ${JOFI_DB_USERNAME:-jofi}
+      POSTGRES_PASSWORD: ${JOFI_DB_PASSWORD:?set JOFI_DB_PASSWORD in .env (see .env.example)}
+    volumes:
+      # PostgreSQL 18 images keep PGDATA in a versioned subdirectory of /var/lib/postgresql.
+      - jofi-db:/var/lib/postgresql
+    # Not published: only app and worker reach the database, over the compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username \"$${POSTGRES_USER}\" --dbname \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  jofi-db:
+  jofi-data:

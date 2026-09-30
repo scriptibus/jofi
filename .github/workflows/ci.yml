@@ -80,3 +80,18 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report
           retention-days: 7
+
+  compose:
+    # Builds the image and smoke-tests the compose stack (issue #15, ADR-0029).
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image, start the stack, check health, ports, users, read-only FS
+        run: |
+          cp .env.example .env
+          scripts/compose-smoke-test.sh

@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
 # Security pipeline (docs/spec/04-tech-stack-proposal.md §4.6, §4.6a).
-# Language-specific scans (CodeQL for Kotlin/TypeScript, licensee, pnpm licence check, Trivy, Hadolint)
-# are added by the PRs that introduce the backend, frontend and container images.
+# licensee and the pnpm licence check run in ci.yml with the backend and frontend builds.
 name: security
 
 on:
@@ -132,3 +131,37 @@ jobs:
       contents: read
       security-events: write
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+
+  hadolint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0 (hadolint v2.15.1)
+        with:
+          dockerfile: Dockerfile
+          failure-threshold: info # every finding fails, including info
+
+  trivy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the Jofi image
+        run: docker build --tag localhost/jofi:scan .
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.74.0
+          scan-type: image
+          image-ref: localhost/jofi:scan
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true # only findings a base-image or dependency update can fix
+          exit-code: "1"
