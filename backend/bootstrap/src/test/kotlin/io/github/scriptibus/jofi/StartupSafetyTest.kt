@@ -73,6 +73,15 @@ class StartupSafetyTest {
     }
 
     @Test
+    fun `a forgotten JOFI_ACCEPT_SECRET_LOSS stops the app while the keyset is intact`() {
+        val database = freshDatabase()
+        start(database).close()
+
+        failure { start(database, dataDirectory, "--jofi.secrets.accept-loss=true").close() } shouldContain
+            "Remove JOFI_ACCEPT_SECRET_LOSS"
+    }
+
+    @Test
     fun `another keyset than the recorded one stops the app`(
         @TempDir otherData: Path,
     ) {
@@ -104,28 +113,58 @@ class StartupSafetyTest {
         failure { start(freshDatabase(), Path.of("relative/data")).close() } shouldContain "JOFI_DATA_DIR"
     }
 
-    @Test
-    fun `a password reset deletes the account and issues a new setup token`() {
-        val database = freshDatabase()
-        start(database).close()
-        val tokenFile = dataDirectory.resolve("secrets/setup-token")
+    private fun insertAccount(database: String) =
         DriverManager.getConnection(database, postgres.username, postgres.password).use {
             it.createStatement().execute(
                 "INSERT INTO user_account (account_id, password_hash, created_at, password_changed_at) " +
                     "VALUES ('${UUID.randomUUID()}', '\$argon2id\$x', now(), now())",
             )
         }
+
+    private fun accounts(database: String): Int =
+        DriverManager.getConnection(database, postgres.username, postgres.password).use {
+            val rows = it.createStatement().executeQuery("SELECT count(*) FROM user_account")
+            rows.next()
+            rows.getInt(1)
+        }
+
+    @Test
+    fun `a password reset happens once per setting of the flag`() {
+        val database = freshDatabase()
+        val tokenFile = dataDirectory.resolve("secrets/setup-token")
+        start(database).close()
+        insertAccount(database)
         start(database).close()
         Files.exists(tokenFile) shouldBe false
 
         start(database, dataDirectory, "--jofi.auth.reset-password=true").close()
-
         Files.exists(tokenFile) shouldBe true
-        DriverManager.getConnection(database, postgres.username, postgres.password).use {
-            val rows = it.createStatement().executeQuery("SELECT count(*) FROM user_account")
-            rows.next()
-            rows.getInt(1) shouldBe 0
-        }
+        accounts(database) shouldBe 0
+
+        // First run with the new token, then a restart with the flag still set: the new password stays.
+        Files.delete(tokenFile)
+        insertAccount(database)
+        start(database, dataDirectory, "--jofi.auth.reset-password=true").close()
+        accounts(database) shouldBe 1
+
+        // Removing the flag re-arms it for a later recovery.
+        start(database).close()
+        start(database, dataDirectory, "--jofi.auth.reset-password=true").close()
+        accounts(database) shouldBe 0
+    }
+
+    @Test
+    fun `the worker never runs the startup checks, so its restart cannot reset the password`() {
+        val database = freshDatabase()
+        start(database).close()
+        insertAccount(database)
+        start(database).close()
+        val tokenFile = dataDirectory.resolve("secrets/setup-token")
+
+        start(database, dataDirectory, "--spring.profiles.active=worker", "--jofi.auth.reset-password=true").close()
+
+        accounts(database) shouldBe 1
+        Files.exists(tokenFile) shouldBe false
     }
 
     private companion object {

@@ -13,6 +13,7 @@ is reviewed by Lucas. Package: `io.github.scriptibus.jofi.system.adapter.crypto`
 | `Argon2PasswordHasherAdapter` | `PasswordHasherPort` | argon2id, OWASP parameters m = 19 MiB, t = 2, p = 1; at most 2 hashes at once |
 | `TinkSecretCipherAdapter` | `SecretCipherPort`, `MasterKeyPort` | Tink AES-256-GCM under the master keyset, associated data `jofi:secret:<id>`; generates a keyset only on request, plus its check value |
 | `SetupTokenFileAdapter` | `SetupTokenPort` | one-time token every first run needs |
+| `PasswordResetMarkerFileAdapter` | `PasswordResetMarkerPort` | remembers that the current `JOFI_RESET_PASSWORD` was applied |
 | `OwnerOnlyFiles` | – | `0600` files / `0700` directories, written atomically (random temp file + hard link) |
 
 Files live in the data volume (`jofi.data-dir`, `JOFI_DATA_DIR`: required and absolute, `/data` in the

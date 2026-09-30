@@ -14,6 +14,9 @@ interface SetupTokenPort {
     /** Makes sure a token exists in the data volume (keeps an existing one) and says where to read it. */
     fun issue(): AuthSideEffectResult
 
+    /** Whether a token is issued and waiting for first run. */
+    fun isIssued(): Boolean
+
     /** Whether [candidate] is the issued token. Constant time; `false` when none is issued. */
     fun matches(candidate: String): Boolean
 

@@ -43,7 +43,7 @@ class SecurityConfiguration {
     ): SecurityFilterChain {
         val problems = SecurityProblemHandler(json)
         // Not a bean: as one, Spring Boot would also register it outside the security filter chain.
-        val sessionValidity = SessionValidityFilter(sessionAccount, sessionMaxAge, clock)
+        val sessionValidity = SessionValidityFilter(sessionAccount, sessionMaxAge, clock, problems)
         http
             .addFilterBefore(sessionValidity, AnonymousAuthenticationFilter::class.java)
             .authorizeHttpRequests { requests ->

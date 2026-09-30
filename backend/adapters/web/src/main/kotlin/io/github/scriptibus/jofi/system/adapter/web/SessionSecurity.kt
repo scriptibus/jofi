@@ -16,6 +16,7 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository
 import org.springframework.security.web.csrf.CsrfAuthenticationStrategy
 import org.springframework.security.web.csrf.CsrfToken
+import java.time.Instant
 
 /**
  * How a login becomes a session (ADR-0017). The login and first-run endpoints check the password
@@ -50,6 +51,9 @@ object SessionSecurity {
     /** The session attribute naming the account the session belongs to (`SessionValidityFilter`). */
     const val ACCOUNT_ATTRIBUTE = "jofi.accountId"
 
+    /** The session attribute holding the login time (epoch milliseconds) for the absolute lifetime. */
+    const val LOGIN_TIME_ATTRIBUTE = "jofi.loginTime"
+
     /**
      * Logs the single user in on this request: new session id, new CSRF token, stored context, and the
      * [accountId] the session belongs to.
@@ -58,6 +62,7 @@ object SessionSecurity {
         request: HttpServletRequest,
         response: HttpServletResponse,
         accountId: AccountId,
+        loginTime: Instant = Instant.now(),
     ) {
         val authentication =
             UsernamePasswordAuthenticationToken.authenticated(
@@ -70,7 +75,9 @@ object SessionSecurity {
         val context = holder.createEmptyContext().apply { this.authentication = authentication }
         holder.context = context
         contexts.saveContext(context, request, response)
-        request.getSession(true).setAttribute(ACCOUNT_ATTRIBUTE, accountId.value.toString())
+        val session = request.getSession(true)
+        session.setAttribute(ACCOUNT_ATTRIBUTE, accountId.value.toString())
+        session.setAttribute(LOGIN_TIME_ATTRIBUTE, loginTime.toEpochMilli())
         issueCsrfToken(request)
     }
 

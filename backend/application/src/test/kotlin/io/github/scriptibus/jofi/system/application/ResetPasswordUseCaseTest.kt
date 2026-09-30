@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.system.application
 
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.system.application.port.PasswordResetMarkerPort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.application.port.UserSessionsPort
 import io.github.scriptibus.jofi.system.domain.AuthSideEffectResult
@@ -15,6 +16,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.Test
 
 class ResetPasswordUseCaseTest {
@@ -22,24 +24,45 @@ class ResetPasswordUseCaseTest {
     private val changelog = FakeChangelog()
     private val sessions =
         mockk<UserSessionsPort> { every { endAll() } returns AuthSideEffectResult.Success }
-    private val setupToken = mockk<SetupTokenPort> { every { issue() } returns AuthSideEffectResult.Success }
+    private val setupToken =
+        mockk<SetupTokenPort> {
+            every { isIssued() } returns false
+            every { discard() } returns AuthSideEffectResult.Success
+            every { issue() } returns AuthSideEffectResult.Success
+        }
+    private val marker = FakeMarker()
     private val useCase =
         ResetPasswordUseCase(
             users,
             sessions,
             setupToken,
+            marker,
             changelog,
             FakeTransactions(users, changelog),
             AuthFixtures.clock,
         )
 
+    private class FakeMarker(
+        var set: Boolean = false,
+    ) : PasswordResetMarkerPort {
+        override fun isSet() = set
+
+        override fun set() = AuthSideEffectResult.Success.also { set = true }
+
+        override fun clear() = AuthSideEffectResult.Success.also { set = false }
+    }
+
     @Test
-    fun `a reset deletes the account, ends every session, issues a token and is recorded`() {
-        useCase.execute() shouldBe PasswordResetResult.Reset
+    fun `a reset deletes the account, ends every session, replaces the token and is recorded`() {
+        useCase.execute(requested = true) shouldBe PasswordResetResult.Reset
 
         users.account.shouldBeNull()
         verify { sessions.endAll() }
-        verify { setupToken.issue() }
+        verifyOrder {
+            setupToken.discard()
+            setupToken.issue()
+        }
+        marker.set shouldBe true
         changelog.entries.single().let {
             it.entity shouldBe UserAccount.ENTITY
             it.actor shouldBe Actor.System("password-reset")
@@ -47,10 +70,38 @@ class ResetPasswordUseCaseTest {
     }
 
     @Test
+    fun `a flag left set resets once, never the password chosen afterwards`() {
+        useCase.execute(requested = true) shouldBe PasswordResetResult.Reset
+        users.account = AuthFixtures.account("the new password!!")
+
+        useCase.execute(requested = true) shouldBe PasswordResetResult.AlreadyApplied
+
+        users.account shouldBe AuthFixtures.account("the new password!!")
+    }
+
+    @Test
+    fun `a pending setup token means the reset has nothing to do`() {
+        every { setupToken.isIssued() } returns true
+
+        useCase.execute(requested = true) shouldBe PasswordResetResult.AlreadyApplied
+        users.account shouldBe AuthFixtures.account()
+    }
+
+    @Test
+    fun `a start without the flag clears the marker, so the next flag resets again`() {
+        marker.set = true
+
+        useCase.execute(requested = false) shouldBe PasswordResetResult.NotRequested
+
+        marker.set shouldBe false
+        useCase.execute(requested = true) shouldBe PasswordResetResult.Reset
+    }
+
+    @Test
     fun `without an account there is nothing to reset`() {
         users.account = null
 
-        useCase.execute() shouldBe PasswordResetResult.NothingToReset
+        useCase.execute(requested = true) shouldBe PasswordResetResult.NothingToReset
         verify(exactly = 0) { sessions.endAll() }
     }
 
@@ -58,7 +109,7 @@ class ResetPasswordUseCaseTest {
     fun `failures after the deletion are reported`() {
         every { sessions.endAll() } returns AuthSideEffectResult.Failure
 
-        useCase.execute() shouldBe PasswordResetResult.ResetWithFailures
+        useCase.execute(requested = true) shouldBe PasswordResetResult.ResetWithFailures
         users.account.shouldBeNull()
     }
 
@@ -66,15 +117,16 @@ class ResetPasswordUseCaseTest {
     fun `without its changelog entry the account stays`() {
         changelog.failing = true
 
-        useCase.execute() shouldBe PasswordResetResult.StorageFailure
+        useCase.execute(requested = true) shouldBe PasswordResetResult.StorageFailure
         users.account shouldBe AuthFixtures.account()
         changelog.entries.shouldBeEmpty()
+        marker.set shouldBe false
     }
 
     @Test
     fun `a storage failure is reported`() {
         users.failing = true
 
-        useCase.execute() shouldBe PasswordResetResult.StorageFailure
+        useCase.execute(requested = true) shouldBe PasswordResetResult.StorageFailure
     }
 }

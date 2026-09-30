@@ -35,10 +35,11 @@ how it can be rotated.
   cleared); the logout filter itself is off.
 - **Sessions in PostgreSQL** (Spring Session JDBC 4.1, tables from our Flyway migration), so they
   survive restarts; idle timeout `JOFI_SESSION_TIMEOUT`, default 7 days (a personal app on a phone),
-  and an absolute lifetime since login `JOFI_SESSION_MAX_AGE`, default 30 days, however active the
-  session is. `SessionValidityFilter` checks both on every request with a session, together with the
-  `account_id`: a session of a deleted or reset account (or one restored from a backup) ends on its
-  next request, and it fails closed when the account cannot be read.
+  and an absolute lifetime `JOFI_SESSION_MAX_AGE`, default 30 days, counted from the login time the
+  session stores at login, however active the session is. `SessionValidityFilter` checks both on
+  every request with a session, together with the `account_id`: a session of a deleted or reset
+  account (or one restored from a backup) ends on its next request. When the account cannot be read,
+  that request is refused with `503` but the session stays: a database hiccup does not log anyone out.
   A password change ends every other session of the user; if that fails, the change is reported
   as `500 other-sessions-remain`, never as success.
 - **Cookies:** `SESSION` is `HttpOnly`, `SameSite=Lax`, `Secure` when the request arrived over HTTPS.
@@ -79,10 +80,12 @@ A client is its address as the server sees it; IPv6 clients count by their /64 n
 host usually owns a whole /64. **Limitation:** when the server cannot see real client addresses, all
 clients share one per-client key. That is the case behind rootless Podman (slirp4netns/pasta) and
 behind the default Docker userland proxy, where every connection comes from the gateway, and behind a
-proxy that is not listed in `JOFI_TRUSTED_PROXIES`. Then anyone reaching the port can put that
-shared key into backoff and make the owner wait up to 15 minutes per attempt, though never lock
-them out for good and never speed up guessing. Mitigation: put a TLS proxy (Caddy, Tailscale serve)
-in front and list it in `JOFI_TRUSTED_PROXIES`, so `X-Forwarded-For` names the real client.
+proxy that is not listed in `JOFI_TRUSTED_PROXIES`. Then anyone reaching the port can keep that
+shared key in backoff indefinitely with about four failed attempts per hour (one per 15-minute
+window), so the owner cannot log in anew for as long as the attacker keeps going; sessions that
+already exist keep working, and guessing never gets faster. Mitigation: put a TLS proxy (Caddy,
+Tailscale serve) in front and list it in `JOFI_TRUSTED_PROXIES`, so `X-Forwarded-For` names the
+real client.
 
 ### First run always needs the setup token
 
@@ -98,10 +101,22 @@ is the compose port binding `JOFI_BIND_ADDRESS` (ADR-0029).
 ### Password recovery
 
 Starting with `JOFI_RESET_PASSWORD=true` deletes the account (not the data), ends every session,
-records the reset in the changelog (`Actor.System("password-reset")`) and issues a new setup token:
-whoever controls the server can start over, nobody else can. Sessions the reset could not delete
-still end, because they belong to the old `account_id`. The flag has to be removed afterwards; the
-log says so on every reset.
+records the reset in the changelog (`Actor.System("password-reset")`), deletes any old setup token
+and issues a new one: whoever controls the server can start over, nobody else can. Sessions the
+reset could not delete still end, because they belong to the old `account_id`. A reset happens once
+per setting of the flag: a marker in the data volume remembers it, so restarts while the flag is
+still set (or while a setup token is pending) change nothing and only log a loud warning to remove
+it; the first start without the flag clears the marker. `JOFI_ACCEPT_SECRET_LOSS` works the same way
+in spirit: left set while the keyset is intact, it stops the app until it is removed, so a later
+loss is never accepted silently.
+
+### Startup checks run only in `app`
+
+The master key check, the password reset and the setup token run in an `ApplicationRunner` that is
+disabled under the `worker` profile: the worker shares image and data volume, and its restart must
+not reset anything. The runner starts after the web server; requests that arrive before it has
+finished may briefly see the state before the checks (follow-up: run them before the server
+accepts requests).
 
 ### Master keyset and secrets
 

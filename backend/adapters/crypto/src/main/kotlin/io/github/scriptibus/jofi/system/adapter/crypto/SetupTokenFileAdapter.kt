@@ -39,6 +39,8 @@ class SetupTokenFileAdapter(
             )
         }
 
+    override fun isIssued(): Boolean = Files.exists(tokenFile)
+
     override fun matches(candidate: String): Boolean {
         val issued = readIssued()
         val given = candidate.trim().toByteArray(Charsets.US_ASCII)

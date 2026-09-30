@@ -39,6 +39,15 @@ class SecurityProblemHandler(
         write(response, HttpStatus.FORBIDDEN, AuthProblems.ACCESS_DENIED, "Access denied")
     }
 
+    /** 503 when the session cannot be checked; the session itself stays. */
+    fun unavailable(response: HttpServletResponse) =
+        write(
+            response,
+            HttpStatus.SERVICE_UNAVAILABLE,
+            AuthProblems.UNAVAILABLE,
+            "Authentication is temporarily unavailable",
+        )
+
     private fun write(
         response: HttpServletResponse,
         status: HttpStatus,

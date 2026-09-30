@@ -47,8 +47,8 @@ If the key goes missing, Jofi refuses to start instead of silently making a new 
 `JOFI_ACCEPT_SECRET_LOSS=true` once and enter the API keys again.
 
 **Forgot the password?** Start once with `JOFI_RESET_PASSWORD=true` in `.env` (`docker compose up -d`). This
-deletes the login (not your data), ends every session and issues a new setup token for first run. Remove the
-variable again afterwards, or every restart resets the password.
+deletes the login (not your data), ends every session and issues a new setup token for first run. The reset
+happens once; remove the variable afterwards (the log reminds you), so it can be used again later.
 The database is never published on the host.
 
 The containers run as non-root users on read-only root filesystems. `scripts/compose-smoke-test.sh`

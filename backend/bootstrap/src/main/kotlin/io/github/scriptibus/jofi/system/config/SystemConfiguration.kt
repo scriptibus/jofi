@@ -12,20 +12,14 @@ import io.github.scriptibus.jofi.system.application.GetSessionAccountUseCase
 import io.github.scriptibus.jofi.system.application.GetSystemInfoUseCase
 import io.github.scriptibus.jofi.system.application.LogInUseCase
 import io.github.scriptibus.jofi.system.application.PrepareFirstRunUseCase
-import io.github.scriptibus.jofi.system.application.ResetPasswordUseCase
-import io.github.scriptibus.jofi.system.application.VerifyMasterKeyUseCase
 import io.github.scriptibus.jofi.system.application.port.BuildInfoPort
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
-import io.github.scriptibus.jofi.system.application.port.MasterKeyPort
-import io.github.scriptibus.jofi.system.application.port.MasterKeyRecordPort
 import io.github.scriptibus.jofi.system.application.port.PasswordHasherPort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
 import io.github.scriptibus.jofi.system.application.port.UserSessionsPort
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.core.env.Environment
 import java.time.Clock
 
 /** Wires the `system` context's use cases; domain and application stay free of Spring. */
@@ -39,25 +33,6 @@ class SystemConfiguration {
 
     @Bean
     fun getSessionAccountUseCase(users: UserAccountPort): GetSessionAccountUseCase = GetSessionAccountUseCase(users)
-
-    @Bean
-    fun resetPasswordUseCase(
-        auth: AuthPorts,
-        sessions: UserSessionsPort,
-        setupToken: SetupTokenPort,
-        changelog: ChangelogPort,
-        transactions: TransactionPort,
-    ): ResetPasswordUseCase =
-        ResetPasswordUseCase(auth.users, sessions, setupToken, changelog, transactions, auth.clock)
-
-    @Bean
-    fun verifyMasterKeyUseCase(
-        masterKey: MasterKeyPort,
-        records: MasterKeyRecordPort,
-        changelog: ChangelogPort,
-        transactions: TransactionPort,
-        clock: Clock,
-    ): VerifyMasterKeyUseCase = VerifyMasterKeyUseCase(masterKey, records, changelog, transactions, clock)
 
     @Bean
     fun prepareFirstRunUseCase(
@@ -93,19 +68,6 @@ class SystemConfiguration {
         throttle: LoginThrottlePort,
         clock: Clock,
     ): AuthPorts = AuthPorts(users, hasher, throttle, clock)
-
-    /**
-     * The master key check, the optional password reset and the setup token, once the app is up. A
-     * runner, so it neither blocks the context refresh nor runs in the image build's AOT training run.
-     */
-    @Bean
-    @ConditionalOnWebApplication
-    fun authStartup(
-        verifyMasterKey: VerifyMasterKeyUseCase,
-        resetPassword: ResetPasswordUseCase,
-        prepareFirstRun: PrepareFirstRunUseCase,
-        environment: Environment,
-    ): AuthStartup = AuthStartup(verifyMasterKey, resetPassword, prepareFirstRun, environment)
 
     /** The ports every password check needs, grouped to keep the bean methods short. */
     class AuthPorts(

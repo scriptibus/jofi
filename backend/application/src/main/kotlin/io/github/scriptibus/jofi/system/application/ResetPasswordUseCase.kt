@@ -9,6 +9,7 @@ import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangeSummary
 import io.github.scriptibus.jofi.shared.domain.ChangelogEntry
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.system.application.port.PasswordResetMarkerPort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.application.port.UserAccountPort
 import io.github.scriptibus.jofi.system.application.port.UserSessionsPort
@@ -20,18 +21,28 @@ import java.time.Clock
 
 /**
  * Password recovery (`JOFI_RESET_PASSWORD=true` at startup): whoever controls the server may start
- * over. Deletes the account, ends every session and issues a new setup token, so the next first run
- * needs access to the data volume again. Stored data and secrets stay.
+ * over. Deletes the account, ends every session and replaces the setup token, so the next first run
+ * needs access to the data volume again. Stored data and secrets stay. A reset happens once per
+ * setting of the flag: while it stays set, later starts change nothing ([PasswordResetResult.AlreadyApplied]).
  */
 class ResetPasswordUseCase(
     private val users: UserAccountPort,
     private val sessions: UserSessionsPort,
     private val setupToken: SetupTokenPort,
+    private val marker: PasswordResetMarkerPort,
     private val changelog: ChangelogPort,
     private val transactions: TransactionPort,
     private val clock: Clock,
 ) {
-    fun execute(): PasswordResetResult {
+    /** [requested]: whether `JOFI_RESET_PASSWORD` is set on this start. */
+    fun execute(requested: Boolean): PasswordResetResult =
+        when {
+            !requested -> PasswordResetResult.NotRequested.also { marker.clear() }
+            marker.isSet() || setupToken.isIssued() -> PasswordResetResult.AlreadyApplied
+            else -> reset().also { if (it != PasswordResetResult.StorageFailure) marker.set() }
+        }
+
+    private fun reset(): PasswordResetResult {
         val entry =
             ChangelogEntry(
                 entity = UserAccount.ENTITY,
@@ -54,11 +65,13 @@ class ResetPasswordUseCase(
         if (result is ChangelogResult.Success) PasswordResetResult.Reset else PasswordResetResult.StorageFailure
 
     // Sessions also end on their next request (they belong to the deleted account); ending them
-    // here as well removes them from the database right away.
+    // here as well removes them from the database right away. An old token file is replaced, so a
+    // token read before the reset is worthless.
     private fun afterDeletion(): PasswordResetResult {
         val ended = sessions.endAll()
+        val discarded = setupToken.discard()
         val issued = setupToken.issue()
-        val complete = ended == AuthSideEffectResult.Success && issued == AuthSideEffectResult.Success
+        val complete = listOf(ended, discarded, issued).all { it == AuthSideEffectResult.Success }
         return if (complete) PasswordResetResult.Reset else PasswordResetResult.ResetWithFailures
     }
 

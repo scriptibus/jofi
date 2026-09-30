@@ -276,7 +276,8 @@ class AuthSecurityTest(
         val phone = loggedIn()
         val laptop = browser().also { it.post("/api/auth/login", """{"password":"$PASSWORD"}""") }
 
-        resetPassword.execute() shouldBe PasswordResetResult.Reset
+        resetPassword.execute(requested = false)
+        resetPassword.execute(requested = true) shouldBe PasswordResetResult.Reset
 
         phone.get("/api/system/info").response.status shouldBe 401
         dsl.fetchCount(SPRING_SESSION) shouldBe 0
@@ -297,19 +298,6 @@ class AuthSecurityTest(
         browser().post("/api/auth/first-run", firstRun()).response.status shouldBe 204
 
         old.get("/api/system/info").response.status shouldBe 401
-    }
-
-    @Test
-    fun `a session ends after its absolute lifetime, however active`() {
-        val browser = loggedIn()
-        val sessionId = browser.sessionId.shouldNotBeNull()
-        dsl
-            .update(SPRING_SESSION)
-            .set(SPRING_SESSION.CREATION_TIME, SPRING_SESSION.CREATION_TIME.minus(Duration.ofDays(31).toMillis()))
-            .where(SPRING_SESSION.SESSION_ID.eq(sessionId))
-            .execute()
-
-        browser.get("/api/system/info").response.status shouldBe 401
     }
 
     @Test

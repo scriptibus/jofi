@@ -28,15 +28,21 @@ class AuthStartup(
 ) : ApplicationRunner {
     override fun run(args: ApplicationArguments) {
         checkMasterKey()
-        if (flag("jofi.auth.reset-password")) reset()
+        reset()
         if (prepareFirstRun.execute() == AuthSideEffectResult.Failure) {
             logger.error("Preparing first run failed; see the errors above")
         }
     }
 
     private fun checkMasterKey() {
-        val check = verifyMasterKey.execute(acceptLoss = flag("jofi.secrets.accept-loss"))
+        val acceptLoss = flag("jofi.secrets.accept-loss")
+        val check = verifyMasterKey.execute(acceptLoss)
         if (check is MasterKeyCheck.Refused) error(refusal(check.reason))
+        // A forgotten flag would silently accept the next loss: refuse until it is removed.
+        check(!(acceptLoss && check == MasterKeyCheck.Ready)) {
+            "Refusing to start: JOFI_ACCEPT_SECRET_LOSS=true is set, but the master keyset is intact. " +
+                "Remove JOFI_ACCEPT_SECRET_LOSS, so a future loss is never accepted silently."
+        }
         if (check == MasterKeyCheck.LossAccepted) {
             logger.error(
                 "JOFI_ACCEPT_SECRET_LOSS: the previous master keyset is gone and a new one is in use. Every " +
@@ -46,16 +52,33 @@ class AuthStartup(
     }
 
     private fun reset() {
-        val result = resetPassword.execute()
-        logger.warn(
-            "JOFI_RESET_PASSWORD: {}. Remove JOFI_RESET_PASSWORD now, or every restart resets the password again.",
-            when (result) {
-                PasswordResetResult.Reset -> "the password was reset and every session ended"
-                PasswordResetResult.NothingToReset -> "there was no password to reset"
-                PasswordResetResult.ResetWithFailures -> "the password was reset, but see the errors above"
-                PasswordResetResult.StorageFailure -> "the reset failed, see the errors above"
-            },
-        )
+        val outcome =
+            when (resetPassword.execute(requested = flag("jofi.auth.reset-password"))) {
+                PasswordResetResult.NotRequested -> {
+                    return
+                }
+
+                PasswordResetResult.Reset -> {
+                    "the password was reset and every session ended"
+                }
+
+                PasswordResetResult.NothingToReset -> {
+                    "there was no password to reset"
+                }
+
+                PasswordResetResult.ResetWithFailures -> {
+                    "the password was reset, but see the errors above"
+                }
+
+                PasswordResetResult.AlreadyApplied -> {
+                    "IGNORED: this reset was already applied or first run is still pending; nothing was reset"
+                }
+
+                PasswordResetResult.StorageFailure -> {
+                    "the reset failed, see the errors above"
+                }
+            }
+        logger.warn("JOFI_RESET_PASSWORD: {}. Remove JOFI_RESET_PASSWORD now.", outcome)
     }
 
     private fun refusal(reason: Reason): String {

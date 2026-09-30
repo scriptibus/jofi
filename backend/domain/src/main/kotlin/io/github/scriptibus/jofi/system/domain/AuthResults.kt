@@ -36,6 +36,15 @@ sealed interface PasswordResetResult {
     /** The account is gone, but sessions or the token could not be handled; see the log. */
     data object ResetWithFailures : PasswordResetResult
 
+    /**
+     * `JOFI_RESET_PASSWORD` is still set, but this reset was already applied (or a setup token is
+     * pending): nothing happens, so restarts never delete a freshly chosen password.
+     */
+    data object AlreadyApplied : PasswordResetResult
+
+    /** No reset was requested; a leftover "applied" marker is cleared. */
+    data object NotRequested : PasswordResetResult
+
     data object StorageFailure : PasswordResetResult
 }
 

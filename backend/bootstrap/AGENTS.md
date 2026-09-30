@@ -29,8 +29,9 @@ Rules:
   `7d`), `JOFI_SESSION_MAX_AGE` (absolute, default `30d`), `JOFI_RESET_PASSWORD` (password
   recovery at startup), `JOFI_ACCEPT_SECRET_LOSS` (accept a lost master keyset). Tests get a data
   directory under the test task's temporary directory; `bootRun` needs `JOFI_DATA_DIR` set.
-- `system.config.AuthStartup` (a runner, web apps only) checks the master keyset against the
-  database and refuses to start on a mismatch, applies `JOFI_RESET_PASSWORD`, then issues or removes
+- `system.config.AuthStartup` (a runner, web apps only and never under the `worker` profile) checks
+  the master keyset against the database and refuses to start on a mismatch or a leftover
+  `JOFI_ACCEPT_SECRET_LOSS`, applies `JOFI_RESET_PASSWORD` once per setting, then issues or removes
   the setup token. `StartupSafetyTest` starts the app on its own databases to prove each case.
 - `InMemoryLoginThrottleAdapter` (backoff counts) and `SpringSessionUserSessionsAdapter` (ending
   sessions) are framework-bound adapters here.
