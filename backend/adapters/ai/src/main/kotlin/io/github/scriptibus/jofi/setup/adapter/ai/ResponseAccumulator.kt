@@ -20,7 +20,10 @@ internal class ResponseAccumulator {
     private val text = StringBuilder()
     private val toolCalls = LinkedHashMap<String, ToolCall>()
     private var finishReason: String? = null
-    private var usage = TokenUsage.NONE
+
+    /** The latest usage a fragment reported ([TokenUsage.NONE] until one does). */
+    var usage = TokenUsage.NONE
+        private set
 
     /** Adds [response] and returns its new text (empty if none). */
     fun add(response: ChatResponse): String {

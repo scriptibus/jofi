@@ -19,6 +19,8 @@ import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 import io.github.scriptibus.jofi.architecture.JofiPackages.BASE
 import io.github.scriptibus.jofi.setup.application.port.AiProviderPort
+import io.github.scriptibus.jofi.shared.application.port.EmbeddingPort
+import io.github.scriptibus.jofi.shared.application.port.LlmPort
 
 /**
  * Adapter rules shared by the production check and the known-bad fixture tests
@@ -61,6 +63,35 @@ object AdapterRules {
             .dependOnClassesThat()
             .belongToAnyOf(AiProviderPort::class.java)
             .because("callers use the task-based LlmPort/EmbeddingPort behind the AI gateway")
+
+    /** The AI gateway: routing, capability check, budget, "never send to AI" filter and meter (ADR-0043). */
+    const val AI_GATEWAY = "$BASE.setup.adapter.ai.AiGatewayAdapter"
+
+    /**
+     * The gateway is the one implementation of `LlmPort` and `EmbeddingPort`: a second one would be a
+     * path to a provider around the privacy filter and the meter (ADR-0032, ADR-0043).
+     */
+    val onlyTheGatewayImplementsTheAiPorts: ArchRule =
+        classes()
+            .that()
+            .implement(LlmPort::class.java)
+            .or()
+            .implement(EmbeddingPort::class.java)
+            .should()
+            .haveFullyQualifiedName(AI_GATEWAY)
+            .because("every AI call goes through the gateway's filter and meter")
+
+    /**
+     * Inside `setup.adapter.ai` too, only the gateway calls [AiProviderPort]; the provider adapter
+     * implements it and calls nothing through it.
+     */
+    val onlyTheGatewayCallsTheProviderPort: ArchRule =
+        noClasses()
+            .that()
+            .doNotHaveFullyQualifiedName(AI_GATEWAY)
+            .should()
+            .callMethodWhere(isAProviderPortMethod())
+            .because("a provider call that skips the gateway skips the privacy filter and the meter")
 
     /** The job store adapter and its wiring: the only places JobRunr types may appear (ADR-0038). */
     const val JOBS_ADAPTER = "$BASE.shared.adapter.jobs"
@@ -285,6 +316,17 @@ object AdapterRules {
         DescribedPredicate.describe("an AI SDK's fromEnv()") { call ->
             val owner = call.target.owner.name
             call.target.name == "fromEnv" && (owner.startsWith("com.openai.") || owner.startsWith("com.anthropic."))
+        }
+
+    private val PROVIDER_PORT_METHODS: Set<Pair<String, List<String>>> =
+        AiProviderPort::class.java.methods
+            .map { method -> method.name to method.parameterTypes.map { it.name } }
+            .toSet()
+
+    private fun isAProviderPortMethod(): DescribedPredicate<JavaMethodCall> =
+        DescribedPredicate.describe("a method of AiProviderPort") { call ->
+            call.targetOwner.isAssignableTo(AiProviderPort::class.java) &&
+                (call.name to call.target.rawParameterTypes.map { it.name }) in PROVIDER_PORT_METHODS
         }
 
     private fun isTheProviderPort(): DescribedPredicate<JavaClass> =

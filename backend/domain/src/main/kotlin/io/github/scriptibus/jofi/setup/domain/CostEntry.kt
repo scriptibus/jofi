@@ -13,6 +13,10 @@ import java.time.Instant
  * currency (USD, ADR-0032). [providerKind] is a snapshot, so the history stays readable after the
  * provider config is deleted. Cost entries are an append-only meter; summaries per task, provider
  * and month are computed from them.
+ *
+ * [estimatedCost] is null when it is unknown: the model has no price in the table (every
+ * OpenAI-compatible endpoint, until the user sets one), or the provider reported no usage (a stream
+ * cancelled before its usage arrived). Unknown costs are never guessed (ADR-0043).
  */
 data class CostEntry(
     val task: AiTask,
@@ -20,10 +24,10 @@ data class CostEntry(
     val providerKind: ProviderKind,
     val model: ModelName,
     val usage: TokenUsage,
-    val estimatedCost: Money,
+    val estimatedCost: Money?,
     val occurredAt: Instant,
 ) {
     init {
-        require(estimatedCost.isAccountingCurrency) { "Costs are recorded in ${Money.ACCOUNTING_CURRENCY}" }
+        require(estimatedCost?.isAccountingCurrency ?: true) { "Costs are recorded in ${Money.ACCOUNTING_CURRENCY}" }
     }
 }

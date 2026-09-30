@@ -85,7 +85,7 @@ class ProviderModelsTest {
         stub.server.stubFor(
             post("/openai/v1/chat/completions").willReturn(sse(ProviderStub.openAiStream("openai/chat-stream.json"))),
         )
-        repeat(WARM_UP) { adapter.stream(stub.target(ProviderKind.OPENAI), request(), { false }) {} }
+        repeat(WARM_UP) { adapter.stream(stub.target(ProviderKind.OPENAI), request(), { false }, {}) {} }
         repeat(GC_ROUNDS) { System.gc() }
 
         adapter
@@ -93,6 +93,7 @@ class ProviderModelsTest {
                 stub.target(ProviderKind.OPENAI),
                 request(),
                 { false },
+                {},
             ) {}
             .shouldBeInstanceOf<AiResult.Success<*>>()
     }

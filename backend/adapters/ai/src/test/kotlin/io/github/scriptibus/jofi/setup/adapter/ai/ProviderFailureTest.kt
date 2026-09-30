@@ -129,7 +129,7 @@ class ProviderFailureTest {
         var fragments = 0
         val started = System.nanoTime()
 
-        val result = adapter.stream(stub.target(ProviderKind.OPENAI), request(), { fragments > 0 }) { fragments++ }
+        val result = adapter.stream(stub.target(ProviderKind.OPENAI), request(), { fragments > 0 }, {}) { fragments++ }
 
         result shouldBe AiResult.Cancelled
         // The whole stream takes 20 s; stopping after the first fragment must not wait for the rest.
@@ -144,6 +144,7 @@ class ProviderFailureTest {
             stub.target(ProviderKind.OPENAI),
             request(),
             { false },
+            {},
         ) { error("the chat socket closed") } shouldBe
             AiResult.Cancelled
     }
@@ -179,7 +180,8 @@ class ProviderFailureTest {
             adapter.embed(
                 stub.target(ProviderKind.ANTHROPIC),
                 io.github.scriptibus.jofi.shared.domain.ai
-                    .EmbeddingRequest(listOf("x")),
+                    .EmbeddingRequest
+                    .ofTexts(listOf("x")),
             )
 
         result.shouldBeInstanceOf<AiResult.CapabilityMissing>().task shouldBe AiTask.EMBEDDING

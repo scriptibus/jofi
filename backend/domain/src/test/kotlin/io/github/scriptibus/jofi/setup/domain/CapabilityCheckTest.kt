@@ -6,6 +6,9 @@ package io.github.scriptibus.jofi.setup.domain
 import io.github.scriptibus.jofi.setup.domain.CapabilityCheck.BASIC_CONTEXT_TOKENS
 import io.github.scriptibus.jofi.setup.domain.CapabilityCheck.LONG_CONTEXT_TOKENS
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
+import io.github.scriptibus.jofi.shared.domain.ai.LlmMessage
+import io.github.scriptibus.jofi.shared.domain.ai.LlmRequest
+import io.github.scriptibus.jofi.shared.domain.ai.ToolDefinition
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -19,6 +22,18 @@ import java.time.Instant
 import java.util.UUID
 
 class CapabilityCheckTest {
+    @Test
+    fun `a call needs tool use only with tools and streaming only when it streams`() {
+        val plain = LlmRequest(AiTask.CHAT, listOf(LlmMessage.User("Hi")))
+        val withTools = plain.copy(tools = listOf(ToolDefinition("search", "Searches", """{"type":"object"}""")))
+
+        CapabilityCheck.neededBy(plain, streaming = false).shouldBeEmpty()
+        CapabilityCheck.neededBy(plain, streaming = true) shouldBe setOf(Capability.Streaming)
+        CapabilityCheck.neededBy(withTools, streaming = false) shouldBe setOf(Capability.ToolUse)
+        CapabilityCheck.neededBy(withTools, streaming = true) shouldBe setOf(Capability.ToolUse, Capability.Streaming)
+        CapabilityCheck.neededForEmbedding shouldBe setOf(Capability.Embedding)
+    }
+
     @ParameterizedTest
     @MethodSource("requirementsPerTask")
     fun `every task has documented required capabilities`(

@@ -15,3 +15,6 @@ Rules:
   sealed result types, not exceptions that cross ports.
 - No I/O, no clock or randomness access; pass such values in.
 - Every public behaviour has a plain JUnit + Kotest unit test. Kover gate: >= 70 % lines.
+- AI requests (`shared.domain.ai`): text taken from a stored item goes into a message or embedding
+  input as `ContentPart.Sourced`, so `NeverSendFilter` (the "never send to AI" filter, ADR-0043) can
+  withhold it by its source. The filter is pure and fails closed on any source without a verdict.

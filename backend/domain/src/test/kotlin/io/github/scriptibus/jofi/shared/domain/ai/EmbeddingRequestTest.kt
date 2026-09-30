@@ -15,17 +15,17 @@ class EmbeddingRequestTest {
     @EnumSource(AiTask::class)
     fun `carries its task, and only embedding tasks are accepted`(task: AiTask) {
         if (task.kind == AiTaskKind.EMBEDDING) {
-            EmbeddingRequest(listOf("Kotlin developer"), task).task shouldBe task
+            EmbeddingRequest.ofTexts(listOf("Kotlin developer"), task).task shouldBe task
         } else {
-            shouldThrow<IllegalArgumentException> { EmbeddingRequest(listOf("Kotlin developer"), task) }
+            shouldThrow<IllegalArgumentException> { EmbeddingRequest.ofTexts(listOf("Kotlin developer"), task) }
         }
     }
 
     @Test
     fun `needs non-blank texts`() {
-        EmbeddingRequest(listOf("a", "b")).task shouldBe AiTask.EMBEDDING
-        shouldThrow<IllegalArgumentException> { EmbeddingRequest(emptyList()) }
-        shouldThrow<IllegalArgumentException> { EmbeddingRequest(listOf("a", " ")) }
+        EmbeddingRequest.ofTexts(listOf("a", "b")).task shouldBe AiTask.EMBEDDING
+        shouldThrow<IllegalArgumentException> { EmbeddingRequest.ofTexts(emptyList()) }
+        shouldThrow<IllegalArgumentException> { EmbeddingRequest.ofTexts(listOf("a", " ")) }
     }
 
     @Test
@@ -48,6 +48,8 @@ class EmbeddingRequestTest {
                 AiResult.NotConfigured(AiTask.CHAT),
                 AiResult.CapabilityMissing(AiTask.CHAT),
                 AiResult.BudgetExceeded(AiTask.SCANNER_PRE_SCORING),
+                AiResult.PrivacyFilterFailed(AiTask.CHAT),
+                AiResult.Withheld(AiTask.EMBEDDING),
                 AiResult.AuthenticationFailed,
                 AiResult.RateLimited(Duration.ofSeconds(30)),
                 AiResult.ContextTooLong,
@@ -56,19 +58,7 @@ class EmbeddingRequestTest {
                 AiResult.Rejected(400),
             )
 
-        results.map(::describe) shouldBe
-            listOf(
-                "ok",
-                "CHAT",
-                "CHAT",
-                "SCANNER_PRE_SCORING",
-                "AuthenticationFailed",
-                "PT30S",
-                "ContextTooLong",
-                "Unavailable",
-                "Cancelled",
-                "400",
-            )
+        results.map(::describe) shouldBe EXPECTED_DESCRIPTIONS
     }
 
     private fun describe(result: AiResult<String>): String =
@@ -89,6 +79,14 @@ class EmbeddingRequestTest {
                 result.task.name
             }
 
+            is AiResult.PrivacyFilterFailed -> {
+                result.task.name
+            }
+
+            is AiResult.Withheld -> {
+                result.task.name
+            }
+
             is AiResult.RateLimited -> {
                 result.retryAfter.toString()
             }
@@ -101,4 +99,22 @@ class EmbeddingRequestTest {
                 result.statusCode.toString()
             }
         }
+
+    private companion object {
+        val EXPECTED_DESCRIPTIONS =
+            listOf(
+                "ok",
+                "CHAT",
+                "CHAT",
+                "SCANNER_PRE_SCORING",
+                "CHAT",
+                "EMBEDDING",
+                "AuthenticationFailed",
+                "PT30S",
+                "ContextTooLong",
+                "Unavailable",
+                "Cancelled",
+                "400",
+            )
+    }
 }

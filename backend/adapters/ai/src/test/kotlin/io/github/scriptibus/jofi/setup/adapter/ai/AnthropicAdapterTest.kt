@@ -101,22 +101,22 @@ class AnthropicAdapterTest {
             post(messagesPath).willReturn(sse(ProviderStub.anthropicStream("anthropic/message-stream.json"))),
         )
         val fragments = mutableListOf<String>()
+        val usages = mutableListOf<TokenUsage>()
 
         val result =
             adapter.stream(
-                stub.target(
-                    ProviderKind.ANTHROPIC,
-                ),
+                stub.target(ProviderKind.ANTHROPIC),
                 LlmRequest(AiTask.CHAT, listOf(LlmMessage.User("Hallo"))),
-                {
-                    false
-                },
+                { false },
+                { usages += it },
             ) {
                 fragments += it
             }
 
         fragments shouldContainExactly listOf("Guten", " Tag", "!")
         result shouldBe AiResult.Success(LlmResponse("Guten Tag!", emptyList(), FinishReason.STOP, TokenUsage(24, 4)))
+        // The gateway meters a cancelled stream with the last total reported before the cancel.
+        usages.last() shouldBe TokenUsage(24, 4)
     }
 
     @Test

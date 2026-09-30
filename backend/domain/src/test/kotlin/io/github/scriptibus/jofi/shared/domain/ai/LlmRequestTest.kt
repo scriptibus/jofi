@@ -110,11 +110,11 @@ class LlmRequestTest {
         val response = LlmResponse(secret, listOf(call), FinishReason.TOOL_CALLS, TokenUsage(3, 4))
 
         listOf(request.toString(), response.toString(), call.toString()).forEach { it shouldNotContain "Mustermann" }
-        request.toString() shouldContain "User(chars=${secret.length})"
+        request.toString() shouldContain "User(chars=${secret.length}, parts=1)"
         request.toString() shouldContain "search_applications"
         response.toString() shouldContain "TOOL_CALLS"
-        EmbeddingRequest(listOf(secret)).toString() shouldNotContain "Mustermann"
-        EmbeddingRequest(listOf(secret)).toString() shouldContain "texts=1"
+        EmbeddingRequest.ofTexts(listOf(secret)).toString() shouldNotContain "Mustermann"
+        EmbeddingRequest.ofTexts(listOf(secret)).toString() shouldContain "texts=1"
     }
 
     @Test

@@ -49,13 +49,14 @@ class SpringAiProviderAdapter(
         target: ResolvedModel,
         request: LlmRequest,
         isCancelled: () -> Boolean,
+        onUsage: (TokenUsage) -> Unit,
         onTextDelta: (String) -> Unit,
     ): AiResult<LlmResponse> =
         call(target, request.task) { key ->
             // Closing the call aborts the exchange a cancelled stream leaves open.
             models.chat(target, key, request).use { chat ->
                 val fragments = chat.model.stream(Prompt(PromptMapper.messages(request.messages), chat.options))
-                StreamCollector.collect(fragments, isCancelled, onTextDelta)
+                StreamCollector.collect(fragments, isCancelled, StreamCollector.Consumers(onTextDelta, onUsage))
             }
         }
 

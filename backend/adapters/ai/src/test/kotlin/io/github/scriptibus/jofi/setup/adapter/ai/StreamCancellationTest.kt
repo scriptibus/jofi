@@ -44,7 +44,7 @@ class StreamCancellationTest {
             stub
                 .adapterOn(
                     provider.port,
-                ).stream(stub.target(kind), request(), { fragments > 0 }) { fragments++ }
+                ).stream(stub.target(kind), request(), { fragments > 0 }, {}) { fragments++ }
 
         result shouldBe AiResult.Cancelled
         awaitHangUps(provider, expected = 1)
@@ -59,7 +59,7 @@ class StreamCancellationTest {
             stub
                 .adapterOn(
                     provider.port,
-                ).stream(stub.target(kind), request(), { false }) { error("socket closed") }
+                ).stream(stub.target(kind), request(), { false }, {}) { error("socket closed") }
 
         result shouldBe AiResult.Cancelled
         awaitHangUps(provider, expected = 1)
@@ -71,7 +71,7 @@ class StreamCancellationTest {
         val adapter = stub.adapterOn(provider.port)
 
         repeat(6) {
-            adapter.stream(stub.target(ProviderKind.ANTHROPIC), request(), { true }) {} shouldBe
+            adapter.stream(stub.target(ProviderKind.ANTHROPIC), request(), { true }, {}) {} shouldBe
                 AiResult.Cancelled
         }
 
@@ -87,7 +87,12 @@ class StreamCancellationTest {
         repeat(6) {
             val polls = AtomicInteger()
             // Not cancelled when the call starts, then cancelled while the headers are still pending.
-            adapter.stream(stub.target(ProviderKind.ANTHROPIC), request(), { polls.incrementAndGet() > 1 }) {} shouldBe
+            adapter.stream(
+                stub.target(ProviderKind.ANTHROPIC),
+                request(),
+                { polls.incrementAndGet() > 1 },
+                {},
+            ) {} shouldBe
                 AiResult.Cancelled
         }
 

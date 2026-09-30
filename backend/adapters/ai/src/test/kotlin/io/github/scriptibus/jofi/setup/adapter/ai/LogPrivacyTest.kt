@@ -18,19 +18,25 @@ import io.github.scriptibus.jofi.setup.adapter.ai.OpenAiFamilyAdapterTest.Compan
 import io.github.scriptibus.jofi.setup.adapter.ai.ProviderStub.Companion.anthropicStream
 import io.github.scriptibus.jofi.setup.adapter.ai.ProviderStub.Companion.fixture
 import io.github.scriptibus.jofi.setup.adapter.ai.ProviderStub.Companion.openAiStream
+import io.github.scriptibus.jofi.setup.domain.ModelAssignment
+import io.github.scriptibus.jofi.setup.domain.Money
+import io.github.scriptibus.jofi.setup.domain.MonthlyBudget
 import io.github.scriptibus.jofi.setup.domain.ProviderKind
 import io.github.scriptibus.jofi.shared.adapter.net.DestinationAllowlist
 import io.github.scriptibus.jofi.shared.adapter.net.GuardedAiTransport
 import io.github.scriptibus.jofi.shared.domain.ai.AiResult
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
 import io.github.scriptibus.jofi.shared.domain.ai.EmbeddingRequest
+import io.github.scriptibus.jofi.shared.domain.ai.FlaggedValue
 import io.github.scriptibus.jofi.shared.domain.ai.LlmMessage
 import io.github.scriptibus.jofi.shared.domain.ai.LlmRequest
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.ai.ToolCall
 import io.github.scriptibus.jofi.shared.domain.ai.ToolDefinition
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -77,13 +83,13 @@ class LogPrivacyTest {
         stub.server.stubFor(
             post("/gemini/v1beta/openai/chat/completions").willReturn(sse(openAiStream("openai/chat-stream.json"))),
         )
-        adapter.stream(stub.target(ProviderKind.GEMINI), request(), { false }) {}
+        adapter.stream(stub.target(ProviderKind.GEMINI), request(), { false }, {}) {}
         stub.server.stubFor(
             post("/anthropic/v1/messages").willReturn(sse(anthropicStream("anthropic/message-stream.json"))),
         )
-        adapter.stream(stub.target(ProviderKind.ANTHROPIC), request(), { false }) {}
+        adapter.stream(stub.target(ProviderKind.ANTHROPIC), request(), { false }, {}) {}
         stub.server.stubFor(post("/mistral/v1/embeddings").willReturn(okJson(fixture("openai/embeddings.json"))))
-        adapter.embed(stub.target(ProviderKind.MISTRAL), EmbeddingRequest(listOf(MARKER, "zweiter Text")))
+        adapter.embed(stub.target(ProviderKind.MISTRAL), EmbeddingRequest.ofTexts(listOf(MARKER, "zweiter Text")))
 
         assertNothingLeaked()
     }
@@ -110,7 +116,7 @@ class LogPrivacyTest {
         stub.server.stubFor(
             post("/openai/v1/chat/completions").willReturn(sse(openAiStream("openai/chat-stream.json"))),
         )
-        adapter.stream(stub.target(ProviderKind.OPENAI), request(), { false }) { error(MARKER) } shouldBe
+        adapter.stream(stub.target(ProviderKind.OPENAI), request(), { false }, {}) { error(MARKER) } shouldBe
             AiResult.Cancelled
         val blocked = stub.adapter(GuardedAiTransport.create(DestinationAllowlist.NONE, "Jofi/test"))
         blocked.complete(stub.target(ProviderKind.OPENAI), request()) shouldBe AiResult.Unavailable
@@ -148,6 +154,38 @@ class LogPrivacyTest {
         logged shouldNotContain ProviderStub.KEY
         logged shouldNotContain "Guten Tag"
         logged shouldNotContain "ACME GmbH"
+    }
+
+    @Test
+    fun `the gateway with its filter, budget and meter`() {
+        stub.server.stubFor(
+            post("/openai/v1/chat/completions").willReturn(okJson(fixture("openai/chat-completion.json"))),
+        )
+        val setup = InMemorySetup()
+        val target = stub.target(ProviderKind.OPENAI, "gpt-4o-mini")
+        setup.providers[target.provider.id] = target.provider
+        listOf(AiTask.CHAT, AiTask.SCANNER_PRE_SCORING).forEach {
+            setup.assignments[it] = ModelAssignment(it, target.provider.id, target.model)
+        }
+        val visibility = FakeVisibility(NeverSendRules(emptyMap(), setOf(FlaggedValue(MARKER))))
+        val gateway =
+            AiGatewayAdapter(
+                adapter,
+                AiRouter(setup.assignmentPort, setup.providerPort, setup.capabilityPort, stub.catalog()),
+                NeverSendGuard(visibility),
+                AiMeter(setup.costPort, setup.budgetPort, PriceTableFile.load(), ProviderStub.CLOCK),
+            )
+
+        gateway.complete(request()).shouldBeInstanceOf<AiResult.Success<*>>()
+        setup.budget = MonthlyBudget(Money.usd(1))
+        gateway.complete(request().copy(task = AiTask.SCANNER_PRE_SCORING)) shouldBe
+            AiResult.BudgetExceeded(AiTask.SCANNER_PRE_SCORING)
+        visibility.throwing = true
+        gateway.complete(request()) shouldBe AiResult.PrivacyFilterFailed(AiTask.CHAT)
+        setup.failing = true
+        gateway.complete(request()) shouldBe AiResult.Unavailable
+
+        assertNothingLeaked()
     }
 
     /** Every captured line with its stack trace; WireMock plays the provider, so its own log is left out. */

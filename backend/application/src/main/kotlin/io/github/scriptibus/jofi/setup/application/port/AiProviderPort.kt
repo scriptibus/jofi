@@ -9,6 +9,7 @@ import io.github.scriptibus.jofi.shared.domain.ai.EmbeddingRequest
 import io.github.scriptibus.jofi.shared.domain.ai.EmbeddingResponse
 import io.github.scriptibus.jofi.shared.domain.ai.LlmRequest
 import io.github.scriptibus.jofi.shared.domain.ai.LlmResponse
+import io.github.scriptibus.jofi.shared.domain.ai.TokenUsage
 
 /**
  * Provider-facing AI calls (ADR-0032), implemented with Spring AI in `setup.adapter.ai` (#19). It
@@ -25,11 +26,16 @@ interface AiProviderPort {
         request: LlmRequest,
     ): AiResult<LlmResponse>
 
-    /** Streaming variant; cancellation and consumer failures behave as in `LlmPort.stream`. */
+    /**
+     * Streaming variant; cancellation and consumer failures behave as in `LlmPort.stream`. Whenever
+     * the provider reports token usage during the stream, [onUsage] gets the latest total, so the
+     * gateway can meter a stream that ends as [AiResult.Cancelled] with what was used until then.
+     */
     fun stream(
         target: ResolvedModel,
         request: LlmRequest,
         isCancelled: () -> Boolean,
+        onUsage: (TokenUsage) -> Unit,
         onTextDelta: (String) -> Unit,
     ): AiResult<LlmResponse>
 

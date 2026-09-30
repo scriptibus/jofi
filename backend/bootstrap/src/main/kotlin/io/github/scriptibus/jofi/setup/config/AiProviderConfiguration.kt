@@ -3,20 +3,32 @@
 
 package io.github.scriptibus.jofi.setup.config
 
+import io.github.scriptibus.jofi.setup.adapter.ai.AiGatewayAdapter
+import io.github.scriptibus.jofi.setup.adapter.ai.AiMeter
+import io.github.scriptibus.jofi.setup.adapter.ai.AiRouter
 import io.github.scriptibus.jofi.setup.adapter.ai.ModelCatalogAdapter
+import io.github.scriptibus.jofi.setup.adapter.ai.NeverSendGuard
+import io.github.scriptibus.jofi.setup.adapter.ai.PriceTableFile
 import io.github.scriptibus.jofi.setup.adapter.ai.ProviderModels
 import io.github.scriptibus.jofi.setup.adapter.ai.SpringAiProviderAdapter
+import io.github.scriptibus.jofi.setup.application.port.CostEntryPort
+import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
+import io.github.scriptibus.jofi.setup.application.port.ModelCapabilityPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCatalogPort
+import io.github.scriptibus.jofi.setup.application.port.MonthlyBudgetPort
+import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
 import io.github.scriptibus.jofi.shared.adapter.net.GuardedAiTransport
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.github.scriptibus.jofi.shared.application.port.SecretStorePort
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
 /**
- * The Spring AI provider adapter (ADR-0040). Spring AI itself is not auto-configured (no starter on
- * the classpath): every model is built per call over the guarded SDK transports. The AI gateway
- * (#20) is the only user of `AiProviderPort`; this bean is typed as the adapter because nothing
+ * The AI gateway and the Spring AI provider adapter behind it (ADR-0032, ADR-0040, ADR-0043).
+ * Spring AI itself is not auto-configured (no starter on the classpath): every model is built per
+ * call over the guarded SDK transports. The gateway is the only `LlmPort`/`EmbeddingPort` bean and
+ * the only user of `AiProviderPort`; the provider bean is typed as the adapter because nothing
  * outside `setup.adapter.ai` may name that port (architecture test).
  */
 @Configuration(proxyBeanMethods = false)
@@ -37,4 +49,29 @@ class AiProviderConfiguration {
         providerModels: ProviderModels,
         secretStore: SecretStorePort,
     ): ModelCatalogPort = ModelCatalogAdapter(providerModels, secretStore, Clock.systemUTC())
+
+    @Bean
+    fun aiRouter(
+        assignments: ModelAssignmentPort,
+        providers: ProviderConfigPort,
+        capabilities: ModelCapabilityPort,
+        catalog: ModelCatalogPort,
+    ): AiRouter = AiRouter(assignments, providers, capabilities, catalog)
+
+    /** Reads the dated price table once at startup; a broken table stops the app (ADR-0043). */
+    @Bean
+    fun aiMeter(
+        costs: CostEntryPort,
+        budgets: MonthlyBudgetPort,
+        clock: Clock,
+    ): AiMeter = AiMeter(costs, budgets, PriceTableFile.load(), clock)
+
+    /** Implements both `LlmPort` and `EmbeddingPort`. */
+    @Bean
+    fun aiGateway(
+        aiProviderPort: SpringAiProviderAdapter,
+        aiRouter: AiRouter,
+        visibility: AiVisibilityPort,
+        aiMeter: AiMeter,
+    ): AiGatewayAdapter = AiGatewayAdapter(aiProviderPort, aiRouter, NeverSendGuard(visibility), aiMeter)
 }
