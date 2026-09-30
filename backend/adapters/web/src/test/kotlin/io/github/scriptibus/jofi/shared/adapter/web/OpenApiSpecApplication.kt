@@ -55,6 +55,7 @@ import org.springframework.web.method.HandlerMethod
     OpenApiSpecApplication.ContractCustomizer::class,
     ProblemResponsesCustomizer::class,
     OpenApiSpecApplication.BinaryBodies::class,
+    WriteOnlySecretCustomizer::class,
 )
 class OpenApiSpecApplication {
     /** Registers a stub for every constructor parameter (a use case) of every controller. */

@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * A provider on a raw loopback socket for what WireMock cannot show: whether the client hung up.
  * It streams [events] (after [headerDelay]) and then goes silent, like a provider that stalls, and
  * counts every connection the client closes. With [answer] set it answers with that JSON instead.
+ * [received] counts the requests read in full, so a test can cancel while the headers are pending.
  */
 class StallingProvider(
     private val events: String,
@@ -25,6 +26,7 @@ class StallingProvider(
     val port: Int = socket.localPort
     val requests = AtomicInteger()
     val hangUps = AtomicInteger()
+    val received = AtomicInteger()
 
     @Volatile var answer: String? = null
 
@@ -47,6 +49,7 @@ class StallingProvider(
         requests.incrementAndGet()
         try {
             readRequest(connection.getInputStream())
+            received.incrementAndGet()
             answer?.let { json ->
                 respond(connection, "application/json", json, "Content-Length: ${json.toByteArray().size}\r\n")
                 return

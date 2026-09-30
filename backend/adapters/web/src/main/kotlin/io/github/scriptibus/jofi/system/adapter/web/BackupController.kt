@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.system.adapter.web
 
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
+import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.system.application.ExportBackupUseCase
 import io.github.scriptibus.jofi.system.application.RestoreBackupUseCase
 import io.github.scriptibus.jofi.system.application.StageBackupUseCase
@@ -57,7 +58,11 @@ class BackupController(
         request: HttpServletRequest,
         response: HttpServletResponse,
     ) {
-        val result = export.execute(confirmation(body, request)) { createdAt -> streamTo(response, createdAt) }
+        val result =
+            export.execute(
+                Actor.User,
+                confirmation(body, request),
+            ) { createdAt -> streamTo(response, createdAt) }
         // Once streaming started, the archive stays unfinished (no central directory, no manifest), so a
         // broken download is never a valid zip; before that, this is a clean problem.
         BackupProblems.of(result)?.let { throw it }

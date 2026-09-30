@@ -40,21 +40,28 @@ class ExportBackupUseCase(
     private val verifyPassword: VerifyPasswordUseCase,
     private val lock: BackupLockPort,
 ) {
-    /** [target] receives the creation time, e.g. for the file name, and returns the stream to write to. */
+    /**
+     * [actor] exports (the web adapter says who: the logged-in user); [target] receives the creation
+     * time, e.g. for the file name, and returns the stream to write to.
+     */
     fun execute(
+        actor: Actor,
         confirmation: PasswordConfirmation,
         target: (Instant) -> OutputStream,
     ): BackupExportResult {
         val check = verifyPassword.execute(confirmation)
         if (check != PasswordCheckResult.Verified) return BackupExportResult.PasswordRefused(check)
-        return lock.shared { export(target) } ?: BackupExportResult.Busy
+        return lock.shared { export(actor, target) } ?: BackupExportResult.Busy
     }
 
-    private fun export(target: (Instant) -> OutputStream): BackupExportResult {
+    private fun export(
+        actor: Actor,
+        target: (Instant) -> OutputStream,
+    ): BackupExportResult {
         val workspace = archive.newWorkspace() ?: return BackupExportResult.Failed
         return try {
             val contents = contents(workspace)
-            if (contents != null && recorded(workspace, contents)) {
+            if (contents != null && recorded(actor, workspace, contents)) {
                 archive.write(workspace, contents) { target(contents.createdAt) }
             } else {
                 BackupExportResult.Failed
@@ -82,6 +89,7 @@ class ExportBackupUseCase(
 
     // Recorded before anything leaves: an export that cannot be logged does not happen.
     private fun recorded(
+        actor: Actor,
         workspace: BackupWorkspace,
         contents: BackupContents,
     ): Boolean {
@@ -89,7 +97,7 @@ class ExportBackupUseCase(
         val entry =
             ChangelogEntry(
                 BackupRestore.entityOf(workspace.id),
-                Actor.User,
+                actor,
                 contents.createdAt,
                 ChangeSummary(description),
             )

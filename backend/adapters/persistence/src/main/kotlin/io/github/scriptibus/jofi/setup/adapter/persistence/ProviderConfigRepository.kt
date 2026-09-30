@@ -10,6 +10,7 @@ import io.github.scriptibus.jofi.setup.domain.ProviderKind
 import io.github.scriptibus.jofi.setup.domain.SetupStoreResult
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.AI_PROVIDER_CONFIG
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.AiProviderConfigRecord
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.secret.SecretId
 import org.jooq.DSLContext
 import org.jooq.exception.DataAccessException
@@ -20,7 +21,7 @@ import java.net.URI
 
 /**
  * The configured AI providers (`ai_provider_config`). Holds the key's secret id, never the key.
- * Read by the AI gateway and the transport's allowlist; the setup use cases (#23) write it.
+ * Read by the AI gateway and the transport's allowlist; the setup use cases write it.
  */
 @Component
 class ProviderConfigRepository(
@@ -55,8 +56,23 @@ class ProviderConfigRepository(
             SetupStoreResult.Success(Unit)
         }
 
-    override fun delete(id: ProviderId): SetupStoreResult<Unit> =
-        storeCall(log, "delete") {
+    override fun update(config: ProviderConfig): SetupStoreResult<Unit> =
+        storeCall(log, "update") {
+            val updated =
+                dsl
+                    .update(AI_PROVIDER_CONFIG)
+                    .set(toRecord(config))
+                    .where(AI_PROVIDER_CONFIG.ID.eq(config.id.value))
+                    .execute()
+            if (updated == 0) SetupStoreResult.NotFound else SetupStoreResult.Success(Unit)
+        }
+
+    override fun delete(
+        id: ProviderId,
+        proof: ConfirmationResult.Confirmed,
+    ): SetupStoreResult<Unit> {
+        if (!proof.covers(ProviderId.DELETE_OPERATION, id.value.toString())) return SetupStoreResult.NotConfirmed
+        return storeCall(log, "delete") {
             try {
                 val deleted = dsl.deleteFrom(AI_PROVIDER_CONFIG).where(AI_PROVIDER_CONFIG.ID.eq(id.value)).execute()
                 if (deleted == 0) SetupStoreResult.NotFound else SetupStoreResult.Success(Unit)
@@ -64,6 +80,7 @@ class ProviderConfigRepository(
                 if (exception.isStillReferenced()) SetupStoreResult.InUse else throw exception
             }
         }
+    }
 
     private fun toDomain(record: AiProviderConfigRecord): ProviderConfig =
         ProviderConfig(

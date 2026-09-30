@@ -15,7 +15,9 @@ reviewed by Lucas. Package: `io.github.scriptibus.jofi.shared.adapter.net`.
 - `DestinationGuard` resolves a host once and checks every address with `AddressClassifier`;
   `GuardedDnsResolver` plugs it into Apache HttpClient 5, which then connects to exactly the checked
   addresses (no DNS rebinding). `GuardedHttpClients` builds every client (redirects, cookies,
-  retries, auth cache and system proxies off).
+  retries, auth cache and system proxies off). Its pooled connections stay closed once closed
+  (`StaysClosedConnection`): HttpClient 5.6 would still connect a socket for a request cancelled
+  while it resolves or connects, and leave that socket open (#137).
 - `DestinationAllowlist` unlocks internal (never link-local/metadata/reserved) addresses for exact
   host:port destinations. Posting and page fetches get `NONE`; only the AI transport
   (`GuardedAiTransport`, wired in `bootstrap` `setup.config.AiHttpConfiguration`) gets the configured

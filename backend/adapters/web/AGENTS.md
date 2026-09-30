@@ -80,6 +80,22 @@ maps each `ContactResult.Failure`; channel violations name the request field wit
 (`channels[2].value`), an unknown company is `companyId` `NOT_FOUND`. Contacts are third-party personal
 data: their DTOs override `toString()` without it, and no `detail` names a contact.
 
+## AI provider setup (#23)
+
+`setup.adapter.web.AiProviderController` (`/api/setup/providers`): `GET`, `POST` (201), `PUT /{id}` (name,
+base URL; an absent key keeps the stored one, unless the base URL moves to another origin, which needs
+the key again), `DELETE /{id}` (two steps, `Jofi-Confirmation`; 409
+`provider-in-use` while tasks are assigned), `POST /{id}/models/refresh` (the connection test: lists the
+models through the guarded transport and stores them as detected capability profiles; provider failures
+answer 502 with `provider-authentication-failed`, `-rate-limited`, `-unreachable` or `-rejected`),
+`GET /{id}/models`, `PUT /{id}/models` (the user's capability correction; the model name is in the body
+because names contain `/` and `:`). `TaskAssignmentController` (`/api/setup/assignments`): `GET` (every
+task with `needs` and `missing`), `PUT /{task}`. Keys go in only: responses carry `apiKeySet`, never the
+key or its secret id; request DTOs hide the key in `toString()` and mark it `@WriteOnlySecret`
+(`writeOnly`, `format: password` in the contract). Controllers always act as
+`Actor.User`; the use cases refuse every other actor (`403 urn:jofi:problem:setup:forbidden`), so MCP
+and AI tools must never be given these use cases. `SetupProblems.of` maps each `SetupResult.Failure`.
+
 ## Documented problem responses (ADR-0041)
 
 Annotate a handler with `@ProblemResponses(ProblemKind.INVALID_INPUT, NOT_FOUND, CONFLICT)`

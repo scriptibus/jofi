@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.setup.domain
 
+import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.secret.SecretId
 import java.net.URI
 import java.util.UUID
@@ -11,7 +12,18 @@ import java.util.UUID
 @JvmInline
 value class ProviderId(
     val value: UUID,
-)
+) {
+    /** How changelog entries refer to this provider (entity type [ENTITY_TYPE]). */
+    fun toEntityRef(): EntityRef = EntityRef(ENTITY_TYPE, value.toString())
+
+    companion object {
+        /** The changelog entity type of AI providers (spec §13); never rename it, stored entries use it. */
+        const val ENTITY_TYPE = "ai_provider"
+
+        /** The confirmation operation of removing a provider (ADR-0039). */
+        const val DELETE_OPERATION = "setup.delete-provider"
+    }
+}
 
 /**
  * The supported AI providers (spec §3.2). Cloud providers have fixed endpoints and need a key; an
@@ -54,11 +66,38 @@ data class ProviderConfig(
         }
     }
 
-    private companion object {
-        fun isHttpUrl(uri: URI): Boolean =
+    /**
+     * Whether moving to [newBaseUri] must come with the key again: a stored key belongs to the origin
+     * (scheme, host, port) it was entered for, so a changed origin, including an https to http downgrade
+     * on the same host, would otherwise send it to a server the user never gave it to.
+     */
+    fun keyMustBeReenteredFor(newBaseUri: URI?): Boolean = apiKey != null && originOf(baseUri) != originOf(newBaseUri)
+
+    companion object {
+        private const val HTTP_PORT = 80
+        private const val HTTPS_PORT = 443
+
+        private fun originOf(uri: URI?): Triple<String, String, Int>? =
+            uri?.let {
+                val scheme = it.scheme.lowercase()
+                val port =
+                    if (it.port != -1) {
+                        it.port
+                    } else if (scheme == "https") {
+                        HTTPS_PORT
+                    } else {
+                        HTTP_PORT
+                    }
+                Triple(scheme, it.host.lowercase(), port)
+            }
+
+        /** An absolute http(s) URL with a host and without user info, query or fragment. */
+        fun isValidBaseUri(uri: URI): Boolean = isHttpUrl(uri) && isFreeOfCredentials(uri)
+
+        private fun isHttpUrl(uri: URI): Boolean =
             uri.isAbsolute && uri.scheme.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank()
 
-        fun isFreeOfCredentials(uri: URI): Boolean =
+        private fun isFreeOfCredentials(uri: URI): Boolean =
             uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null
     }
 }

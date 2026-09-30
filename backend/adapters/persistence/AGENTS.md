@@ -120,7 +120,9 @@ The generator lives in the `codegen` source set and has its own locked classpath
   (one row per `AiTask`: provider + model only), `ai_cost_entry` (append-only by trigger, integer
   micros in USD, provider kind snapshot, no FK to the provider so history survives its deletion),
   `ai_monthly_budget` (single row, USD). Check constraints mirror the `setup` domain invariants and
-  enum names; `SetupSchemaTest` proves them. Repositories come with the use cases (#19, #23, #24).
+  enum names; `SetupSchemaTest` proves them. `ProviderConfigRepository.delete` takes the confirmation
+  proof (`ProviderId.DELETE_OPERATION`, ADR-0039); the use case deletes the provider's secret after the
+  row that references it.
 - Other contexts' repositories live in `<context>.adapter.persistence` and may use the generated
   jOOQ code in `shared.adapter.persistence.jooq` (the one exemption from adapter independence,
   ADR-0032).
@@ -184,6 +186,8 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 |---|---|---|
 | `company` | `companies.domain.Company` | `CompanyId.ENTITY_TYPE` |
 | `contact` | `companies.domain.Contact` | `ContactId.ENTITY_TYPE` |
+| `ai_provider` | `setup.domain.ProviderConfig` (also its models' capability corrections and refreshes) | `ProviderId.ENTITY_TYPE` |
+| `ai_model_assignment` | `setup.domain.ModelAssignment`, one entity per task (id = task name) | `ModelAssignment.ENTITY_TYPE` |
 
 ## Tests
 

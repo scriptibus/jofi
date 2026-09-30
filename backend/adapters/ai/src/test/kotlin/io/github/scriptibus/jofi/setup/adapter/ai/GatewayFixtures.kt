@@ -30,6 +30,7 @@ import io.github.scriptibus.jofi.shared.domain.ai.LlmRequest
 import io.github.scriptibus.jofi.shared.domain.ai.LlmResponse
 import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.ai.TokenUsage
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import java.time.Instant
 
 /** The setup stores the gateway reads, in memory; [failing] makes every store call a storage failure. */
@@ -63,7 +64,12 @@ class InMemorySetup(
 
             override fun save(config: ProviderConfig) = write { providers[config.id] = config }
 
-            override fun delete(id: ProviderId) = write { providers.remove(id) }
+            override fun update(config: ProviderConfig) = write { providers[config.id] = config }
+
+            override fun delete(
+                id: ProviderId,
+                proof: ConfirmationResult.Confirmed,
+            ) = write { providers.remove(id) }
         }
 
     val assignmentPort =

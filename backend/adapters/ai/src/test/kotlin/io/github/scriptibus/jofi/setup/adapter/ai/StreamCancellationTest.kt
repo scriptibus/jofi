@@ -84,21 +84,23 @@ class StreamCancellationTest {
         val provider = stalling(firstFragment(ProviderKind.ANTHROPIC), headerDelay = Duration.ofSeconds(1))
         val adapter = stub.adapterOn(provider.port)
 
-        repeat(6) {
+        repeat(CALLS) { call ->
             val polls = AtomicInteger()
-            // Not cancelled when the call starts, then cancelled while the headers are still pending.
+            // Not cancelled when the call starts; cancelled once the provider holds the request and
+            // is still delaying its headers.
             adapter.stream(
                 stub.target(ProviderKind.ANTHROPIC),
                 request(),
-                { polls.incrementAndGet() > 1 },
+                { (polls.incrementAndGet() > 1).also { if (it) provider.awaitReceived(call + 1) } },
                 {},
             ) {} shouldBe
                 AiResult.Cancelled
         }
 
-        // A request cancelled before it connected never reaches the provider; every connection that
-        // did (some land just after the call returned) must be hung up once the delayed headers were due.
-        awaitAllHungUp(provider)
+        // Every call reached the provider before it was cancelled, and each connection was hung up.
+        provider.received.get() shouldBe CALLS
+        awaitHangUps(provider, expected = CALLS)
+        provider.requests.get() shouldBe CALLS
         provider.answerAnd { adapter.complete(stub.target(ProviderKind.ANTHROPIC), request()) }
     }
 
@@ -121,14 +123,10 @@ class StreamCancellationTest {
         provider.hangUps.get() shouldBe expected
     }
 
-    /** Waits until the provider saw as many hang-ups as connections, reading both live. */
-    private fun awaitAllHungUp(provider: StallingProvider) {
-        val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
-        while (provider.hangUps.get() != provider.requests.get() && System.nanoTime() < deadline) {
-            Thread.sleep(POLL_MILLIS)
-        }
-        "${provider.hangUps.get()} hang-ups for ${provider.requests.get()} connections" shouldBe
-            "${provider.requests.get()} hang-ups for ${provider.requests.get()} connections"
+    /** Waits (up to 5 s) until the provider has read [count] requests in full; the test checks it did. */
+    private fun StallingProvider.awaitReceived(count: Int) {
+        val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()
+        while (received.get() < count && System.nanoTime() < deadline) Thread.sleep(POLL_MILLIS)
     }
 
     private fun stalling(
@@ -148,6 +146,7 @@ class StreamCancellationTest {
     private companion object {
         const val OPENAI_CHUNKS_TO_FIRST_TEXT = 2
         const val ANTHROPIC_EVENTS_TO_FIRST_TEXT = 4
-        const val POLL_MILLIS = 50L
+        const val POLL_MILLIS = 10L
+        const val CALLS = 6
     }
 }

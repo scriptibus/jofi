@@ -132,7 +132,7 @@ class BackupUseCasesTest {
             var openedAt: Instant? = null
 
             val result =
-                useCase.execute(password) {
+                useCase.execute(Actor.User, password) {
                     openedAt = it
                     target
                 }
@@ -149,10 +149,10 @@ class BackupUseCasesTest {
         fun `a wrong or throttled password exports nothing`() {
             exportable()
 
-            useCase.execute(wrongPassword) { ByteArrayOutputStream() } shouldBe
+            useCase.execute(Actor.User, wrongPassword) { ByteArrayOutputStream() } shouldBe
                 BackupExportResult.PasswordRefused(PasswordCheckResult.Wrong)
             throttle.throttled = ThrottleDecision.Throttled(Duration.ofSeconds(8))
-            useCase.execute(password) { ByteArrayOutputStream() } shouldBe
+            useCase.execute(Actor.User, password) { ByteArrayOutputStream() } shouldBe
                 BackupExportResult.PasswordRefused(PasswordCheckResult.Throttled(Duration.ofSeconds(8)))
 
             verify(exactly = 0) { archive.newWorkspace() }
@@ -164,7 +164,7 @@ class BackupUseCasesTest {
             exportable()
             lock.busy = true
 
-            useCase.execute(password) { ByteArrayOutputStream() } shouldBe BackupExportResult.Busy
+            useCase.execute(Actor.User, password) { ByteArrayOutputStream() } shouldBe BackupExportResult.Busy
             verify(exactly = 0) { archive.newWorkspace() }
         }
 
@@ -178,10 +178,10 @@ class BackupUseCasesTest {
                 ByteArrayOutputStream()
             }
 
-            useCase.execute(password, target) shouldBe BackupExportResult.Failed
+            useCase.execute(Actor.User, password, target) shouldBe BackupExportResult.Failed
             exportable()
             changelog.failing = true
-            useCase.execute(password, target) shouldBe BackupExportResult.Failed
+            useCase.execute(Actor.User, password, target) shouldBe BackupExportResult.Failed
 
             opened shouldBe false
             verify(exactly = 0) { archive.write(any(), any(), any()) }
@@ -192,10 +192,10 @@ class BackupUseCasesTest {
         fun `an unreadable keyset or no workspace fails the export`() {
             exportable()
             every { masterKey.copy() } returns SystemStoreResult.StorageFailure("copy")
-            useCase.execute(password) { ByteArrayOutputStream() } shouldBe BackupExportResult.Failed
+            useCase.execute(Actor.User, password) { ByteArrayOutputStream() } shouldBe BackupExportResult.Failed
 
             every { archive.newWorkspace() } returns null
-            useCase.execute(password) { ByteArrayOutputStream() } shouldBe BackupExportResult.Failed
+            useCase.execute(Actor.User, password) { ByteArrayOutputStream() } shouldBe BackupExportResult.Failed
         }
     }
 
