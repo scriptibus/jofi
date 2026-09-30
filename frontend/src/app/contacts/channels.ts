@@ -40,21 +40,39 @@ export function mailtoHref(address: string): string | undefined {
   return `mailto:${local}@${domain}`;
 }
 
+/** A trailing extension: `x89`, `ext. 89`, `;ext=89` (any script's digits). */
+const EXTENSION = /(?:\s*;\s*ext\s*=|\s*ext\.?|\s*x)\s*(\p{Nd}+)\s*$/iu;
+/** What a dialable number may contain besides its digits: separators and the dial characters. */
+const NUMBER_PART = /^[\p{Nd}\s+\-.()/*#,]*$/u;
+
+/** The digits of `text` as ASCII, keeping `+*#,` and dropping separators. */
+function dialable(text: string): string {
+  let result = "";
+  for (const character of text) {
+    const digit = asciiDigit(character);
+    if (digit !== undefined) result += digit;
+    else if ("+*#,".includes(character)) result += character;
+  }
+  return result;
+}
+
 /**
- * A `tel:` link for a phone number as entered, or undefined if it has no digit. Digits of any script
- * become ASCII (after NFKC, which folds full-width forms); only `+0-9*#,;` survive, so letters, spaces
- * and anything that could leave the number are dropped. `#` is percent-encoded (RFC 3966), since in a
- * URL it would start a fragment. Show the number as entered; this is only the link.
+ * A `tel:` link for a phone number as entered, or undefined if it would not dial exactly that number.
+ * Digits of any script become ASCII (after NFKC, which folds full-width forms); only `+0-9*#,` and an
+ * extension (`x89`, `ext. 89` → `;ext=89`, RFC 3966) survive. A value with anything else, such as
+ * vanity letters (`1-800-FLOWERS`) or URL syntax, is no link at all, since dropping those characters
+ * would dial another number. `#` is percent-encoded, since in a URL it would start a fragment. Show the
+ * number as entered; this is only the link.
  */
 export function telHref(phone: string): string | undefined {
-  let dialable = "";
-  for (const character of phone.normalize("NFKC")) {
-    const digit = asciiDigit(character);
-    if (digit !== undefined) dialable += digit;
-    else if ("+*#,;".includes(character)) dialable += character;
-  }
-  if (!/[0-9]/.test(dialable)) return undefined;
-  return `tel:${dialable.replaceAll("#", "%23")}`;
+  const normalized = phone.normalize("NFKC").trim();
+  const extension = EXTENSION.exec(normalized);
+  const number = extension ? normalized.slice(0, extension.index) : normalized;
+  if (!NUMBER_PART.test(number)) return undefined;
+  const main = dialable(number);
+  if (!/[0-9]/.test(main)) return undefined;
+  const suffix = extension?.[1] ? `;ext=${dialable(extension[1])}` : "";
+  return `tel:${main.replaceAll("#", "%23")}${suffix}`;
 }
 
 /** The web address itself if it is an absolute http(s) URL (the server's rule), else undefined. */

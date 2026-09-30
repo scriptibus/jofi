@@ -197,11 +197,12 @@ describe("Create and edit", () => {
 });
 
 describe("Contact detail", () => {
-  it("renders channels safely: encoded mail and phone links, plain OTHER values and labels", async () => {
+  it("renders channels safely: encoded mail links, exact phone links, plain OTHER values and labels", async () => {
     const contact = aContact(acme.id, {
       name: "Mallory",
       channels: [
         { kind: "EMAIL", value: "m@evil.example?bcc=boss@acme.example", label: "<b>work</b>" },
+        { kind: "PHONE", value: "+1 555 123 4567 x89", label: null },
         { kind: "PHONE", value: "+1 555 CALL-NOW", label: null },
         { kind: "WEB", value: "javascript:alert(1)", label: null },
         { kind: "OTHER", value: "https://not-a-link.example", label: null },
@@ -216,10 +217,12 @@ describe("Contact detail", () => {
       within(channels).getByRole("link", { name: "m@evil.example?bcc=boss@acme.example" }),
     ).toHaveAttribute("href", "mailto:m%40evil.example%3Fbcc%3Dboss@acme.example");
     expect(within(channels).getByText("Email · <b>work</b>")).toBeVisible();
-    expect(within(channels).getByRole("link", { name: "+1 555 CALL-NOW" })).toHaveAttribute(
+    expect(within(channels).getByRole("link", { name: "+1 555 123 4567 x89" })).toHaveAttribute(
       "href",
-      "tel:+1555",
+      "tel:+15551234567;ext=89",
     );
+    // Vanity letters would dial another number, so that value stays plain text.
+    expect(within(channels).getByText("+1 555 CALL-NOW").closest("a")).toBeNull();
     expect(within(channels).getByText("javascript:alert(1)").closest("a")).toBeNull();
     expect(within(channels).getByText("https://not-a-link.example").closest("a")).toBeNull();
     expect(within(channels).getAllByRole("link")).toHaveLength(2);

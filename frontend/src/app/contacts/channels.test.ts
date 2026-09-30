@@ -36,10 +36,17 @@ describe("mailtoHref", () => {
 });
 
 describe("telHref", () => {
-  it("keeps only + digits * # , ; and encodes #", () => {
+  it("keeps only + digits * # , and encodes #", () => {
     expect(telHref("+49 (30) 123-456")).toBe("tel:+4930123456");
-    expect(telHref("030 123,45;ext=9")).toBe("tel:030123,45;9");
+    expect(telHref("030 123,45")).toBe("tel:030123,45");
     expect(telHref("*31#")).toBe("tel:*31%23");
+  });
+
+  it("turns an extension into ;ext= instead of merging it into the number", () => {
+    expect(telHref("+1 555 123 4567 x89")).toBe("tel:+15551234567;ext=89");
+    expect(telHref("030 1234 ext. 56")).toBe("tel:0301234;ext=56");
+    expect(telHref("030 123,45;ext=9")).toBe("tel:030123,45;ext=9");
+    expect(telHref("030 1234 x ٥٦")).toBe("tel:0301234;ext=56");
   });
 
   it("maps digits of other scripts to ASCII", () => {
@@ -49,10 +56,11 @@ describe("telHref", () => {
     expect(telHref("＋４９ ３０")).toBe("tel:+4930"); // full-width, folded by NFKC
   });
 
-  it("drops anything that could leave the number: letters, URL syntax, markup", () => {
-    expect(telHref("1-800-FLOWERS")).toBe("tel:1800");
-    expect(telHref("123?x=1&y=<script>")).toBe("tel:1231");
-    expect(telHref("javascript:alert(1)")).toBe("tel:1");
+  it("links no value it could not dial exactly: letters, URL syntax, markup stay plain text", () => {
+    expect(telHref("1-800-FLOWERS")).toBeUndefined();
+    expect(telHref("123?x=1&y=<script>")).toBeUndefined();
+    expect(telHref("javascript:alert(1)")).toBeUndefined();
+    expect(telHref("030 1234;phone-context=evil")).toBeUndefined();
   });
 
   it("links no value without a digit", () => {
