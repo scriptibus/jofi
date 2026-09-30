@@ -100,10 +100,16 @@ test("drag a card to another column with the mouse", async ({ page }) => {
 
   // A mouse drags the whole card (the handle is the keyboard's way in); grab it by its padding.
   const source = column(page, "Applied").getByRole("row").filter({ hasText: title });
-  await source.dragTo(column(page, "Interviewing"), {
-    sourcePosition: { x: 4, y: 4 },
-    targetPosition: { x: 40, y: 40 },
-  });
+  const from = await source.boundingBox();
+  const to = await column(page, "Interviewing").boundingBox();
+  if (!from || !to) throw new Error("card or column not laid out");
+  // Several small moves, as a hand would: the drop target needs dragenter and dragover before the drop.
+  await page.mouse.move(from.x + 4, from.y + 4);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 40, from.y + 20, { steps: 5 });
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await expect(column(page, "Interviewing")).toHaveAttribute("data-drop-target", "true");
+  await page.mouse.up();
   await expect(card(column(page, "Interviewing"), title)).toBeVisible();
   await expect.poll(() => statusOf(page, application.id)).toBe("INTERVIEWING");
   await page.reload();
