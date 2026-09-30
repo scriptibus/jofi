@@ -21,6 +21,14 @@ spring:
   jooq:
     sql-dialect: postgres
 
+# Apache HttpClient logs request lines, headers and bodies at DEBUG; those can hold API keys and
+# personal data (threat model T4), so they stay off even when the root level is lowered.
+logging:
+  level:
+    org.apache.hc.client5.http: info
+    org.apache.hc.client5.http.headers: "off"
+    org.apache.hc.client5.http.wire: "off"
+
 management:
   endpoints:
     web:

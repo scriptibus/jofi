@@ -24,6 +24,8 @@ jooq = "3.21.8"
 flyway = "13.7.0"
 # OpenAPI spec generation (adapters/web tests only; the running app does not serve the spec).
 springdoc = "3.1.1"
+# Latest stable; 4.x is still beta.
+wiremock = "3.13.2"
 
 # Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
 # Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
@@ -70,6 +72,11 @@ testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgr
 springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
 # springdoc (via swagger-core) still reads models with Jackson 2; this module makes it honour Kotlin nullability.
 jackson2-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
+# Outbound HTTP (adapters/net). Apache HttpClient 5 and spring-web versions come from the Boot BOM.
+httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5" }
+spring-web = { module = "org.springframework:spring-web" }
+# The standalone (shaded) jar: WireMock 3 embeds Jetty 11, which would clash with the Boot BOM's Jetty 12.
+wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
