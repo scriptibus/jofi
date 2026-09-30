@@ -67,7 +67,9 @@ interface SetCompanyPreferencePort {
  * with a token bound to the operation [Company.DELETE_OPERATION], the company id and the effect
  * `ConfirmationEffect("company", <name>, mapOf("contacts" to <n>))`: its contacts are deleted with it
  * (ADR-0041), so the user sees "and n contacts". A rename or a changed contact count in between
- * invalidates the token, other edits do not. With the token, it deletes. The actor is [requester]'s.
+ * invalidates the token, other edits do not. With the token, it deletes and publishes `ContactDeleted`
+ * for each contact deleted with it (`ContactRepositoryPort.findIdsByCompany`, read in the same
+ * transaction). The actor is [requester]'s.
  * A company with applications is [CompanyResult.HasApplications] (their foreign key restricts the
  * delete), before any token is issued.
  */

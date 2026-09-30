@@ -55,6 +55,17 @@ Changes send `basedOnVersion`, the `version` of the last read. Responses carry `
 The slice tests' configuration root is `CompaniesWebTestApplication` (test sources), since
 `@WebMvcTest` searches the test's own package.
 
+## Contacts (#74, ADR-0041)
+
+`companies.adapter.web.ContactController`: `GET /api/contacts?search=&companyId=&page=&size=`,
+`POST /api/contacts`, `GET|PUT /api/contacts/{id}` (PUT replaces all details and channels) and
+`DELETE /api/contacts/{id}` (two steps, `Jofi-Confirmation`). Contacts belong to the `companies` context
+but get their own resource path, since they exist without a company too. Contract only: every operation
+answers `501` until #89 (the search already answers 400 for paging out of range). `ContactProblems.of`
+maps each `ContactResult.Failure`; channel violations name the request field with its position
+(`channels[2].value`), an unknown company is `companyId` `NOT_FOUND`. Contacts are third-party personal
+data: their DTOs override `toString()` without it, and no `detail` names a contact.
+
 ## Documented problem responses (ADR-0041)
 
 Annotate a handler with `@ProblemResponses(ProblemKind.INVALID_INPUT, NOT_FOUND, CONFLICT)`

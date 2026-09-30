@@ -115,6 +115,15 @@ enum class ViolationKind {
 
     /** Not an absolute http(s) URL with a host and without user info. */
     INVALID_URL,
+
+    /** Not an email address: no `@` with text on both sides, or whitespace in it. */
+    INVALID_EMAIL,
+
+    /** Not a phone number: no digit, or a control character in it. */
+    INVALID_PHONE,
+
+    /** The referenced entity (e.g. the company of a contact) does not exist. */
+    NOT_FOUND,
 }
 
 /** The rules of [CompanyDetails], shared by its invariants and [CompanyInput.validate]. */

@@ -7,8 +7,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 - Status: accepted
 - Date: 2026-09-30
-- Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130; AGENTS.md §1
-  "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
+- Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130, amended by #74
+  (contacts); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
 
 ## Context
 
@@ -46,7 +46,7 @@ tasks, ...) copy its shape. Several questions had no answer yet:
 - **Validation as values.** Untrusted input enters the domain as a raw `*Input` whose `validate()`
   normalizes it (Unicode NFC, trim, blank optional text is absent) and returns `Valid(value)` or
   `Invalid(violations)`, each violation a field plus a problem kind (`REQUIRED`, `TOO_LONG`, `TOO_MANY`,
-  `INVALID_URL`). Domain constructors keep `require` only against programming errors. Limits are public
+  `INVALID_URL`, and since #74 `INVALID_EMAIL`, `INVALID_PHONE`, `NOT_FOUND` for a referenced entity). Domain constructors keep `require` only against programming errors. Limits are public
   constants on the domain type.
 - **Optimistic versions.** Every editable aggregate has a `version` (0, +1 per change). Responses carry
   it; change requests carry `basedOnVersion`. The use case checks it first (a stale version is
@@ -88,6 +88,25 @@ tasks, ...) copy its shape. Several questions had no answer yet:
   listed in `backend/adapters/persistence/AGENTS.md`; they are stored in every entry, so never renamed.
 - **Repositories come with the use cases**, not with the contract (as in `setup`, #23): the contract
   proves the migration's constraints with a schema test instead.
+
+### Personal data of third parties (contacts, #74)
+
+Contacts are the first contract holding other people's personal data (spec §13). Such a contract:
+
+- overrides `toString()` of every domain type and DTO that holds the data, so logs and exception
+  messages never carry it; events (`ContactDeleted`) carry ids only;
+- records changes in the changelog by field name, never by value (the changelog is append-only, and a
+  deleted contact must leave nothing personal behind);
+- deletes with confirmation (ADR-0039) and cascades to everything that only describes the person
+  (`contact_channel`); tables in other contexts that link to it react to `ContactDeleted` and use
+  `ON DELETE CASCADE` on their own link rows as well, so a missed event cannot keep a dangling reference;
+- validates contact data without over-restricting international formats: email addresses need an `@` with
+  text on both sides (the address is kept as entered), phone numbers a digit (no E.164 normalisation,
+  numbers are often noted without a country code), anything else is free text with a length limit.
+
+The company delete (#88) reads the ids of the company's contacts (`ContactRepositoryPort.findIdsByCompany`)
+in its transaction, counts them in the confirmation effect and publishes `ContactDeleted` for each, since
+the database cascade alone would not tell the other contexts.
 
 ## Consequences
 

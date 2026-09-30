@@ -88,6 +88,8 @@ data class PreferenceInput(
     }
 }
 
-private fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFC)
+/** The text in Unicode NFC, so the same name typed on two systems is the same string. */
+internal fun String.normalized(): String = Normalizer.normalize(this, Normalizer.Form.NFC)
 
-private fun String?.trimmedOrNull(): String? = this?.normalized()?.trim()?.takeIf(String::isNotEmpty)
+/** The text normalized and trimmed, or `null` if nothing is left. */
+internal fun String?.trimmedOrNull(): String? = this?.normalized()?.trim()?.takeIf(String::isNotEmpty)
