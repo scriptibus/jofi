@@ -100,6 +100,20 @@ Enforced by detekt + ktlint (backend) and Biome + `tsc` (frontend); the build fa
 - **Portability.** New tables or files must be covered by export/import.
 - **Legal sources only.** No scraping of LinkedIn, StepStone or Indeed.
 
+## 6a. Testing (every PR)
+
+Tests ship with the code they cover, in the same PR. "Where it makes sense" means almost everywhere:
+
+- **Unit tests** for every domain type, domain service and use case (plain Kotlin, no Spring), and for every
+  frontend component, hook and non-trivial function (Vitest + Testing Library).
+- **Adapter tests** against real infrastructure where it exists: Testcontainers Postgres for persistence,
+  `@WebMvcTest` slices for controllers, WireMock for outbound HTTP, the fake AI provider for AI adapters.
+- **e2e tests** (Playwright) for every user-facing flow: the happy path plus the most important error and
+  confirmation paths, in DE and EN, light and dark, phone width, with the axe check. Once the e2e compose
+  profile exists, they run against the full stack.
+- Every acceptance criterion maps to at least one test that fails without the change. Mock-only tests don't count.
+- Bug fixes start with a failing regression test.
+
 ## 7. Definition of done
 
 A PR is ready for review only when all of these hold:
