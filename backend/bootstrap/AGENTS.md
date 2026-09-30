@@ -43,3 +43,9 @@ Rules:
   registers the recurring housekeeping jobs. `BackgroundJobsTest` starts `app` and `worker` on one database.
 - `InMemoryLoginThrottleAdapter` (backoff counts) and `SpringSessionUserSessionsAdapter` (ending
   sessions) are framework-bound adapters here.
+- AI gateway wiring (ADR-0043): `setup.config.AiProviderConfiguration` builds `AiGatewayAdapter`, the
+  only `LlmPort`/`EmbeddingPort` bean, from the Spring AI adapter, the `setup` repositories, the
+  price table and the `AiVisibilityPort`. `shared.adapter.privacy.NoKnowledgeYetAiVisibilityAdapter` is a
+  placeholder that knows no flagged item and no source: when the knowledge context (M2) brings its own
+  `AiVisibilityPort`, delete the placeholder so exactly one source is wired. `ProviderConfigRepository`
+  also feeds the AI transport's allowlist (`AiHttpConfiguration`).
