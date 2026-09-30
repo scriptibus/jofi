@@ -889,5 +889,69 @@
   "task_violation_out_of_range": "Gib ein Datum zwischen 2000 und 2099 ein.",
   "task_violation_time_zone": "Diese Zeitzone ist unbekannt.",
   "task_violation_link_not_found": "Diesen Eintrag gibt es nicht (mehr). Wähle einen anderen.",
-  "task_violation_link_required": "Wähle einen aus oder wähle „Nichts“."
+  "task_violation_link_required": "Wähle einen aus oder wähle „Nichts“.",
+  "application_description_no_sources_heading": "Noch keine Stellenbeschreibung",
+  "application_description_no_sources": "Stellenbeschreibungen werden je Quelle gespeichert, und diese Bewerbung hat noch keine. Quellen kommen von Scannern und Links; sie hier hinzuzufügen, folgt später.",
+  "application_description_source": "Quelle",
+  "application_description_source_name": "{kind} ({host})",
+  "application_description_versions": "Versionen",
+  "application_description_versions_empty": "Von dieser Quelle ist noch keine Version gespeichert. Erfasse unten den aktuellen Text.",
+  "application_description_versions_failed": "Die Versionen konnten nicht geladen werden.",
+  "application_description_version": "Version {number}",
+  "application_description_reason_discovery": "Beim Finden gespeichert",
+  "application_description_reason_change_detected": "Änderung erkannt",
+  "application_description_reason_manual": "Von Hand erfasst",
+  "application_description_length": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} Zeichen",
+        "countPlural=other": "{shown} Zeichen"
+      }
+    }
+  ],
+  "application_description_frozen": "Eingefroren bei der Bewerbung",
+  "application_description_text_heading": "Text von Version {number}",
+  "application_description_text_failed": "Der Text konnte nicht geladen werden.",
+  "application_description_record": "Aktuellen Text erfassen",
+  "application_description_record_field": "Aktueller Text der Anzeige",
+  "application_description_record_help": "Füge den Text der Anzeige ein, wie er jetzt ist. Stimmt er mit der neuesten Version überein, wird nichts Neues gespeichert.",
+  "application_description_record_action": "Text erfassen",
+  "application_description_recorded_new": "Neue Version gespeichert: Version {number}.",
+  "application_description_recorded_unchanged": "Unverändert: Dieser Text stimmt mit der neuesten Version überein, daher wurde nichts Neues gespeichert.",
+  "application_description_compare_heading": "Versionen vergleichen",
+  "application_description_compare_before": "Vorher",
+  "application_description_compare_after": "Nachher",
+  "application_description_compare_choose": "Version wählen",
+  "application_description_compare_option": "{version}, {date}",
+  "application_description_compare_need_two": "Sobald es zwei Versionen gibt, kannst du sie hier vergleichen.",
+  "application_description_compare_same": "Wähle zwei verschiedene Versionen.",
+  "application_description_diff_label": "Änderungen von {before} zu {after}",
+  "application_description_diff_counts": "Hinzugefügte Zeilen: {added} · entfernte Zeilen: {removed}",
+  "application_description_diff_identical": "Beide Versionen haben denselben Text.",
+  "application_description_diff_failed": "Der Vergleich konnte nicht geladen werden.",
+  "application_description_diff_added": "Hinzugefügt:",
+  "application_description_diff_removed": "Entfernt:",
+  "application_description_show_unchanged": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} unveränderte Zeile zeigen",
+        "countPlural=other": "{shown} unveränderte Zeilen zeigen"
+      }
+    }
+  ],
+  "application_description_show_more": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} weitere Zeile zeigen",
+        "countPlural=other": "{shown} weitere Zeilen zeigen"
+      }
+    }
+  ],
+  "application_description_source_shown": "Angezeigte Quelle"
 }

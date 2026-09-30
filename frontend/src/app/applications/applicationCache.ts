@@ -7,6 +7,7 @@ import {
   getGetApplicationQueryKey,
   getGetApplicationStatusHistoryQueryKey,
   getGetCompanyQueryKey,
+  getListDescriptionSnapshotsQueryKey,
   getSearchApplicationsQueryKey,
   getSearchCompaniesQueryKey,
 } from "../../api/generated/jofi";
@@ -17,10 +18,17 @@ export function storeSavedApplication(queryClient: QueryClient, application: App
   void queryClient.invalidateQueries({ queryKey: getSearchApplicationsQueryKey() });
 }
 
-/** After a status change: like a save, and the status history asks again for the new entry. */
+/**
+ * After a status change: like a save, and the status history asks again for the new entry. The first move
+ * into "applied" freezes the descriptions (ADR-0046), so every source's list of versions asks again too.
+ */
 export function storeStatusChange(queryClient: QueryClient, application: ApplicationResponse) {
   storeSavedApplication(queryClient, application);
   void queryClient.invalidateQueries({ queryKey: getGetApplicationStatusHistoryQueryKey(application.id) });
+  const versionLists = application.sources.map((source) =>
+    getListDescriptionSnapshotsQueryKey(application.id, source.id),
+  );
+  for (const queryKey of versionLists) void queryClient.invalidateQueries({ queryKey });
 }
 
 /**

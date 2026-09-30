@@ -23,6 +23,7 @@ import { ApplicationOverview, CompanyLink } from "./ApplicationOverview";
 import { DELETE_OPERATION } from "./application";
 import { forgetDeletedApplication, storeSavedApplication } from "./applicationCache";
 import { describeApplicationError } from "./applicationProblems";
+import { DescriptionTab } from "./DescriptionTab";
 import { StatusBadge } from "./StatusBadge";
 import { type ApplicationTab, TABS, tabLabels } from "./tabs";
 
@@ -126,7 +127,11 @@ function ApplicationDetail({ application }: { application: ApplicationResponse }
         selected={tab ?? "overview"}
         onSelect={select}
       >
-        <ApplicationOverview application={application} />
+        {tab === "description" ? (
+          <DescriptionTab application={application} />
+        ) : (
+          <ApplicationOverview application={application} />
+        )}
       </Tabs>
     </>
   );
