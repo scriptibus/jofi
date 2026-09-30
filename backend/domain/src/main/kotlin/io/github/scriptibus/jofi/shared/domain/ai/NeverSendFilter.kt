@@ -3,8 +3,6 @@
 
 package io.github.scriptibus.jofi.shared.domain.ai
 
-import java.text.Normalizer
-
 /** What the "never send to AI" filter made of a request. */
 sealed interface FilterOutcome<out T> {
     /** [value] may be sent; [redactions] pieces were replaced by [NeverSendFilter.REDACTION]. */
@@ -24,16 +22,17 @@ sealed interface FilterOutcome<out T> {
 
 /**
  * Domain service: the "never send to AI" filter (spec §4.1, threat model T3, ADR-0043). It runs on
- * every piece of text a request would send: system prompts, user messages, earlier answers and their
- * tool call arguments, tool results and embedding inputs. Tool definitions are Jofi's own code and
- * are not filtered.
+ * everything a request would put on the wire: system prompts, user messages, earlier answers and
+ * their tool call arguments, tool results, tool definitions and embedding inputs.
  *
- * - A [ContentPart.Sourced] part whose source is flagged is replaced by [REDACTION]; an embedding
- *   input from a flagged source withholds the whole request.
- * - A source without a verdict makes the whole request [FilterOutcome.Undecided] (fail closed).
- * - Every [FlaggedValue] is redacted wherever it appears, also in text without a source (what the
- *   user typed, a tool result built from strings, an earlier answer). Matching ignores case and
- *   treats any run of whitespace as equal, after Unicode NFC normalisation.
+ * 1. Sources: a [ContentPart.Sourced] part whose source is flagged becomes [REDACTION]; an embedding
+ *    input from a flagged source withholds the whole request. A source without a verdict makes the
+ *    whole request [FilterOutcome.Undecided] (fail closed).
+ * 2. Values: every [FlaggedValue] is redacted from the text each message sends, i.e. its parts
+ *    joined as the provider adapter joins them (so a value split across parts is found), and from
+ *    embedding inputs and tool definitions ([ValueRedactor] explains the matching). Tool call
+ *    arguments and tool schemas are JSON: values are redacted inside their string values, so the
+ *    JSON stays valid ([JsonStrings]).
  *
  * The result carries only plain parts: the provider adapter never sees a source.
  */
@@ -60,9 +59,10 @@ object NeverSendFilter {
     ): FilterOutcome<LlmRequest> {
         val undecided = sourcesOf(request).count { it !in rules.verdicts }
         if (undecided > 0) return FilterOutcome.Undecided(undecided)
-        val redactor = Redactor(rules)
-        val messages = request.messages.map { redactor.message(it) }
-        return FilterOutcome.Passed(request.copy(messages = messages), redactor.redactions)
+        val redaction = Redaction(rules)
+        val messages = request.messages.map(redaction::message)
+        val tools = request.tools.map(redaction::tool)
+        return FilterOutcome.Passed(request.copy(messages = messages, tools = tools), redaction.count)
     }
 
     fun apply(
@@ -81,9 +81,9 @@ object NeverSendFilter {
             }
 
             else -> {
-                val redactor = Redactor(rules)
-                val inputs = request.inputs.map { ContentPart.Plain(redactor.text(it.text)) }
-                FilterOutcome.Passed(request.copy(inputs = inputs), redactor.redactions)
+                val redaction = Redaction(rules)
+                val inputs = request.inputs.map { ContentPart.Plain(redaction.plain(it.text)) }
+                FilterOutcome.Passed(request.copy(inputs = inputs), redaction.count)
             }
         }
     }
@@ -96,73 +96,54 @@ object NeverSendFilter {
             is LlmMessage.Assistant -> emptyList()
         }
 
-    /** Rewrites text for one request and counts what it withheld. */
-    private class Redactor(
+    /** Rewrites the text of one request and counts what it withheld. */
+    private class Redaction(
         private val rules: NeverSendRules,
     ) {
-        // Longest first, so a value that contains a shorter one is withheld as a whole.
-        private val patterns: List<Regex> =
-            rules.flaggedValues
-                .map { normalized(it.text).trim() }
-                .distinct()
-                .sortedByDescending { it.length }
-                .map(::patternOf)
+        private val values = ValueRedactor(rules.flaggedValues)
 
-        var redactions = 0
+        var count = 0
             private set
 
         fun message(message: LlmMessage): LlmMessage =
             when (message) {
-                is LlmMessage.System -> LlmMessage.System(parts(message.parts))
-                is LlmMessage.User -> LlmMessage.User(parts(message.parts))
-                is LlmMessage.ToolResult -> LlmMessage.ToolResult(message.toolCallId, parts(message.parts))
+                is LlmMessage.System -> LlmMessage.System(joined(message.parts))
+                is LlmMessage.User -> LlmMessage.User(joined(message.parts))
+                is LlmMessage.ToolResult -> LlmMessage.ToolResult(message.toolCallId, joined(message.parts))
                 is LlmMessage.Assistant -> assistant(message)
             }
 
+        fun tool(tool: ToolDefinition): ToolDefinition =
+            ToolDefinition(tool.name, plain(tool.description), json(tool.inputSchema))
+
+        fun plain(text: String): String = counted(values.text(text))
+
+        private fun json(text: String): String = counted(JsonStrings.redact(text, values))
+
         private fun assistant(message: LlmMessage.Assistant): LlmMessage.Assistant =
             LlmMessage.Assistant(
-                text(message.text),
-                message.toolCalls.map { it.copy(arguments = text(it.arguments)) },
+                plain(message.text),
+                message.toolCalls.map { it.copy(arguments = json(it.arguments)) },
             )
 
-        private fun parts(parts: List<ContentPart>): List<ContentPart> = parts.map(::part)
-
-        private fun part(part: ContentPart): ContentPart =
-            when (part) {
-                is ContentPart.Plain -> {
-                    ContentPart.Plain(text(part.text))
-                }
-
-                is ContentPart.Sourced -> {
-                    if (rules.verdicts[part.source] == AiVisibility.SENDABLE) {
-                        ContentPart.Plain(text(part.text))
-                    } else {
-                        redactions++
-                        ContentPart.Plain(REDACTION)
-                    }
+        /** The parts as the provider receives them (joined), flagged sources withheld, then scanned. */
+        private fun joined(parts: List<ContentPart>): String {
+            val normalized = StringBuilder()
+            val withheld = mutableListOf<IntRange>()
+            for (part in parts) {
+                if (part is ContentPart.Sourced && rules.verdicts[part.source] != AiVisibility.SENDABLE) {
+                    withheld += normalized.length until normalized.length + REDACTION.length
+                    normalized.append(REDACTION)
+                } else {
+                    normalized.append(ValueRedactor.normalized(part.text))
                 }
             }
-
-        fun text(original: String): String {
-            if (patterns.isEmpty()) return original
-            val normalized = normalized(original)
-            var result = normalized
-            for (pattern in patterns) {
-                result = pattern.replace(result) { _ -> REDACTION.also { redactions++ } }
-            }
-            return if (result == normalized) original else result
+            return counted(values.redact(normalized.toString(), withheld, ContentPart.join(parts)))
         }
 
-        private fun normalized(text: String): String = Normalizer.normalize(text, Normalizer.Form.NFC)
-
-        private fun patternOf(value: String): Regex =
-            Regex(
-                value.split(WHITESPACE).joinToString(WHITESPACE.pattern) { Regex.escape(it) },
-                RegexOption.IGNORE_CASE,
-            )
-
-        private companion object {
-            val WHITESPACE = Regex("\\s+")
+        private fun counted(redacted: Redacted): String {
+            count += redacted.count
+            return redacted.text
         }
     }
 }

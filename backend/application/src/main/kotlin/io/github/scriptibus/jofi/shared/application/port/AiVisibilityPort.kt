@@ -14,8 +14,10 @@ import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
  * Contract, which the gateway relies on to fail closed:
  * - The answer holds a verdict for every one of [sources] the implementation knows. A source it
  *   does not know gets no verdict, and the gateway refuses the call.
- * - The answer holds every flagged value of every flagged item, not only of [sources]: text
- *   without a source is scanned for them too.
+ * - The answer holds the flagged values of every flagged item, not only of [sources], because
+ *   text without a source is scanned for them too. For each flagged item these are its full text
+ *   AND each of its non-blank lines AND each of its fields (for a structured entry: every field
+ *   value, e.g. street, postcode and city, phone number), so a partial quote is caught as well.
  * - When it cannot answer completely, it returns [AiVisibilityResult.Unavailable]. It never throws
  *   and never answers from a partial read.
  */

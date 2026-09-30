@@ -46,25 +46,54 @@ unexpected exception before the provider call ends as `Unavailable` and sends no
   result filter (#116) needs it too. Until M2, `NoKnowledgeYetAiVisibilityAdapter` (bootstrap) knows
   no source and no flagged value; the knowledge context replaces it.
 
+### Enforcement: knowledge only ever travels as `Sourced`
+
+The value scan is the second line of defence; the source mark is the first, and it only works if
+knowledge text cannot reach the gateway unmarked. Rule (from the first M2 knowledge PR on, #136):
+
+- The knowledge domain has a text type for entry content whose only way out toward AI is
+  `asPromptPart(): ContentPart.Sourced` (carrying `ContentSource(KNOWLEDGE_ENTRY, id)`).
+- Classes that depend on knowledge domain types must not use `ContentPart.Plain`, the `String`
+  constructors of `LlmMessage.System`/`User`/`ToolResult`, or `EmbeddingRequest.ofTexts`. A
+  Konsist/ArchUnit rule with a known-bad fixture enforces it (acceptance criterion of #136).
+- `AiVisibilityPort` returns as flagged values each flagged entry's full text **and** each of its
+  non-blank lines **and** each of its fields, so partial quotes are caught by the value scan too.
+
 ### The filter (`NeverSendFilter`, a pure domain service)
 
-- A `Sourced` part of a flagged source becomes `[withheld]`. A value from `flaggedValues` is replaced by
-  `[withheld]` wherever it appears in any text, including content without a source (what the user
-  typed, a tool result built from strings, an earlier answer, tool call arguments), case-insensitive,
-  any run of whitespace equal, after Unicode NFC normalisation, longest value first.
-- **Fail closed**: a source without a verdict, an unavailable source or any exception refuses the
-  whole call with `AiResult.PrivacyFilterFailed`; nothing is sent.
-- An embedding input from a flagged source refuses the whole request with `AiResult.Withheld`
-  (embedding `[withheld]` would only pollute the index); other embedding inputs are redacted.
-- The filtered request carries only `Plain` parts, so the provider adapter never sees a source.
-- Tool definitions are Jofi's own code and are not filtered.
-- Redaction was chosen over refusing the call for flagged content, because a document or chat prompt
-  that quotes the whole profile must still work without the flagged entries. The model sees that
-  something is missing.
+1. **Sources.** A `Sourced` part of a flagged source becomes `[withheld]`. A source without a
+   verdict, an unavailable source or any exception refuses the whole call with
+   `AiResult.PrivacyFilterFailed` (**fail closed**); nothing is sent. An embedding input from a
+   flagged source refuses the whole request with `AiResult.Withheld` (embedding `[withheld]` would
+   only pollute the index).
+2. **Values.** The value scan runs on what goes on the wire: each message's parts **joined** as the
+   provider adapter joins them (a value split across parts is found), earlier answers, embedding
+   inputs, and tool definitions (description and schema). Matching (`ValueRedactor`):
+   - text and values are compared after Unicode **NFKC** (full-width characters, no-break, narrow
+     and thin spaces become plain ones), ignoring case;
+   - whitespace in a value matches any run of `[\s\p{Z}]`, and invisible format characters
+     (`\p{Cf}`: zero-width space and joiner, BOM) may sit between any two characters;
+   - in a value made mostly of digits, any of `[\s\p{Z}\-/.()]` may sit between its characters, so
+     `0170-1234567`, `0170/1234567`, `0170.123.45.67` and `+49 (0)170 1234567` match `0170 1234567`;
+   - a value shorter than 4 letters or digits only matches as a whole word (flag creation in M2
+     warns about such values);
+   - the match ranges of all values are collected on the normalised text, merged where they overlap
+     or touch, and each merged range is replaced **once**, so overlapping values ("Anna Schmidt",
+     "Schmidt Str. 5") become one `[withheld]` and a marker is never redacted again.
+3. **JSON.** Tool call arguments and tool schemas are JSON: values are redacted inside their decoded
+   string values (so `\u00fc` escapes do not hide them), a number containing a value becomes the
+   string `"[withheld]"`, and the JSON stays valid. Text that is not well-formed JSON is redacted as
+   plain text.
 
-Limits: the value scan is a second line of defence. It does not catch paraphrases, other spellings
-(`ß`/`ss`), or values escaped inside JSON (`ü`). The first line is the source mark; the MCP
-result filter (#116) removes flagged entries before they are serialised.
+The filtered request carries only `Plain` parts, so the provider adapter never sees a source.
+Redaction was chosen over refusing the call for flagged content, because a document or chat prompt
+that quotes the whole profile must still work without the flagged entries. The model sees that
+something is missing.
+
+Limits: the value scan cannot catch paraphrases, translations or other spellings (`ß`/`ss`), nor a
+value that the model is told to reassemble from pieces. That is why knowledge must travel as
+`Sourced` (above) and why the MCP result filter (#116) removes flagged entries before they are
+serialised.
 
 ### Capability check
 
@@ -116,8 +145,8 @@ rejected.
 
 ## Consequences
 
-- M2 implements `AiVisibilityPort` from the knowledge store and deletes the placeholder; callers
-  that embed knowledge mark it `Sourced`. Nothing in the gateway changes.
+- M2 implements `AiVisibilityPort` from the knowledge store and deletes the placeholder; knowledge
+  reaches the gateway only as `Sourced`, enforced by a rule (#136). Nothing in the gateway changes.
 - The price table needs care: a new model costs "unknown" until a verified row is added, and a price
   change needs a new `checkedOn` date and source.
 - Every `LlmPort`/`EmbeddingPort` result can now also be `PrivacyFilterFailed` or `Withheld`.
