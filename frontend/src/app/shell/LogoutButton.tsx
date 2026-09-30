@@ -26,7 +26,7 @@ export function LogoutButton({ className = "" }: { className?: string }) {
     });
 
   return (
-    <Button variant="secondary" onPress={onPress} isPending={logout.isPending} className={className}>
+    <Button variant="secondary" onPress={onPress} isDisabled={logout.isPending} className={className}>
       <LogOutIcon className="size-4" aria-hidden="true" />
       {logout.isPending ? m.logout_pending() : m.logout()}
     </Button>

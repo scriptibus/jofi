@@ -15,6 +15,7 @@ import {
 } from "../problems";
 import { FormFeedback } from "./FormFeedback";
 import { NewPasswordFields } from "./NewPasswordFields";
+import { useFieldErrors } from "./useFieldErrors";
 import { useThrottle } from "./useThrottle";
 
 /** Settings: change the password. The server ends every other session of the user. */
@@ -22,7 +23,7 @@ export function PasswordChangeForm() {
   const throttle = useThrottle();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const fieldErrors = useFieldErrors();
   const [failure, setFailure] = useState<ErrorDescription | null>(null);
   const [done, setDone] = useState(false);
   // Remounts the fields after a change, so the repeated password is cleared too.
@@ -34,9 +35,9 @@ export function PasswordChangeForm() {
     const wait = throttledFor(error);
     if (wait !== undefined) throttle.start(wait);
     else if (isProblem(error, ProblemType.invalidCredentials))
-      setFieldErrors({ currentPassword: m.password_change_wrong_current() });
+      fieldErrors.set({ currentPassword: m.password_change_wrong_current() });
     else if (isProblem(error, ProblemType.weakPassword))
-      setFieldErrors({ newPassword: m.error_weak_password() });
+      fieldErrors.set({ newPassword: m.error_weak_password() });
     else if (!isSessionEnded(error)) setFailure(describeError(error));
   };
 
@@ -45,7 +46,7 @@ export function PasswordChangeForm() {
     throttle.reset();
     setDone(false);
     setFailure(null);
-    setFieldErrors({});
+    fieldErrors.set({});
     change.mutate(
       { data: { currentPassword, newPassword } },
       {
@@ -73,7 +74,7 @@ export function PasswordChangeForm() {
       <Form
         key={generation}
         onSubmit={submit}
-        validationErrors={fieldErrors}
+        validationErrors={fieldErrors.errors}
         className="flex max-w-md flex-col gap-5"
       >
         <TextField
@@ -82,20 +83,19 @@ export function PasswordChangeForm() {
           label={m.password_current_label()}
           autoComplete="current-password"
           value={currentPassword}
-          onChange={setCurrentPassword}
+          onChange={fieldErrors.clearing("currentPassword", setCurrentPassword)}
           validate={(value) => (value === "" ? m.password_required() : null)}
         />
         <NewPasswordFields
           name="newPassword"
           label={m.password_new_label()}
           password={newPassword}
-          onPasswordChange={setNewPassword}
+          onPasswordChange={fieldErrors.clearing("newPassword", setNewPassword)}
         />
         <Button
           type="submit"
           variant="secondary"
-          isDisabled={throttle.waitSeconds !== undefined}
-          isPending={change.isPending}
+          isDisabled={throttle.waitSeconds !== undefined || change.isPending}
           className="self-start"
         >
           {change.isPending ? m.password_change_pending() : m.password_change_submit()}

@@ -12,6 +12,7 @@ import { AuthLayout } from "./AuthLayout";
 import { FormFeedback } from "./FormFeedback";
 import { NewPasswordFields } from "./NewPasswordFields";
 import { refreshSession } from "./session";
+import { useFieldErrors } from "./useFieldErrors";
 import { useThrottle } from "./useThrottle";
 
 /** Where the user reads the one-time setup token (ADR-0035). Shown verbatim, never translated. */
@@ -23,7 +24,7 @@ export function FirstRunPage() {
   const throttle = useThrottle();
   const [password, setPassword] = useState("");
   const [setupToken, setSetupToken] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const fieldErrors = useFieldErrors();
   const [failure, setFailure] = useState<ErrorDescription | null>(null);
   const firstRun = useCompleteFirstRun({ mutation: { meta: { errorHandledLocally: true } } });
 
@@ -31,9 +32,9 @@ export function FirstRunPage() {
     const wait = throttledFor(error);
     if (wait !== undefined) throttle.start(wait);
     else if (isProblem(error, ProblemType.invalidSetupToken))
-      setFieldErrors({ setupToken: m.setup_token_wrong() });
+      fieldErrors.set({ setupToken: m.setup_token_wrong() });
     else if (isProblem(error, ProblemType.weakPassword))
-      setFieldErrors({ password: m.error_weak_password() });
+      fieldErrors.set({ password: m.error_weak_password() });
     else if (isProblem(error, ProblemType.alreadySetUp)) {
       await refreshSession(queryClient);
       await router.navigate({ to: "/login" });
@@ -44,7 +45,7 @@ export function FirstRunPage() {
     event.preventDefault();
     throttle.reset();
     setFailure(null);
-    setFieldErrors({});
+    fieldErrors.set({});
     firstRun.mutate(
       { data: { password, setupToken: setupToken.trim() } },
       {
@@ -60,8 +61,11 @@ export function FirstRunPage() {
   return (
     <AuthLayout title={m.first_run_heading()} intro={m.first_run_intro()}>
       <FormFeedback throttle={throttle} failure={failure} />
-      <Form onSubmit={submit} validationErrors={fieldErrors} className="flex flex-col gap-5">
-        <NewPasswordFields password={password} onPasswordChange={setPassword} />
+      <Form onSubmit={submit} validationErrors={fieldErrors.errors} className="flex flex-col gap-5">
+        <NewPasswordFields
+          password={password}
+          onPasswordChange={fieldErrors.clearing("password", setPassword)}
+        />
         <TextField
           name="setupToken"
           label={m.setup_token_label()}
@@ -69,7 +73,7 @@ export function FirstRunPage() {
           spellCheck="false"
           mono
           value={setupToken}
-          onChange={setSetupToken}
+          onChange={fieldErrors.clearing("setupToken", setSetupToken)}
           validate={(value) => (value.trim() === "" ? m.setup_token_required() : null)}
           description={
             <>
@@ -82,8 +86,7 @@ export function FirstRunPage() {
         />
         <Button
           type="submit"
-          isDisabled={throttle.waitSeconds !== undefined}
-          isPending={firstRun.isPending}
+          isDisabled={throttle.waitSeconds !== undefined || firstRun.isPending}
           className="self-start"
         >
           {firstRun.isPending ? m.first_run_pending() : m.first_run_submit()}

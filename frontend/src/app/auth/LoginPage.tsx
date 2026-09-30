@@ -11,6 +11,7 @@ import { describeError, type ErrorDescription, isProblem, ProblemType, throttled
 import { AuthLayout } from "./AuthLayout";
 import { FormFeedback } from "./FormFeedback";
 import { refreshSession, safeRedirect } from "./session";
+import { useFieldErrors } from "./useFieldErrors";
 import { useThrottle } from "./useThrottle";
 
 const route = getRouteApi("/login");
@@ -24,7 +25,7 @@ export function LoginPage() {
   const router = useRouter();
   const throttle = useThrottle();
   const [password, setPassword] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const fieldErrors = useFieldErrors();
   const [failure, setFailure] = useState<ErrorDescription | null>(null);
   const [attempted, setAttempted] = useState(false);
   const login = useLogIn({ mutation: { meta: { errorHandledLocally: true } } });
@@ -33,7 +34,7 @@ export function LoginPage() {
     const wait = throttledFor(error);
     if (wait !== undefined) throttle.start(wait);
     else if (isProblem(error, ProblemType.invalidCredentials))
-      setFieldErrors({ password: m.login_wrong_password() });
+      fieldErrors.set({ password: m.login_wrong_password() });
     else if (isProblem(error, ProblemType.notSetUp)) void router.navigate({ to: "/first-run" });
     else setFailure(describeError(error));
   };
@@ -43,7 +44,7 @@ export function LoginPage() {
     throttle.reset();
     setAttempted(true);
     setFailure(null);
-    setFieldErrors({});
+    fieldErrors.set({});
     login.mutate(
       { data: { password } },
       {
@@ -62,17 +63,17 @@ export function LoginPage() {
       {reason === "expired" && !attempted ? <Alert tone="info">{m.session_expired()}</Alert> : null}
       {reason === "logged-out" && !attempted ? <Alert tone="success">{m.logged_out()}</Alert> : null}
       <FormFeedback throttle={throttle} failure={failure} />
-      <Form onSubmit={submit} validationErrors={fieldErrors} className="flex flex-col gap-5">
+      <Form onSubmit={submit} validationErrors={fieldErrors.errors} className="flex flex-col gap-5">
         <TextField
           name="password"
           type="password"
           label={m.password_label()}
           autoComplete="current-password"
           value={password}
-          onChange={setPassword}
+          onChange={fieldErrors.clearing("password", setPassword)}
           validate={(value) => (value === "" ? m.password_required() : null)}
         />
-        <Button type="submit" isDisabled={waiting} isPending={login.isPending} className="self-start">
+        <Button type="submit" isDisabled={waiting || login.isPending} className="self-start">
           {login.isPending ? m.login_pending() : m.login_submit()}
         </Button>
       </Form>

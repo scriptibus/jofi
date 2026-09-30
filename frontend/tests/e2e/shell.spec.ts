@@ -49,6 +49,7 @@ test("shell: navigation to every area, landmarks, skip link, accessibility", asy
 
   // The skip link is the first stop and moves focus to the content.
   await page.goto("/tasks");
+  await expect(page.getByRole("heading", { level: 1, name: "Tasks" })).toBeVisible();
   await page.keyboard.press("Tab");
   const skip = page.getByRole("link", { name: "Skip to content" });
   await expect(skip).toBeFocused();

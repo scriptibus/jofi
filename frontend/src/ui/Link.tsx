@@ -29,7 +29,7 @@ export type NavItemVariant = "row" | "tab";
 const navLayouts: Record<NavItemVariant, string> = {
   row: "flex-row gap-2 px-3 py-2 text-body",
   // Phone: icon above a small label (bottom tab bar). From `md` on: a sidebar row.
-  tab: "flex-col gap-1 px-1 py-2 text-eyebrow md:flex-row md:gap-3 md:px-3 md:text-body",
+  tab: "flex-col gap-1 px-1 py-2 text-tab md:flex-row md:gap-3 md:px-3 md:text-body",
 };
 
 export interface NavItemBaseProps extends AriaLinkProps {
