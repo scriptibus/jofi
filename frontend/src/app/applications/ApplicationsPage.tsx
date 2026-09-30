@@ -6,7 +6,7 @@ import { getRouteApi } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
 import { type ApplicationPageResponse, useSearchApplications } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
-import { Alert, Button, EmptyState } from "../../ui";
+import { AddIcon, Alert, Button, EmptyState, TextLink } from "../../ui";
 import { useCompanyChoices } from "../contacts/companyChoices";
 import { PageHeader } from "../pages/PlaceholderPage";
 import { describeError } from "../problems";
@@ -43,7 +43,10 @@ export function ApplicationsPage() {
 
   return (
     <>
-      <PageHeader title={m.nav_applications()} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <PageHeader title={m.nav_applications()} />
+        <NewApplicationLink company={search.company} />
+      </div>
       <ApplicationFilters search={search} onSearch={go} text={text} onText={setText} companies={companies} />
       {applications.data ? (
         <Results
@@ -73,6 +76,20 @@ export function ApplicationsPage() {
         <p role="status">{m.loading()}</p>
       )}
     </>
+  );
+}
+
+/** To the create page; a company the list is filtered by is preselected there. */
+function NewApplicationLink({ company }: { company?: string | undefined }) {
+  return (
+    <TextLink
+      to="/applications/new"
+      search={company ? { company } : {}}
+      className="inline-flex items-center gap-2 self-start sm:self-auto"
+    >
+      <AddIcon className="size-4" aria-hidden="true" />
+      {m.applications_new()}
+    </TextLink>
   );
 }
 
@@ -108,7 +125,11 @@ interface ResultsProps {
 function Results({ page: { total }, search, onSearch, list }: ResultsProps) {
   const filtered = isFiltered(search);
   if (total === 0 && !filtered)
-    return <EmptyState title={m.empty_heading()}>{m.applications_empty()}</EmptyState>;
+    return (
+      <EmptyState title={m.empty_heading()} action={<NewApplicationLink />}>
+        {m.applications_empty()}
+      </EmptyState>
+    );
   const page = search.page ?? 0;
   const pages = Math.ceil(total / PAGE_SIZE);
   return (

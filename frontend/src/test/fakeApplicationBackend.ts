@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// An in-memory stand-in for one application's endpoints (#82), as MSW handlers next to
+// An in-memory stand-in for one application's endpoints (#82) and create, as MSW handlers next to
 // `fakeCompanyBackend` (which answers the company lookups). It mirrors the backend's status codes and
 // problem types: 409 `version-conflict` for a stale `basedOnVersion`, a 428 whose effect counts what goes
 // with the application before a delete, and read/unread without a version change.
@@ -60,6 +60,12 @@ export interface FakeApplicationState {
   unreadCalls: boolean[];
   /** Every accepted `PUT` body, in order. */
   updates: UpdateApplicationRequest[];
+  /** Every accepted `POST` body, in order. */
+  creates: ApplicationDetailsRequest[];
+  /** The companies that exist; when set, any other `companyId` is refused (`NOT_FOUND`). */
+  companyIds?: string[];
+  /** Told of every created application, e.g. to add it to a list backend's state. */
+  onCreate?: (application: ApplicationResponse) => void;
   /** Delete calls seen: `first` without token, `confirmed` with it. */
   deleteCalls: ("first" | "confirmed")[];
   /** What goes with each application on delete (the effect's counts), by id. */
@@ -71,6 +77,8 @@ export interface FakeApplicationState {
 function violations(details: ApplicationDetailsRequest, state: FakeApplicationState) {
   const found: { field: string; problem: string }[] = [];
   if (details.title.trim() === "") found.push({ field: "title", problem: "REQUIRED" });
+  if (state.companyIds && !state.companyIds.includes(details.companyId))
+    found.push({ field: "companyId", problem: "NOT_FOUND" });
   const max = details.payBand?.max;
   if (state.refusePayMax && max === state.refusePayMax.value)
     found.push({ field: "payBand.max", problem: state.refusePayMax.problem });
@@ -105,6 +113,7 @@ export function fakeApplicationBackend(initial: Partial<FakeApplicationState> = 
     applications: [],
     unreadCalls: [],
     updates: [],
+    creates: [],
     deleteCalls: [],
     cascade: {},
     ...initial,
@@ -115,7 +124,20 @@ export function fakeApplicationBackend(initial: Partial<FakeApplicationState> = 
     return HttpResponse.json(saved);
   };
 
+  const refused = (found: { field: string; problem: string }[]) =>
+    json({ type: "urn:jofi:problem:applications:invalid-application", status: 400, violations: found }, 400);
+
   const handlers = [
+    http.post(`${origin()}/api/applications`, async ({ request }) => {
+      const body = (await request.json()) as ApplicationDetailsRequest;
+      const found = violations(body, state);
+      if (found.length > 0) return refused(found);
+      state.creates.push(body);
+      const created = { ...withDetails(anApplication(body.companyId), body), version: 0 };
+      state.applications = [...state.applications, created];
+      state.onCreate?.(created);
+      return HttpResponse.json(created, { status: 201 });
+    }),
     http.get(`${origin()}/api/applications/:id`, ({ params }) => {
       const application = find(params.id);
       return application ? HttpResponse.json(application) : problem(404, "application-not-found");
@@ -125,11 +147,7 @@ export function fakeApplicationBackend(initial: Partial<FakeApplicationState> = 
       if (!application) return problem(404, "application-not-found");
       const body = (await request.json()) as UpdateApplicationRequest;
       const found = violations(body.details, state);
-      if (found.length > 0)
-        return json(
-          { type: "urn:jofi:problem:applications:invalid-application", status: 400, violations: found },
-          400,
-        );
+      if (found.length > 0) return refused(found);
       if (body.basedOnVersion !== application.version) return problem(409, "version-conflict");
       state.updates.push(body);
       return store(withDetails(application, body.details));
