@@ -127,8 +127,10 @@ so no `DELETE` needs a confirmation), `PUT /api/applications/{id}/status` (the s
 a decline category exactly for `DECLINED`/`REJECTED`, `409 invalid-transition` for a move it does not
 allow), `GET /api/applications/{id}/status-history` and `DELETE /api/applications/{id}` (two steps,
 `Jofi-Confirmation`). The decline reason is set by the status change, not by the details.
-Contract only: every operation answers `501` until #82, #83, #84 and #90 (the search already answers 400 for
-paging out of range). `ApplicationProblems.of` maps each `ApplicationResult.Failure`; violations name the
+Create, read, edit, read/unread and delete call their use cases (#82) as `Actor.User` and map failures with
+`orThrow()`: an unknown company is `400` (`companyId`, `NOT_FOUND`), the delete's 428 effect counts
+`contactLinks`, `statusChanges`, `sources` and `snapshots`. The list, the status change and its history and the contact links still
+answer `501` until #83, #84 and #90 (the search already answers 400 for paging out of range). `ApplicationProblems.of` maps each `ApplicationResult.Failure`; violations name the
 nested request field (`payBand.max`, `offer.salary.currency`, `contactIds`). API enums are copies of the
 domain enums (`JobSeniority` for `Seniority`, ...), mapped with `mapByName` and tested for equal constants.
 Amounts are gross, JSON numbers with at most two decimals; scores numbers with one decimal. DTOs holding

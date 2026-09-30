@@ -27,16 +27,21 @@ import io.github.scriptibus.jofi.shared.application.port.LlmPort
  * ([AdapterRulesFixtureTest]), so both evaluate exactly the same rule.
  */
 object AdapterRules {
-    /** Generated jOOQ code of the whole schema lives in the shared kernel's persistence adapter (ADR-0032). */
-    const val GENERATED_JOOQ = "$BASE.shared.adapter.persistence.jooq.."
+    /**
+     * The shared kernel's persistence code (ADR-0032): the generated jOOQ code of the whole schema, and the
+     * helpers every context's repositories need for its shared columns and errors (`ActorColumns`, the
+     * violated constraint's name).
+     */
+    const val SHARED_PERSISTENCE = "$BASE.shared.adapter.persistence.."
 
     /** The web conventions every context's controllers share: problem details, confirmations (ADR-0033/0039). */
     const val SHARED_WEB = "$BASE.shared.adapter.web.."
 
     /**
      * Adapters talk to each other only through use cases and ports. Two narrow exemptions: every
-     * context's persistence adapter may use the generated jOOQ code, which is generated for the whole
-     * schema into one package; and every context's web adapter may use the shared web conventions
+     * context's persistence adapter may use the shared persistence code (the jOOQ code generated for the
+     * whole schema into one package, and the kernel's column and error helpers for that schema, #82); and
+     * every context's web adapter may use the shared web conventions
      * (`Confirmations`, `ValidationProblem`, `ProblemResponses`), which ADR-0039 and ADR-0041 require.
      * Other adapter kinds still may not touch either.
      */
@@ -45,7 +50,7 @@ object AdapterRules {
             .matching("$BASE.(*).adapter.(*)..")
             .should()
             .notDependOnEachOther()
-            .ignoreDependency(resideInAPackage("..adapter.persistence.."), resideInAPackage(GENERATED_JOOQ))
+            .ignoreDependency(resideInAPackage("..adapter.persistence.."), resideInAPackage(SHARED_PERSISTENCE))
             .ignoreDependency(resideInAPackage("..adapter.web.."), resideInAPackage(SHARED_WEB))
             .because("adapters talk to each other only through use cases and ports")
 

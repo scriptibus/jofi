@@ -4,11 +4,17 @@
 package io.github.scriptibus.jofi.fixture.adapter.web
 
 import io.github.scriptibus.jofi.setup.application.port.AiProviderPort
+import io.github.scriptibus.jofi.shared.adapter.persistence.TransactionAdapter
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables
 
 /** Known-bad: a web adapter using the generated jOOQ code. Test fixture only, never production. */
 class JooqInWebAdapterFixture {
     val tables: Class<*> = Tables::class.java
+}
+
+/** Known-bad: a web adapter using the shared persistence code beyond the generated jOOQ code. Test fixture only. */
+class SharedPersistenceInWebAdapterFixture {
+    val shared: Class<*> = TransactionAdapter::class.java
 }
 
 /** Known-bad: an adapter outside `setup.adapter.ai` calling the provider-facing AI port directly. */
