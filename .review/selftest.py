@@ -16,13 +16,11 @@ Subcommands:
 """
 import argparse
 import importlib.util
-import io
 import json
 import pathlib
 import re
 import subprocess
 import sys
-import tarfile
 
 REVIEW_DIR = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = REVIEW_DIR.parent
@@ -258,8 +256,10 @@ def _export_tree(source: pathlib.Path, out: pathlib.Path) -> None:
                              cwd=source, capture_output=True, check=False)
     if archive.returncode != 0:
         raise RuntimeError(f"git archive failed: {archive.stderr.decode(errors='replace').strip()}")
-    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
-        tar.extractall(out, filter="data")
+    # The archive is our own committed tree; GNU tar also refuses absolute and `..` member paths by default.
+    extract = subprocess.run(["tar", "-x", "-C", str(out)], input=archive.stdout, capture_output=True, check=False)
+    if extract.returncode != 0:
+        raise RuntimeError(f"tar failed: {extract.stderr.decode(errors='replace').strip()}")
 
 
 def report(fixture: str, failures: list[str], result: object) -> str:
