@@ -55,5 +55,23 @@ enum class DeclineReasonCategory {
     OTHER,
 }
 
+/** Copy of `ApplicationStatus`: the pipeline, then the terminal statuses (spec §6.2, ADR-0044). */
+enum class PipelineStatus {
+    DISCOVERED,
+    SHORTLISTED,
+    PREPARING,
+    APPLIED,
+    INTERVIEWING,
+    OFFER,
+    ACCEPTED,
+    REJECTED,
+    WITHDRAWN,
+    DECLINED,
+    GHOSTED,
+}
+
+/** Who made a change: the user, the built-in AI, a scanner, an external client or an automatic rule or job. */
+enum class ChangeActorKind { USER, AI, SCANNER, EXTERNAL_CLIENT, SYSTEM }
+
 /** The constant of [T] with this constant's name (API enum to domain enum and back). */
 internal inline fun <reified T : Enum<T>> Enum<*>.mapByName(): T = enumValueOf<T>(name)

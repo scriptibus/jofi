@@ -371,8 +371,16 @@ class DatabaseBackupRepositoryTest {
         const val AT = "2026-09-30 10:00:00.123456+00"
         const val OLDER_SCHEMA = "20260930064000"
 
-        /** Tables the schema before the company table (#130) did not have yet (and the applications tables, #76). */
-        val LATER_TABLES = setOf("company", "contact", "contact_channel", "application", "application_contact")
+        /** Tables the schema before the company table (#130) did not have yet (and the applications tables). */
+        val LATER_TABLES =
+            setOf(
+                "company",
+                "contact",
+                "contact_channel",
+                "application",
+                "application_contact",
+                "application_status_change",
+            )
         val COMPANY: UUID = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
         const val CHANGELOG_INSERT =
             "insert into changelog_entry (entity_type, entity_id, actor_kind, actor_name, occurred_at, description, " +

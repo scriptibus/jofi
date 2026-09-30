@@ -9,8 +9,9 @@ import java.time.LocalDate
 /**
  * What the user (or the AI, a scanner or an external client) records about a job (spec §6.1). Build it
  * from untrusted input with [ApplicationInput.validate], which reports every problem as a value; the
- * constructor only guards invariants and throws on a programming error. Notes and reasons are the
- * user's own words, so [toString] leaves them out.
+ * constructor only guards invariants and throws on a programming error. Notes are the user's own
+ * words, so [toString] leaves them out. The decline reason belongs to the status, not to the details
+ * ([Application.declineReason], ADR-0044).
  */
 data class ApplicationDetails(
     val title: String,
@@ -27,8 +28,6 @@ data class ApplicationDetails(
     val portalNotes: String? = null,
     val payBand: PayBand? = null,
     val languageAndTone: LanguageAndTone = LanguageAndTone.UNKNOWN,
-    /** Why the user decided against the job or the company rejected them (spec §6.1). */
-    val declineReason: DeclineReason? = null,
     /** What the company offered, once the application reached an offer. */
     val offer: OfferDetails? = null,
 ) {
@@ -99,7 +98,7 @@ enum class HowApplied { PORTAL, EMAIL, REFERRAL, OTHER }
 
 /**
  * Why an application ended without a new job (spec §6.1): the user decided against it ("Declined")
- * or the company rejected them ("Rejected"); which of the two is the status's business (#77).
+ * or the company rejected them ("Rejected"). A status change to either sets it (ADR-0044).
  */
 data class DeclineReason(
     val category: DeclineCategory,

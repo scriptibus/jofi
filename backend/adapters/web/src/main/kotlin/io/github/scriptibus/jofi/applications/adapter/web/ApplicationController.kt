@@ -28,8 +28,8 @@ import java.util.UUID
 
 /**
  * Applications (spec §6.1). The contract only (#76): every operation answers `501 Not Implemented`
- * until the use cases land (#82 create/get/update/unread/delete, #83 list, #90 contacts), which then
- * inject them here and map each `ApplicationResult.Failure` with [ApplicationProblems.of]. Until then
+ * until the use cases land (#82 create/get/update/unread/delete, #83 list, #84 status, #90 contacts),
+ * which then inject them here and map each `ApplicationResult.Failure` with [ApplicationProblems.of]. Until then
  * most parameters only declare the contract, hence the suppressed unused-parameter rule.
  */
 @Suppress("UnusedParameter")
@@ -95,6 +95,24 @@ class ApplicationController {
         @PathVariable id: UUID,
         @RequestBody request: ApplicationContactsRequest,
     ): ApplicationResponse = throw notImplemented()
+
+    /**
+     * Moves the application to another status (ADR-0044); 409 `invalid-transition` if the matrix has no
+     * such move, 409 `version-conflict` if `basedOnVersion` is stale.
+     */
+    @PutMapping("/{id}/status")
+    @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.NOT_FOUND, ProblemKind.CONFLICT)
+    fun changeApplicationStatus(
+        @PathVariable id: UUID,
+        @RequestBody request: ChangeApplicationStatusRequest,
+    ): ApplicationResponse = throw notImplemented()
+
+    /** Every status change of the application, oldest first. */
+    @GetMapping("/{id}/status-history")
+    @ProblemResponses(ProblemKind.NOT_FOUND)
+    fun getApplicationStatusHistory(
+        @PathVariable id: UUID,
+    ): StatusHistoryResponse = throw notImplemented()
 
     /** Two steps (ADR-0039): the first call answers 428 with a token, the repeat with it deletes. */
     @DeleteMapping("/{id}")

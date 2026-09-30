@@ -8,7 +8,6 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationInput
 import io.github.scriptibus.jofi.applications.domain.ApplicationPage
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.DeclineReason
-import io.github.scriptibus.jofi.applications.domain.DeclineReasonInput
 import io.github.scriptibus.jofi.applications.domain.LanguageAndTone
 import io.github.scriptibus.jofi.applications.domain.LanguageAndToneInput
 import io.github.scriptibus.jofi.applications.domain.OfferDetails
@@ -45,7 +44,6 @@ data class ApplicationDetailsRequest(
     val portalNotes: String? = null,
     val payBand: PayBandDto? = null,
     val languageAndTone: LanguageAndToneDto? = null,
-    val declineReason: DeclineReasonDto? = null,
     val offer: OfferDto? = null,
 ) {
     fun toInput(): ApplicationInput =
@@ -61,7 +59,6 @@ data class ApplicationDetailsRequest(
             portalNotes = portalNotes,
             payBand = payBand?.toInput(),
             languageAndTone = languageAndTone?.toInput(),
-            declineReason = declineReason?.toInput(),
             offer = offer?.toInput(),
         )
 
@@ -155,13 +152,14 @@ data class LanguageAndToneDto(
     }
 }
 
-/** Why the user declined or the company rejected; [text] is Markdown. */
+/**
+ * Why the user declined or the company rejected; [text] is Markdown. Set by a status change to `DECLINED`
+ * or `REJECTED` (`PUT /api/applications/{id}/status`), not by the details.
+ */
 data class DeclineReasonDto(
     val category: DeclineReasonCategory,
     val text: String? = null,
 ) {
-    fun toInput(): DeclineReasonInput = DeclineReasonInput(category.mapByName(), text)
-
     override fun toString(): String = "DeclineReasonDto(category=$category)"
 
     companion object {
@@ -223,7 +221,8 @@ data class ApplicationContactsRequest(
 
 /**
  * One application. [version] goes back as `basedOnVersion` with the next change; render the notes
- * sanitised. Scores are 0 to 5 with one decimal (null until scoring exists).
+ * sanitised. Scores are 0 to 5 with one decimal (null until scoring exists). [declineReason] is present
+ * exactly while [status] is `DECLINED` or `REJECTED`.
  */
 data class ApplicationResponse(
     val id: UUID,
@@ -238,8 +237,9 @@ data class ApplicationResponse(
     val portalNotes: String?,
     val payBand: PayBandDto?,
     val languageAndTone: LanguageAndToneDto,
-    val declineReason: DeclineReasonDto?,
     val offer: OfferDto?,
+    val status: PipelineStatus,
+    val declineReason: DeclineReasonDto?,
     val contactIds: List<UUID>,
     val unread: Boolean,
     val wantScore: BigDecimal?,
@@ -266,8 +266,9 @@ data class ApplicationResponse(
                     portalNotes,
                     payBand?.let(PayBandDto::from),
                     LanguageAndToneDto.from(languageAndTone),
-                    declineReason?.let(DeclineReasonDto::from),
                     offer?.let(OfferDto::from),
+                    application.status.mapByName(),
+                    application.declineReason?.let(DeclineReasonDto::from),
                     application.contacts.map { it.value }.sorted(),
                     application.unread,
                     application.wantScore?.decimal(),
