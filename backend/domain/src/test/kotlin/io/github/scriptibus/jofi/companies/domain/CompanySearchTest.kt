@@ -26,6 +26,16 @@ class CompanySearchTest {
     }
 
     @Test
+    fun `query parameters become a search, or nothing when the page is out of range`() {
+        CompanySearch.of("  acme ", PreferenceKind.BLACKLISTED, 1, 20) shouldBe
+            CompanySearch("acme", PreferenceKind.BLACKLISTED, 1, 20)
+        CompanySearch.of(" ", null, 0, CompanySearch.DEFAULT_SIZE) shouldBe CompanySearch()
+        CompanySearch.of(null, null, -1, 20) shouldBe null
+        CompanySearch.of(null, null, 0, 0) shouldBe null
+        CompanySearch.of(null, null, 0, CompanySearch.MAX_SIZE + 1) shouldBe null
+    }
+
+    @Test
     fun `a page never counts fewer matches than it holds`() {
         val company =
             Company.create(CompanyId(UUID.randomUUID()), CompanyDetails("ACME"), Instant.parse("2026-09-30T08:00:00Z"))

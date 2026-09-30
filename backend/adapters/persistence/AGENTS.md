@@ -99,7 +99,8 @@ The generator lives in the `codegen` source set and has its own locked classpath
   industry, size band, ordered `locations text[]`, research notes), the AI profile placeholder
   (`profile` + `profile_generated_at`, both or neither), the preference (`NONE`/`FAVOURITE`/`BLACKLISTED`,
   a reason only with a flag) and `version` for optimistic locking. Check constraints mirror
-  `CompanyDetails`, `CompanyPreference` and `CompanyProfile`; `CompanySchemaTest` proves them.
+  `CompanyDetails`, `CompanyPreference` and `CompanyProfile` (the SQL function
+  `company_locations_are_valid` checks each location); `CompanySchemaTest` proves them.
   `company_name_trgm_idx` (GIN, `gin_trgm_ops`) serves fuzzy name search and duplicate detection
   (spec §8.4); pg_trgm ignores case. User data: **covered by export/import** (#26).
 - `CompanyRepositoryPort` is implemented with the use cases (#88). Its `update` stores only if the

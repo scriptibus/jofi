@@ -47,29 +47,28 @@ class CompanyDtosTest {
             PreferenceInput(PreferenceKind.FAVOURITE, " Great ")
     }
 
+    private val company =
+        Company(
+            id = CompanyId(uuid),
+            details =
+                CompanyDetails(
+                    name = "ACME GmbH",
+                    website = WebAddress(URI("https://acme.example")),
+                    industry = "Robotics",
+                    size = CompanySize.LARGE,
+                    locations = listOf("Berlin", "Remote"),
+                    careersPage = WebAddress(URI("https://jobs.example/acme")),
+                    researchNotes = "# Notes",
+                ),
+            profile = CompanyProfile("Builds anvils.", at),
+            preference = CompanyPreference.Blacklisted("Declined twice"),
+            version = 4,
+            createdAt = at,
+            updatedAt = at.plusSeconds(60),
+        )
+
     @Test
     fun `a company becomes a response with every field`() {
-        val details =
-            CompanyDetails(
-                name = "ACME GmbH",
-                website = WebAddress(URI("https://acme.example")),
-                industry = "Robotics",
-                size = CompanySize.LARGE,
-                locations = listOf("Berlin", "Remote"),
-                careersPage = WebAddress(URI("https://jobs.example/acme")),
-                researchNotes = "# Notes",
-            )
-        val company =
-            Company(
-                id = CompanyId(uuid),
-                details = details,
-                profile = CompanyProfile("Builds anvils.", at),
-                preference = CompanyPreference.Blacklisted("Declined twice"),
-                version = 4,
-                createdAt = at,
-                updatedAt = at.plusSeconds(60),
-            )
-
         val response = CompanyResponse.from(company)
 
         response shouldBe

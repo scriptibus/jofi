@@ -85,6 +85,8 @@ class CompanySchemaTest {
     fun `rejects names the domain rejects`() {
         rejects { insertCompany { name = " " } }
         rejects { insertCompany { name = " ACME" } }
+        rejects { insertCompany { name = "\tACME" } }
+        rejects { insertCompany { name = "ACME\n" } }
         rejects { insertCompany { name = "x".repeat(CompanyDetails.MAX_NAME_LENGTH + 1) } }
     }
 
@@ -125,6 +127,17 @@ class CompanySchemaTest {
     @Test
     fun `rejects bad locations, texts, profiles, versions and times`() {
         rejects { insertCompany { locations = arrayOf("Berlin", null) } }
+        rejects { insertCompany { locations = arrayOf("Berlin", " ") } }
+        rejects { insertCompany { locations = arrayOf("Berlin", " Hamburg") } }
+        rejects { insertCompany { locations = arrayOf("Berlin", "BERLIN") } }
+        rejects { insertCompany { locations = arrayOf("x".repeat(CompanyDetails.MAX_LOCATION_LENGTH + 1)) } }
+        rejects { insertCompany { researchNotes = "# Notes\n" } }
+        rejects {
+            insertCompany {
+                preference = "FAVOURITE"
+                preferenceReason = "Great\t"
+            }
+        }
         rejects { insertCompany { locations = Array(CompanyDetails.MAX_LOCATIONS + 1) { "City $it" } } }
         rejects { insertCompany { industry = "" } }
         rejects { insertCompany { researchNotes = " " } }

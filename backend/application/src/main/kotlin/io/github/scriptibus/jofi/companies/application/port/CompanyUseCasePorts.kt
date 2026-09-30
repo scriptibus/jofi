@@ -55,7 +55,9 @@ interface SetCompanyPreferencePort {
 
 /**
  * Deletes a company in two steps (ADR-0039): without [token] it answers [CompanyResult.Unconfirmed]
- * with a token bound to the company's current state; with it, it deletes. The actor is
+ * with a token bound to the operation [Company.DELETE_OPERATION], the company id and the effect
+ * `ConfirmationEffect("company", <name>, counts of what goes with it, e.g. "contacts")`; a rename in
+ * between invalidates the token, other edits do not. With the token, it deletes. The actor is
  * [requester]'s. A company with applications is [CompanyResult.HasApplications], before any token.
  */
 interface DeleteCompanyPort {

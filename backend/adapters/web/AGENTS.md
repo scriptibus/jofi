@@ -46,7 +46,8 @@ parameter makes the contract document the 428 `ConfirmationRequiredProblem` auto
 `companies.adapter.web.CompanyController`: `GET /api/companies?search=&preference=&page=&size=`,
 `POST /api/companies`, `GET|PUT /api/companies/{id}`, `PUT /api/companies/{id}/preference` and
 `DELETE /api/companies/{id}` (two steps, `Jofi-Confirmation`). Contract only: every operation answers
-`501` until #88 injects the use cases. Then: `Invalid` -> 400 with the violations (`field`, `problem`),
+`501` until #88 injects the use cases. Then: search parameters through `CompanySearch.of` (`null` ->
+400 `urn:jofi:problem:companies:invalid-search`), `Invalid` -> 400 with the violations (`field`, `problem`),
 `NotFound` -> 404, `VersionConflict` -> 409, `HasApplications` -> 409, each with a
 `urn:jofi:problem:companies:*` type; `Unconfirmed` -> `Confirmations.problem`. Changes send
 `basedOnVersion`, the `version` of the last read. The slice tests' configuration root is

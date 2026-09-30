@@ -81,6 +81,22 @@ data class CompanySearch(
     companion object {
         const val DEFAULT_SIZE = 50
         const val MAX_SIZE = 200
+
+        /**
+         * The search for raw query parameters, or `null` if [page] or [size] is out of range (the
+         * caller answers 400). Blank [text] searches every company.
+         */
+        fun of(
+            text: String?,
+            preference: PreferenceKind?,
+            page: Int,
+            size: Int,
+        ): CompanySearch? =
+            if (page >= 0 && size in 1..MAX_SIZE) {
+                CompanySearch(text?.trim()?.takeIf(String::isNotEmpty), preference, page, size)
+            } else {
+                null
+            }
     }
 }
 
