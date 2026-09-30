@@ -22,11 +22,6 @@ object InboundPortRules {
      */
     val AWAITING_USE_CASE: Map<String, String> =
         mapOf(
-            "CreateContactPort" to "#89",
-            "UpdateContactPort" to "#89",
-            "GetContactPort" to "#89",
-            "SearchContactsPort" to "#89",
-            "DeleteContactPort" to "#89",
             "CreateApplicationPort" to "#82",
             "UpdateApplicationPort" to "#82",
             "GetApplicationPort" to "#82",

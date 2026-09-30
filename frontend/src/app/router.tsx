@@ -12,6 +12,8 @@ import {
   redirect,
 } from "@tanstack/react-router";
 import { m } from "../paraglide/messages.js";
+import { SetupWizard } from "./ai/SetupWizard";
+import { parseSetupStep, type SetupStep, shouldOpenSetupGuide } from "./ai/setupGuide";
 import { FirstRunPage } from "./auth/FirstRunPage";
 import { LoginPage, type LoginReason } from "./auth/LoginPage";
 import { authState, refreshSession, safeRedirect, sessionQueryOptions } from "./auth/session";
@@ -115,7 +117,20 @@ function placeholder<const TPath extends string>(
   });
 }
 
-const dashboardRoute = placeholder("/", m.dashboard_heading, m.dashboard_empty, m.dashboard_eyebrow);
+const dashboardRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/",
+  // First login without any AI provider: the setup guide takes over until it is skipped (spec §3.2).
+  beforeLoad: async ({ context }) => {
+    if (await shouldOpenSetupGuide(context.queryClient))
+      throw redirect({ to: "/setup", search: { step: "welcome" } });
+  },
+  component: () => (
+    <PlaceholderPage title={m.dashboard_heading()} eyebrow={m.dashboard_eyebrow()}>
+      {m.dashboard_empty()}
+    </PlaceholderPage>
+  ),
+});
 const applicationsRoute = placeholder("applications", m.nav_applications, m.applications_empty);
 const tasksRoute = placeholder("tasks", m.nav_tasks, m.tasks_empty);
 const chatRoute = placeholder("chat", m.nav_chat, m.chat_empty);
@@ -152,6 +167,18 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
+const setupRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "setup",
+  validateSearch: (search: Record<string, unknown>): { step: SetupStep } => ({
+    step: parseSetupStep(search.step),
+  }),
+  component: function SetupPage() {
+    const { step } = setupRoute.useSearch();
+    return <SetupWizard step={step} />;
+  },
+});
+
 /** Web Share Target (manifest `share_target`, GET): `/share?title=…&text=…&url=…`. */
 const shareRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -179,6 +206,7 @@ export const routeTree = rootRoute.addChildren([
     tasksRoute,
     chatRoute,
     settingsRoute,
+    setupRoute,
     shareRoute,
     notFoundRoute,
   ]),

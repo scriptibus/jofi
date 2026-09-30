@@ -24,11 +24,13 @@ export { FilePicker, type FilePickerProps } from "./FilePicker";
 export * from "./icons";
 export { ExternalLink, type ExternalLinkProps, NavItem, TextLink } from "./Link";
 export { MARKDOWN_SCHEMA, Markdown, type MarkdownProps, safeHref } from "./Markdown";
+export { NumberField, type NumberFieldProps } from "./NumberField";
 export {
   AccentSwatch,
   SegmentedControl,
   type SegmentedControlProps,
   type SegmentedOption,
 } from "./SegmentedControl";
+export { Select, type SelectGroup, type SelectOption, type SelectProps } from "./Select";
 export { TextArea, type TextAreaProps } from "./TextArea";
 export { TextField, type TextFieldProps } from "./TextField";
