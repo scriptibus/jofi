@@ -29,13 +29,11 @@ class ApplicationInputTest {
                 company = company,
                 location = " ",
                 portalNotes = "\n",
-                declineReason = DeclineReasonInput(DeclineCategory.TIMING, "  "),
             ).valid()
 
         details.title shouldBe "Entwickler für Bücher"
         details.location shouldBe null
         details.portalNotes shouldBe null
-        details.declineReason shouldBe DeclineReason(DeclineCategory.TIMING)
         details.languageAndTone shouldBe LanguageAndTone.UNKNOWN
     }
 
@@ -59,7 +57,6 @@ class ApplicationInputTest {
                 "ignored",
             ),
             LanguageAndToneInput(" DE ", "en-gb", FormOfAddress.DU, Tone.PERSONAL),
-            DeclineReasonInput(DeclineCategory.SALARY, "Too low"),
             OfferInput(PayInput(BigDecimal("80000"), "EUR", PayPeriod.YEAR), " 10 % ", vacationDays = 30),
         )
 
@@ -141,11 +138,6 @@ class ApplicationInputTest {
             remoteShare = 101,
             portalNotes = "a\u0000b",
             languageAndTone = LanguageAndToneInput("deutsch", "en_GB"),
-            declineReason =
-                DeclineReasonInput(
-                    DeclineCategory.OTHER,
-                    "x".repeat(DeclineReason.MAX_TEXT_LENGTH + 1),
-                ),
             offer =
                 OfferInput(
                     PayInput(BigDecimal("0.001"), "€", PayPeriod.MONTH),
@@ -167,7 +159,6 @@ class ApplicationInputTest {
                 ApplicationViolation(ApplicationField.PORTAL_NOTES, ApplicationProblem.INVALID_CHARACTER),
                 ApplicationViolation(ApplicationField.POSTING_LANGUAGE, ApplicationProblem.INVALID_LANGUAGE),
                 ApplicationViolation(ApplicationField.APPLICATION_LANGUAGE, ApplicationProblem.INVALID_LANGUAGE),
-                ApplicationViolation(ApplicationField.DECLINE_REASON_TEXT, ApplicationProblem.TOO_LONG),
                 ApplicationViolation(ApplicationField.OFFER_SALARY, ApplicationProblem.TOO_PRECISE),
                 ApplicationViolation(ApplicationField.OFFER_SALARY_CURRENCY, ApplicationProblem.INVALID_CURRENCY),
                 ApplicationViolation(ApplicationField.OFFER_BONUS, ApplicationProblem.TOO_LONG),
@@ -207,9 +198,8 @@ class ApplicationInputTest {
                 "Secret title",
                 company,
                 portalNotes = "Secret",
-                declineReason = DeclineReasonInput(DeclineCategory.OTHER, "Secret"),
                 offer = OfferInput(bonus = "Secret"),
             )
-        listOf(input, input.declineReason, input.offer).forEach { it.toString() shouldNotContain "Secret" }
+        listOf(input, input.offer).forEach { it.toString() shouldNotContain "Secret" }
     }
 }

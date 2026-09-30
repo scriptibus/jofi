@@ -8,11 +8,11 @@ import io.github.scriptibus.jofi.applications.adapter.persistence.ApplicationRow
 import io.github.scriptibus.jofi.applications.domain.Amount
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationInput
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationValidation
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.DeclineCategory
 import io.github.scriptibus.jofi.applications.domain.DeclineReason
-import io.github.scriptibus.jofi.applications.domain.DeclineReasonInput
 import io.github.scriptibus.jofi.applications.domain.EmploymentType
 import io.github.scriptibus.jofi.applications.domain.EstimateConfidence
 import io.github.scriptibus.jofi.applications.domain.FormOfAddress
@@ -30,6 +30,8 @@ import io.github.scriptibus.jofi.applications.domain.PaySourceKind
 import io.github.scriptibus.jofi.applications.domain.RemoteShare
 import io.github.scriptibus.jofi.applications.domain.Score
 import io.github.scriptibus.jofi.applications.domain.Seniority
+import io.github.scriptibus.jofi.applications.domain.StatusChangeInput
+import io.github.scriptibus.jofi.applications.domain.StatusChangeRequest
 import io.github.scriptibus.jofi.applications.domain.Tone
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
@@ -74,6 +76,7 @@ class ApplicationSchemaTest {
         stored.version shouldBe 0L
         stored.unread shouldBe false
         stored.companyId shouldBe company
+        stored.status shouldBe ApplicationStatus.INITIAL.name
     }
 
     @ParameterizedTest
@@ -86,6 +89,8 @@ class ApplicationSchemaTest {
             insert(UUID.randomUUID()) {
                 set(APPLICATION.field(column, String::class.java), constant.name)
                 when {
+                    column == "decline_category" -> status = "DECLINED"
+                    constant.name in DECLINING -> declineCategory = "OTHER"
                     column == "pay_estimate_confidence" -> payBand(source = "ESTIMATED", basis = "Basis")
                     constant.name == "ESTIMATED" -> payBand(basis = "Basis", confidence = "LOW")
                     column.startsWith("pay_") -> payBand()
@@ -106,6 +111,7 @@ class ApplicationSchemaTest {
             payBand(Amount.MAX, Amount.MAX, "ESTIMATED", "b".repeat(PaySource.Estimated.MAX_BASIS_LENGTH), "HIGH")
             postingLanguage = "de" + "-abcdefgh".repeat(3) + "-abcde"
             applicationLanguage = postingLanguage
+            status = "DECLINED"
             declineCategory = "OTHER"
             declineReason = "d".repeat(DeclineReason.MAX_TEXT_LENGTH)
             offerSalary(Amount.MAX)
@@ -137,8 +143,9 @@ class ApplicationSchemaTest {
             payBand(band.min, band.max, "ESTIMATED", estimate.basis, estimate.confidence.name)
             postingLanguage = details.languageAndTone.postingLanguage?.value
             applicationLanguage = details.languageAndTone.applicationLanguage?.value
-            declineCategory = details.declineReason?.category?.name
-            declineReason = details.declineReason?.text
+            status = decline.status.name
+            declineCategory = decline.declineReason?.category?.name
+            declineReason = decline.declineReason?.text
             offerSalaryPeriod = salary.period.name
             offerSalary(salary.amount, salary.currency.value)
             offerNoticePeriod = details.offer?.noticePeriod
@@ -209,6 +216,19 @@ class ApplicationSchemaTest {
     }
 
     @Test
+    fun `holds a decline reason exactly while declined or rejected, like the domain`() {
+        rejects("application_status_valid") { insert { status = "declined" } }
+        rejects("application_decline_reason_matches_status") { insert { status = "REJECTED" } }
+        rejects("application_decline_reason_matches_status") {
+            insert {
+                status = "GHOSTED"
+                declineCategory = "OTHER"
+            }
+        }
+        dsl.fetchCount(APPLICATION) shouldBe 0
+    }
+
+    @Test
     fun `rejects language tags the domain rejects`() {
         rejects("application_posting_language_valid") { insert { postingLanguage = "deutsch" } }
         rejects("application_posting_language_valid") { insert { postingLanguage = "de_DE" } }
@@ -226,6 +246,13 @@ class ApplicationSchemaTest {
             CompanyRef(company),
         ).validate().shouldBeInstanceOf<ApplicationValidation.Invalid>()
     }
+
+    private val decline
+        get() =
+            StatusChangeInput(ApplicationStatus.REJECTED, " Keine Rückmeldung\n", DeclineCategory.NO_REASON_GIVEN)
+                .validate()
+                .shouldBeInstanceOf<ApplicationValidation.Valid<StatusChangeRequest>>()
+                .value
 
     private val accepted
         get() =
@@ -249,7 +276,6 @@ class ApplicationSchemaTest {
                     EstimateConfidence.LOW,
                 ),
                 LanguageAndToneInput("gsw-CH", "zh-Hant-TW", FormOfAddress.NEUTRAL, Tone.PROFESSIONAL),
-                DeclineReasonInput(DeclineCategory.NO_REASON_GIVEN, "Keine Rückmeldung"),
                 OfferInput(
                     PayInput(BigDecimal("0.5"), "EUR", PayPeriod.DAY),
                     noticePeriod = "3 Monate zum Quartalsende",
@@ -262,11 +288,14 @@ class ApplicationSchemaTest {
     ) = rows.application(id, company, customize)
 
     companion object {
+        private val DECLINING = ApplicationStatus.entries.filter { it.takesDeclineReason }.map { it.name }
+
         private val CONSTRAINTS =
             listOf(
                 "application_application_language_valid",
                 "application_company_fk",
                 "application_decline_category_valid",
+                "application_decline_reason_matches_status",
                 "application_decline_reason_needs_category",
                 "application_decline_reason_valid",
                 "application_employment_type_valid",
@@ -298,6 +327,7 @@ class ApplicationSchemaTest {
                 "application_posting_language_valid",
                 "application_remote_share_valid",
                 "application_seniority_valid",
+                "application_status_valid",
                 "application_title_valid",
                 "application_tone_valid",
                 "application_updated_after_created",
@@ -318,6 +348,7 @@ class ApplicationSchemaTest {
                 Arguments.of(FormOfAddress::class, "form_of_address"),
                 Arguments.of(Tone::class, "tone"),
                 Arguments.of(DeclineCategory::class, "decline_category"),
+                Arguments.of(ApplicationStatus::class, "status"),
             )
     }
 }

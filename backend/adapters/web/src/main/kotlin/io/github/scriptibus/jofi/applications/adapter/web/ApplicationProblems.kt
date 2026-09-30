@@ -23,6 +23,7 @@ object ApplicationProblems {
     const val INVALID_SEARCH = "urn:jofi:problem:applications:invalid-search"
     const val NOT_FOUND = "urn:jofi:problem:applications:application-not-found"
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
+    const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:applications:storage-unavailable"
 
     /** The problem of a search parameter out of range. */
@@ -43,6 +44,14 @@ object ApplicationProblems {
 
             ApplicationResult.VersionConflict -> {
                 problem(HttpStatus.CONFLICT, VERSION_CONFLICT, "The application changed meanwhile; reload it and retry")
+            }
+
+            is ApplicationResult.InvalidTransition -> {
+                problem(
+                    HttpStatus.CONFLICT,
+                    INVALID_TRANSITION,
+                    "An application cannot move from ${failure.from} to ${failure.to}",
+                )
             }
 
             is ApplicationResult.Unconfirmed -> {
@@ -84,7 +93,6 @@ object ApplicationProblems {
             ApplicationField.PAY_ESTIMATE_CONFIDENCE to "payBand.estimateConfidence",
             ApplicationField.POSTING_LANGUAGE to "languageAndTone.postingLanguage",
             ApplicationField.APPLICATION_LANGUAGE to "languageAndTone.applicationLanguage",
-            ApplicationField.DECLINE_REASON_TEXT to "declineReason.text",
             ApplicationField.OFFER_SALARY to "offer.salary.amount",
             ApplicationField.OFFER_SALARY_CURRENCY to "offer.salary.currency",
             ApplicationField.OFFER_BONUS to "offer.bonus",
@@ -93,6 +101,8 @@ object ApplicationProblems {
             ApplicationField.OFFER_VACATION_DAYS to "offer.vacationDays",
             ApplicationField.OFFER_NOTICE_PERIOD to "offer.noticePeriod",
             ApplicationField.CONTACTS to "contactIds",
+            ApplicationField.STATUS_REASON to "reason",
+            ApplicationField.DECLINE_CATEGORY to "declineCategory",
         )
 
     private fun problem(

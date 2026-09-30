@@ -32,7 +32,6 @@ class ApplicationControllerTest(
          "payBand":{"min":70000,"max":85000.50,"currency":"EUR","period":"YEAR","source":"ESTIMATED",
                     "estimateBasis":"Similar roles in Berlin","estimateConfidence":"MEDIUM"},
          "languageAndTone":{"postingLanguage":"de","applicationLanguage":"en","formOfAddress":"DU","tone":"PERSONAL"},
-         "declineReason":{"category":"SALARY","text":"Too low"},
          "offer":{"salary":{"amount":80000,"currency":"EUR","period":"YEAR"},"vacationDays":30,"startDate":"2027-01-01"}}
         """.trimIndent()
 
@@ -65,6 +64,22 @@ class ApplicationControllerTest(
     }
 
     @Test
+    fun `changing the status and reading its history are not implemented yet`() {
+        notImplemented(
+            json(
+                mvc.put().uri("/api/applications/$id/status"),
+                """
+                {"status":"REJECTED","reason":"Filled internally","declineCategory":"POSITION_FILLED","basedOnVersion":3}
+                """.trimIndent(),
+            ),
+        )
+        notImplemented(
+            json(mvc.put().uri("/api/applications/$id/status"), """{"status":"APPLIED","basedOnVersion":0}"""),
+        )
+        notImplemented(mvc.get().uri("/api/applications/$id/status-history"))
+    }
+
+    @Test
     fun `requests that break the contract are rejected before the stub`() {
         badRequest(mvc.get().uri("/api/applications?companyId=acme"))
         badRequest(mvc.get().uri("/api/applications/not-a-uuid"))
@@ -74,6 +89,8 @@ class ApplicationControllerTest(
         )
         badRequest(json(mvc.put().uri("/api/applications/$id"), """{"details":$details}"""))
         badRequest(json(mvc.put().uri("/api/applications/$id/contacts"), """{"contactIds":["$contactId"]}"""))
+        badRequest(json(mvc.put().uri("/api/applications/$id/status"), """{"status":"APPLIED"}"""))
+        badRequest(json(mvc.put().uri("/api/applications/$id/status"), """{"status":"HIRED","basedOnVersion":1}"""))
     }
 
     @Test

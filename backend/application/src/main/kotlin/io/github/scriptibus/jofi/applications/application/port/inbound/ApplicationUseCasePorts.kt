@@ -10,19 +10,24 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationPage
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.StatusChange
+import io.github.scriptibus.jofi.applications.domain.StatusChangeInput
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 
 // Inbound ports (ADR-0041): what the REST controllers and MCP tools may ask of the applications
-// context. Each is implemented by the use case of the same name (#82, #83, #90). Mutations take the
+// context. Each is implemented by the use case of the same name (#82, #83, #84, #90). Mutations take the
 // acting `Actor` and record it in the changelog (spec §13); notes and reasons are free text, so the
 // entry names the changed fields, not their text. `basedOnVersion` is the `Application.version` the
 // caller last read: a stale one is `VersionConflict`, checked first, even for a no-op. A company or
 // contact that does not exist is `Invalid` (COMPANY or CONTACTS, NOT_FOUND). Timestamps are
 // `clock.instant().truncatedTo(ChronoUnit.MICROS)`, the precision of `timestamptz`.
 
-/** Creates an application by hand (#82); scanners and imports create theirs as unread (#96). */
+/**
+ * Creates an application by hand (#82) in `ApplicationStatus.INITIAL`, storing its first history entry
+ * (`StatusChange.initial`) with it; scanners and imports create theirs as unread (#96).
+ */
 interface CreateApplicationPort {
     fun execute(
         input: ApplicationInput,
@@ -31,10 +36,10 @@ interface CreateApplicationPort {
 }
 
 /**
- * Replaces **all** details with [input] (a PUT, not a patch): a field left out is cleared. Contacts,
- * the unread flag and the scores stay: the use case stores through `ApplicationRepositoryPort.updateDetails`,
- * which never writes them, so a concurrent read/unread toggle is not lost. Unchanged details store nothing
- * and write no changelog entry.
+ * Replaces **all** details with [input] (a PUT, not a patch): a field left out is cleared. Contacts, the
+ * status and its decline reason, the unread flag and the scores stay: the use case stores through
+ * `ApplicationRepositoryPort.updateDetails`, which never writes them, so a concurrent read/unread toggle is
+ * not lost. Unchanged details store nothing and write no changelog entry.
  */
 interface UpdateApplicationPort {
     fun execute(
@@ -93,4 +98,27 @@ interface DeleteApplicationPort {
         requester: ConfirmationRequester,
         token: ConfirmationToken?,
     ): ApplicationResult<Unit>
+}
+
+/**
+ * Moves the application to another status (#84) along the matrix of ADR-0044 (`Application.changeStatus`).
+ * `DECLINED` and `REJECTED` need a decline category (`Invalid`, DECLINE_CATEGORY, REQUIRED), which with
+ * the reason becomes the application's decline reason; any other status clears it, and a category there is
+ * `Invalid` (NOT_APPLICABLE). A move the matrix does not allow is `InvalidTransition`; moving to the current
+ * status with the same reason is a no-op. Stores through `ApplicationRepositoryPort.changeStatus` (the
+ * history entry with it), writes a changelog entry (field `status`, before and after; the reason's text
+ * stays out of it) and publishes `ApplicationStatusChanged` after the commit.
+ */
+interface ChangeApplicationStatusPort {
+    fun execute(
+        id: ApplicationId,
+        input: StatusChangeInput,
+        basedOnVersion: Long,
+        actor: Actor,
+    ): ApplicationResult<Application>
+}
+
+/** The application's status history (#84), oldest entry first. */
+interface GetApplicationStatusHistoryPort {
+    fun execute(id: ApplicationId): ApplicationResult<List<StatusChange>>
 }
