@@ -3,12 +3,20 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
+import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
+import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
+import io.github.scriptibus.jofi.shared.domain.Actor
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
@@ -27,15 +35,21 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * Applications (spec §6.1). The contract only (#76): every operation answers `501 Not Implemented`
- * until the use cases land (#82 create/get/update/unread/delete, #83 list, #84 status, #90 contacts),
- * which then inject them here and map each `ApplicationResult.Failure` with [ApplicationProblems.of]. Until then
- * most parameters only declare the contract, hence the suppressed unused-parameter rule.
+ * Applications (spec §6.1), for the logged-in user. Create, read, edit, read/unread and delete call their
+ * use case (#82) and map its `ApplicationResult.Failure` with [ApplicationProblems.of]. The list (#83), the
+ * status change and its history (#84) and the contact links (#90) are still the contract only and answer
+ * `501 Not Implemented`; their parameters only declare it, hence the suppressed unused-parameter rule.
  */
 @Suppress("UnusedParameter")
 @RestController
 @RequestMapping("/api/applications")
-class ApplicationController {
+class ApplicationController(
+    private val createApplication: CreateApplicationUseCase,
+    private val getApplication: GetApplicationUseCase,
+    private val updateApplication: UpdateApplicationUseCase,
+    private val setUnread: SetApplicationUnreadUseCase,
+    private val deleteApplication: DeleteApplicationUseCase,
+) {
     /**
      * Applications whose title matches [search] fuzzily (best match first, otherwise newest first),
      * filtered by company and linked contact ("linked applications per contact", #90). #83 adds the
@@ -64,13 +78,14 @@ class ApplicationController {
     @ProblemResponses(ProblemKind.INVALID_INPUT)
     fun createApplication(
         @RequestBody request: ApplicationDetailsRequest,
-    ): ApplicationResponse = throw notImplemented()
+    ): ApplicationResponse =
+        ApplicationResponse.from(createApplication.execute(request.toInput(), Actor.User).orThrow())
 
     @GetMapping("/{id}")
     @ProblemResponses(ProblemKind.NOT_FOUND)
     fun getApplication(
         @PathVariable id: UUID,
-    ): ApplicationResponse = throw notImplemented()
+    ): ApplicationResponse = ApplicationResponse.from(getApplication.execute(ApplicationId(id)).orThrow())
 
     /** Replaces all details (anything left out is cleared); 409 if `basedOnVersion` is stale. */
     @PutMapping("/{id}")
@@ -78,7 +93,12 @@ class ApplicationController {
     fun updateApplication(
         @PathVariable id: UUID,
         @RequestBody request: UpdateApplicationRequest,
-    ): ApplicationResponse = throw notImplemented()
+    ): ApplicationResponse =
+        ApplicationResponse.from(
+            updateApplication
+                .execute(ApplicationId(id), request.details.toInput(), request.basedOnVersion, Actor.User)
+                .orThrow(),
+        )
 
     /** Marks the application read or unread; no version needed, the version stays. */
     @PutMapping("/{id}/unread")
@@ -86,7 +106,8 @@ class ApplicationController {
     fun setApplicationUnread(
         @PathVariable id: UUID,
         @RequestBody request: ApplicationUnreadRequest,
-    ): ApplicationResponse = throw notImplemented()
+    ): ApplicationResponse =
+        ApplicationResponse.from(setUnread.execute(ApplicationId(id), request.unread, Actor.User).orThrow())
 
     /** Links exactly the given contacts (replacing the linked set); 409 if `basedOnVersion` is stale. */
     @PutMapping("/{id}/contacts")
@@ -114,7 +135,10 @@ class ApplicationController {
         @PathVariable id: UUID,
     ): StatusHistoryResponse = throw notImplemented()
 
-    /** Two steps (ADR-0039): the first call answers 428 with a token, the repeat with it deletes. */
+    /**
+     * Two steps (ADR-0039): the first call answers 428 with a token (the effect counts the contact links and
+     * status changes that go with the application), the repeat with it deletes.
+     */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @ProblemResponses(ProblemKind.NOT_FOUND)
@@ -122,10 +146,21 @@ class ApplicationController {
         @PathVariable id: UUID,
         @RequestHeader(Confirmations.HEADER, required = false) confirmation: String?,
         request: HttpServletRequest,
-    ): Unit = throw notImplemented()
+    ) {
+        deleteApplication
+            .execute(ApplicationId(id), Confirmations.requester(request), Confirmations.token(confirmation))
+            .orThrow()
+    }
 
     private fun notImplemented(): ErrorResponseException {
         val problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Applications are not available yet")
         return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
     }
 }
+
+/** The value, or the failure's problem thrown for Spring to answer. */
+internal fun <T> ApplicationResult<T>.orThrow(): T =
+    when (this) {
+        is ApplicationResult.Success -> value
+        is ApplicationResult.Failure -> throw ApplicationProblems.of(this)
+    }

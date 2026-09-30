@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.applications.domain
 
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.DomainEvent
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import java.time.Instant
 import java.util.UUID
@@ -189,6 +190,16 @@ data class Application(
             )
     }
 }
+
+/**
+ * Domain event: [actor] deleted [application] at [occurredAt], with its contact links and status history.
+ * Contexts that keep their own references to applications (tasks, documents) react to it; ids only.
+ */
+data class ApplicationDeleted(
+    val application: ApplicationId,
+    val actor: Actor,
+    val occurredAt: Instant,
+) : DomainEvent
 
 /**
  * A Want or Fit score (spec §6.1) on the 0–5 scale with one decimal, kept as [tenths] (0 to 50) so

@@ -72,6 +72,12 @@ interface ApplicationRepositoryPort {
     fun search(search: ApplicationSearch): ApplicationStoreResult<ApplicationPage<Application>>
 
     /**
+     * The number of description snapshots of the application's sources, which [delete] cascades to; the
+     * delete's confirmation effect counts them (#82). [ApplicationStoreResult.NotFound] without the application.
+     */
+    fun snapshotCount(id: ApplicationId): ApplicationStoreResult<Int>
+
+    /**
      * Deletes the application and, by `ON DELETE CASCADE`, its contact links, status history, sources and
      * their description snapshots (frozen ones too). [proof] is what the
      * confirmation gate returned (ADR-0039): the adapter answers [ApplicationStoreResult.NotConfirmed]
