@@ -10,8 +10,10 @@ import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskState
+import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
+import io.github.scriptibus.jofi.tasks.domain.TaskTransition
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.verify
@@ -27,8 +29,8 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The suggestion endpoints over the real use cases with a mocked repository: listing and dismissing (#85); accepting
- * (#95) still answers `501`. Security is the filter chain's job, tested in bootstrap.
+ * The suggestion endpoints over the real use cases with a mocked repository: listing and dismissing (#85), accepting
+ * (#95). Security is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(TaskSuggestionController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
@@ -96,8 +98,40 @@ class TaskSuggestionControllerTest(
     }
 
     @Test
-    fun `accepting a suggestion is not implemented yet`() {
-        notImplemented(json(mvc.post().uri("$path/accept"), """{"basedOnVersion":0}"""))
+    fun `accepting a suggestion opens it as the user, a stale version is a conflict, a done task cannot be accepted`() {
+        every { ports.tasks.findById(stored.id) } returns
+            TaskStoreResult.Success(suggested("follow-up", Instant.parse("2026-09-01T08:00:00Z"), stored.id))
+
+        json(mvc.post().uri("$path/accept"), """{"basedOnVersion":1}""")
+            .assertThat()
+            .hasStatus(409)
+            .bodyJson()
+            .extractingPath("type")
+            .isEqualTo(TaskProblems.VERSION_CONFLICT)
+        json(mvc.post().uri("$path/accept"), """{"basedOnVersion":0}""")
+            .assertThat()
+            .hasStatusOk()
+            .bodyJson()
+            .isLenientlyEqualTo("""{"status":"OPEN","version":1,"suggestionRule":"follow-up"}""")
+        verify(exactly = 1) {
+            ports.changelog.append(match { it.actor == Actor.User && it.change.description == "Accepted suggestion" })
+        }
+
+        val done = (stored.apply(TaskTransition.COMPLETE, stored.createdAt) as TaskStateChange.Changed).task
+        every { ports.tasks.findById(stored.id) } returns TaskStoreResult.Success(done)
+        json(mvc.post().uri("$path/accept"), """{"basedOnVersion":1}""")
+            .assertThat()
+            .hasStatus(409)
+            .bodyJson()
+            .extractingPath("type")
+            .isEqualTo(TaskProblems.INVALID_TRANSITION)
+    }
+
+    @Test
+    fun `accepting an unknown task is not found`() {
+        every { ports.tasks.findById(stored.id) } returns TaskStoreResult.NotFound
+
+        json(mvc.post().uri("$path/accept"), """{"basedOnVersion":0}""").assertThat().hasStatus(404)
     }
 
     private fun suggested(
@@ -110,8 +144,4 @@ class TaskSuggestionControllerTest(
         request: MockMvcTester.MockMvcRequestBuilder,
         body: String,
     ): MockMvcTester.MockMvcRequestBuilder = request.contentType(MediaType.APPLICATION_JSON).content(body)
-
-    private fun notImplemented(request: MockMvcTester.MockMvcRequestBuilder) {
-        request.assertThat().hasStatus(501).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
-    }
 }

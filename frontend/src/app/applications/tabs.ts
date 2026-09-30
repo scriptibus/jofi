@@ -8,11 +8,11 @@ export type ApplicationTab = "overview" | "description" | "contacts" | "timeline
 
 /**
  * In order. A tab that is not `ready` shows in the bar but cannot be selected, so the page's structure is
- * visible from the start; Description (#105), Contacts (#104) and Timeline (#106) switch theirs on.
+ * visible from the start; Timeline (#106) switches its on.
  */
 export const TABS: readonly { id: ApplicationTab; ready: boolean }[] = [
   { id: "overview", ready: true },
-  { id: "description", ready: false },
+  { id: "description", ready: true },
   { id: "contacts", ready: true },
   { id: "timeline", ready: false },
 ];

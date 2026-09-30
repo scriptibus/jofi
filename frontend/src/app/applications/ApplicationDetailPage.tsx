@@ -24,6 +24,7 @@ import { ApplicationOverview, CompanyLink } from "./ApplicationOverview";
 import { DELETE_OPERATION } from "./application";
 import { forgetDeletedApplication, storeSavedApplication } from "./applicationCache";
 import { describeApplicationError } from "./applicationProblems";
+import { DescriptionTab } from "./DescriptionTab";
 import { StatusBadge } from "./StatusBadge";
 import { type ApplicationTab, TABS, tabLabels } from "./tabs";
 
@@ -127,14 +128,16 @@ function ApplicationDetail({ application }: { application: ApplicationResponse }
         selected={tab ?? "overview"}
         onSelect={select}
       >
-        {tab === "contacts" ? (
-          <ApplicationContacts application={application} />
-        ) : (
-          <ApplicationOverview application={application} />
-        )}
+        <TabContent tab={tab ?? "overview"} application={application} />
       </Tabs>
     </>
   );
+}
+
+function TabContent({ tab, application }: { tab: ApplicationTab; application: ApplicationResponse }) {
+  if (tab === "description") return <DescriptionTab application={application} />;
+  if (tab === "contacts") return <ApplicationContacts application={application} />;
+  return <ApplicationOverview application={application} />;
 }
 
 /** Marks the application unread (to come back to it) or read again. */

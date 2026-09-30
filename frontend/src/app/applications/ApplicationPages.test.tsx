@@ -149,17 +149,25 @@ describe("Application detail", () => {
     });
     const overview = await screen.findByRole("tab", { name: "Overview" });
     expect(overview).toHaveAttribute("aria-selected", "true");
-    for (const name of ["Description", "Timeline"])
-      expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-disabled", "true");
+    for (const name of ["Description", "Contacts"])
+      expect(screen.getByRole("tab", { name })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
 
     await user.click(overview);
+    await user.keyboard("{ArrowRight}");
+    const description = screen.getByRole("tab", { name: "Description" });
+    expect(description).toHaveFocus();
+    expect(description).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{ArrowRight}");
     const contacts = screen.getByRole("tab", { name: "Contacts" });
     expect(contacts).toHaveFocus();
     expect(contacts).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("tabpanel", { name: "Contacts" })).toBeVisible();
     expect(router.state.location.search).toEqual({ tab: "contacts" });
+    // The disabled tab is skipped: the next one is Overview again.
+    await user.keyboard("{ArrowRight}");
+    expect(overview).toHaveFocus();
   });
 
   it("marks an unread application read once when opened, and lets the user mark it unread again", async () => {

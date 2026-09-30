@@ -30,6 +30,7 @@ export {
   LayoutDashboard as DashboardIcon,
   Link as LinkIcon,
   ListChecks as TasksIcon,
+  Lock as FrozenIcon,
   LogOut as LogOutIcon,
   Mail as EmailIcon,
   MailOpen as ReadIcon,

@@ -17,7 +17,7 @@ import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.CREATE
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.NOW
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.GhostedSuggestion
-import io.github.scriptibus.jofi.tasks.domain.GhostedSuggestionRun
+import io.github.scriptibus.jofi.tasks.domain.SuggestionRun
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
@@ -66,8 +66,7 @@ class TaskSuggestionUseCasesTest {
     private val application = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
     private val silentSince = Instant.parse("2026-06-01T10:00:00.5Z")
 
-    private fun run(): GhostedSuggestionRun =
-        suggest.execute().shouldBeInstanceOf<TaskResult.Success<GhostedSuggestionRun>>().value
+    private fun run(): SuggestionRun = suggest.execute().shouldBeInstanceOf<TaskResult.Success<SuggestionRun>>().value
 
     private fun suggestions(): List<Task> = fixtures.tasks.values.filter { it.origin is TaskOrigin.Suggested }
 
@@ -75,7 +74,7 @@ class TaskSuggestionUseCasesTest {
     fun `a silent application gets one suggestion, recorded as the rule, asked with the clock's time`() {
         silent += FindGhostedCandidatesPort.Candidate(application, "Backend Engineer", silentSince)
 
-        run() shouldBe GhostedSuggestionRun(suggested = 1, dismissed = 0)
+        run() shouldBe SuggestionRun(suggested = 1, dismissed = 0)
 
         val task = suggestions().single()
         task.state shouldBe TaskState.SUGGESTED
@@ -98,13 +97,13 @@ class TaskSuggestionUseCasesTest {
         silent += FindGhostedCandidatesPort.Candidate(application, "Backend Engineer", silentSince)
         run()
 
-        run() shouldBe GhostedSuggestionRun(suggested = 0, dismissed = 0)
+        run() shouldBe SuggestionRun(suggested = 0, dismissed = 0)
         suggestions() shouldHaveSize 1
         fixtures.entries shouldHaveSize 1
 
         val suggestion = suggestions().single()
         dismiss.execute(suggestion.id, suggestion.version, Actor.User)
-        run() shouldBe GhostedSuggestionRun(suggested = 0, dismissed = 0)
+        run() shouldBe SuggestionRun(suggested = 0, dismissed = 0)
         suggestions().single().state shouldBe TaskState.DISMISSED
     }
 
@@ -115,7 +114,7 @@ class TaskSuggestionUseCasesTest {
         val old = suggestions().single()
 
         silent[0] = silent[0].copy(silentSince = silentSince.plusSeconds(86_400))
-        run() shouldBe GhostedSuggestionRun(suggested = 1, dismissed = 1)
+        run() shouldBe SuggestionRun(suggested = 1, dismissed = 1)
 
         fixtures.tasks.getValue(old.id).state shouldBe TaskState.DISMISSED
         suggestions().count { it.state == TaskState.SUGGESTED } shouldBe 1
@@ -133,7 +132,7 @@ class TaskSuggestionUseCasesTest {
         val ghosted = suggestions().single { it.origin != other.origin }
         silent.clear()
 
-        run() shouldBe GhostedSuggestionRun(suggested = 0, dismissed = 1)
+        run() shouldBe SuggestionRun(suggested = 0, dismissed = 1)
 
         fixtures.tasks.getValue(other.id).state shouldBe TaskState.SUGGESTED
         fixtures.tasks.getValue(ghosted.id).state shouldBe TaskState.DISMISSED
@@ -147,7 +146,7 @@ class TaskSuggestionUseCasesTest {
         fixtures.tasks[suggested.id] = suggested.copy(state = TaskState.OPEN, version = 1)
         silent.clear()
 
-        run() shouldBe GhostedSuggestionRun(suggested = 0, dismissed = 0)
+        run() shouldBe SuggestionRun(suggested = 0, dismissed = 0)
         fixtures.tasks.getValue(suggested.id).state shouldBe TaskState.OPEN
     }
 

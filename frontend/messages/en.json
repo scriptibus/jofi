@@ -890,6 +890,70 @@
   "task_violation_time_zone": "This time zone is unknown.",
   "task_violation_link_not_found": "This record does not exist (any more). Choose another one.",
   "task_violation_link_required": "Choose one, or choose “Nothing”.",
+  "application_description_no_sources_heading": "No job description yet",
+  "application_description_no_sources": "Job descriptions are kept per source, and this application has none yet. Sources come from scanners and links; adding one here follows later.",
+  "application_description_source": "Source",
+  "application_description_source_name": "{kind} ({host})",
+  "application_description_versions": "Versions",
+  "application_description_versions_empty": "No version of this source is saved yet. Record the current text below.",
+  "application_description_versions_failed": "The versions could not be loaded.",
+  "application_description_version": "Version {number}",
+  "application_description_reason_discovery": "Saved when found",
+  "application_description_reason_change_detected": "Change detected",
+  "application_description_reason_manual": "Recorded by hand",
+  "application_description_length": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} character",
+        "countPlural=other": "{shown} characters"
+      }
+    }
+  ],
+  "application_description_frozen": "Frozen when you applied",
+  "application_description_text_heading": "Text of version {number}",
+  "application_description_text_failed": "The text could not be loaded.",
+  "application_description_record": "Record the current text",
+  "application_description_record_field": "Current text of the posting",
+  "application_description_record_help": "Paste the posting's text as it is now. If it matches the latest version, nothing new is saved.",
+  "application_description_record_action": "Record text",
+  "application_description_recorded_new": "New version saved: version {number}.",
+  "application_description_recorded_unchanged": "Unchanged: this text matches the latest version, so nothing new was saved.",
+  "application_description_compare_heading": "Compare versions",
+  "application_description_compare_before": "Before",
+  "application_description_compare_after": "After",
+  "application_description_compare_choose": "Choose a version",
+  "application_description_compare_option": "{version}, {date}",
+  "application_description_compare_need_two": "Once there are two versions, you can compare them here.",
+  "application_description_compare_same": "Choose two different versions.",
+  "application_description_diff_label": "Changes from {before} to {after}",
+  "application_description_diff_counts": "Lines added: {added} · lines removed: {removed}",
+  "application_description_diff_identical": "Both versions have the same text.",
+  "application_description_diff_failed": "The comparison could not be loaded.",
+  "application_description_diff_added": "Added:",
+  "application_description_diff_removed": "Removed:",
+  "application_description_show_unchanged": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Show {shown} unchanged line",
+        "countPlural=other": "Show {shown} unchanged lines"
+      }
+    }
+  ],
+  "application_description_show_more": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Show {shown} more line",
+        "countPlural=other": "Show {shown} more lines"
+      }
+    }
+  ],
+  "application_description_source_shown": "Source shown",
   "application_contacts_heading": "Linked contacts",
   "application_contacts_unlink_hint": "Unlinking only removes the link to this application; the contact itself stays in your contacts.",
   "application_contacts_link": "Link a contact",

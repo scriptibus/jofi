@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
+import io.github.scriptibus.jofi.tasks.application.AcceptTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
@@ -105,6 +106,9 @@ class TaskControllerTest(
 
         @Bean
         fun listSuggestions(ports: Ports) = ListSuggestedTasksUseCase(ports.tasks)
+
+        @Bean
+        fun accept(ports: Ports) = AcceptTaskSuggestionUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
 
         @Bean
         fun dismiss(ports: Ports) =
