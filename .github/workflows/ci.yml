@@ -212,15 +212,7 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
       - name: Build the image, start and seed the e2e stack, check its isolation, run Playwright
         working-directory: frontend
-        env:
-          SCREENSHOT_DIR: ${{ github.workspace }}/shots
-        run: mkdir -p "$SCREENSHOT_DIR" && pnpm e2e
-      - if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: e2e-screenshots
-          path: shots
-          retention-days: 3
+        run: pnpm e2e
       - name: Nothing from the e2e stack reaches the production compose file or image
         run: scripts/e2e-isolation-test.sh
       - if: failure()
