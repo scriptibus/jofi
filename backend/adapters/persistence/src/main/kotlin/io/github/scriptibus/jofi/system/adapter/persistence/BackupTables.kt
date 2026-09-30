@@ -36,6 +36,8 @@ internal object BackupTables {
             "application_description_snapshot",
             "interview",
             "interview_participant",
+            "task",
+            "countdown",
         )
 
     val EXCLUDED: Map<String, String> =
