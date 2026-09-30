@@ -31,6 +31,21 @@ export {
   type SegmentedControlProps,
   type SegmentedOption,
 } from "./SegmentedControl";
-export { Select, type SelectGroup, type SelectOption, type SelectProps } from "./Select";
+export {
+  MultiSelect,
+  type MultiSelectProps,
+  Select,
+  type SelectGroup,
+  type SelectOption,
+  type SelectProps,
+} from "./Select";
+export {
+  type SortDirection,
+  Table,
+  TableCell,
+  type TableColumn,
+  type TableProps,
+  type TableSort,
+} from "./Table";
 export { TextArea, type TextAreaProps } from "./TextArea";
 export { TextField, type TextFieldProps } from "./TextField";
