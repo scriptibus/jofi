@@ -37,6 +37,121 @@
           }
         }, {
           "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
+            }
+          }
+        }, {
+          "in" : "query",
+          "name" : "unread",
+          "required" : false,
+          "schema" : {
+            "type" : "boolean"
+          }
+        }, {
+          "in" : "query",
+          "name" : "language",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          }
+        }, {
+          "in" : "query",
+          "name" : "sourceKind",
+          "required" : false,
+          "schema" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SCANNER", "URL", "MANUAL_CHAT" ]
+            }
+          }
+        }, {
+          "in" : "query",
+          "name" : "createdFrom",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }, {
+          "in" : "query",
+          "name" : "createdTo",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }, {
+          "in" : "query",
+          "name" : "updatedFrom",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }, {
+          "in" : "query",
+          "name" : "updatedTo",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }, {
+          "in" : "query",
+          "name" : "wantMin",
+          "required" : false,
+          "schema" : {
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "wantMax",
+          "required" : false,
+          "schema" : {
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "fitMin",
+          "required" : false,
+          "schema" : {
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "fitMax",
+          "required" : false,
+          "schema" : {
+            "type" : "number"
+          }
+        }, {
+          "in" : "query",
+          "name" : "sort",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "UPDATED", "CREATED", "TITLE", "COMPANY", "STATUS", "DEADLINE" ]
+          }
+        }, {
+          "in" : "query",
+          "name" : "direction",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ASCENDING", "DESCENDING" ]
+          }
+        }, {
+          "in" : "query",
           "name" : "page",
           "required" : false,
           "schema" : {
@@ -86,7 +201,7 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "application-controller" ]
+        "tags" : [ "application-list-controller" ]
       },
       "post" : {
         "operationId" : "createApplication",

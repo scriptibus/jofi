@@ -19,6 +19,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICAT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.ApplicationRecord
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import org.jooq.DSLContext
+import java.util.UUID
 
 /** The statements `ApplicationRepository` combines, in the caller's transaction; they throw, the repository maps. */
 internal class ApplicationTables(
@@ -49,13 +50,16 @@ internal class ApplicationTables(
 
     fun exists(id: ApplicationId): Boolean = dsl.fetchExists(APPLICATION, APPLICATION.ID.eq(id.value))
 
-    fun linksOf(id: ApplicationId): Set<ContactRef> =
+    fun linksOf(id: ApplicationId): Set<ContactRef> = linksOf(listOf(id))[id.value].orEmpty()
+
+    /** The contact links of each of [ids], by application id (absent: none). */
+    fun linksOf(ids: Collection<ApplicationId>): Map<UUID, Set<ContactRef>> =
         dsl
-            .select(APPLICATION_CONTACT.CONTACT_ID)
+            .select(APPLICATION_CONTACT.APPLICATION_ID, APPLICATION_CONTACT.CONTACT_ID)
             .from(APPLICATION_CONTACT)
-            .where(APPLICATION_CONTACT.APPLICATION_ID.eq(id.value))
-            .fetch(APPLICATION_CONTACT.CONTACT_ID)
-            .mapTo(mutableSetOf(), ::ContactRef)
+            .where(APPLICATION_CONTACT.APPLICATION_ID.`in`(ids.map { it.value }))
+            .fetchGroups(APPLICATION_CONTACT.APPLICATION_ID, APPLICATION_CONTACT.CONTACT_ID)
+            .mapValues { (_, contacts) -> contacts.mapTo(mutableSetOf(), ::ContactRef) }
 
     fun insertLinks(
         id: ApplicationId,
@@ -95,21 +99,24 @@ internal class ApplicationTables(
             .map(StatusChangeRecords::toDomain)
 
     /** The sources of [id], oldest first (their own port writes them, #78). */
-    fun sourcesOf(id: ApplicationId): List<ApplicationSource> =
+    fun sourcesOf(id: ApplicationId): List<ApplicationSource> = sourcesOf(listOf(id))[id.value].orEmpty()
+
+    /** The sources of each of [ids], oldest first, by application id (absent: none). */
+    fun sourcesOf(ids: Collection<ApplicationId>): Map<UUID, List<ApplicationSource>> =
         dsl
             .selectFrom(APPLICATION_SOURCE)
-            .where(APPLICATION_SOURCE.APPLICATION_ID.eq(id.value))
+            .where(APPLICATION_SOURCE.APPLICATION_ID.`in`(ids.map { it.value }))
             .orderBy(APPLICATION_SOURCE.DISCOVERED_AT, APPLICATION_SOURCE.ID)
             .fetch { source ->
                 ApplicationSource(
                     SourceId(source.id),
-                    id,
+                    ApplicationId(source.applicationId),
                     SourceKind.valueOf(source.kind),
                     source.originalUrl?.let(::WebAddress),
                     source.discoveredAt.toInstant(),
                     source.offlineSince?.toInstant(),
                 )
-            }
+            }.groupBy { it.application.value }
 
     /** The description snapshots of all sources of [id]. */
     fun snapshotCount(id: ApplicationId): Int =
