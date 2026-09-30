@@ -9,6 +9,7 @@ import org.apache.hc.client5.http.config.TlsConfig
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder
 import org.apache.hc.client5.http.impl.classic.HttpClients
+import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder
 import org.apache.hc.core5.util.Timeout
 import java.time.Duration
@@ -91,7 +92,9 @@ object GuardedHttpClients {
                 .setMaxConnPerRoute(pool.perRoute)
                 .setMaxConnTotal(pool.total)
                 .setDnsResolver(GuardedDnsResolver(guard, timeouts.connect))
-                .setConnectionConfigResolver { _ ->
+                .setConnectionFactory { socket ->
+                    StaysClosedConnection(ManagedHttpClientConnectionFactory.INSTANCE.createConnection(socket))
+                }.setConnectionConfigResolver { _ ->
                     ConnectionConfig
                         .custom()
                         .setConnectTimeout(timeoutOf(timeouts.connect()))
