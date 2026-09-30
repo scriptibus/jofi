@@ -30,6 +30,9 @@ object ApplicationProblems {
     const val INTERVIEW_NOT_FOUND = "urn:jofi:problem:applications:interview-not-found"
     const val INVALID_VIEW = "urn:jofi:problem:applications:invalid-saved-view"
     const val SAVED_VIEW_NOT_FOUND = "urn:jofi:problem:applications:saved-view-not-found"
+    const val IMPORT_NOT_FOUND = "urn:jofi:problem:applications:import-not-found"
+    const val IMPORT_NOT_RETRYABLE = "urn:jofi:problem:applications:import-not-retryable"
+    const val AI_NOT_CONFIGURED = "urn:jofi:problem:applications:ai-not-configured"
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:applications:storage-unavailable"
@@ -45,13 +48,16 @@ object ApplicationProblems {
             ApplicationResult.SnapshotNotFound,
             ApplicationResult.InterviewNotFound,
             ApplicationResult.SavedViewNotFound,
+            ApplicationResult.ImportNotFound,
             -> {
-                val (type, detail) = NOT_FOUND_PROBLEMS.getValue(failure)
-                problem(HttpStatus.NOT_FOUND, type, detail)
+                listed(HttpStatus.NOT_FOUND, NOT_FOUND_PROBLEMS, failure)
             }
 
-            ApplicationResult.VersionConflict -> {
-                problem(HttpStatus.CONFLICT, VERSION_CONFLICT, "It changed meanwhile; reload it and retry")
+            ApplicationResult.VersionConflict,
+            ApplicationResult.ImportNotRetryable,
+            ApplicationResult.AiNotConfigured,
+            -> {
+                listed(HttpStatus.CONFLICT, CONFLICT_PROBLEMS, failure)
             }
 
             is ApplicationResult.InvalidTransition -> {
@@ -106,6 +112,18 @@ object ApplicationProblems {
             ApplicationResult.InterviewNotFound to
                 (INTERVIEW_NOT_FOUND to "The application has no interview with this id"),
             ApplicationResult.SavedViewNotFound to (SAVED_VIEW_NOT_FOUND to "No saved view with this id"),
+            ApplicationResult.ImportNotFound to (IMPORT_NOT_FOUND to "No posting import with this id"),
+        )
+
+    private val CONFLICT_PROBLEMS: Map<ApplicationResult.Failure, Pair<String, String>> =
+        mapOf(
+            ApplicationResult.VersionConflict to (VERSION_CONFLICT to "It changed meanwhile; reload it and retry"),
+            ApplicationResult.ImportNotRetryable to (IMPORT_NOT_RETRYABLE to "Only a failed import can be retried"),
+            ApplicationResult.AiNotConfigured to
+                (
+                    AI_NOT_CONFIGURED to
+                        "No AI model reads postings yet; assign one to the extraction task in the AI setup"
+                ),
         )
 
     private val SEARCH_PARAMETERS: Map<SearchField, String> =
@@ -158,6 +176,16 @@ object ApplicationProblems {
             ApplicationField.GHOSTED_AFTER_WEEKS to "ghostedAfterWeeks",
             ApplicationField.FOLLOW_UP_AFTER_DAYS to "followUpAfterDays",
         )
+
+    /** The problem [problems] lists for [failure], with [status]. */
+    private fun listed(
+        status: HttpStatus,
+        problems: Map<ApplicationResult.Failure, Pair<String, String>>,
+        failure: ApplicationResult.Failure,
+    ): ErrorResponseException {
+        val (type, detail) = problems.getValue(failure)
+        return problem(status, type, detail)
+    }
 
     private fun transitionDetail(failure: ApplicationResult.InvalidTransition): String =
         "An application cannot move from ${failure.from} to ${failure.to}"

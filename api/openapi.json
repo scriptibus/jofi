@@ -250,6 +250,168 @@
         "tags" : [ "application-controller" ]
       }
     },
+    "/api/applications/imports/text" : {
+      "post" : {
+        "operationId" : "startPostingImport",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartPostingImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostingImportResponse"
+                }
+              }
+            },
+            "description" : "Accepted"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "posting-import-controller" ]
+      }
+    },
+    "/api/applications/imports/{importId}" : {
+      "get" : {
+        "operationId" : "getPostingImport",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "importId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostingImportResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "posting-import-controller" ]
+      }
+    },
+    "/api/applications/imports/{importId}/retry" : {
+      "post" : {
+        "operationId" : "retryPostingImport",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "importId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostingImportResponse"
+                }
+              }
+            },
+            "description" : "Accepted"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "posting-import-controller" ]
+      }
+    },
     "/api/applications/saved-views" : {
       "get" : {
         "operationId" : "listSavedViews",
@@ -5909,6 +6071,42 @@
           }
         }
       },
+      "PostingImportResponse" : {
+        "required" : [ "attempt", "createdAt", "id", "status", "updatedAt" ],
+        "type" : "object",
+        "properties" : {
+          "applicationId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "nullable" : true
+          },
+          "attempt" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "failure" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "AI_NOT_CONFIGURED", "AI_AUTHENTICATION_FAILED", "AI_UNAVAILABLE", "AI_REJECTED", "UNREADABLE_ANSWER", "NOT_A_POSTING", "NOT_QUEUED" ]
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "PENDING", "SUCCEEDED", "FAILED" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "PrivacyClaimResponse" : {
         "required" : [ "evidence", "status", "summary" ],
         "type" : "object",
@@ -6174,6 +6372,15 @@
             "format" : "int64"
           },
           "schemaVersion" : {
+            "type" : "string"
+          }
+        }
+      },
+      "StartPostingImportRequest" : {
+        "required" : [ "description" ],
+        "type" : "object",
+        "properties" : {
+          "description" : {
             "type" : "string"
           }
         }

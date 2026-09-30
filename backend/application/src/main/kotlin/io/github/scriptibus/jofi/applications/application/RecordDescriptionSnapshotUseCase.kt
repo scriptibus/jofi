@@ -18,7 +18,6 @@ import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
-import io.github.scriptibus.jofi.shared.domain.FieldChange
 import java.time.Clock
 import java.util.UUID
 
@@ -72,20 +71,7 @@ class RecordDescriptionSnapshotUseCase(
         if (recording is SnapshotRecording.Unchanged) return ApplicationResult.Success(recording)
         val snapshot = recording.snapshot
         return snapshots.add(snapshot).toResult().then {
-            val recorded =
-                changelog.record(
-                    snapshot.id.toEntityRef(),
-                    actor,
-                    snapshot.capturedAt,
-                    "Recorded job description",
-                    listOfNotNull(
-                        FieldChange("source", null, snapshot.source.value.toString()),
-                        FieldChange("reason", null, snapshot.reason.name),
-                        FieldChange("contentHash", null, snapshot.contentHash.hex),
-                        snapshot.frozenAt?.let { frozen -> FieldChange("frozenAt", null, frozen.toString()) },
-                    ),
-                )
-            recording.applicationIf(recorded, "changelog")
+            recording.applicationIf(changelog.recordSnapshot(snapshot, actor), "changelog")
         }
     }
 }

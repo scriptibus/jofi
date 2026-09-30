@@ -1,0 +1,77 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "company",
+    "location",
+    "remoteShare",
+    "employmentType",
+    "seniority",
+    "deadline",
+    "postingLanguage",
+    "pay"
+  ],
+  "properties": {
+    "title": {
+      "type": ["string", "null"],
+      "description": "The job title as the posting states it."
+    },
+    "company": {
+      "type": ["string", "null"],
+      "description": "The name of the employer. If a recruiting agency posts for a named client, the client."
+    },
+    "location": {
+      "type": ["string", "null"],
+      "description": "Where the job is, e.g. a city."
+    },
+    "remoteShare": {
+      "type": ["integer", "null"],
+      "description": "Share of remote work in percent: 0 on site, 100 fully remote."
+    },
+    "employmentType": {
+      "type": ["string", "null"],
+      "enum": [
+        "FULL_TIME",
+        "PART_TIME",
+        "CONTRACT",
+        "FREELANCE",
+        "INTERNSHIP",
+        "WORKING_STUDENT",
+        "APPRENTICESHIP",
+        "OTHER",
+        null
+      ]
+    },
+    "seniority": {
+      "type": ["string", "null"],
+      "enum": ["ENTRY", "JUNIOR", "MID", "SENIOR", "LEAD", "PRINCIPAL", "EXECUTIVE", null]
+    },
+    "deadline": {
+      "type": ["string", "null"],
+      "description": "The application deadline as an ISO date, YYYY-MM-DD."
+    },
+    "postingLanguage": {
+      "type": ["string", "null"],
+      "description": "The language the posting is written in, as a BCP 47 tag such as de or en."
+    },
+    "pay": {
+      "type": ["object", "null"],
+      "description": "The pay band the posting states.",
+      "additionalProperties": false,
+      "required": ["min", "max", "currency", "period"],
+      "properties": {
+        "min": { "type": ["number", "null"] },
+        "max": { "type": ["number", "null"] },
+        "currency": {
+          "type": ["string", "null"],
+          "description": "ISO 4217 code, e.g. EUR."
+        },
+        "period": {
+          "type": ["string", "null"],
+          "enum": ["HOUR", "DAY", "MONTH", "YEAR", null]
+        }
+      }
+    }
+  }
+}

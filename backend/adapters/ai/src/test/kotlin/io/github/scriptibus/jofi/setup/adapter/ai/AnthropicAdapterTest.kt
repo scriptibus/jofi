@@ -71,6 +71,27 @@ class AnthropicAdapterTest {
     }
 
     @Test
+    fun `asks for structured output with the request's JSON schema`() {
+        stub.server.stubFor(post(messagesPath).willReturn(okJson(ProviderStub.fixture("anthropic/message.json"))))
+        val request =
+            LlmRequest(
+                AiTask.EXTRACTION,
+                listOf(LlmMessage.System("Extract."), LlmMessage.User("Posting")),
+                outputSchema = OpenAiFamilyAdapterTest.SCHEMA,
+            )
+
+        adapter.complete(stub.target(ProviderKind.ANTHROPIC, "claude-sonnet-4-5"), request)
+
+        stub.server.verify(
+            postRequestedFor(urlEqualTo(messagesPath))
+                .withRequestBody(matchingJsonPath("$.output_config.format.type", equalTo("json_schema")))
+                .withRequestBody(
+                    matchingJsonPath("$.output_config.format.schema.required[0]", equalTo("postingTitle")),
+                ),
+        )
+    }
+
+    @Test
     fun `returns tool use and sends tool results back in one turn`() {
         stub.server.stubFor(
             post(messagesPath).willReturn(okJson(ProviderStub.fixture("anthropic/message-tool-use.json"))),

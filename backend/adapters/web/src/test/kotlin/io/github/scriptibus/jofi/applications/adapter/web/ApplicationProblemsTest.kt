@@ -93,6 +93,9 @@ class ApplicationProblemsTest {
         expect(ApplicationResult.SnapshotNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.SNAPSHOT_NOT_FOUND)
         expect(ApplicationResult.InterviewNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.INTERVIEW_NOT_FOUND)
         expect(ApplicationResult.VersionConflict, HttpStatus.CONFLICT, ApplicationProblems.VERSION_CONFLICT)
+        expect(ApplicationResult.ImportNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.IMPORT_NOT_FOUND)
+        expect(ApplicationResult.ImportNotRetryable, HttpStatus.CONFLICT, ApplicationProblems.IMPORT_NOT_RETRYABLE)
+        expect(ApplicationResult.AiNotConfigured, HttpStatus.CONFLICT, ApplicationProblems.AI_NOT_CONFIGURED)
         expect(
             ApplicationResult.InvalidTransition(ApplicationStatus.DISCOVERED, ApplicationStatus.ACCEPTED),
             HttpStatus.CONFLICT,

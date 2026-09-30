@@ -72,7 +72,7 @@ class DescriptionSnapshotFlowTest(
                     """{"title":"Backend Engineer","companyId":"$company"}""",
                 ).ok(201)["id"]
                 .asString()
-        val source = source(id)
+        val source = browser.source(id)
         val snapshots = "/api/applications/$id/sources/$source/snapshots"
 
         val first = browser.post(snapshots, """{"description":"Kotlin\r\nBerlin"}""").ok()
@@ -94,6 +94,10 @@ class DescriptionSnapshotFlowTest(
         changelogOf(old, new)
         browser.get("/api/applications/$id/snapshots/${UUID.randomUUID()}").response.status shouldBe 404
     }
+
+    /** Adds a source through the API (#96), as a pasted text without a description yet. */
+    private fun Browser.source(application: String): String =
+        post("/api/applications/$application/sources", """{"kind":"MANUAL_CHAT"}""").ok(201)["id"].asString()
 
     /** One entry per stored version, by the user, naming source and hash but never the text. */
     private fun changelogOf(vararg snapshots: String) {
@@ -130,18 +134,6 @@ class DescriptionSnapshotFlowTest(
 
     private fun MvcTestResult.ok(status: Int = 200): JsonNode =
         also { response.status shouldBe status }.let { json.readTree(it.response.contentAsString) }
-
-    /** A source with no API yet (#96): seeded as a row, as the e2e seeds do for data without an API. */
-    private fun source(application: String): UUID {
-        val id = UUID.randomUUID()
-        dsl.execute(
-            "insert into application_source (id, application_id, kind, discovered_at) " +
-                "values (?, ?, 'MANUAL_CHAT', now())",
-            id,
-            UUID.fromString(application),
-        )
-        return id
-    }
 
     private companion object {
         const val PASSWORD = "correct horse battery staple"

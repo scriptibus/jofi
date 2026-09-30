@@ -20,6 +20,8 @@ import io.github.scriptibus.jofi.applications.domain.EmploymentType
 import io.github.scriptibus.jofi.applications.domain.EstimateConfidence
 import io.github.scriptibus.jofi.applications.domain.FormOfAddress
 import io.github.scriptibus.jofi.applications.domain.HowApplied
+import io.github.scriptibus.jofi.applications.domain.ImportFailure
+import io.github.scriptibus.jofi.applications.domain.ImportStatus
 import io.github.scriptibus.jofi.applications.domain.InterviewOutcome
 import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.LanguageAndTone
@@ -267,6 +269,8 @@ class ApplicationDtosTest {
                 Arguments.of(DiffSegmentOperation::class, DiffOperation::class),
                 Arguments.of(InterviewKind::class, InterviewType::class),
                 Arguments.of(InterviewResultKind::class, InterviewOutcome::class),
+                Arguments.of(PostingImportStatus::class, ImportStatus::class),
+                Arguments.of(PostingImportFailure::class, ImportFailure::class),
             )
     }
 }

@@ -1,8 +1,8 @@
 {
-  "description": "Structured fields extracted from a posting (untrusted input, no tools).",
+  "description": "Fields read from a pasted posting (#96): the JSON object the extraction schema asks for (task EXTRACTION, no tools).",
   "turns": [
     {
-      "text": "{\"title\": \"Senior Kotlin Developer\", \"company\": \"ACME GmbH\", \"location\": \"Berlin\", \"remote\": \"hybrid\"}"
+      "text": "{\"title\": \"Senior Kotlin Developer\", \"company\": \"Posting Fixture GmbH (e2e)\", \"location\": \"Berlin\", \"remoteShare\": 40, \"employmentType\": \"FULL_TIME\", \"seniority\": \"SENIOR\", \"deadline\": null, \"postingLanguage\": \"en\", \"pay\": {\"min\": 70000, \"max\": 85000, \"currency\": \"EUR\", \"period\": \"YEAR\"}}"
     }
   ]
 }

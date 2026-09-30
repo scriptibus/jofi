@@ -6,7 +6,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 # adapters/ai
 
 The only place where AI provider types appear (ADR-0011, ADR-0032, ADR-0040). **Protected path**:
-every change is reviewed by Lucas. Package: `io.github.scriptibus.jofi.setup.adapter.ai`.
+every change is reviewed by Lucas. Package: `io.github.scriptibus.jofi.setup.adapter.ai`; adapters of other contexts
+that call `LlmPort` for a task (never a provider) live here as `<context>.adapter.ai` (ADR-0051).
 
 - `AiGatewayAdapter` (ADR-0043) implements `LlmPort` and `EmbeddingPort`, and is the only caller
   of `AiProviderPort` (architecture rules). Per call: `AiRouter` (assignment, provider, capabilities,

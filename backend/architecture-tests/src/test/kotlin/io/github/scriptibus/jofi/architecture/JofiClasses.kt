@@ -23,8 +23,12 @@ object JofiPackages {
      */
     val SPI_METADATA = Regex.escape(BASE) + "\\.(companies|applications)\\.application\\.port\\.spi\\.ModuleMetadata"
 
-    /** The same for `applications.application.port.api`, the ports other contexts call (#85). */
-    const val API_METADATA = "$BASE.applications.application.port.api.ModuleMetadata"
+    /**
+     * The same for the `api` packages of the applications (#85), companies and setup (#96) contexts, the ports other
+     * contexts call.
+     */
+    val API_METADATA =
+        Regex.escape(BASE) + "\\.(applications|companies|setup)\\.application\\.port\\.api\\.ModuleMetadata"
 }
 
 /** All production classes of the backend (every Gradle module), imported once per test run. */

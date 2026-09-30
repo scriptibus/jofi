@@ -35,15 +35,7 @@ class CreateApplicationUseCase(
             val application = Application.create(ApplicationId(UUID.randomUUID()), details, clock.storedNow())
             transactions.inApplicationTransaction {
                 applications.add(application, StatusChange.initial(application, actor)).toResult().then {
-                    val recorded =
-                        changelog.record(
-                            application.id.toEntityRef(),
-                            actor,
-                            application.createdAt,
-                            describe("Created application", null, details),
-                            detailChanges(null, details),
-                        )
-                    application.applicationIf(recorded, "changelog")
+                    application.applicationIf(changelog.recordCreated(application, actor), "changelog")
                 }
             }
         }

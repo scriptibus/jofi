@@ -75,7 +75,8 @@ module (`bootstrap/.../shared/ModuleMetadata.kt`, ADR-0032) whose domain types a
 context may use. Cross-context APIs of other contexts are exposed deliberately through Modulith
 named interfaces: `companies.application.port.spi` (named interface `spi`, ADR-0041) holds the ports
 the applications context implements for companies; `applications.application.port.api` (named interface
-`api`, ADR-0050) holds the ports other contexts (tasks) call, with plain values only. Applications never depend
+`api`, ADR-0050) holds the ports other contexts (tasks) call, with plain values only; `companies` and `setup`
+expose theirs the same way (`<context>.application.port.api`, ADR-0051). Applications never depend
 on tasks. Otherwise a context refers to another context's
 aggregates by id only, with its own reference type (`applications.domain.CompanyRef`, ADR-0041).
 

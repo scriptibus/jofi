@@ -169,6 +169,15 @@ sealed interface ApplicationResult<out T> {
     /** No saved view with the requested id. */
     data object SavedViewNotFound : Failure
 
+    /** No posting import with the requested id. */
+    data object ImportNotFound : Failure
+
+    /** Only a failed posting import can be retried; this one is pending or done. */
+    data object ImportNotRetryable : Failure
+
+    /** No AI model is assigned to the task the operation needs; the user sets one up first (spec §3.2). */
+    data object AiNotConfigured : Failure
+
     /**
      * A saved view's name or filter breaks the rules of [SavedViewInput] (the list's own rules for the filter), or
      * another view has the name already ([SavedViewField.Name], [ApplicationProblem.TAKEN]).

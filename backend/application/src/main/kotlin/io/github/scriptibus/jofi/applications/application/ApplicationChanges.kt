@@ -3,7 +3,11 @@
 
 package io.github.scriptibus.jofi.applications.application
 
+import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
+import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
+import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangeSummary
@@ -23,6 +27,88 @@ internal fun ChangelogPort.record(
     description: String,
     fields: List<FieldChange> = emptyList(),
 ): Boolean = append(ChangelogEntry(entity, actor, at, ChangeSummary(description, fields))) is ChangelogResult.Success
+
+/** The entry of a new application: its details with values ([detailChanges]), personal ones only by name. */
+internal fun ChangelogPort.recordCreated(
+    application: Application,
+    actor: Actor,
+): Boolean =
+    record(
+        application.id.toEntityRef(),
+        actor,
+        application.createdAt,
+        describe("Created application", null, application.details),
+        detailChanges(null, application.details),
+    )
+
+/** The entry of a new source: its application and kind, never the link (it may carry tracking parameters). */
+internal fun ChangelogPort.recordSource(
+    source: ApplicationSource,
+    actor: Actor,
+    at: Instant,
+): Boolean =
+    record(
+        source.id.toEntityRef(),
+        actor,
+        at,
+        "Added source",
+        listOf(
+            FieldChange("application", null, source.application.value.toString()),
+            FieldChange("kind", null, source.kind.name),
+        ),
+    )
+
+/** The entry of a new description version: source, reason and content hash, never the text. */
+internal fun ChangelogPort.recordSnapshot(
+    snapshot: DescriptionSnapshot,
+    actor: Actor,
+): Boolean =
+    record(
+        snapshot.id.toEntityRef(),
+        actor,
+        snapshot.capturedAt,
+        "Recorded job description",
+        listOfNotNull(
+            FieldChange("source", null, snapshot.source.value.toString()),
+            FieldChange("reason", null, snapshot.reason.name),
+            FieldChange("contentHash", null, snapshot.contentHash.hex),
+            snapshot.frozenAt?.let { frozen -> FieldChange("frozenAt", null, frozen.toString()) },
+        ),
+    )
+
+/**
+ * The entry of an import's step from [before] (none when it starts) to [after]: status, failure, attempt and the
+ * created application, plus the text's content hash at the start; never the text.
+ */
+internal fun ChangelogPort.recordImport(
+    before: PostingImport?,
+    after: PostingImport,
+    actor: Actor,
+): Boolean =
+    record(
+        after.id.toEntityRef(),
+        actor,
+        after.updatedAt,
+        importAction(before, after),
+        listOfNotNull(
+            changeOf("status", before?.status, after.status),
+            changeOf("failure", before?.failure, after.failure),
+            changeOf("attempt", before?.attempt, after.attempt),
+            changeOf("application", before?.application?.value, after.application?.value),
+            after.text?.takeIf { before == null }?.let { FieldChange("contentHash", null, it.contentHash.hex) },
+        ),
+    )
+
+private fun importAction(
+    before: PostingImport?,
+    after: PostingImport,
+): String =
+    when {
+        before == null -> "Started posting import"
+        after.application != null -> "Imported posting"
+        after.failure != null -> "Posting import failed"
+        else -> "Retried posting import"
+    }
 
 /**
  * What changed between two versions of the details, with values. Portal notes, the pay band and the
