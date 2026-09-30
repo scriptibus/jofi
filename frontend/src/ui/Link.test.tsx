@@ -12,7 +12,7 @@ import {
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { NavItem, TextLink } from "./Link";
+import { AppLink, ExternalLink, NavItem, TextLink } from "./Link";
 
 // A throwaway route tree: the links are typed against the app's router, so `to` is cast here.
 function renderAt(path: string) {
@@ -59,5 +59,21 @@ describe("NavItem and TextLink", () => {
     expect(await screen.findByRole("heading", { name: "Tasks page" })).toBeVisible();
     expect(router.state.location.pathname).toBe("/tasks");
     expect(screen.getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks");
+  });
+});
+
+describe("ExternalLink and AppLink", () => {
+  it("open other sites in a new tab without referrer or endorsement", () => {
+    render(<ExternalLink href="https://example.org/">Example</ExternalLink>);
+    const link = screen.getByRole("link", { name: "Example" });
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer nofollow");
+  });
+
+  it("hand mailto: and tel: links to the device's apps in the same tab", () => {
+    render(<AppLink href="tel:+4930123">+49 30 123</AppLink>);
+    const link = screen.getByRole("link", { name: "+49 30 123" });
+    expect(link).toHaveAttribute("href", "tel:+4930123");
+    expect(link).not.toHaveAttribute("target");
   });
 });

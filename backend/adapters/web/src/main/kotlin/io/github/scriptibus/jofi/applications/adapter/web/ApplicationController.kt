@@ -3,8 +3,10 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.ChangeApplicationStatusUseCase
 import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
@@ -35,9 +37,9 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * Applications (spec §6.1), for the logged-in user. Create, read, edit, read/unread and delete call their
- * use case (#82) and map its `ApplicationResult.Failure` with [ApplicationProblems.of]. The list (#83), the
- * status change and its history (#84) and the contact links (#90) are still the contract only and answer
+ * Applications (spec §6.1), for the logged-in user. Create, read, edit, read/unread and delete (#82), the list
+ * (#83) and the status change with its history (#84) call their use case and map its `ApplicationResult.Failure`
+ * with [ApplicationProblems.of]. The contact links (#90) are still the contract only and answer
  * `501 Not Implemented`; their parameters only declare it, hence the suppressed unused-parameter rule.
  */
 @Suppress("UnusedParameter")
@@ -50,6 +52,8 @@ class ApplicationController(
     private val setUnread: SetApplicationUnreadUseCase,
     private val deleteApplication: DeleteApplicationUseCase,
     private val searchApplications: SearchApplicationsUseCase,
+    private val changeStatus: ChangeApplicationStatusUseCase,
+    private val statusHistory: GetApplicationStatusHistoryUseCase,
 ) {
     /** One page of the list with its filters and order (see [ApplicationListQuery]); 400 names bad parameters. */
     @GetMapping
@@ -123,14 +127,17 @@ class ApplicationController(
     fun changeApplicationStatus(
         @PathVariable id: UUID,
         @RequestBody request: ChangeApplicationStatusRequest,
-    ): ApplicationResponse = throw notImplemented()
+    ): ApplicationResponse =
+        ApplicationResponse.from(
+            changeStatus.execute(ApplicationId(id), request.toInput(), request.basedOnVersion, Actor.User).orThrow(),
+        )
 
     /** Every status change of the application, oldest first. */
     @GetMapping("/{id}/status-history")
     @ProblemResponses(ProblemKind.NOT_FOUND)
     fun getApplicationStatusHistory(
         @PathVariable id: UUID,
-    ): StatusHistoryResponse = throw notImplemented()
+    ): StatusHistoryResponse = StatusHistoryResponse.from(statusHistory.execute(ApplicationId(id)).orThrow())
 
     /**
      * Two steps (ADR-0039): the first call answers 428 with a token (the effect counts the contact links and

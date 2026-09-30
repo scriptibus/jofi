@@ -8,7 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: spec §6.1, §6.2; issue #77 (M1-C2b) and the hand-over from PR #141 on it; tech-stack proposal
-  §4.2 (State pattern); refines ADR-0041
+  §4.2 (State pattern); refines ADR-0041. Amended by issue #84 (M1-1c, decisions from the #148 review): the
+  looser reopening matrix, the changelog of reason corrections, self-move events and the synchronous freeze
 
 ## Context
 
@@ -45,24 +46,26 @@ exhaustive `when` (`canMoveTo`), so adding a status does not compile until its m
 | Preparing | x | x | | x | x | x | | | | x | |
 | Applied | x | x | x | | x | x | | x | x | | x |
 | Interviewing | x | x | x | x | | x | | x | x | | x |
-| Offer | x | x | x | x | x | | x | x | | x | |
-| Accepted | | | | | | x | | | | | |
-| Rejected | | | | x | x | x | | x | | | |
-| Withdrawn | | | | x | x | | | | | | |
-| Declined | x | x | x | | | x | | | | x | |
-| Ghosted | | | | x | x | x | | x | x | | |
+| Offer | x | x | x | x | x | | x | x | | x | x |
+| Accepted | x | x | x | x | x | x | | x | | x | |
+| Rejected | x | x | x | x | x | x | | x | | | |
+| Withdrawn | x | x | x | x | x | x | | | | | |
+| Declined | x | x | x | x | x | x | | | | x | |
+| Ghosted | x | x | x | x | x | x | | x | x | | |
 
 - **Within the pipeline every move is allowed**: forward skips (Discovered straight to Applied, for a job
   found and applied to on the same day) and backward corrections (a mis-click on Interviewing). The
   history records each move, so a correction stays visible.
 - **Ending**: `Declined` before applying or on the offer; `Rejected` and `Withdrawn` only after applying
   (`Withdrawn` not from `Offer`: saying no to an offer is `Declined`); `Accepted` only from `Offer`;
-  `Ghosted` from `Applied` and `Interviewing`.
-- **Reopening a terminal status** goes back to where it can be entered from: `Declined` to the pre-applying
-  statuses and `Offer`, `Rejected` to `Applied`/`Interviewing`/`Offer` (the company comes back), `Withdrawn`
-  to `Applied`/`Interviewing`, `Accepted` to `Offer` (the offer fell through). `Ghosted` is left on a late
-  reply: back to `Applied`, `Interviewing` or `Offer`, or on to `Rejected` or `Withdrawn`. Terminal
-  statuses do not move to each other otherwise; that goes through a reopening, which the history shows.
+  `Ghosted` from `Applied`, `Interviewing` and `Offer` (an offer that is never followed up).
+- **Reopening (amended by #84)**: every terminal status may move back to **every** pipeline status. The
+  first matrix only allowed going back to where a status can be entered from, which forced detours for
+  real cases (a declined job the user applies to after all, an accepted offer that ends before the start);
+  the history records every move, so nothing is lost by allowing them directly.
+- **Between terminal statuses** only these: `Accepted` to `Rejected` (the offer was rescinded) or
+  `Declined` (the user reneged), and `Ghosted` on to `Rejected` or `Withdrawn` on a late answer. Anything
+  else goes through a reopening, which the history shows.
 - **Moving to the current status** is a no-op (`Unchanged`, no new version, no entry, no changelog entry),
   so a retried request does no harm, with one exception: `Declined → Declined` and `Rejected → Rejected`
   with a *different* decline reason correct the reason and are recorded like any move.
@@ -102,17 +105,33 @@ exhaustive `when` (`canMoveTo`), so adding a status does not compile until its m
   `Declined` if they hold a decline reason (the reading that claims least), and each gets one entry by
   `System("status-history-backfill")` at its `created_at`. The status-dependent check
   `application_decline_reason_matches_status` is added `NOT VALID` and validated after that (ADR-0041).
-- Changelog: a status change records the field `status` (before, after) with the actor; the reason text
-  stays out of the changelog (free text, #52). `ApplicationStatusChanged` carries ids and statuses only.
+- Changelog: a status change records the field `status` (before, after) with the actor, plus the field
+  `declineReason` (the category before, after) when the category changes, e.g. on declining or reopening. A
+  self-move that corrects the reason (`Declined → Declined`, `Rejected → Rejected`) is described as
+  "Corrected decline reason" and records only `declineReason`, never a meaningless `status` `DECLINED →
+  DECLINED`; if only the text changed, it names no field (the history entry holds the new text). The reason
+  text stays out of the changelog (free text, #52).
+- `ApplicationStatusChanged` is a `shared.domain.DomainEvent` carrying ids and statuses only, published through
+  `DomainEventPort` inside the change's transaction. **Its `from` may equal its `to`** for such a reason
+  correction; consumers must tolerate a move that leaves the status as it was.
+- **Description freeze (ADR-0046)**: when a move `freezesDescriptions` (into `Applied` or later from a status
+  that has not applied, including `Declined`), `ChangeApplicationStatusUseCase` calls
+  `DescriptionSnapshotRepositoryPort.freeze(application, change time)` synchronously in the same transaction
+  and writes one changelog entry per frozen snapshot (entity `description_snapshot`, field `frozenAt`, the
+  move's actor). Only the first freeze counts: a reopening that applies again (e.g. `Offer → Declined →
+  Applied`) freezes nothing new.
 - Export/import: `application_status_change` is in `BackupTables.EXPORTED`.
 
 ## Consequences
 
-- #84 implements the use cases (`ChangeApplicationStatusPort`, `GetApplicationStatusHistoryPort`), the
-  repository methods and the endpoints (`PUT /api/applications/{id}/status`,
+- #84 implemented the use cases (`ChangeApplicationStatusUseCase`, `GetApplicationStatusHistoryUseCase`) and
+  the endpoints (`PUT /api/applications/{id}/status`,
   `GET /api/applications/{id}/status-history`); #85 suggests `Ghosted` through the same use case with a
   `System` actor; #83 filters by status and decline category.
 - The reason of a declined or rejected application is edited by moving to the same status with the new
   reason, which leaves a history entry, rather than through the details.
 - A new status or move is a change to `ApplicationStatus`, this ADR's table and `ApplicationStatusTest`,
-  plus the enum checks in the migration (a new migration, never an edited one).
+  plus the enum checks in the migration (a new migration, never an edited one). A new move needs no
+  migration: the matrix lives only in the domain.
+- After a status change, a client holding an open details form gets 409 on save (the version moved on) and
+  must reload (#103).

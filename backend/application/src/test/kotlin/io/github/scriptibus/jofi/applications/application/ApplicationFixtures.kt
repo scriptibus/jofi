@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.applications.application
 
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -11,6 +12,10 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationPage
 import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
+import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
+import io.github.scriptibus.jofi.applications.domain.SnapshotId
+import io.github.scriptibus.jofi.applications.domain.SnapshotSummary
+import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
@@ -108,7 +113,24 @@ class ApplicationFixtures {
             override fun changeStatus(
                 application: Application,
                 change: StatusChange,
-            ): ApplicationStoreResult<Unit> = error("Not used by these use cases")
+            ): ApplicationStoreResult<Unit> {
+                val stored = applications[application.id]
+                return when {
+                    stored == null -> {
+                        ApplicationStoreResult.NotFound
+                    }
+
+                    (concurrentVersion ?: stored.version) != application.version - 1 -> {
+                        ApplicationStoreResult.VersionConflict
+                    }
+
+                    else -> {
+                        applications[application.id] = application
+                        history += change
+                        ApplicationStoreResult.Success(Unit)
+                    }
+                }
+            }
 
             override fun statusHistory(id: ApplicationId): ApplicationStoreResult<List<StatusChange>> =
                 if (id in applications) {
@@ -159,6 +181,36 @@ class ApplicationFixtures {
                 }
         }
 
+    /** Per application, the snapshots a freeze would pick; and when each one was frozen (only once). */
+    val freezable = mutableMapOf<ApplicationId, List<SnapshotId>>()
+    val frozenAt = mutableMapOf<SnapshotId, Instant>()
+    var failingFreeze = false
+
+    val snapshotPort =
+        object : DescriptionSnapshotRepositoryPort {
+            override fun add(snapshot: DescriptionSnapshot): ApplicationStoreResult<Unit> = error("Not used")
+
+            override fun latest(source: SourceId): ApplicationStoreResult<DescriptionSnapshot?> = error("Not used")
+
+            override fun listBySource(source: SourceId): ApplicationStoreResult<List<SnapshotSummary>> =
+                error("Not used")
+
+            override fun findById(
+                application: ApplicationId,
+                id: SnapshotId,
+            ): ApplicationStoreResult<DescriptionSnapshot> = error("Not used")
+
+            override fun freeze(
+                application: ApplicationId,
+                asOf: Instant,
+            ): ApplicationStoreResult<List<SnapshotId>> {
+                if (failingFreeze) return ApplicationStoreResult.StorageFailure("freeze")
+                val newlyFrozen = freezable[application].orEmpty().filter { it !in frozenAt }
+                newlyFrozen.forEach { frozenAt[it] = asOf }
+                return ApplicationStoreResult.Success(newlyFrozen)
+            }
+        }
+
     val changelog =
         object : ChangelogPort {
             override fun append(entry: ChangelogEntry): ChangelogResult<Unit> {
@@ -194,6 +246,7 @@ class ApplicationFixtures {
                 val historyBefore = history.toList()
                 val entriesBefore = entries.toList()
                 val eventsBefore = events.toList()
+                val frozenBefore = frozenAt.toMap()
                 val result = work()
                 if (!commitIf(result)) {
                     applications.clear()
@@ -204,6 +257,8 @@ class ApplicationFixtures {
                     entries.addAll(entriesBefore)
                     events.clear()
                     events.addAll(eventsBefore)
+                    frozenAt.clear()
+                    frozenAt.putAll(frozenBefore)
                 }
                 return result
             }

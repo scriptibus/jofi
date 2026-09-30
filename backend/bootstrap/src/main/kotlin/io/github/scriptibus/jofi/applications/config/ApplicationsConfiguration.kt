@@ -3,13 +3,16 @@
 
 package io.github.scriptibus.jofi.applications.config
 
+import io.github.scriptibus.jofi.applications.application.ChangeApplicationStatusUseCase
 import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
@@ -18,7 +21,10 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
-/** The application use cases: create, read, edit, read/unread and delete (#82), and the list (#83). */
+/**
+ * The application use cases: create, read, edit, read/unread and delete (#82); the list (#83); status change and
+ * history (#84).
+ */
 @Configuration(proxyBeanMethods = false)
 class ApplicationsConfiguration {
     @Bean
@@ -58,6 +64,27 @@ class ApplicationsConfiguration {
         audit: ApplicationAudit,
     ): DeleteApplicationUseCase =
         DeleteApplicationUseCase(applications, confirmation, events, audit.changelog, audit.transactions, audit.clock)
+
+    @Bean
+    fun changeApplicationStatusUseCase(
+        applications: ApplicationRepositoryPort,
+        snapshots: DescriptionSnapshotRepositoryPort,
+        events: DomainEventPort,
+        audit: ApplicationAudit,
+    ): ChangeApplicationStatusUseCase =
+        ChangeApplicationStatusUseCase(
+            applications,
+            snapshots,
+            events,
+            audit.changelog,
+            audit.transactions,
+            audit.clock,
+        )
+
+    @Bean
+    fun getApplicationStatusHistoryUseCase(
+        applications: ApplicationRepositoryPort,
+    ): GetApplicationStatusHistoryUseCase = GetApplicationStatusHistoryUseCase(applications)
 
     @Bean
     fun applicationAudit(

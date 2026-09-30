@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   Select as AriaSelect,
   Button,
+  FieldError,
   Header,
   Label,
   ListBox,
@@ -23,8 +24,8 @@ export interface SelectOption {
 
 export interface SelectGroup {
   id: string;
-  /** Visible heading of the group inside the list. */
-  title: string;
+  /** Visible heading of the group inside the list; without one, the options stand alone. */
+  title?: string;
   options: readonly SelectOption[];
 }
 
@@ -39,6 +40,8 @@ export interface SelectProps {
   /** Help text below the button, linked with `aria-describedby`. */
   description?: ReactNode;
   isDisabled?: boolean;
+  /** Form field name, so a surrounding `Form`'s `validationErrors` (server errors) show below it. */
+  name?: string;
   className?: string;
 }
 
@@ -55,6 +58,7 @@ export function Select({
   placeholder,
   description,
   isDisabled,
+  name,
   className,
 }: SelectProps) {
   return (
@@ -65,6 +69,7 @@ export function Select({
       }}
       placeholder={placeholder}
       isDisabled={isDisabled ?? false}
+      {...(name ? { name } : {})}
       className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}
     >
       <Label className="font-semibold text-body">{label}</Label>
@@ -83,13 +88,16 @@ export function Select({
           {description}
         </Text>
       ) : null}
+      <FieldError className="font-medium text-bad text-body" />
       <Popover className="max-h-80 min-w-64 max-w-prose overflow-auto rounded border border-line bg-surface p-1 text-fg shadow-card">
         <ListBox className="outline-none">
           {groups.map((group) => (
             <ListBoxSection key={group.id} id={group.id}>
-              <Header className="px-2 pt-2 pb-1 font-data text-eyebrow text-muted uppercase">
-                {group.title}
-              </Header>
+              {group.title ? (
+                <Header className="px-2 pt-2 pb-1 font-data text-eyebrow text-muted uppercase">
+                  {group.title}
+                </Header>
+              ) : null}
               {group.options.map((option) => (
                 <ListBoxItem
                   key={option.id}

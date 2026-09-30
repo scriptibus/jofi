@@ -4,7 +4,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { NumberField, Select } from "./index";
+import { Form, NumberField, Select } from "./index";
 
 const groups = [
   { id: "a", title: "Provider A", options: [{ id: "a1", label: "model-one" }] },
@@ -31,6 +31,29 @@ describe("Select", () => {
     expect(within(list).getByText("Provider B")).toBeVisible();
     await user.click(within(list).getByRole("option", { name: "model-two" }));
     expect(onChange).toHaveBeenCalledWith("b1");
+  });
+
+  it("offers options without a group heading and shows a form's server error", async () => {
+    const user = userEvent.setup();
+    render(
+      <Form validationErrors={{ company: "This company does not exist." }}>
+        <Select
+          name="company"
+          label="Company"
+          placeholder="Choose"
+          value="none"
+          onChange={() => undefined}
+          groups={[
+            { id: "none", options: [{ id: "none", label: "No company" }] },
+            { id: "companies", title: "Companies", options: [] },
+          ]}
+        />
+      </Form>,
+    );
+    expect(screen.getByText("This company does not exist.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /No company.*Company/ }));
+    const list = await screen.findByRole("listbox", { name: "Company" });
+    expect(within(list).getAllByRole("option")).toHaveLength(1);
   });
 
   it("shows the chosen option", () => {

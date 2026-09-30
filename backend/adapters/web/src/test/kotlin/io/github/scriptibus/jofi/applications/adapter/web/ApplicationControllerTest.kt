@@ -3,13 +3,16 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.ChangeApplicationStatusUseCase
 import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -52,9 +55,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The application endpoints over the real use cases (#82) with a mocked repository: mapping, problem
- * details and the two-step delete (the list, #83, is `ApplicationListControllerTest`). Status (#84) and contact
- * links (#90) still answer `501`.
+ * The application endpoints over the real use cases (#82) with mocked repositories: mapping, problem
+ * details and the two-step delete; the list (#83) is `ApplicationListControllerTest`, the status endpoints (#84)
+ * `ApplicationStatusControllerTest`. Contact links (#90) still answer `501`.
  * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(ApplicationController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
@@ -64,9 +67,10 @@ class ApplicationControllerTest(
     @param:Autowired private val mvc: MockMvcTester,
     @param:Autowired private val ports: Ports,
 ) {
-    /** The mocked ports behind the real use cases. */
+    /** The mocked ports behind the real use cases (shared with `ApplicationStatusControllerTest`). */
     class Ports {
         val applications = mockk<ApplicationRepositoryPort>()
+        val snapshots = mockk<DescriptionSnapshotRepositoryPort>()
         val changelog = mockk<ChangelogPort>()
         val events = mockk<DomainEventPort>()
         val transactions =
@@ -113,6 +117,20 @@ class ApplicationControllerTest(
                 ports.transactions,
                 clock,
             )
+
+        @Bean
+        fun changeStatus(ports: Ports) =
+            ChangeApplicationStatusUseCase(
+                ports.applications,
+                ports.snapshots,
+                ports.events,
+                ports.changelog,
+                ports.transactions,
+                clock,
+            )
+
+        @Bean
+        fun statusHistory(ports: Ports) = GetApplicationStatusHistoryUseCase(ports.applications)
     }
 
     private class MapStore : ConfirmationStorePort {
@@ -151,7 +169,7 @@ class ApplicationControllerTest(
 
     @BeforeEach
     fun storeOne() {
-        clearMocks(ports.applications, ports.changelog, ports.events)
+        clearMocks(ports.applications, ports.snapshots, ports.changelog, ports.events)
         every { ports.applications.findById(any()) } returns ApplicationStoreResult.NotFound
         every { ports.applications.findById(stored.id) } returns ApplicationStoreResult.Success(stored)
         every { ports.applications.add(any(), any()) } returns ApplicationStoreResult.Success(Unit)
@@ -290,15 +308,8 @@ class ApplicationControllerTest(
     }
 
     @Test
-    fun `contact links, status and history are not implemented yet`() {
+    fun `contact links are not implemented yet`() {
         notImplemented(json(mvc.put().uri("$path/contacts"), """{"contactIds":["$contactId"],"basedOnVersion":3}"""))
-        notImplemented(
-            json(
-                mvc.put().uri("$path/status"),
-                """{"status":"REJECTED","reason":"Filled","declineCategory":"POSITION_FILLED","basedOnVersion":3}""",
-            ),
-        )
-        notImplemented(mvc.get().uri("$path/status-history"))
     }
 
     @Test

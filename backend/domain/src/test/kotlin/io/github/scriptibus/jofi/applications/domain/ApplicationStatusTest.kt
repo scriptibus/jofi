@@ -47,9 +47,9 @@ class ApplicationStatusTest {
     }
 
     @Test
-    fun `every terminal status can be reopened`() {
+    fun `every terminal status can be reopened to every pipeline status`() {
         ApplicationStatus.entries.filter { it.isTerminal }.forEach { terminal ->
-            ApplicationStatus.entries.any { !it.isTerminal && terminal.canMoveTo(it) } shouldBe true
+            ApplicationStatus.entries.filter { !it.isTerminal }.all(terminal::canMoveTo) shouldBe true
         }
     }
 
@@ -64,12 +64,12 @@ class ApplicationStatusTest {
                 PREPARING to "xx.xxx...x.",
                 APPLIED to "xxx.xx.xx.x",
                 INTERVIEWING to "xxxx.x.xx.x",
-                OFFER to "xxxxx.xx.x.",
-                ACCEPTED to ".....x.....",
-                REJECTED to "...xxx.x...",
-                WITHDRAWN to "...xx......",
-                DECLINED to "xxx..x...x.",
-                GHOSTED to "...xxx.xx..",
+                OFFER to "xxxxx.xx.xx",
+                ACCEPTED to "xxxxxx.x.x.",
+                REJECTED to "xxxxxx.x...",
+                WITHDRAWN to "xxxxxx.....",
+                DECLINED to "xxxxxx...x.",
+                GHOSTED to "xxxxxx.xx..",
             )
 
         @JvmStatic
