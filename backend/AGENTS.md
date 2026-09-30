@@ -113,7 +113,7 @@ that includes making `shared.domain` and `shared.application.port` visible to th
   current docs, add it to `gradle/libs.versions.toml`, then refresh locks and checksums. List
   version + doc link in the PR (spec 4.10).
 
-## API contract (ADR-0016, ADR-0031)
+## API contract (ADR-0016, ADR-0032)
 
 - `api/openapi.json` at the repository root is the contract the frontend client is generated from.
   `OpenApiSpecTest` (in `adapters/web`, part of `check`) renders it from all controllers with
