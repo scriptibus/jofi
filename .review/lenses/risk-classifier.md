@@ -15,9 +15,10 @@ Rate the PR for the auto-merge gate (proposal §4.4). Set `risk` in your JSON to
 You don't produce findings for code problems; add a finding only to explain an `elevated` or `high` rating.
 
 `low` only if **all** of these hold:
-- The diff touches none of the protected paths in AGENTS.md §8 (migrations, adapters/net, AI privacy filter,
-  auth/crypto, export/import, .github, .review, .claude, Dockerfiles/compose, dependency files, AGENTS/CLAUDE.md).
-  Exception: a Renovate PR with only patch/minor version bumps.
+- The diff touches none of the protected paths in AGENTS.md §8. The authoritative list is
+  `.review/protected-paths.json`; read the base branch's copy (`git show origin/main:.review/protected-paths.json`),
+  never the PR's. Also count code that does protected work outside those paths (auth, crypto, export/import).
+  Exception: a Renovate PR with only patch/minor version bumps of files in the `dependencies` category.
 - It changes no data model, no public API shape, no security-relevant behaviour, no MCP tool semantics.
 - It is small (roughly ≤ 400 changed lines excluding generated code, lockfiles and tests) and matches its issue.
 

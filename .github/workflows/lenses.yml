@@ -3,12 +3,16 @@
 #
 # Review lenses (proposal §4.7, ADR 0021). Each triggered lens runs as its own job with a fresh context
 # on Lucas's Claude subscription token. To save quota they skip draft PRs.
-# The auto-merge gate (§4.4) that consumes the risk rating is added in M0 step 3.
+# After the lenses, the `gate` job (§4.4, ADR 0023, .review/README.md) computes from CI data alone whether
+# the PR may auto-merge. This workflow has no write access: merge-gate.yml applies the decision.
 name: lenses
 
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize, reopened]
+    # `edited` so that retargeting a PR disarms auto-merge and gets a fresh decision (merge-gate.yml).
+    # It also reruns the lenses on title/body edits: a skipped `result` would count as passed, so a
+    # cheaper "only on base change" filter would let an edit hide an earlier lens failure.
+    types: [opened, ready_for_review, synchronize, reopened, edited]
 
 permissions: {}
 
@@ -121,9 +125,88 @@ jobs:
             echo "::error::$blocking blocking finding(s) from lens $TITLE"
             exit 1
           fi
+      - name: Save result for the merge gate
+        if: always()
+        env:
+          RESULT: ${{ steps.lens.outputs.structured_output }}
+        run: printf '%s' "$RESULT" > "$RUNNER_TEMP/lens-result.json"
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lens-${{ matrix.lens.name }}
+          path: ${{ runner.temp }}/lens-result.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
 
-  result:
+  # Read-only: computes the decision and hands it to merge-gate.yml as an artifact. That workflow runs
+  # from main's definition, re-checks the PR itself and is the only one that arms auto-merge.
+  gate:
     needs: [select, lens]
+    if: always() && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # PR data and changed files
+      checks: read # check runs of other workflows on the head commit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }} # the base branch's gate, not the PR's copy
+          persist-credentials: false
+          sparse-checkout: .review
+      - name: Download the risk rating
+        # A missing rating is not an error here: the gate treats it as "never merge".
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lens-risk-classifier
+          path: ${{ runner.temp }}/risk
+      - name: Collect PR data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/gate"
+          mkdir -p "$dir/out"
+          gh api "repos/$REPO/pulls/$PR" > "$dir/pr.json"
+          # Both names of a renamed file count, so moving a file out of a protected path is caught too.
+          gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" \
+            --jq '[.[] | .filename, (.previous_filename // empty)]' | jq -s 'add // []' > "$dir/files.json"
+          gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | {name, status, conclusion, details_url}]' | jq -s 'add // []' > "$dir/checks.json"
+      - name: Decide
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SELECT_RESULT: ${{ needs.select.result }}
+          LENS_RESULT: ${{ needs.lens.result }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/gate"
+          python3 .review/gate.py decide --pr "$dir/pr.json" --files "$dir/files.json" \
+            --checks "$dir/checks.json" --risk "$RUNNER_TEMP/risk/lens-result.json" \
+            --head-sha "$HEAD_SHA" --default-branch "$DEFAULT_BRANCH" \
+            --select-result "$SELECT_RESULT" --lens-result "$LENS_RESULT" --run-id "$RUN_ID" \
+            --artifact "$dir/out/decision.json" --comment "$dir/comment.md"
+          cat "$dir/comment.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: merge-gate
+          path: ${{ runner.temp }}/gate/out/decision.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+
+  # Required check. It waits for the gate's decision; merge-gate.yml disarms auto-merge as soon as a new
+  # lenses run is requested, so an earlier auto-merge can't fire on this commit before the gate has decided.
+  result:
+    needs: [select, lens, gate]
     if: always() && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions: {}
@@ -131,6 +214,9 @@ jobs:
       - env:
           SELECT: ${{ needs.select.result }}
           LENS: ${{ needs.lens.result }}
+          GATE: ${{ needs.gate.result }}
         run: |
-          echo "select=$SELECT lens=$LENS"
-          [ "$SELECT" = "success" ] && { [ "$LENS" = "success" ] || [ "$LENS" = "skipped" ]; }
+          # A needs-human decision is not a failure: the PR stays mergeable for Lucas.
+          echo "select=$SELECT lens=$LENS gate=$GATE"
+          [ "$SELECT" = "success" ] && { [ "$LENS" = "success" ] || [ "$LENS" = "skipped" ]; } \
+            && [ "$GATE" = "success" ]
