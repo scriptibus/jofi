@@ -47,11 +47,21 @@ export function CompaniesPage() {
   const navigate = route.useNavigate();
   const [text, setText] = useState(search.q ?? "");
   const settled = useDebouncedValue(text.trim(), SEARCH_DELAY_MS);
+  const current = search.q ?? "";
 
+  // Typing moves the URL; the URL moving on its own (back, a link) moves the input.
+  const [typed, setTyped] = useState(settled);
+  const [shown, setShown] = useState(current);
+  if (current !== shown) {
+    setShown(current);
+    if (current !== settled) setText(current);
+  }
   useEffect(() => {
-    if (settled === (search.q ?? "")) return;
-    void navigate({ search: (previous) => withQuery(previous, settled), replace: true });
-  }, [settled, search.q, navigate]);
+    if (settled === typed) return;
+    setTyped(settled);
+    if (settled !== current)
+      void navigate({ search: (previous) => withQuery(previous, settled), replace: true });
+  }, [settled, typed, current, navigate]);
 
   const params: SearchCompaniesParams = { page: search.page ?? 0, size: PAGE_SIZE };
   if (search.q) params.search = search.q;

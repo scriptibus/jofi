@@ -56,6 +56,18 @@ describe("Companies list", () => {
     expect(router.state.location.search).toEqual({ q: "glob" });
   });
 
+  it("follows the URL when it changes on its own, without typing it back", async () => {
+    const { user, router } = start("/companies?q=glob", { companies: [acme, globex, initech] });
+    const box = await screen.findByRole("searchbox", { name: "Search companies" });
+    expect(box).toHaveValue("glob");
+    await router.navigate({ to: "/companies", search: { q: "init" } });
+    await waitFor(() => expect(box).toHaveValue("init"));
+    expect(await screen.findByRole("link", { name: "Initech" })).toBeVisible();
+    await user.clear(box);
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+    expect(await screen.findByText("3 companies")).toBeVisible();
+  });
+
   it("filters by flag", async () => {
     const { state, user } = start("/companies", { companies: [acme, globex, initech] });
     await screen.findByText("3 companies");
