@@ -98,9 +98,12 @@ test("drag a card to another column with the mouse", async ({ page }) => {
   const application = await createApplication(page, companyId, title, "APPLIED");
   await openBoard(page, companyId);
 
-  await page
-    .getByRole("button", { name: `Drag ${title}` })
-    .dragTo(column(page, "Interviewing"), { targetPosition: { x: 40, y: 40 } });
+  // A mouse drags the whole card (the handle is the keyboard's way in); grab it by its padding.
+  const source = column(page, "Applied").getByRole("row").filter({ hasText: title });
+  await source.dragTo(column(page, "Interviewing"), {
+    sourcePosition: { x: 4, y: 4 },
+    targetPosition: { x: 40, y: 40 },
+  });
   await expect(card(column(page, "Interviewing"), title)).toBeVisible();
   await expect.poll(() => statusOf(page, application.id)).toBe("INTERVIEWING");
   await page.reload();
@@ -118,6 +121,7 @@ test("drag a card with the keyboard: only allowed columns take it", async ({ pag
   // The first column that accepts a Discovered card is the next one; Enter drops it there.
   const target = page.locator(":focus");
   await expect(target).toHaveAttribute("aria-roledescription", "drop indicator");
+  await expect(column(page, "Shortlisted")).toHaveAttribute("data-drop-target", "true");
   await snapshot(page, "board-keyboard-drag");
   await page.keyboard.press("Enter");
   await expect(card(column(page, "Shortlisted"), title)).toBeVisible();

@@ -82,7 +82,7 @@ export function BoardColumn<T extends { id: string }>({
             id={item.id}
             textValue={textValue(item)}
             className={
-              "rounded border border-line bg-surface p-3 text-fg shadow-card outline-none " +
+              "cursor-grab rounded border border-line bg-surface p-3 text-fg shadow-card outline-none " +
               "data-dragging:opacity-50 " +
               "data-focus-visible:outline-2 data-focus-visible:outline-offset-2 data-focus-visible:outline-accent"
             }
@@ -92,7 +92,7 @@ export function BoardColumn<T extends { id: string }>({
                 slot="drag"
                 aria-label={dragLabel(item)}
                 className={
-                  "-ml-1 cursor-grab rounded p-1 text-muted data-hovered:text-fg " +
+                  "-ml-1 rounded p-1 text-muted data-hovered:text-fg " +
                   "data-focus-visible:outline-2 data-focus-visible:outline-accent"
                 }
               >
