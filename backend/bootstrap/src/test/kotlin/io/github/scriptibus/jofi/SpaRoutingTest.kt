@@ -3,14 +3,21 @@
 
 package io.github.scriptibus.jofi
 
+import io.github.scriptibus.jofi.system.adapter.web.SpaFallbackResourceResolver
+import io.kotest.matchers.collections.shouldHaveSingleElement
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.assertj.MockMvcTester
+import org.springframework.web.servlet.HandlerMapping
+import org.springframework.web.servlet.handler.SimpleUrlHandlerMapping
+import org.springframework.web.servlet.resource.ResourceHttpRequestHandler
 
 /**
  * The SPA shell without a session (`src/test/resources/static` stands in for the frontend build):
@@ -21,7 +28,17 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester
 @Import(PostgresTestConfiguration::class)
 class SpaRoutingTest(
     @param:Autowired private val mvc: MockMvcTester,
+    @param:Autowired @param:Qualifier("resourceHandlerMapping") private val resources: HandlerMapping,
 ) {
+    @Test
+    fun `the fallback is not behind the unbounded resolver cache`() {
+        // Every client route resolves to index.html; a caching chain would keep one entry per path.
+        val handler = (resources as SimpleUrlHandlerMapping).urlMap["/**"]
+        handler
+            .shouldBeInstanceOf<ResourceHttpRequestHandler>()
+            .resourceResolvers.shouldHaveSingleElement { it is SpaFallbackResourceResolver }
+    }
+
     @Test
     fun `deep links and the share target open the SPA`() {
         // "/" is Spring Boot's welcome page, a forward to index.html that MockMvc does not follow.

@@ -20,7 +20,9 @@ class SpaConfiguration : WebMvcConfigurer {
         registry
             .addResourceHandler("/**")
             .addResourceLocations("classpath:/static/")
-            .resourceChain(true)
+            // No resolver cache: its map is unbounded and keyed by request path, and every client
+            // route resolves to index.html, so anonymous requests to /a1, /a2, … would grow the heap.
+            .resourceChain(false)
             .addResolver(SpaFallbackResourceResolver())
     }
 }
