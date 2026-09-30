@@ -87,6 +87,7 @@ export function VersionList({
       label={m.application_description_versions()}
       options={options}
       value={shown}
+      hideLabel
       onChange={onShow}
     />
   );

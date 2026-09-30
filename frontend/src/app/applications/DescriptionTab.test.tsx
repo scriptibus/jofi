@@ -244,7 +244,7 @@ describe("description tab", () => {
     expect(await within(textCard()).findByText("From the link")).toBeVisible();
     expect(screen.queryByText(/offline since/)).toBeNull();
 
-    await user.click(screen.getByRole("button", { name: /Source$/ }));
+    await user.click(screen.getByRole("button", { name: /Source shown$/ }));
     await user.click(await screen.findByRole("option", { name: "Found by a scanner (board.example.org)" }));
     expect(await within(textCard()).findByText("From the scanner")).toBeVisible();
     expect(screen.getByText("offline since Sep 20, 2026")).toBeVisible();

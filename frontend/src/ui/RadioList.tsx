@@ -13,11 +13,13 @@ export interface RadioListOption<T extends string> {
 }
 
 export interface RadioListProps<T extends string> {
-  /** Visible group label; also the accessible name of the radio group. */
+  /** Group label; also the accessible name of the radio group. */
   label: string;
   options: readonly RadioListOption<T>[];
   value: T | null;
   onChange: (value: T) => void;
+  /** Keeps the label for assistive technology only, when a heading right above already says it. */
+  hideLabel?: boolean;
 }
 
 /**
@@ -25,7 +27,13 @@ export interface RadioListProps<T extends string> {
  * group: arrow keys move, one tab stop). The chosen option has a marked border and a filled dot, never
  * colour alone. Use `SegmentedControl` for a handful of short options on one line.
  */
-export function RadioList<T extends string>({ label, options, value, onChange }: RadioListProps<T>) {
+export function RadioList<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  hideLabel = false,
+}: RadioListProps<T>) {
   return (
     <RadioGroup
       value={value}
@@ -35,7 +43,7 @@ export function RadioList<T extends string>({ label, options, value, onChange }:
       }}
       className="flex flex-col gap-2"
     >
-      <Label className="font-data text-eyebrow text-muted uppercase">{label}</Label>
+      <Label className={hideLabel ? "sr-only" : "font-data text-eyebrow text-muted uppercase"}>{label}</Label>
       <div className="flex flex-col gap-2">
         {options.map((option) => (
           <RadioField key={option.value} value={option.value} className="flex">

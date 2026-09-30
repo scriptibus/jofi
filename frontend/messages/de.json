@@ -921,5 +921,6 @@
         "countPlural=other": "{shown} weitere Zeilen zeigen"
       }
     }
-  ]
+  ],
+  "application_description_source_shown": "Angezeigte Quelle"
 }

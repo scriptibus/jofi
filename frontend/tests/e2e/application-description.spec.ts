@@ -75,10 +75,10 @@ test("record texts, compare versions and see the version frozen when applying", 
   await snapshot(page, "description-diff");
 
   // The scanner's find is offline; its (empty) history stays readable.
-  await page.getByRole("button", { name: /Source$/ }).click();
+  await page.getByRole("button", { name: /Source shown$/ }).click();
   await page.getByRole("option", { name: "Found by a scanner (board.history.example)" }).click();
   await expect(page.getByText("offline since Sep 20, 2026")).toBeVisible();
-  await page.getByRole("button", { name: /Source$/ }).click();
+  await page.getByRole("button", { name: /Source shown$/ }).click();
   await page.getByRole("option", { name: "Added from a link (jobs.history.example)" }).click();
 
   // Applying freezes the latest version.

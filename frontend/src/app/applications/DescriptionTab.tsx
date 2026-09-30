@@ -137,8 +137,8 @@ function DescriptionHistory({
       <Card id="application-description-source-heading" title={m.application_description_source()}>
         {sources.length > 1 ? (
           <Select
-            label={m.application_description_source()}
-            placeholder={m.application_description_source()}
+            label={m.application_description_source_shown()}
+            placeholder={m.application_description_source_shown()}
             groups={[
               { id: "sources", options: sources.map((each) => ({ id: each.id, label: sourceName(each) })) },
             ]}

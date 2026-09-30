@@ -37,6 +37,20 @@ describe("RadioList", () => {
     expect(screen.getByRole("radio", { name: /Version 2\s*Frozen/ })).not.toBeChecked();
   });
 
+  it("can keep its label for assistive technology only", () => {
+    render(
+      <RadioList
+        label="Hidden"
+        options={[{ value: "a", label: "A" }]}
+        value="a"
+        onChange={() => {}}
+        hideLabel
+      />,
+    );
+    expect(screen.getByRole("radiogroup", { name: "Hidden" })).toBeVisible();
+    expect(screen.getByText("Hidden")).toHaveClass("sr-only");
+  });
+
   it("chooses by click and by arrow keys", async () => {
     const user = userEvent.setup();
     render(<Example />);

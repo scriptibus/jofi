@@ -921,5 +921,6 @@
         "countPlural=other": "Show {shown} more lines"
       }
     }
-  ]
+  ],
+  "application_description_source_shown": "Source shown"
 }

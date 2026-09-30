@@ -161,7 +161,7 @@ function Fold({
   const words = { count: row.count, shown: new Intl.NumberFormat(getLocale()).format(row.count) };
   return (
     <li className="px-2 py-1">
-      <Button variant="secondary" className="w-full" onPress={() => onUnfold(row.run)}>
+      <Button variant="secondary" className="w-full font-body" onPress={() => onUnfold(row.run)}>
         {row.operation === "UNCHANGED"
           ? m.application_description_show_unchanged(words)
           : m.application_description_show_more(words)}
