@@ -92,8 +92,8 @@ class StreamCancellationTest {
         }
 
         // A request cancelled before it connected never reaches the provider; every connection that
-        // did must be hung up once the delayed headers were due.
-        awaitHangUps(provider, expected = provider.requests.get())
+        // did (some land just after the call returned) must be hung up once the delayed headers were due.
+        awaitAllHungUp(provider)
         provider.answerAnd { adapter.complete(stub.target(ProviderKind.ANTHROPIC), request()) }
     }
 
@@ -114,6 +114,16 @@ class StreamCancellationTest {
         val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()
         while (provider.hangUps.get() < expected && System.nanoTime() < deadline) Thread.sleep(POLL_MILLIS)
         provider.hangUps.get() shouldBe expected
+    }
+
+    /** Waits until the provider saw as many hang-ups as connections, reading both live. */
+    private fun awaitAllHungUp(provider: StallingProvider) {
+        val deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos()
+        while (provider.hangUps.get() != provider.requests.get() && System.nanoTime() < deadline) {
+            Thread.sleep(POLL_MILLIS)
+        }
+        "${provider.hangUps.get()} hang-ups for ${provider.requests.get()} connections" shouldBe
+            "${provider.requests.get()} hang-ups for ${provider.requests.get()} connections"
     }
 
     private fun stalling(
