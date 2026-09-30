@@ -3,13 +3,11 @@
 
 package io.github.scriptibus.jofi.setup.config
 
-import io.github.scriptibus.jofi.setup.adapter.ai.ProviderPrivacyFile
 import io.github.scriptibus.jofi.setup.application.AssignTaskModelUseCase
 import io.github.scriptibus.jofi.setup.application.CorrectModelCapabilitiesUseCase
 import io.github.scriptibus.jofi.setup.application.CreateProviderUseCase
 import io.github.scriptibus.jofi.setup.application.DeleteProviderUseCase
 import io.github.scriptibus.jofi.setup.application.ListProviderModelsUseCase
-import io.github.scriptibus.jofi.setup.application.ListProviderPrivacyInfoUseCase
 import io.github.scriptibus.jofi.setup.application.ListProvidersUseCase
 import io.github.scriptibus.jofi.setup.application.ListTaskAssignmentsUseCase
 import io.github.scriptibus.jofi.setup.application.RefreshProviderModelsUseCase
@@ -119,11 +117,6 @@ class SetupConfiguration {
             audit.transactions,
             audit.clock,
         )
-
-    /** Reads the dated provider privacy file once at startup; a broken file stops the app (#138). */
-    @Bean
-    fun listProviderPrivacyInfoUseCase(clock: Clock): ListProviderPrivacyInfoUseCase =
-        ListProviderPrivacyInfoUseCase(ProviderPrivacyFile.load(), clock)
 
     @Bean
     fun setupStores(
