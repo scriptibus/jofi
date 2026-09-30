@@ -21,6 +21,7 @@ import io.swagger.v3.oas.models.responses.ApiResponse
 import io.swagger.v3.oas.models.servers.Server
 import org.springdoc.core.customizers.OpenApiCustomizer
 import org.springdoc.core.customizers.OperationCustomizer
+import org.springdoc.core.utils.SpringDocUtils
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
 import org.springframework.beans.factory.support.GenericBeanDefinition
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.HandlerMethod
+import java.time.LocalDateTime
 
 /**
  * The application context the API contract is rendered from: every controller and controller
@@ -206,5 +208,17 @@ class OpenApiSpecApplication {
         const val DEFAULT_RESPONSE = "default"
         const val DESCRIPTION =
             "REST API of the Jofi backend. Generated from the controllers by OpenApiSpecTest; do not edit."
+
+        // A `LocalDateTime` has no offset, but springdoc would call it `date-time`, which requires one (RFC 3339), so
+        // generated clients would reject or shift it (ADR-0048): it is a string of its own shape instead.
+        init {
+            SpringDocUtils.getConfig().replaceWithSchema(
+                LocalDateTime::class.java,
+                StringSchema()
+                    .pattern("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?$")
+                    .description("A date and time on a clock, without zone or offset (ISO 8601)")
+                    .example("2026-10-05T10:00:00"),
+            )
+        }
     }
 }
