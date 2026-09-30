@@ -12,11 +12,11 @@ import org.apache.hc.core5.util.TimeValue
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.FilterInputStream
-import java.time.Duration
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.URI
+import java.time.Duration
 import java.util.Locale
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletableFuture
@@ -78,6 +78,12 @@ class GuardedAiTransport(
     private val client: CloseableHttpClient,
 ) : AutoCloseable {
     fun execute(request: AiRequest): AiResponse = execute(request, toApacheRequest(request))
+
+    /** A fresh OpenAI SDK bridge for one AI call; closing it aborts what the call left open. */
+    fun openAiBridge(): OpenAiSdkHttpClient = OpenAiSdkHttpClient(this)
+
+    /** A fresh Anthropic SDK bridge for one AI call; closing it aborts what the call left open. */
+    fun anthropicBridge(): AnthropicSdkHttpClient = AnthropicSdkHttpClient(this)
 
     /**
      * Runs the request on a virtual thread. Cancelling the future aborts the request, whether it is

@@ -15,19 +15,22 @@ import java.net.URI
 import java.util.concurrent.CompletableFuture
 
 /**
- * The OpenAI SDK's transport (ADR-0037), used for OpenAI, Gemini, Mistral and OpenAI-compatible
- * endpoints: every request goes through [GuardedAiTransport]. Base URL and key live in the SDK's
- * client options, so one instance serves every provider. [close] leaves the shared transport open.
+ * The OpenAI SDK's transport for one AI call (ADR-0037), used for OpenAI, Gemini, Mistral and
+ * OpenAI-compatible endpoints: every request goes through the shared [GuardedAiTransport]. The AI
+ * adapter takes a fresh instance per call and closes it when the call ends, which aborts whatever
+ * that call still has open (see [ExchangeScope]); the transport itself stays open.
  */
 class OpenAiSdkHttpClient(
     private val transport: GuardedAiTransport,
 ) : HttpClient {
+    private val scope = ExchangeScope()
+
     override fun execute(
         request: HttpRequest,
         requestOptions: RequestOptions,
     ): HttpResponse =
         try {
-            SdkResponse(transport.execute(toAiRequest(request, requestOptions)))
+            SdkResponse(scope.track(transport.execute(toAiRequest(request, requestOptions))), scope)
         } catch (failure: IOException) {
             throw OpenAIIoException("Request failed", failure)
         } finally {
@@ -39,13 +42,14 @@ class OpenAiSdkHttpClient(
         requestOptions: RequestOptions,
     ): CompletableFuture<HttpResponse> =
         SdkFutures.map(
-            transport.executeAsync(toAiRequest(request, requestOptions)),
+            scope.track(transport.executeAsync(toAiRequest(request, requestOptions))),
             whenDone = { request.body?.close() },
             ioFailure = { OpenAIIoException("Request failed", it) },
-            toSdk = ::SdkResponse,
+            toSdk = { SdkResponse(it, scope) },
         )
 
-    override fun close() = Unit
+    /** Aborts the call's requests and responses that are still open. */
+    override fun close() = scope.close()
 
     private fun toAiRequest(
         request: HttpRequest,
@@ -61,9 +65,11 @@ class OpenAiSdkHttpClient(
 
     private class SdkResponse(
         private val response: AiResponse,
+        private val scope: ExchangeScope,
     ) : HttpResponse {
         private val headers =
             Headers.builder().apply { response.headers.forEach { (name, value) -> put(name, value) } }.build()
+        private val cleanup = UnclosedResponses.register(this, response)
 
         override fun statusCode(): Int = response.statusCode
 
@@ -71,8 +77,9 @@ class OpenAiSdkHttpClient(
 
         override fun body(): InputStream = response.body
 
-        private val cleanup = UnclosedResponses.register(this, response)
-
-        override fun close() = cleanup.clean()
+        override fun close() {
+            cleanup.clean()
+            scope.forget(response)
+        }
     }
 }

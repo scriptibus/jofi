@@ -60,19 +60,37 @@ prebuilt SDK clients (`OpenAiChatModel.builder().openAiClient(..).openAiClientAs
   endpoints, no redirects, cookies, retries or system proxies, 10 s connect / 5 min read). It drops
   the SDKs' `X-Stainless-*` telemetry headers (OS, architecture, runtime versions) and their
   `User-Agent`. Closing an unfinished response cancels the exchange instead of draining it, so a
-  cancelled stream stops at once. `OpenAiSdkHttpClient` and `AnthropicSdkHttpClient` implement the
-  two SDKs' `HttpClient` interfaces over it; bootstrap wires them as beans. The earlier
-  `aiHttpRequestFactory` bean is removed: no AI client uses a `RestClient`.
+  cancelled stream stops at once. Every exchange has one overall deadline (the SDK's request
+  timeout, at most 15 minutes), so a stream that trickles forever is still cut off. The pool allows
+  20 connections per provider and 50 in total, and a call waits at most 10 s for a pooled connection
+  (Apache's default is 3 minutes), then fails as unavailable instead of hanging.
+  The earlier `aiHttpRequestFactory` bean is removed: no AI client uses a `RestClient`.
+- **One bridge per call.** `OpenAiSdkHttpClient` and `AnthropicSdkHttpClient` implement the two
+  SDKs' `HttpClient` interfaces over the transport; the adapter takes a fresh one per call and
+  closes it when the call ends. Closing aborts whatever the call left open, at the transport and not
+  through the SDK. Two SDK behaviours make this necessary. First, the SDKs close a cancelled stream
+  through a `BufferedReader` that waits for the read in progress, so a stalled provider would keep
+  the connection until the read timeout. Second, the Anthropic SDK wraps the request future in its
+  logging layer, so a cancellation before the headers never reaches the transport, and the late
+  response would stay leased from the pool. The stream collector also checks for cancellation
+  before subscribing, and the bridges close any SDK response that is collected unclosed (a
+  `Cleaner`, like the SDKs' own `PhantomReachable*` wrappers).
 - **The adapter (`setup.adapter.ai`, module `adapters/ai`)** builds SDK clients per call from
   `ClientOptions` with the injected transport, the provider's endpoint, the key read through
   `SecretStorePort` just before the call, `maxRetries(0)` (the caller decides about retries from the
-  sealed result) and `logLevel(OFF)`; nothing is read from the environment. Anthropic's key and API
+  sealed result) and `logLevel(OFF)`; nothing is read from the environment (an architecture rule
+  bans the SDKs' `fromEnv()`). All clients share one stream executor and one sleeper. The executor
+  is passed as a plain `Executor`, because the SDKs take ownership of an `ExecutorService` and shut
+  it down when any client is closed or collected, which would stop every later stream. The sleeper
+  is a no-op `Sleeper`, because the default one starts a `Timer` thread per client. Anthropic's key and API
   version go in as `x-api-key`/`anthropic-version` headers, which is what the SDK's default backend
   adds. Tools are declarations only; Spring AI 2.0's chat models return tool calls without running
   them. Every exception, including Reactor- and future-wrapped ones, maps to an `AiResult`:
   401/403 authentication, 429 rate limited with `Retry-After` seconds, 408/5xx/529 and I/O failures
   unavailable, context-window messages context too long, "does not support tools" capability missing,
-  anything else rejected with its status. Logs name provider kind, model and result kind only;
+  anything else rejected with its status. A `LinkageError` (a missing class, e.g. if Spring AI ever
+  fell back to its excluded OkHttp client) is logged as an error and reported as unavailable, so
+  nothing crosses the port. Logs name provider kind, model and result kind only;
   `application.yaml` switches off `org.springframework.ai`, `com.openai` and `com.anthropic`.
 - **Capabilities**: `ModelCatalogPort` (new, `setup.application.port`) lists a provider's models
   (`GET /models` of each API) and combines them with a table of known model families (tool use,
@@ -83,7 +101,7 @@ prebuilt SDK clients (`OpenAiChatModel.builder().openAiClient(..).openAiClientAs
 - **Architecture rule**: `onlyTheNetAdapterMakesOutboundHttpCalls` keeps banning `com.openai..` and
   `com.anthropic..` everywhere except for a named list of SDK types in `setup.adapter.ai` (module
   `adapters/ai` and package both required, like the net exemption): the client interfaces and
-  implementations, `ClientOptions` and its builder, `LogLevel`, `AutoPager`, the `HttpClient`
+  implementations, `ClientOptions` and its builder, `LogLevel`, `Sleeper`, `AutoPager`, the `HttpClient`
   interface as a type, `Headers`, the service and I/O exception types, and the model listing types.
   Spring AI's own builders (`org.springframework.ai.openai.setup..`, `..openai.http..`,
   `..anthropic.http..`, `AnthropicSetup`) and `com.google.genai..` are banned for everyone. Fixture
@@ -100,4 +118,3 @@ prebuilt SDK clients (`OpenAiChatModel.builder().openAiClient(..).openAiClientAs
 - Jackson 2 is on the runtime classpath (the SDK cores), with the catalog's security override.
 - Adding a provider type that needs its own SDK transport (Google GenAI natively, voice providers in
   M5) means another bridge in `adapters/net` and a reviewed addition to the SDK type list.
-- The secret store adapter arrives with #16; until then the wiring injects it lazily.

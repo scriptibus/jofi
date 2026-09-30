@@ -30,3 +30,15 @@ dependencies {
     // LogPrivacyTest captures every log event.
     testImplementation(libs.logback.classic)
 }
+
+// LogPrivacyTest applies the app's real logger levels, so it reads the bootstrap application.yaml.
+val applicationYaml: RegularFile =
+    isolated.rootProject.projectDirectory.file("bootstrap/src/main/resources/application.yaml")
+
+tasks.withType<Test>().configureEach {
+    systemProperty("jofi.application.yaml", applicationYaml.asFile.absolutePath)
+    inputs
+        .file(applicationYaml)
+        .withPropertyName("applicationYaml")
+        .withPathSensitivity(PathSensitivity.NONE)
+}

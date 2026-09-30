@@ -5,11 +5,9 @@ package io.github.scriptibus.jofi.setup.config
 
 import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
 import io.github.scriptibus.jofi.setup.domain.SetupStoreResult
-import io.github.scriptibus.jofi.shared.adapter.net.AnthropicSdkHttpClient
 import io.github.scriptibus.jofi.shared.adapter.net.Destination
 import io.github.scriptibus.jofi.shared.adapter.net.DestinationAllowlist
 import io.github.scriptibus.jofi.shared.adapter.net.GuardedAiTransport
-import io.github.scriptibus.jofi.shared.adapter.net.OpenAiSdkHttpClient
 import io.github.scriptibus.jofi.shared.adapter.net.UserAgent
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.info.BuildProperties
@@ -21,7 +19,8 @@ import org.springframework.context.annotation.Configuration
  * URLs of the configured AI providers as its allowlist, so a local Ollama may be private while every
  * other internal destination stays blocked. The allowlist is read on each new connection; if the
  * provider store is missing or fails, it is empty (fail closed). The vendor SDK clients built in
- * `setup.adapter.ai` get it through the two SDK bridges, never a client of their own.
+ * `setup.adapter.ai` get it through per-call SDK bridges (`AiProviderConfiguration`), never a
+ * client of their own.
  */
 @Configuration(proxyBeanMethods = false)
 class AiHttpConfiguration {
@@ -34,13 +33,6 @@ class AiHttpConfiguration {
             DestinationAllowlist { destination -> destination in configuredDestinations(providerConfigs) },
             UserAgent.of(buildProperties.ifAvailable?.version),
         )
-
-    @Bean
-    fun openAiSdkHttpClient(aiTransport: GuardedAiTransport): OpenAiSdkHttpClient = OpenAiSdkHttpClient(aiTransport)
-
-    @Bean
-    fun anthropicSdkHttpClient(aiTransport: GuardedAiTransport): AnthropicSdkHttpClient =
-        AnthropicSdkHttpClient(aiTransport)
 
     private fun configuredDestinations(providerConfigs: ObjectProvider<ProviderConfigPort>): Set<Destination> {
         val stored = providerConfigs.ifAvailable?.findAll() as? SetupStoreResult.Success ?: return emptySet()

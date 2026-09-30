@@ -83,29 +83,31 @@ class ModelCatalogAdapter(
         provider: ProviderConfig,
         key: SecretValue?,
     ): List<ListedModel> =
-        models
-            .openAi(provider, key)
-            .models()
-            .list()
-            .autoPager()
-            .asSequence()
-            .take(MAX_MODELS)
-            .map { ListedModel(ModelName(it.id().removePrefix(GEMINI_PREFIX)), null) }
-            .toList()
+        models.withOpenAi(provider, key) { client ->
+            client
+                .models()
+                .list()
+                .autoPager()
+                .asSequence()
+                .take(MAX_MODELS)
+                .map { ListedModel(ModelName(it.id().removePrefix(GEMINI_PREFIX)), null) }
+                .toList()
+        }
 
     private fun anthropicModels(
         provider: ProviderConfig,
         key: SecretValue?,
     ): List<ListedModel> =
-        models
-            .anthropic(provider, key)
-            .models()
-            .list()
-            .autoPager()
-            .asSequence()
-            .take(MAX_MODELS)
-            .map { ListedModel(ModelName(it.id()), it.maxInputTokens().orElse(null)) }
-            .toList()
+        models.withAnthropic(provider, key) { client ->
+            client
+                .models()
+                .list()
+                .autoPager()
+                .asSequence()
+                .take(MAX_MODELS)
+                .map { ListedModel(ModelName(it.id()), it.maxInputTokens().orElse(null)) }
+                .toList()
+        }
 
     private fun capabilities(
         kind: ProviderKind,

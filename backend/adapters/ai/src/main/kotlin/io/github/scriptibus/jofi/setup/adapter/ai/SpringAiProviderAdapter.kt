@@ -39,9 +39,10 @@ class SpringAiProviderAdapter(
         request: LlmRequest,
     ): AiResult<LlmResponse> =
         call(target, request.task) { key ->
-            val chat = models.chat(target, key, request)
-            val response = chat.model.call(Prompt(PromptMapper.messages(request.messages), chat.options))
-            AiResult.Success(ResponseAccumulator.of(response))
+            models.chat(target, key, request).use { chat ->
+                val response = chat.model.call(Prompt(PromptMapper.messages(request.messages), chat.options))
+                AiResult.Success(ResponseAccumulator.of(response))
+            }
         }
 
     override fun stream(
@@ -51,9 +52,11 @@ class SpringAiProviderAdapter(
         onTextDelta: (String) -> Unit,
     ): AiResult<LlmResponse> =
         call(target, request.task) { key ->
-            val chat = models.chat(target, key, request)
-            val fragments = chat.model.stream(Prompt(PromptMapper.messages(request.messages), chat.options))
-            StreamCollector.collect(fragments, isCancelled, onTextDelta)
+            // Closing the call aborts the exchange a cancelled stream leaves open.
+            models.chat(target, key, request).use { chat ->
+                val fragments = chat.model.stream(Prompt(PromptMapper.messages(request.messages), chat.options))
+                StreamCollector.collect(fragments, isCancelled, onTextDelta)
+            }
         }
 
     override fun embed(
@@ -61,7 +64,7 @@ class SpringAiProviderAdapter(
         request: EmbeddingRequest,
     ): AiResult<EmbeddingResponse> =
         call(target, request.task) { key ->
-            models.embedding(target, key)?.let { embed(it, request) } ?: AiResult.CapabilityMissing(request.task)
+            models.embedding(target, key)?.use { embed(it.model, request) } ?: AiResult.CapabilityMissing(request.task)
         }
 
     private fun embed(

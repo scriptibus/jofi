@@ -21,9 +21,12 @@ reviewed by Lucas. Package: `io.github.scriptibus.jofi.shared.adapter.net`.
   (`GuardedAiTransport`, wired in `bootstrap` `setup.config.AiHttpConfiguration`) gets the configured
   provider base URLs.
 - `GuardedAiTransport` (ADR-0037) is the transport of the AI vendor SDKs: no redirects, SDK telemetry
-  headers dropped, and closing an unfinished response aborts it instead of draining it.
+  headers dropped, one overall deadline per exchange, 20 connections per provider and a 10 s wait
+  for a pooled connection. Closing an unfinished response aborts it instead of draining it.
   `OpenAiSdkHttpClient` and `AnthropicSdkHttpClient` implement the SDKs' `HttpClient` interfaces over
-  it and wrap I/O failures in the SDKs' I/O exceptions.
+  it, one instance per AI call: closing one aborts that call's open exchanges (`ExchangeScope`),
+  cancellation of the SDK's future is forwarded (`SdkFutures`), and an SDK response collected
+  unclosed is closed (`UnclosedResponses`). They wrap I/O failures in the SDKs' I/O exceptions.
 
 Rules:
 - Nothing else in the backend may use an HTTP client or socket (architecture test

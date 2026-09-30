@@ -242,7 +242,6 @@ with `jofi.postgresImage`. Build and smoke-test the stack from the repository ro
   `anthropic-java-core` 2.52.0; newer ones exist): the Spring AI BOM does not manage them and its
   model classes are compiled against these (ADR-0037). They bring **Jackson 2** onto the runtime
   classpath, with the catalog's security override. OkHttp is excluded from the Spring AI modules.
-- **licensee `allowUrl` for ANTLR** (`org.antlr:antlr4-runtime` via Spring AI): BSD-3-Clause,
-  declared by URL.
-- **`SecretStorePort` is injected lazily** into the AI adapters (`setup.config.AiProviderConfiguration`)
-  until its Tink adapter lands with #16; drop the `@Lazy` then.
+- **licensee `allowDependency` for ANTLR** (`antlr4-runtime` 4.13.1, `ST4` 4.3.4, `antlr-runtime`
+  3.5.3, via Spring AI's prompt templates): BSD-3-Clause, declared only by URL. Pinned to these
+  versions so a new release is checked again.

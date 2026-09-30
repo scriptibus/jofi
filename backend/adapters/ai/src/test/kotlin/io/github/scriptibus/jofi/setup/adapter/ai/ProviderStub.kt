@@ -53,11 +53,27 @@ class ProviderStub : AutoCloseable {
             "Jofi/test",
         )
 
-    fun models(transport: GuardedAiTransport = this.transport): ProviderModels =
-        ProviderModels(OpenAiSdkHttpClient(transport), AnthropicSdkHttpClient(transport), endpoints)
+    fun models(
+        transport: GuardedAiTransport = this.transport,
+        endpoints: ProviderEndpoints = this.endpoints,
+    ): ProviderModels =
+        ProviderModels({ OpenAiSdkHttpClient(transport) }, { AnthropicSdkHttpClient(transport) }, endpoints)
 
     fun adapter(transport: GuardedAiTransport = this.transport): SpringAiProviderAdapter =
         SpringAiProviderAdapter(models(transport), secrets)
+
+    /** An adapter whose cloud endpoints all point at a loopback server on [port] (allowlisted). */
+    fun adapterOn(port: Int): SpringAiProviderAdapter {
+        val onPort = "http://127.0.0.1:$port"
+        val endpoints =
+            ProviderEndpoints(ProviderKind.entries.filterNot { it.needsBaseUri }.associateWith { URI(onPort) })
+        val transport =
+            GuardedAiTransport.create(
+                DestinationAllowlist.of(listOf(Destination.of("127.0.0.1", port))),
+                "Jofi/test",
+            )
+        return SpringAiProviderAdapter(models(transport, endpoints), secrets)
+    }
 
     fun catalog(): ModelCatalogAdapter = ModelCatalogAdapter(models(), secrets, CLOCK)
 
@@ -106,12 +122,30 @@ class ProviderStub : AutoCloseable {
         private val json = JsonMapper.builder().build()
 
         /** An OpenAI server-sent event stream from a fixture holding the chunks as a JSON array. */
-        fun openAiStream(path: String): String =
-            json.readTree(fixture(path)).joinToString("") { "data: $it\n\n" } + "data: [DONE]\n\n"
+        fun openAiStream(path: String): String = openAiEvents(path, Int.MAX_VALUE) + "data: [DONE]\n\n"
+
+        /** The first [count] chunks of an OpenAI stream, without its end marker. */
+        fun openAiEvents(
+            path: String,
+            count: Int,
+        ): String =
+            json
+                .readTree(fixture(path))
+                .toList()
+                .take(count)
+                .joinToString("") { "data: $it\n\n" }
 
         /** An Anthropic event stream: each event named by its `type`. */
-        fun anthropicStream(path: String): String =
-            json.readTree(fixture(path)).joinToString("") { "event: ${it["type"].asString()}\ndata: $it\n\n" }
+        fun anthropicStream(path: String): String = anthropicEvents(path, Int.MAX_VALUE)
+
+        /** The first [count] events of an Anthropic stream. */
+        fun anthropicEvents(
+            path: String,
+            count: Int,
+        ): String =
+            json.readTree(fixture(path)).toList().take(count).joinToString("") {
+                "event: ${it["type"].asString()}\ndata: $it\n\n"
+            }
     }
 }
 

@@ -15,19 +15,22 @@ import java.net.URI
 import java.util.concurrent.CompletableFuture
 
 /**
- * The Anthropic SDK's transport (ADR-0037): every request goes through [GuardedAiTransport]. The
- * same shape as [OpenAiSdkHttpClient]; the SDKs share a generator but no types. [close] leaves the
- * shared transport open.
+ * The Anthropic SDK's transport for one AI call (ADR-0037): the same shape as
+ * [OpenAiSdkHttpClient]; the SDKs share a generator but no types. Closing it aborts whatever the
+ * call still has open. This matters most here: the Anthropic SDK wraps the request future in its
+ * logging layer, so cancelling a stream before its headers arrive never reaches the transport.
  */
 class AnthropicSdkHttpClient(
     private val transport: GuardedAiTransport,
 ) : HttpClient {
+    private val scope = ExchangeScope()
+
     override fun execute(
         request: HttpRequest,
         requestOptions: RequestOptions,
     ): HttpResponse =
         try {
-            SdkResponse(transport.execute(toAiRequest(request, requestOptions)))
+            SdkResponse(scope.track(transport.execute(toAiRequest(request, requestOptions))), scope)
         } catch (failure: IOException) {
             throw AnthropicIoException("Request failed", failure)
         } finally {
@@ -39,13 +42,14 @@ class AnthropicSdkHttpClient(
         requestOptions: RequestOptions,
     ): CompletableFuture<HttpResponse> =
         SdkFutures.map(
-            transport.executeAsync(toAiRequest(request, requestOptions)),
+            scope.track(transport.executeAsync(toAiRequest(request, requestOptions))),
             whenDone = { request.body?.close() },
             ioFailure = { AnthropicIoException("Request failed", it) },
-            toSdk = ::SdkResponse,
+            toSdk = { SdkResponse(it, scope) },
         )
 
-    override fun close() = Unit
+    /** Aborts the call's requests and responses that are still open. */
+    override fun close() = scope.close()
 
     private fun toAiRequest(
         request: HttpRequest,
@@ -61,9 +65,11 @@ class AnthropicSdkHttpClient(
 
     private class SdkResponse(
         private val response: AiResponse,
+        private val scope: ExchangeScope,
     ) : HttpResponse {
         private val headers =
             Headers.builder().apply { response.headers.forEach { (name, value) -> put(name, value) } }.build()
+        private val cleanup = UnclosedResponses.register(this, response)
 
         override fun statusCode(): Int = response.statusCode
 
@@ -71,8 +77,9 @@ class AnthropicSdkHttpClient(
 
         override fun body(): InputStream = response.body
 
-        private val cleanup = UnclosedResponses.register(this, response)
-
-        override fun close() = cleanup.clean()
+        override fun close() {
+            cleanup.clean()
+            scope.forget(response)
+        }
     }
 }

@@ -16,6 +16,7 @@ import com.openai.core.Sleeper as OpenAiSleeper
  * practically never used; they rely on the JDK's shared delayed executor and own no thread.
  * `close()` does nothing, since the SDK closes a client's sleeper when the client is collected.
  */
+@Suppress("ForbiddenVoid") // The SDKs' Sleeper interface declares CompletableFuture<Void>.
 internal object SharedSleepers {
     val openAi: OpenAiSleeper =
         object : OpenAiSleeper {

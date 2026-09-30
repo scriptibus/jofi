@@ -30,6 +30,8 @@ dependencies {
     testImplementation(libs.spring.boot.testcontainers)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.jooq)
+    // AiProviderSecretStoreTest: a local model endpoint for the wired AI adapter.
+    testImplementation(libs.wiremock.standalone)
 }
 
 val postgresImage = providers.gradleProperty("jofi.postgresImage")

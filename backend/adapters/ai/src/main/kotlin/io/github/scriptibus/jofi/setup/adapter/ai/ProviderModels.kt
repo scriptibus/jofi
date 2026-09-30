@@ -23,7 +23,7 @@ import org.springframework.ai.openai.OpenAiChatModel
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.ai.openai.OpenAiEmbeddingModel
 import org.springframework.ai.openai.OpenAiEmbeddingOptions
-import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import com.anthropic.core.ClientOptions as AnthropicClientOptions
 import com.anthropic.core.LogLevel as AnthropicLogLevel
@@ -32,22 +32,38 @@ import com.openai.core.ClientOptions as OpenAiClientOptions
 import com.openai.core.LogLevel as OpenAiLogLevel
 import com.openai.core.http.HttpClient as OpenAiHttpClient
 
-/** A Spring AI chat model for one call, with the options the prompt must carry. */
+/**
+ * A Spring AI chat model for one call, with the options the prompt must carry. Closing it aborts
+ * the call's exchanges that are still open (a cancelled or failed stream), right at the transport.
+ */
 internal class ChatCall(
     val model: ChatModel,
     val options: ChatOptions,
-)
+    private val transport: AutoCloseable,
+) : AutoCloseable {
+    override fun close() = transport.close()
+}
+
+/** A Spring AI embedding model for one call; closing it aborts what the call left open. */
+internal class EmbeddingCall(
+    val model: EmbeddingModel,
+    private val transport: AutoCloseable,
+) : AutoCloseable {
+    override fun close() = transport.close()
+}
 
 /**
  * Builds the vendor SDK clients and Spring AI models for one call to one provider (ADR-0037). The
- * SDK clients always get Jofi's guarded transports ([openAiHttpClient], [anthropicHttpClient], from
- * `adapters/net`), so Spring AI never builds a client of its own. SDK retries are off (the caller
- * decides about retries from the sealed result), SDK logging is off whatever `OPENAI_LOG` or
- * `ANTHROPIC_LOG` say (T4), and nothing is read from the environment. Anthropic has no embeddings.
+ * SDK clients always get a fresh guarded transport from `adapters/net` ([openAiTransports],
+ * [anthropicTransports]), so Spring AI never builds a client of its own and each call can abort its
+ * own exchanges. SDK retries are off (the caller decides about retries from the sealed result), SDK
+ * logging is off whatever `OPENAI_LOG` or `ANTHROPIC_LOG` say (T4), nothing is read from the
+ * environment, and all clients share one stream executor and one sleeper, so a call leaves no
+ * thread behind. Anthropic has no embeddings.
  */
 class ProviderModels(
-    private val openAiHttpClient: OpenAiHttpClient,
-    private val anthropicHttpClient: AnthropicHttpClient,
+    private val openAiTransports: () -> OpenAiHttpClient,
+    private val anthropicTransports: () -> AnthropicHttpClient,
     private val endpoints: ProviderEndpoints = ProviderEndpoints(),
 ) {
     internal fun chat(
@@ -73,7 +89,8 @@ class ProviderModels(
                 .maxTokens(request.maxOutputTokens ?: AnthropicChatOptions.DEFAULT_MAX_TOKENS)
                 .toolCallbacks(PromptMapper.toolCallbacks(request.tools))
                 .build()
-        val client = anthropicOptions(target.provider, key)
+        val transport = anthropicTransports()
+        val client = anthropicOptions(target.provider, key, transport)
         val model =
             AnthropicChatModel
                 .builder()
@@ -81,7 +98,7 @@ class ProviderModels(
                 .anthropicClientAsync(AnthropicClientAsyncImpl(client))
                 .options(options)
                 .build()
-        return ChatCall(model, options)
+        return ChatCall(model, options, transport)
     }
 
     private fun openAiChat(
@@ -96,7 +113,8 @@ class ProviderModels(
                 .maxTokens(request.maxOutputTokens)
                 .toolCallbacks(PromptMapper.toolCallbacks(request.tools))
                 .build()
-        val client = openAiOptions(target.provider, key)
+        val transport = openAiTransports()
+        val client = openAiOptions(target.provider, key, transport)
         val model =
             OpenAiChatModel
                 .builder()
@@ -104,39 +122,47 @@ class ProviderModels(
                 .openAiClientAsync(OpenAIClientAsyncImpl(client))
                 .options(options)
                 .build()
-        return ChatCall(model, options)
+        return ChatCall(model, options, transport)
     }
 
     /** Null for Anthropic, which offers no embedding models. */
     internal fun embedding(
         target: ResolvedModel,
         key: SecretValue?,
-    ): EmbeddingModel? {
+    ): EmbeddingCall? {
         if (target.provider.kind == ProviderKind.ANTHROPIC) return null
-        return OpenAiEmbeddingModel
-            .builder()
-            .openAiClient(openAi(target.provider, key))
-            .options(OpenAiEmbeddingOptions.builder().model(target.model.value).build())
-            .build()
+        val transport = openAiTransports()
+        val model =
+            OpenAiEmbeddingModel
+                .builder()
+                .openAiClient(OpenAIClientImpl(openAiOptions(target.provider, key, transport)))
+                .options(OpenAiEmbeddingOptions.builder().model(target.model.value).build())
+                .build()
+        return EmbeddingCall(model, transport)
     }
 
-    internal fun openAi(
+    /** Runs [block] with an OpenAI SDK client; the call's transport is closed afterwards. */
+    internal fun <T> withOpenAi(
         provider: ProviderConfig,
         key: SecretValue?,
-    ): OpenAIClient = OpenAIClientImpl(openAiOptions(provider, key))
+        block: (OpenAIClient) -> T,
+    ): T = openAiTransports().use { block(OpenAIClientImpl(openAiOptions(provider, key, it))) }
 
-    internal fun anthropic(
+    /** Runs [block] with an Anthropic SDK client; the call's transport is closed afterwards. */
+    internal fun <T> withAnthropic(
         provider: ProviderConfig,
         key: SecretValue?,
-    ): AnthropicClient = AnthropicClientImpl(anthropicOptions(provider, key))
+        block: (AnthropicClient) -> T,
+    ): T = anthropicTransports().use { block(AnthropicClientImpl(anthropicOptions(provider, key, it))) }
 
-    private fun openAiOptions(
+    internal fun openAiOptions(
         provider: ProviderConfig,
         key: SecretValue?,
+        transport: OpenAiHttpClient,
     ): OpenAiClientOptions =
         OpenAiClientOptions
             .builder()
-            .httpClient(openAiHttpClient)
+            .httpClient(transport)
             .baseUrl(endpoints.of(provider).toString())
             // The SDK insists on a key; keyless local endpoints (Ollama, LM Studio) ignore this one.
             .apiKey(key?.reveal() ?: NO_KEY)
@@ -146,13 +172,14 @@ class ProviderModels(
             .sleeper(SharedSleepers.openAi)
             .build()
 
-    private fun anthropicOptions(
+    internal fun anthropicOptions(
         provider: ProviderConfig,
         key: SecretValue?,
+        transport: AnthropicHttpClient,
     ): AnthropicClientOptions =
         AnthropicClientOptions
             .builder()
-            .httpClient(anthropicHttpClient)
+            .httpClient(transport)
             .baseUrl(endpoints.of(provider).toString())
             // What the SDK's default backend adds; Jofi's transport has no backend of its own.
             .putHeader(ANTHROPIC_KEY_HEADER, key?.reveal() ?: NO_KEY)
@@ -171,7 +198,12 @@ class ProviderModels(
         /** The Messages API version the SDK's default backend sends. */
         const val ANTHROPIC_VERSION = "2023-06-01"
 
-        /** Shared by every client, so short-lived per-call clients leave no thread pools behind. */
-        val STREAM_HANDLERS: ExecutorService = Executors.newVirtualThreadPerTaskExecutor()
+        /**
+         * Shared by every client. Deliberately an `Executor`, not an `ExecutorService`: the SDKs take
+         * ownership of an `ExecutorService` and shut it down when a client is closed or collected,
+         * which would stop streaming for every later call.
+         */
+        val STREAM_HANDLERS: Executor =
+            Executors.newVirtualThreadPerTaskExecutor().let { virtualThreads -> Executor(virtualThreads::execute) }
     }
 }

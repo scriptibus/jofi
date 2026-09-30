@@ -134,6 +134,19 @@ class GuardedAiTransportTest {
     }
 
     @Test
+    fun `the request deadline cuts off a response that trickles on`() {
+        provider.stubFor(
+            get("/v1/slow").willReturn(aResponse().withBody("x".repeat(10_000)).withChunkedDribbleDelay(100, 10_000)),
+        )
+        val request = AiRequest("GET", URI("$base/v1/slow"), emptyList(), null, deadline = Duration.ofMillis(500))
+        val started = System.nanoTime()
+
+        shouldThrow<IOException> { transport.execute(request).use { it.body.readAllBytes() } }
+
+        Duration.ofNanos(System.nanoTime() - started) shouldBeLessThan Duration.ofSeconds(3)
+    }
+
+    @Test
     fun `the OpenAI bridge reports a blocked destination as an SDK I-O failure`() {
         val bridge = OpenAiSdkHttpClient(GuardedAiTransport.create(DestinationAllowlist.NONE, "Jofi/test"))
         val request =
