@@ -283,6 +283,8 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 | `application_source` | `applications.domain.ApplicationSource` | `SourceId.ENTITY_TYPE` |
 | `description_snapshot` | `applications.domain.DescriptionSnapshot` (recorded and frozen) | `SnapshotId.ENTITY_TYPE` |
 | `interview` | `applications.domain.Interview` (with its participants) | `InterviewId.ENTITY_TYPE` |
+| `task` | `tasks.domain.Task` (also its suggestions) | `TaskId.ENTITY_TYPE` |
+| `countdown` | `tasks.domain.Countdown` (custom countdowns only) | `CountdownId.ENTITY_TYPE` |
 
 ## Tests
 

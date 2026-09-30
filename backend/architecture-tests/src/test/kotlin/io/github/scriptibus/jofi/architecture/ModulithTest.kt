@@ -35,7 +35,8 @@ class ModulithTest {
 
     @Test
     fun `bounded contexts are detected as application modules`() {
-        modules.map { it.identifier.toString() } shouldContainAll listOf("shared", "setup", "system", "companies")
+        modules.map { it.identifier.toString() } shouldContainAll
+            listOf("shared", "setup", "system", "companies", "applications", "tasks")
     }
 
     @Test

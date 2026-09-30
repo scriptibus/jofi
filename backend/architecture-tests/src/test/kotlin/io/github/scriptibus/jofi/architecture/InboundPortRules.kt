@@ -37,6 +37,21 @@ object InboundPortRules {
             "ListInterviewsPort" to "#91",
             "DeleteInterviewPort" to "#91",
             "ListUpcomingInterviewsPort" to "#92",
+            "CreateTaskPort" to "#93",
+            "UpdateTaskPort" to "#93",
+            "GetTaskPort" to "#93",
+            "CompleteTaskPort" to "#93",
+            "ReopenTaskPort" to "#93",
+            "DeleteTaskPort" to "#93",
+            "ListTaskGroupsPort" to "#94",
+            "ListSuggestedTasksPort" to "#95",
+            "AcceptTaskSuggestionPort" to "#95",
+            "DismissTaskSuggestionPort" to "#95",
+            "CreateCountdownPort" to "#112",
+            "UpdateCountdownPort" to "#112",
+            "DeleteCountdownPort" to "#112",
+            "ListCountdownsPort" to "#112",
+            "ListDashboardCountdownsPort" to "#112",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */
