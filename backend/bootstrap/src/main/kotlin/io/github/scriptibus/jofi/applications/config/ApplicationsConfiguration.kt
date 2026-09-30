@@ -8,6 +8,7 @@ import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCa
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.LinkApplicationContactsUseCase
 import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
@@ -55,6 +56,13 @@ class ApplicationsConfiguration {
         audit: ApplicationAudit,
     ): SetApplicationUnreadUseCase =
         SetApplicationUnreadUseCase(applications, audit.changelog, audit.transactions, audit.clock)
+
+    @Bean
+    fun linkApplicationContactsUseCase(
+        applications: ApplicationRepositoryPort,
+        audit: ApplicationAudit,
+    ): LinkApplicationContactsUseCase =
+        LinkApplicationContactsUseCase(applications, audit.changelog, audit.transactions, audit.clock)
 
     @Bean
     fun deleteApplicationUseCase(

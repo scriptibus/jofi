@@ -836,7 +836,7 @@
             "description" : "Error as RFC 9457 problem details"
           }
         },
-        "tags" : [ "application-controller" ]
+        "tags" : [ "application-contacts-controller" ]
       }
     },
     "/api/applications/{id}/description-diff" : {
