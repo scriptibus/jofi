@@ -198,7 +198,7 @@ test("a save based on an old version is refused; loading the latest version lets
   await page.getByLabel("Location").fill("Remote");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByRole("heading", { level: 1, name: renamed })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Details" }).getByText("Remote")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Details" }).getByText("Remote", { exact: true })).toBeVisible();
 });
 
 test("delete asks first, names what goes with the application, and removes it", async ({ page }) => {
