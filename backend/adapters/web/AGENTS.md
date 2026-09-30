@@ -112,6 +112,20 @@ lifts the cap. The cap is changed with `PUT`, not `DELETE`: removing it destroys
 confirmation, but it is a user-only setup mutation (`SetupRules`) with a changelog entry. Amounts are integer
 USD micros everywhere.
 
+## Applications (#76, ADR-0041)
+
+`applications.adapter.web.ApplicationController`: `GET /api/applications?search=&companyId=&contactId=&page=&size=`,
+`POST /api/applications`, `GET|PUT /api/applications/{id}` (PUT replaces all details),
+`PUT /api/applications/{id}/unread` (no version, the version stays), `PUT /api/applications/{id}/contacts`
+(the full set of linked contact ids with `basedOnVersion`; linking and unlinking both send the changed set,
+so no `DELETE` needs a confirmation) and `DELETE /api/applications/{id}` (two steps, `Jofi-Confirmation`).
+Contract only: every operation answers `501` until #82, #83 and #90 (the search already answers 400 for
+paging out of range). `ApplicationProblems.of` maps each `ApplicationResult.Failure`; violations name the
+nested request field (`payBand.max`, `offer.salary.currency`, `contactIds`). API enums are copies of the
+domain enums (`JobSeniority` for `Seniority`, ...), mapped with `mapByName` and tested for equal constants.
+Amounts are gross, JSON numbers with at most two decimals; scores numbers with one decimal. DTOs holding
+notes, reasons, pay amounts or an estimate basis print none of them.
+
 ## Documented problem responses (ADR-0041)
 
 Annotate a handler with `@ProblemResponses(ProblemKind.INVALID_INPUT, NOT_FOUND, CONFLICT)`

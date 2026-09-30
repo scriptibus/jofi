@@ -9,6 +9,443 @@
     "url" : "/"
   } ],
   "paths" : {
+    "/api/applications" : {
+      "get" : {
+        "operationId" : "searchApplications",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "search",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "companyId",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "contactId",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      },
+      "post" : {
+        "operationId" : "createApplication",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApplicationDetailsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      }
+    },
+    "/api/applications/{id}" : {
+      "delete" : {
+        "operationId" : "deleteApplication",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Jofi-Confirmation",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "428" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConfirmationRequiredProblem"
+                }
+              }
+            },
+            "description" : "Nothing ran yet: confirm, then repeat with the token (ADR-0039)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      },
+      "get" : {
+        "operationId" : "getApplication",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      },
+      "put" : {
+        "operationId" : "updateApplication",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateApplicationRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      }
+    },
+    "/api/applications/{id}/contacts" : {
+      "put" : {
+        "operationId" : "linkApplicationContacts",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApplicationContactsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      }
+    },
+    "/api/applications/{id}/unread" : {
+      "put" : {
+        "operationId" : "setApplicationUnread",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApplicationUnreadRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-controller" ]
+      }
+    },
     "/api/auth/first-run" : {
       "post" : {
         "operationId" : "completeFirstRun",
@@ -1692,6 +2129,227 @@
   },
   "components" : {
     "schemas" : {
+      "ApplicationContactsRequest" : {
+        "required" : [ "basedOnVersion", "contactIds" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "contactIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          }
+        }
+      },
+      "ApplicationDetailsRequest" : {
+        "required" : [ "companyId", "title" ],
+        "type" : "object",
+        "properties" : {
+          "companyId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "deadline" : {
+            "type" : "string",
+            "format" : "date",
+            "nullable" : true
+          },
+          "declineReason" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/DeclineReasonDto"
+            } ]
+          },
+          "employmentType" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "FULL_TIME", "PART_TIME", "CONTRACT", "FREELANCE", "INTERNSHIP", "WORKING_STUDENT", "APPRENTICESHIP", "OTHER" ]
+          },
+          "howApplied" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "PORTAL", "EMAIL", "REFERRAL", "OTHER" ]
+          },
+          "languageAndTone" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/LanguageAndToneDto"
+            } ]
+          },
+          "location" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "offer" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/OfferDto"
+            } ]
+          },
+          "payBand" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/PayBandDto"
+            } ]
+          },
+          "portalNotes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "remoteShare" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "seniority" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "ENTRY", "JUNIOR", "MID", "SENIOR", "LEAD", "PRINCIPAL", "EXECUTIVE" ]
+          },
+          "title" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ApplicationPageResponse" : {
+        "required" : [ "applications", "page", "size", "total" ],
+        "type" : "object",
+        "properties" : {
+          "applications" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ApplicationResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "ApplicationResponse" : {
+        "required" : [ "companyId", "contactIds", "createdAt", "id", "languageAndTone", "title", "unread", "updatedAt", "version" ],
+        "type" : "object",
+        "properties" : {
+          "companyId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "contactIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "deadline" : {
+            "type" : "string",
+            "format" : "date",
+            "nullable" : true
+          },
+          "declineReason" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/DeclineReasonDto"
+            } ]
+          },
+          "employmentType" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "FULL_TIME", "PART_TIME", "CONTRACT", "FREELANCE", "INTERNSHIP", "WORKING_STUDENT", "APPRENTICESHIP", "OTHER" ]
+          },
+          "fitScore" : {
+            "type" : "number",
+            "nullable" : true
+          },
+          "howApplied" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "PORTAL", "EMAIL", "REFERRAL", "OTHER" ]
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "languageAndTone" : {
+            "$ref" : "#/components/schemas/LanguageAndToneDto"
+          },
+          "location" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "offer" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/OfferDto"
+            } ]
+          },
+          "payBand" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/PayBandDto"
+            } ]
+          },
+          "portalNotes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "remoteShare" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "seniority" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "ENTRY", "JUNIOR", "MID", "SENIOR", "LEAD", "PRINCIPAL", "EXECUTIVE" ]
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "unread" : {
+            "type" : "boolean"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "wantScore" : {
+            "type" : "number",
+            "nullable" : true
+          }
+        }
+      },
+      "ApplicationUnreadRequest" : {
+        "required" : [ "unread" ],
+        "type" : "object",
+        "properties" : {
+          "unread" : {
+            "type" : "boolean"
+          }
+        }
+      },
       "AssignTaskModelRequest" : {
         "required" : [ "model", "providerId" ],
         "type" : "object",
@@ -2198,6 +2856,20 @@
           }
         }
       },
+      "DeclineReasonDto" : {
+        "required" : [ "category" ],
+        "type" : "object",
+        "properties" : {
+          "category" : {
+            "type" : "string",
+            "enum" : [ "SALARY", "LOCATION", "REMOTE_POLICY", "ROLE", "COMPANY", "SKILLS", "TIMING", "OTHER_OFFER", "POSITION_FILLED", "NO_REASON_GIVEN", "OTHER" ]
+          },
+          "text" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
       "FirstRunRequest" : {
         "required" : [ "password" ],
         "type" : "object",
@@ -2265,6 +2937,29 @@
           "total" : {
             "type" : "integer",
             "format" : "int64"
+          }
+        }
+      },
+      "LanguageAndToneDto" : {
+        "type" : "object",
+        "properties" : {
+          "applicationLanguage" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "formOfAddress" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "DU", "SIE", "NEUTRAL" ]
+          },
+          "postingLanguage" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "tone" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "PERSONAL", "PROFESSIONAL" ]
           }
         }
       },
@@ -2373,6 +3068,99 @@
           },
           "totals" : {
             "$ref" : "#/components/schemas/CostTotalsResponse"
+          }
+        }
+      },
+      "OfferDto" : {
+        "type" : "object",
+        "properties" : {
+          "answerBy" : {
+            "type" : "string",
+            "format" : "date",
+            "nullable" : true
+          },
+          "benefits" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "bonus" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "noticePeriod" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "remoteShare" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "salary" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/PayDto"
+            } ]
+          },
+          "startDate" : {
+            "type" : "string",
+            "format" : "date",
+            "nullable" : true
+          },
+          "vacationDays" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          }
+        }
+      },
+      "PayBandDto" : {
+        "required" : [ "currency", "period", "source" ],
+        "type" : "object",
+        "properties" : {
+          "currency" : {
+            "type" : "string"
+          },
+          "estimateBasis" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "estimateConfidence" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "LOW", "MEDIUM", "HIGH" ]
+          },
+          "max" : {
+            "type" : "number",
+            "nullable" : true
+          },
+          "min" : {
+            "type" : "number",
+            "nullable" : true
+          },
+          "period" : {
+            "type" : "string",
+            "enum" : [ "HOUR", "DAY", "MONTH", "YEAR" ]
+          },
+          "source" : {
+            "type" : "string",
+            "enum" : [ "POSTING", "RECRUITER", "ESTIMATED" ]
+          }
+        }
+      },
+      "PayDto" : {
+        "required" : [ "amount", "currency", "period" ],
+        "type" : "object",
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "currency" : {
+            "type" : "string"
+          },
+          "period" : {
+            "type" : "string",
+            "enum" : [ "HOUR", "DAY", "MONTH", "YEAR" ]
           }
         }
       },
@@ -2536,6 +3324,19 @@
           },
           "totals" : {
             "$ref" : "#/components/schemas/CostTotalsResponse"
+          }
+        }
+      },
+      "UpdateApplicationRequest" : {
+        "required" : [ "basedOnVersion", "details" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "details" : {
+            "$ref" : "#/components/schemas/ApplicationDetailsRequest"
           }
         }
       },

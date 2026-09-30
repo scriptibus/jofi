@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130, amended by #74
-  (contacts); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
+  (contacts) and #76 (applications); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
 
 ## Context
 
@@ -113,6 +113,51 @@ The company delete (#88) records one changelog entry per cascaded contact (ids o
 The company delete (#88) reads the ids of the company's contacts (`ContactRepositoryPort.findIdsByCompany`)
 in its transaction, counts them in the confirmation effect and publishes `ContactDeleted` for each, since
 the database cascade alone would not tell the other contexts.
+
+### References across contexts (applications, #76)
+
+The application aggregate is the first to refer to another context's aggregates (its company and
+contacts). Spring Modulith keeps a context's sub-packages internal, and ArchUnit forbids cycles between
+contexts, while both directions will be needed: the companies context shows application counts (#88) and
+the applications context reacts to `ContactDeleted` (#90).
+
+- A context refers to another context's aggregate **by id only, through a reference type of its own**
+  (`applications.domain.CompanyRef`, `ContactRef`, each a `UUID`), never by importing the other context's
+  id type. The database's foreign keys keep the reference valid, and the store result names a missing
+  target (`CompanyNotFound`, `ContactNotFound`, mapped by constraint name). The contract needs no named
+  interface and no dependency between contexts.
+- **Dependencies run applications → companies only** (Lucas's decision in the review of PR #141). The
+  companies context never depends on the applications context. What it needs from applications it
+  declares as **outbound ports of its own** in `companies.application.port`, which the applications
+  context implements (dependency inversion, so no cycle):
+  - `ApplicationCountsPort` (#88): the number of applications per company, for `applicationCount`.
+  - `LinkedApplicationsPort` (#89/#90): the ids of the applications linked to a contact, read in the
+    contact delete's transaction **before** the delete, so it can write one changelog entry per affected
+    application (ids only); the `application_contact_contact_fk` cascade then removes the links. No
+    `ContactDeleted` listener is needed for link cleanup.
+
+  The ports and the Modulith named interface that lets the applications context implement them come with
+  #88 and #90; this contract only records the direction.
+- Text rules every context applies (NFC, trim, no U+0000, length) live in `shared.domain.text`; each
+  context keeps its own violation enums, since the API names fields and problems per context.
+
+Further rules the applications contract adds:
+
+- **No write overwrites what it does not own** (lost updates): the repository stores details
+  (`updateDetails`: detail columns, `version`, `updated_at`) and contact links (`replaceContacts`: rewrites
+  the link rows only when the set differs) separately, each under the version check, and neither touches
+  `unread` or the scores; `setUnread` touches only the flag.
+- **Links to another aggregate are a set replaced as a whole** (`PUT /api/applications/{id}/contacts`
+  with `basedOnVersion`), like any other update, so unlinking is not a `DELETE` and needs no confirmation.
+- **Read/unread is not a change of the application**: it keeps `version` and `updatedAt`, so opening an
+  application never conflicts with an edit. It still writes a changelog entry.
+- **Money** is a decimal with exactly two places (`numeric(12,2)`), normalized on input, so what is read
+  back equals what was stored; more places is `TOO_PRECISE`, never rounded. Amounts are gross.
+  Currencies are ISO 4217 codes. Language tags are BCP 47, brought into canonical case on input
+  (language lower-case, script title-case, region upper-case, with `Locale.ROOT`); the database accepts
+  any case, so it stays at most as strict as the domain. `toString()` of pay types shows no amount and no estimate basis.
+- API enums map to domain enums by name through one helper (`mapByName`), and a test compares their
+  constants.
 
 ## Consequences
 

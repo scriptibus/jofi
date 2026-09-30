@@ -33,6 +33,13 @@ object InboundPortRules {
             "GetContactPort" to "#89",
             "SearchContactsPort" to "#89",
             "DeleteContactPort" to "#89",
+            "CreateApplicationPort" to "#82",
+            "UpdateApplicationPort" to "#82",
+            "GetApplicationPort" to "#82",
+            "SetApplicationUnreadPort" to "#82",
+            "DeleteApplicationPort" to "#82",
+            "SearchApplicationsPort" to "#83",
+            "LinkApplicationContactsPort" to "#90",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */
