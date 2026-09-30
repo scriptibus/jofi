@@ -1,0 +1,76 @@
+{
+  "$comment": "Protected paths (AGENTS.md section 8) in one machine-readable list, read by the auto-merge gate (.review/gate.py) and the risk-classifier lens. A PR touching any of them waits for Lucas. Only rules in the 'dependencies' category are waived, and only for Renovate patch/minor updates. Glob syntax: '*' stays within one directory, '**' crosses directories, '**/' also matches the root; matching ignores case. When in doubt, add a pattern: a false positive only costs a human review.",
+  "rules": [
+    { "category": "migrations", "pattern": "**/db/migration/**" },
+
+    { "category": "egress", "pattern": "backend/adapters/net/**" },
+
+    { "category": "ai-privacy", "pattern": "backend/adapters/ai/**" },
+
+    { "category": "auth-crypto", "pattern": "**/auth/**" },
+    { "category": "auth-crypto", "pattern": "**/authentication/**" },
+    { "category": "auth-crypto", "pattern": "**/security/**" },
+    { "category": "auth-crypto", "pattern": "**/crypto/**" },
+    { "category": "auth-crypto", "pattern": "**/secrets/**" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Auth*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Security*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Crypto*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Cipher*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Encrypt*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Secret*.kt" },
+    { "category": "auth-crypto", "pattern": "backend/**/*Password*.kt" },
+    { "category": "auth-crypto", "pattern": "frontend/src/**/*auth*" },
+
+    { "category": "export-import", "pattern": "**/export/**" },
+    { "category": "export-import", "pattern": "**/import/**" },
+    { "category": "export-import", "pattern": "**/portability/**" },
+    { "category": "export-import", "pattern": "backend/**/*Export*.kt" },
+    { "category": "export-import", "pattern": "backend/**/*Import*.kt" },
+
+    { "category": "ci", "pattern": ".github/**" },
+    { "category": "ci", "pattern": "renovate.json" },
+    { "category": "ci", "pattern": "**/lefthook.y*ml" },
+
+    { "category": "review", "pattern": ".review/**" },
+
+    { "category": "agent-rules", "pattern": ".claude/**" },
+    { "category": "agent-rules", "pattern": "**/AGENTS.md" },
+    { "category": "agent-rules", "pattern": "**/CLAUDE.md" },
+
+    { "category": "containers", "pattern": "**/Dockerfile" },
+    { "category": "containers", "pattern": "**/Dockerfile.*" },
+    { "category": "containers", "pattern": "**/*.Dockerfile" },
+    { "category": "containers", "pattern": "**/Containerfile*" },
+    { "category": "containers", "pattern": "**/.dockerignore" },
+    { "category": "containers", "pattern": "**/compose*.y*ml" },
+    { "category": "containers", "pattern": "**/docker-compose*.y*ml" },
+
+    { "category": "checks", "pattern": "backend/config/**" },
+    { "category": "checks", "pattern": "backend/build-logic/src/**" },
+    { "category": "checks", "pattern": "backend/gradle/osv-scanner.toml" },
+    { "category": "checks", "pattern": "frontend/biome.json*" },
+    { "category": "checks", "pattern": "frontend/lint/**" },
+    { "category": "checks", "pattern": "frontend/scripts/**" },
+    { "category": "checks", "pattern": "frontend/tsconfig*.json" },
+    { "category": "checks", "pattern": "frontend/*.config.*" },
+    { "category": "checks", "pattern": "REUSE.toml" },
+    { "category": "checks", "pattern": "LICENSE" },
+    { "category": "checks", "pattern": "LICENSES/**" },
+    { "category": "checks", "pattern": ".gitattributes" },
+
+    { "category": "decisions", "pattern": "docs/adr/**" },
+
+    { "category": "dependencies", "pattern": "**/*.gradle.kts" },
+    { "category": "dependencies", "pattern": "**/*.lockfile" },
+    { "category": "dependencies", "pattern": "**/gradle.properties" },
+    { "category": "dependencies", "pattern": "**/gradle/libs.versions.toml" },
+    { "category": "dependencies", "pattern": "**/gradle/verification-metadata.xml" },
+    { "category": "dependencies", "pattern": "**/gradle/wrapper/**" },
+    { "category": "dependencies", "pattern": "**/gradlew" },
+    { "category": "dependencies", "pattern": "**/gradlew.bat" },
+    { "category": "dependencies", "pattern": "**/package.json" },
+    { "category": "dependencies", "pattern": "**/pnpm-lock.yaml" },
+    { "category": "dependencies", "pattern": "**/pnpm-workspace.yaml" },
+    { "category": "dependencies", "pattern": "**/.npmrc" }
+  ]
+}

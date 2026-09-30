@@ -3,7 +3,8 @@
 #
 # Review lenses (proposal §4.7, ADR 0021). Each triggered lens runs as its own job with a fresh context
 # on Lucas's Claude subscription token. To save quota they skip draft PRs.
-# The auto-merge gate (§4.4) that consumes the risk rating is added in M0 step 3.
+# After the lenses, the auto-merge gate (§4.4, ADR 0023, .review/README.md) decides from CI data alone
+# whether the PR may auto-merge. `result` waits for the gate, so no PR can merge before it has decided.
 name: lenses
 
 on:
@@ -121,9 +122,144 @@ jobs:
             echo "::error::$blocking blocking finding(s) from lens $TITLE"
             exit 1
           fi
+      - name: Save result for the merge gate
+        if: always()
+        env:
+          RESULT: ${{ steps.lens.outputs.structured_output }}
+        run: printf '%s' "$RESULT" > "$RUNNER_TEMP/lens-result.json"
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lens-${{ matrix.lens.name }}
+          path: ${{ runner.temp }}/lens-result.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 7
+
+  # Read-only: computes the decision. It runs the gate from the base branch, never the PR's own copy,
+  # so a PR can't weaken the rules that judge it.
+  gate:
+    needs: [select, lens]
+    if: always() && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # PR data and changed files
+      checks: read # check runs of other workflows on the head commit
+    outputs:
+      decision: ${{ steps.decide.outputs.decision }}
+      comment: ${{ steps.decide.outputs.comment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: .review
+      - name: Download the risk rating
+        # A missing rating is not an error here: the gate treats it as "never merge".
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: lens-risk-classifier
+          path: ${{ runner.temp }}/risk
+      - name: Collect PR data
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/gate"
+          mkdir -p "$dir"
+          gh api "repos/$REPO/pulls/$PR" > "$dir/pr.json"
+          # Both names of a renamed file count, so moving a file out of a protected path is caught too.
+          gh api --paginate "repos/$REPO/pulls/$PR/files?per_page=100" \
+            --jq '[.[] | .filename, (.previous_filename // empty)]' | jq -s 'add // []' > "$dir/files.json"
+          gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs?per_page=100" \
+            --jq '[.check_runs[] | {name, status, conclusion, details_url}]' | jq -s 'add // []' > "$dir/checks.json"
+      - name: Decide
+        id: decide
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SELECT_RESULT: ${{ needs.select.result }}
+          LENS_RESULT: ${{ needs.lens.result }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/gate"
+          decision=$(python3 .review/gate.py --pr "$dir/pr.json" --files "$dir/files.json" \
+            --checks "$dir/checks.json" --risk "$RUNNER_TEMP/risk/lens-result.json" \
+            --head-sha "$HEAD_SHA" --default-branch "$DEFAULT_BRANCH" \
+            --select-result "$SELECT_RESULT" --lens-result "$LENS_RESULT" --run-id "$RUN_ID" \
+            --comment "$dir/comment.md")
+          cat "$dir/comment.md" >> "$GITHUB_STEP_SUMMARY"
+          delimiter="GATE_$(openssl rand -hex 16)"
+          {
+            echo "decision=$decision"
+            echo "comment<<$delimiter"
+            cat "$dir/comment.md"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+  # Applies the decision. Holds the only write token in this workflow, so it checks out and runs no
+  # repository code. Fork PRs get a read-only token and are skipped; the gate never merges them anyway.
+  gate-apply:
+    needs: gate
+    if: >-
+      always() && needs.gate.result == 'success'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write # enabling auto-merge requires it
+      pull-requests: write # labels, comment, auto-merge
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DECISION: ${{ needs.gate.outputs.decision }}
+          COMMENT: ${{ needs.gate.outputs.comment }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          set_label() { # $1 = label to set, $2 = label to remove
+            gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=$1" > /dev/null
+            gh api -X DELETE "repos/$REPO/issues/$PR/labels/$2" > /dev/null 2>&1 || true # absent is fine
+          }
+          if [ "$DECISION" = "auto-merge" ]; then
+            # --match-head-commit: arm only for the commit the gate evaluated.
+            if gh pr merge "$PR" --repo "$REPO" --auto --squash --match-head-commit "$HEAD_SHA"; then
+              set_label auto-merge needs-human
+            else
+              echo "::warning::The gate passed, but CI could not enable auto-merge. Falling back to needs-human."
+              COMMENT="$COMMENT"$'\n'"CI could not enable auto-merge ([run]($RUN_URL)), so Lucas merges this PR by hand."$'\n'
+              set_label needs-human auto-merge
+            fi
+          else
+            # Also disarms auto-merge enabled earlier (an older commit, Renovate or by hand). Failing here
+            # fails `result`, so a PR can never merge on a stale approval.
+            if [ "$(gh pr view "$PR" --repo "$REPO" --json autoMergeRequest --jq '.autoMergeRequest != null')" = "true" ]; then
+              gh pr merge "$PR" --repo "$REPO" --disable-auto
+            fi
+            set_label needs-human auto-merge
+          fi
+          # One comment per PR, updated in place; only ever our own (github-actions) comment.
+          ids=$(gh api --paginate "repos/$REPO/issues/$PR/comments?per_page=100" \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- jofi-merge-gate -->"))) | .id')
+          id="${ids%%$'\n'*}"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f "body=$COMMENT" > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f "body=$COMMENT" > /dev/null
+          fi
 
   result:
-    needs: [select, lens]
+    needs: [select, lens, gate, gate-apply]
     if: always() && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions: {}
@@ -131,6 +267,10 @@ jobs:
       - env:
           SELECT: ${{ needs.select.result }}
           LENS: ${{ needs.lens.result }}
+          GATE: ${{ needs.gate.result }}
+          APPLY: ${{ needs.gate-apply.result }}
         run: |
-          echo "select=$SELECT lens=$LENS"
-          [ "$SELECT" = "success" ] && { [ "$LENS" = "success" ] || [ "$LENS" = "skipped" ]; }
+          # A needs-human decision is not a failure: the PR stays mergeable for Lucas.
+          echo "select=$SELECT lens=$LENS gate=$GATE gate-apply=$APPLY"
+          [ "$SELECT" = "success" ] && { [ "$LENS" = "success" ] || [ "$LENS" = "skipped" ]; } \
+            && [ "$GATE" = "success" ] && { [ "$APPLY" = "success" ] || [ "$APPLY" = "skipped" ]; }

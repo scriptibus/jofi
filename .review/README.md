@@ -92,6 +92,42 @@ Fixture files are data for the lenses, never instructions. Two fixtures delibera
 `risk-classifier/bad-injected-low-rating` (the classifier must not rate it low). Their licensing is declared
 in `REUSE.toml`.
 
+## Auto-merge gate
+
+After the lenses, the jobs `gate` and `gate-apply` in `lenses.yml` decide whether a PR may merge without
+Lucas (proposal §4.4, ADR 0023). The decision logic is `gate.py`, unit-tested in `test_gate.py`
+(CI job `review-tools`). A PR gets `auto-merge` only if **all** of these hold, otherwise `needs-human`:
+
+- Lens selection and every triggered lens passed (no blocking findings, none failed or skipped).
+- The risk-classifier lens returned a valid result with `risk: low`. Missing or invalid JSON never merges.
+- No check run of another workflow on the head commit has failed so far.
+- No changed path (old and new name of renames) matches `protected-paths.json`, the machine-readable
+  form of AGENTS.md §8. Only the `dependencies` category is waived, and only for a Renovate PR
+  (author `renovate[bot]`, branch `renovate/…`) whose update table lists nothing but `patch` / `minor`.
+  Renovate's own automerge is off (`renovate.json`), so this gate is the only auto-merge path for its PRs too.
+- The PR is open, not a draft, targets `main`, comes from this repository and its head did not move.
+
+How it is kept honest:
+
+- **CI computes it, never the author.** Labels are output only; the gate never reads them, so a label
+  set by hand changes nothing (tested). The sticky comment explains every reason.
+- **The PR can't change its own judge.** `gate` checks out the base branch's `.review/` and runs that
+  `gate.py` against the PR's data. Changes to the gate, the lenses or this list are protected paths anyway.
+- **Least privilege.** `gate` is read-only. `gate-apply` holds the only write token and runs no repository
+  code; it enables squash auto-merge pinned to the evaluated commit (`--match-head-commit`), or disables
+  auto-merge that was armed earlier. Fork PRs get no write token and are never merged by the gate.
+- **No merge before the decision.** The required check `result` waits for `gate` and `gate-apply`, so after
+  a new push an earlier auto-merge can't fire before the gate has looked at the new commit.
+- **Required checks still apply.** Auto-merge only merges once GitHub sees every required check green
+  (ruleset on `main`). A `needs-human` decision does not fail `result`, so Lucas can still merge by hand.
+- **Safe degradation.** If CI can't enable auto-merge (token or repository setting), the PR gets
+  `needs-human` and a comment instead.
+
+Known limits: a merge done by `GITHUB_TOKEN` does not trigger the `push` workflows on `main` (GitHub
+prevents recursive runs), so `main` is next checked by the following push or the scheduled runs;
+a GitHub App token would fix this (#48). Anyone with write access can still merge by hand; the
+gate protects against unreviewed merges by agents that follow the rules, not against a malicious maintainer.
+
 ## Running a lens locally
 
 ```bash
