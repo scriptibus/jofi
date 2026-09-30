@@ -144,17 +144,22 @@ describe("Application detail", () => {
 
   it("has keyboard tabs with the later sections disabled, and ignores an unknown tab in the URL", async () => {
     const application = anApplication(acme.id);
-    const { user } = start(`/applications/${application.id}?tab=timeline`, { applications: [application] });
+    const { user, router } = start(`/applications/${application.id}?tab=timeline`, {
+      applications: [application],
+    });
     const overview = await screen.findByRole("tab", { name: "Overview" });
     expect(overview).toHaveAttribute("aria-selected", "true");
-    for (const name of ["Description", "Contacts", "Timeline"])
+    for (const name of ["Description", "Timeline"])
       expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
 
     await user.click(overview);
     await user.keyboard("{ArrowRight}");
-    expect(overview).toHaveFocus();
-    expect(overview).toHaveAttribute("aria-selected", "true");
+    const contacts = screen.getByRole("tab", { name: "Contacts" });
+    expect(contacts).toHaveFocus();
+    expect(contacts).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("tabpanel", { name: "Contacts" })).toBeVisible();
+    expect(router.state.location.search).toEqual({ tab: "contacts" });
   });
 
   it("marks an unread application read once when opened, and lets the user mark it unread again", async () => {

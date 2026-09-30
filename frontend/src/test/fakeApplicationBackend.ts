@@ -6,10 +6,12 @@
 // problem types: 409 `version-conflict` for a stale `basedOnVersion`, a 428 whose effect counts what goes
 // with the application before a delete, and read/unread without a version change. Status changes follow
 // ADR-0044 (409 `invalid-transition`, a decline category required for Declined and Rejected) and append to
-// the status history, which starts with the status the application was created in.
+// the status history, which starts with the status the application was created in. Linking contacts
+// replaces the whole set (409 on a stale version, 400 `contactIds` for unknown contacts or too many).
 
 import { HttpResponse, http } from "msw";
 import type {
+  ApplicationContactsRequest,
   ApplicationDetailsRequest,
   ApplicationResponse,
   ApplicationUnreadRequest,
@@ -17,6 +19,7 @@ import type {
   StatusChangeResponse,
   UpdateApplicationRequest,
 } from "../api/generated/jofi";
+import { MAX_CONTACTS } from "../app/applications/applicationContacts";
 import { canMoveTo, takesDeclineReason } from "../app/applications/statusMatrix";
 
 const origin = () => window.location.origin;
@@ -81,6 +84,10 @@ export interface FakeApplicationState {
   history: Record<string, StatusChangeResponse[]>;
   /** The status history answers 500 (to show its own failure). */
   historyFails?: boolean;
+  /** Every accepted `PUT …/contacts` body, in order. */
+  contactLinks: ApplicationContactsRequest[];
+  /** The contacts that exist; when set, linking any other id is refused (`contactIds` `NOT_FOUND`). */
+  knownContactIds?: () => string[];
   /** A rule only the server knows: a request with this pay band maximum is refused with `problem`. */
   refusePayMax?: { value: number; problem: string };
 }
@@ -129,6 +136,7 @@ export function fakeApplicationBackend(initial: Partial<FakeApplicationState> = 
     cascade: {},
     statusChanges: [],
     history: {},
+    contactLinks: [],
     ...initial,
   };
   const find = (id: unknown) => state.applications.find((application) => application.id === id);
@@ -199,6 +207,19 @@ export function fakeApplicationBackend(initial: Partial<FakeApplicationState> = 
       if (body.basedOnVersion !== application.version) return problem(409, "version-conflict");
       state.updates.push(body);
       return store(withDetails(application, body.details));
+    }),
+    http.put(`${origin()}/api/applications/:id/contacts`, async ({ request, params }) => {
+      const application = find(params.id);
+      if (!application) return problem(404, "application-not-found");
+      const body = (await request.json()) as ApplicationContactsRequest;
+      if (body.basedOnVersion !== application.version) return problem(409, "version-conflict");
+      const contactIds = [...new Set(body.contactIds)];
+      if (contactIds.length > MAX_CONTACTS) return refused([{ field: "contactIds", problem: "TOO_MANY" }]);
+      const known = state.knownContactIds?.();
+      if (known && contactIds.some((id) => !known.includes(id)))
+        return refused([{ field: "contactIds", problem: "NOT_FOUND" }]);
+      state.contactLinks.push(body);
+      return store({ ...application, contactIds, version: application.version + 1 });
     }),
     http.put(`${origin()}/api/applications/:id/unread`, async ({ request, params }) => {
       const application = find(params.id);

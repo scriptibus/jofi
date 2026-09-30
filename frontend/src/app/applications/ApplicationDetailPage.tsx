@@ -18,6 +18,7 @@ import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
 import { useConfirmation } from "../useConfirmation";
+import { ApplicationContacts } from "./ApplicationContacts";
 import { ApplicationLoadFailure } from "./ApplicationLoadFailure";
 import { ApplicationOverview, CompanyLink } from "./ApplicationOverview";
 import { DELETE_OPERATION } from "./application";
@@ -126,7 +127,11 @@ function ApplicationDetail({ application }: { application: ApplicationResponse }
         selected={tab ?? "overview"}
         onSelect={select}
       >
-        <ApplicationOverview application={application} />
+        {tab === "contacts" ? (
+          <ApplicationContacts application={application} />
+        ) : (
+          <ApplicationOverview application={application} />
+        )}
       </Tabs>
     </>
   );

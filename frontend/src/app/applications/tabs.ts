@@ -13,7 +13,7 @@ export type ApplicationTab = "overview" | "description" | "contacts" | "timeline
 export const TABS: readonly { id: ApplicationTab; ready: boolean }[] = [
   { id: "overview", ready: true },
   { id: "description", ready: false },
-  { id: "contacts", ready: false },
+  { id: "contacts", ready: true },
   { id: "timeline", ready: false },
 ];
 

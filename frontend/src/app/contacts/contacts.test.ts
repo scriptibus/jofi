@@ -143,5 +143,10 @@ describe("contacts search in the URL", () => {
     });
     expect(parseContactsSearch({ company: "Ada Lovelace", page: -1 })).toEqual({});
     expect(parseNewContactSearch({ company: COMPANY, page: 3 })).toEqual({ company: COMPANY });
+    expect(parseNewContactSearch({ company: COMPANY, application: COMPANY })).toEqual({
+      company: COMPANY,
+      application: COMPANY,
+    });
+    expect(parseNewContactSearch({ application: "Backend Engineer" })).toEqual({});
   });
 });
