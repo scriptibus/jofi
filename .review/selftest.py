@@ -9,19 +9,20 @@ A fixture is `.review/fixtures/<lens>/<case>/` with `change.diff` (only adds new
 Subcommands:
   matrix [--lens NAME]                      GitHub Actions matrix of fixtures as JSON
   validate                                  check the shape of every fixture (runs in CI on every PR)
-  prepare FIXTURE --source REV --context-out FILE
-                                            turn the checkout into a synthetic PR for one fixture
-  evaluate FIXTURE --source REV --result FILE
+  prepare FIXTURE --out DIR --context-out FILE
+                                            build a synthetic PR repository for one fixture (fresh git init)
+  evaluate FIXTURE --expected FILE --result FILE
                                             compare a lens result with the fixture's expectation
 """
 import argparse
 import importlib.util
+import io
 import json
-import os
 import pathlib
 import re
 import subprocess
 import sys
+import tarfile
 
 REVIEW_DIR = pathlib.Path(__file__).resolve().parent
 REPO_ROOT = REVIEW_DIR.parent
@@ -51,9 +52,9 @@ def lens_meta(lens_dir: pathlib.Path) -> dict[str, dict]:
     return {meta["name"]: meta for meta in metas}
 
 
-def git(repo: pathlib.Path, *args: str, stdin: str | None = None, env: dict | None = None) -> str:
+def git(repo: pathlib.Path, *args: str, stdin: str | None = None) -> str:
     completed = subprocess.run(["git", *GIT_CONFIG, *args], cwd=repo, input=stdin, text=True,
-                               capture_output=True, check=False, env=env)
+                               capture_output=True, check=False)
     if completed.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {completed.stderr.strip()}")
     return completed.stdout
@@ -90,7 +91,8 @@ def evaluate(result: object, expected: dict, blocking: list[str]) -> list[str]:
         for wanted in expected.get("findings", []):
             if not any(_matches(found, wanted) for found in findings):
                 where = f" on {wanted['file']}" if wanted.get("file") else ""
-                failures.append(f"missed: expected a {wanted['severity']} (or worse) finding{where}")
+                about = f" about {' / '.join(wanted['about'])}" if wanted.get("about") else ""
+                failures.append(f"missed: expected a {wanted['severity']} (or worse) finding{where}{about}")
     else:
         for found in findings:
             if found.get("severity") in blocking:
@@ -107,7 +109,10 @@ def evaluate(result: object, expected: dict, blocking: list[str]) -> list[str]:
 def _matches(found: dict, wanted: dict) -> bool:
     if rank(found.get("severity")) < rank(wanted["severity"]):
         return False
-    return "file" not in wanted or same_file(str(found.get("file", "")), wanted["file"])
+    if "file" in wanted and not same_file(str(found.get("file", "")), wanted["file"]):
+        return False
+    text = " ".join(str(found.get(key, "")) for key in ("title", "explanation", "suggestion")).lower()
+    return not wanted.get("about") or any(word.lower() in text for word in wanted["about"])
 
 
 # --- fixture discovery and validation ------------------------------------------------------------------------
@@ -136,8 +141,11 @@ def validate_expected(expected: object, lens: dict) -> list[str]:
     for wanted in findings:
         if wanted.get("severity") not in SEVERITIES:
             errors.append(f"finding severity must be one of {SEVERITIES}")
-        if set(wanted) - {"severity", "file"}:
-            errors.append("a finding may only have severity and file")
+        if set(wanted) - {"severity", "file", "about"}:
+            errors.append("a finding may only have severity, file and about")
+        about = wanted.get("about", ["-"])
+        if not isinstance(about, list) or not about or not all(isinstance(w, str) and w.strip() for w in about):
+            errors.append("about must be a non-empty list of words, one of which the finding must mention")
     risk = expected.get("risk")
     if risk is not None and (not isinstance(risk, list) or not risk or set(risk) - set(RISKS)):
         errors.append(f"risk must be a non-empty list of {RISKS}")
@@ -225,38 +233,33 @@ def pr_title(context: str) -> str:
     return match.group(1).strip() if match else ""
 
 
-def prepare(repo: pathlib.Path, source: str, fixture: str, context_out: pathlib.Path) -> None:
-    """Make `origin/main...HEAD` show exactly the fixture's change, with no trace of the fixtures themselves.
+def prepare(source: pathlib.Path, fixture: str, out: pathlib.Path, context_out: pathlib.Path) -> None:
+    """Build a synthetic PR repository in `out` whose `origin/main...HEAD` is exactly the fixture's change.
 
-    The base is an orphan commit with the source tree minus `.review/fixtures`, so neither the working tree nor
-    the history the lens can reach (git diff/log/show) reveals the expected findings.
+    `out` is a fresh `git init` holding the source's committed tree without `.review/fixtures`, so no object,
+    ref or history of the source repository (and therefore no expectation) is reachable from it.
     """
-    diff = git(repo, "show", f"{source}:{fixture}/change.diff")
-    context = git(repo, "show", f"{source}:{fixture}/context.md")
-    index = repo / ".git" / "selftest-index"
-    env = {**os.environ, "GIT_INDEX_FILE": str(index)}
-    git(repo, "read-tree", source, env=env)
-    git(repo, "rm", "-r", "-q", "--cached", "--ignore-unmatch", FIXTURES, env=env)
-    base_tree = git(repo, "write-tree", env=env).strip()
-    index.unlink()
-    base = git(repo, "commit-tree", base_tree, "-m", "Base branch").strip()
-    git(repo, "checkout", "-q", "-f", "-B", HEAD_BRANCH, base)
-    git(repo, "clean", "-q", "-f", "-d", FIXTURES)
-    git(repo, "update-ref", BASE_REF, base)
-    git(repo, "apply", "--index", "-", stdin=diff)
-    git(repo, "commit", "-q", "-m", pr_title(context))
-    _forget_other_refs(repo)
+    case = source / fixture
+    diff = (case / "change.diff").read_text(encoding="utf-8")
+    context = (case / "context.md").read_text(encoding="utf-8")
+    out.mkdir(parents=True)
+    _export_tree(source, out)
+    git(out, "init", "-q", "-b", HEAD_BRANCH)
+    git(out, "add", "-A", "-f")
+    git(out, "commit", "-q", "-m", "Base branch")
+    git(out, "update-ref", BASE_REF, "HEAD")
+    git(out, "apply", "--index", "-", stdin=diff)
+    git(out, "commit", "-q", "-m", pr_title(context))
     context_out.write_text(context, encoding="utf-8")
 
 
-def _forget_other_refs(repo: pathlib.Path) -> None:
-    keep = {f"refs/heads/{HEAD_BRANCH}", BASE_REF}
-    for ref in git(repo, "for-each-ref", "--format=%(refname)").split():
-        if ref not in keep:
-            git(repo, "update-ref", "-d", ref)
-    git(repo, "reflog", "expire", "--expire=now", "--all")
-    for name in ("FETCH_HEAD", "ORIG_HEAD"):
-        (repo / ".git" / name).unlink(missing_ok=True)
+def _export_tree(source: pathlib.Path, out: pathlib.Path) -> None:
+    archive = subprocess.run(["git", "archive", "--format=tar", "HEAD", "--", ".", f":(exclude){FIXTURES}"],
+                             cwd=source, capture_output=True, check=False)
+    if archive.returncode != 0:
+        raise RuntimeError(f"git archive failed: {archive.stderr.decode(errors='replace').strip()}")
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        tar.extractall(out, filter="data")
 
 
 def report(fixture: str, failures: list[str], result: object) -> str:
@@ -275,17 +278,22 @@ def report(fixture: str, failures: list[str], result: object) -> str:
 
 # --- command line --------------------------------------------------------------------------------------------
 
+
+# --- command line --------------------------------------------------------------------------------------------
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("matrix").add_argument("--lens", default="")
     commands.add_parser("validate")
-    for name in ("prepare", "evaluate"):
-        command = commands.add_parser(name)
-        command.add_argument("fixture", help="e.g. .review/fixtures/privacy/bad-log-cv")
-        command.add_argument("--source", required=True, help="commit that holds the fixtures")
-    commands.choices["prepare"].add_argument("--context-out", required=True, type=pathlib.Path)
-    commands.choices["evaluate"].add_argument("--result", required=True, type=pathlib.Path)
+    prepare_cmd = commands.add_parser("prepare")
+    prepare_cmd.add_argument("fixture", help="e.g. .review/fixtures/privacy/bad-cv-in-logs")
+    prepare_cmd.add_argument("--out", required=True, type=pathlib.Path, help="new directory for the synthetic PR")
+    prepare_cmd.add_argument("--context-out", required=True, type=pathlib.Path)
+    evaluate_cmd = commands.add_parser("evaluate")
+    evaluate_cmd.add_argument("fixture", help="e.g. .review/fixtures/privacy/bad-cv-in-logs")
+    evaluate_cmd.add_argument("--expected", required=True, type=pathlib.Path, help="the fixture's expected.json")
+    evaluate_cmd.add_argument("--result", required=True, type=pathlib.Path, help="the lens's structured output")
     args = parser.parse_args(argv)
     return COMMANDS[args.command](args)
 
@@ -304,17 +312,15 @@ def _cmd_validate(_args) -> int:
 
 
 def _cmd_prepare(args) -> int:
-    prepare(pathlib.Path.cwd(), args.source, args.fixture.rstrip("/"), args.context_out)
+    prepare(REPO_ROOT, args.fixture.rstrip("/"), args.out, args.context_out)
     return 0
 
 
 def _cmd_evaluate(args) -> int:
     fixture = args.fixture.rstrip("/")
-    repo = pathlib.Path.cwd()
-    expected = json.loads(git(repo, "show", f"{args.source}:{fixture}/expected.json"))
+    expected = json.loads(args.expected.read_text(encoding="utf-8"))
     lens = pathlib.PurePosixPath(fixture).parent.name
-    blocking = _load_select_lenses().front_matter(
-        git(repo, "show", f"{args.source}:.review/lenses/{lens}.md")).get("blocking", ["high"])
+    blocking = lens_meta(REVIEW_DIR / "lenses")[lens].get("blocking", ["high"])
     try:
         result = json.loads(args.result.read_text(encoding="utf-8"))
     except (OSError, ValueError):

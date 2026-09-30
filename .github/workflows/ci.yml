@@ -150,6 +150,6 @@ jobs:
         with:
           persist-credentials: false
       - name: Unit tests for the lens scripts
-        run: python3 -m unittest discover -s .review/tests -v
+        run: python3 -m unittest discover -s .review/tests
       - name: Lens fixtures are well-formed and apply to this tree
         run: python3 .review/selftest.py validate

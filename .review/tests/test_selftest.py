@@ -71,6 +71,17 @@ class EvaluateBadFixtures(unittest.TestCase):
         result = {"summary": "s", "findings": [finding("medium", file="README.md")]}
         self.assertEqual(selftest.evaluate(result, bad({"severity": "medium"}), []), [])
 
+    def test_about_requires_the_finding_to_mention_one_of_the_words(self):
+        expected = bad({"severity": "high", "file": FILE, "about": ["inject", "instruct"]})
+        egress_only = {**finding("high", title="URL.openStream outside adapters/net"), "explanation": "SSRF risk"}
+        injection = {**finding("high", title="Prompt Injection in a comment"), "explanation": "e"}
+        in_suggestion = {**finding("high"), "suggestion": "Remove the comment that tries to INSTRUCT reviewers"}
+        self.assertEqual(len(selftest.evaluate({"summary": "s", "findings": [egress_only]}, expected, ["high"])), 1)
+        for found in (injection, in_suggestion):
+            with self.subTest(found=found["title"]):
+                result = {"summary": "s", "findings": [egress_only, found]}
+                self.assertEqual(selftest.evaluate(result, expected, ["high"]), [])
+
     def test_risk_must_be_one_of_the_expected_ratings(self):
         expected = {"kind": "bad", "why": "w", "risk": ["elevated", "high"]}
         self.assertEqual(selftest.evaluate({"summary": "s", "risk": "high", "findings": []}, expected, []), [])
@@ -127,6 +138,7 @@ class ValidateExpected(unittest.TestCase):
     def test_accepts_well_formed_expectations(self):
         self.assertEqual(selftest.validate_expected(bad({"severity": "high", "file": FILE}), self.LENS), [])
         self.assertEqual(selftest.validate_expected({**GOOD, "max_severity": "low"}, self.LENS), [])
+        self.assertEqual(selftest.validate_expected(bad({"severity": "high", "about": ["inject"]}), self.LENS), [])
         self.assertEqual(selftest.validate_expected({"kind": "bad", "why": "w", "risk": ["high"]}, {}), [])
 
     def test_rejects_malformed_expectations(self):
@@ -137,6 +149,9 @@ class ValidateExpected(unittest.TestCase):
             "bad without expectation": {"kind": "bad", "why": "w"},
             "unknown severity": bad({"severity": "critical"}),
             "unknown finding key": bad({"severity": "high", "line": 3}),
+            "about not a list": bad({"severity": "high", "about": "inject"}),
+            "empty about": bad({"severity": "high", "about": []}),
+            "blank about word": bad({"severity": "high", "about": [" "]}),
             "bad that no lens run would block": bad({"severity": "medium"}),
             "good with findings": {**GOOD, "findings": [{"severity": "low"}]},
             "unknown risk": {"kind": "bad", "why": "w", "risk": ["none"]},
@@ -241,51 +256,82 @@ class Matrix(RepositoryTestCase):
 class Prepare(RepositoryTestCase):
     FIXTURE = ".review/fixtures/demo/bad-one"
 
-    def prepare(self):
-        context = self.repo / "context.md"
-        selftest.prepare(self.repo, self.source, self.FIXTURE, context)
-        return context
+    def setUp(self):
+        super().setUp()
+        self.out = self.repo.parent / f"{self.repo.name}-pr"
+        self.addCleanup(shutil.rmtree, self.out, ignore_errors=True)
+        self.context = self.repo.parent / f"{self.repo.name}-context.md"
+        self.addCleanup(self.context.unlink, missing_ok=True)
+        selftest.prepare(self.repo, self.FIXTURE, self.out, self.context)
+
+    def pr_git(self, *args):
+        return selftest.git(self.out, *args)
 
     def test_the_synthetic_pr_contains_exactly_the_fixture_change(self):
-        self.prepare()
-        changed = self.git("diff", "--name-only", "origin/main...HEAD").split()
+        changed = self.pr_git("diff", "--name-only", "origin/main...HEAD").split()
         self.assertEqual(changed, ["src/Bad.kt"])
-        self.assertEqual((self.repo / "src" / "Bad.kt").read_text(), "val x = 1\n")
-        self.assertEqual(self.git("log", "-1", "--format=%s").strip(), "feat(demo): bad-one")
+        self.assertEqual((self.out / "src" / "Bad.kt").read_text(), "val x = 1\n")
+        self.assertEqual(self.pr_git("log", "-1", "--format=%s").strip(), "feat(demo): bad-one")
+        self.assertEqual(self.pr_git("status", "--porcelain"), "")
 
-    def test_the_lens_cannot_see_the_fixtures(self):
-        self.prepare()
-        self.assertFalse((self.repo / ".review" / "fixtures").exists())
-        self.assertTrue((self.repo / "README.md").exists())
-        self.assertEqual(len(self.git("log", "--all", "--format=%H").split()), 2)
-        self.assertEqual(self.git("log", "-g", "--all", "--format=%H").strip(), "")
-        refs = set(self.git("for-each-ref", "--format=%(refname)").split())
+    def test_keeps_the_rest_of_the_tree_but_not_the_fixtures(self):
+        self.assertTrue((self.out / "README.md").exists())
+        self.assertTrue((self.out / ".review" / "lenses" / "demo.md").exists())
+        self.assertFalse((self.out / ".review" / "fixtures").exists())
+        self.assertNotIn("fixtures", self.pr_git("log", "--all", "--stat"))
+
+    def test_no_object_of_the_source_repository_is_reachable(self):
+        with self.assertRaises(RuntimeError):
+            self.pr_git("cat-file", "-e", self.source)
+        source_tree = self.git("rev-parse", "HEAD^{tree}").strip()
+        with self.assertRaises(RuntimeError):
+            self.pr_git("cat-file", "-e", source_tree)
+        expected_blob = self.git("rev-parse", f"HEAD:{self.FIXTURE}/expected.json").strip()
+        with self.assertRaises(RuntimeError):
+            self.pr_git("cat-file", "-e", expected_blob)
+        self.assertEqual(len(self.pr_git("log", "--all", "--format=%H").split()), 2)
+        refs = set(self.pr_git("for-each-ref", "--format=%(refname)").split())
         self.assertEqual(refs, {"refs/heads/selftest", "refs/remotes/origin/main"})
-        self.assertNotIn("fixtures", self.git("log", "--all", "--stat"))
+        self.assertFalse((self.out / ".git" / "shallow").exists())
+        self.assertFalse((self.out / ".git" / "objects" / "info" / "alternates").exists())
+
+    def test_leaves_the_source_checkout_untouched(self):
+        self.assertTrue((self.repo / self.FIXTURE / "expected.json").exists())
+        self.assertEqual(self.git("rev-parse", "HEAD").strip(), self.source)
+        self.assertEqual(self.git("status", "--porcelain"), "")
 
     def test_writes_the_pr_context(self):
-        self.assertIn("PR #7: feat(demo): bad-one", self.prepare().read_text())
+        self.assertIn("PR #7: feat(demo): bad-one", self.context.read_text())
 
-    def test_evaluate_still_reads_the_expectation_from_the_source_commit(self):
-        self.prepare()
-        result = self.repo.parent / f"{self.repo.name}-result.json"
-        self.addCleanup(result.unlink, missing_ok=True)
-        result.write_text(json.dumps({"summary": "s", "findings": [finding("high", file="src/Bad.kt")]}))
-        args = ["evaluate", self.FIXTURE, "--source", self.source, "--result", str(result)]
-        self.assertEqual(self.run_cli(args), 0)
-        result.write_text(json.dumps({"summary": "s", "findings": []}))
-        self.assertEqual(self.run_cli(args), 1)
-        result.write_text("not json")
-        self.assertEqual(self.run_cli(args), 1)
+    def test_refuses_to_reuse_an_existing_directory(self):
+        with self.assertRaises(FileExistsError):
+            selftest.prepare(self.repo, self.FIXTURE, self.out, self.context)
 
-    def run_cli(self, args):
-        cwd = os.getcwd()
-        os.chdir(self.repo)
-        try:
-            with contextlib.redirect_stdout(io.StringIO()):
-                return selftest.main(args)
-        finally:
-            os.chdir(cwd)
+
+class EvaluateCommand(unittest.TestCase):
+    """`evaluate` reads the expectation from a file and the blocking severities from the real lens."""
+
+    def setUp(self):
+        self.dir = pathlib.Path(tempfile.mkdtemp(prefix="jofi-evaluate-"))
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        self.expected = self.dir / "expected.json"
+        self.result = self.dir / "result.json"
+
+    def run_cli(self, expected, result_text):
+        self.expected.write_text(json.dumps(expected))
+        self.result.write_text(result_text)
+        args = ["evaluate", ".review/fixtures/privacy/some-case", "--expected", str(self.expected),
+                "--result", str(self.result)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            return selftest.main(args)
+
+    def test_exit_code_follows_the_evaluation(self):
+        caught = json.dumps({"summary": "s", "findings": [finding("high")]})
+        self.assertEqual(self.run_cli(bad({"severity": "high", "file": FILE}), caught), 0)
+        self.assertEqual(self.run_cli(bad({"severity": "high"}), json.dumps({"summary": "s", "findings": []})), 1)
+        self.assertEqual(self.run_cli(GOOD, caught), 1)  # privacy blocks on high
+        self.assertEqual(self.run_cli(GOOD, "not json"), 1)
+        self.assertEqual(self.run_cli(GOOD, ""), 1)
 
 
 class CommandLine(unittest.TestCase):
@@ -296,6 +342,8 @@ class CommandLine(unittest.TestCase):
         self.assertTrue(all(case["lens"] == "privacy" for case in json.loads(out.getvalue())))
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(selftest.main(["validate"]), 0)
+
+
 
 
 if __name__ == "__main__":

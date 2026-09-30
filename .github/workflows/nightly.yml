@@ -103,14 +103,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Turn the checkout into a synthetic PR
+      - name: Replace the checkout with a synthetic PR
         id: context
         env:
           FIXTURE: .review/fixtures/${{ matrix.fixture.lens }}/${{ matrix.fixture.case }}
           LENS: ${{ matrix.fixture.lens }}
         run: |
-          python3 .review/selftest.py prepare "$FIXTURE" --source "$GITHUB_SHA" \
+          python3 .review/selftest.py prepare "$FIXTURE" --out "$RUNNER_TEMP/synthetic-pr" \
             --context-out "$RUNNER_TEMP/pr-context.md"
+          # The lens works in the workspace. Swap the source checkout (fixtures, expectations, history) for the
+          # fresh synthetic repository, so nothing the lens can read or reach through git holds the answers.
+          find . -mindepth 1 -delete
+          cp -a "$RUNNER_TEMP/synthetic-pr/." .
+          rm -rf "$RUNNER_TEMP/synthetic-pr"
           {
             echo 'prompt<<LENS_PROMPT_EOF'
             cat .review/prompt.md ".review/lenses/$LENS.md"
@@ -134,11 +139,16 @@ jobs:
       - name: Compare with the expected findings
         if: always()
         env:
+          GH_TOKEN: ${{ github.token }}
           RESULT: ${{ steps.lens.outputs.structured_output }}
           FIXTURE: .review/fixtures/${{ matrix.fixture.lens }}/${{ matrix.fixture.case }}
         run: |
+          # Fetched only now, after the lens has finished: the expectation is never on this runner while the
+          # lens can read files (it could read anything under $RUNNER_TEMP, too).
+          gh api "repos/$GITHUB_REPOSITORY/contents/$FIXTURE/expected.json?ref=$GITHUB_SHA" \
+            -H "Accept: application/vnd.github.raw+json" > "$RUNNER_TEMP/expected.json"
           printf '%s' "$RESULT" > "$RUNNER_TEMP/result.json"
-          python3 .review/selftest.py evaluate "$FIXTURE" --source "$GITHUB_SHA" \
+          python3 .review/selftest.py evaluate "$FIXTURE" --expected "$RUNNER_TEMP/expected.json" \
             --result "$RUNNER_TEMP/result.json" | tee -a "$GITHUB_STEP_SUMMARY"
 
   report-failure:
