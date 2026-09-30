@@ -47,6 +47,17 @@ describe("Tabs", () => {
     expect(screen.getByRole("tab", { name: "Later" })).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("keeps the selected tab and its panel pointing at each other after a switch", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("tab", { name: "Two" }));
+    const tab = screen.getByRole("tab", { name: "Two" });
+    const panel = screen.getByRole("tabpanel");
+    expect(panel).toHaveTextContent("Content of two");
+    expect(tab.getAttribute("aria-controls")).toBe(panel.id);
+    expect(panel.getAttribute("aria-labelledby")).toBe(tab.id);
+  });
+
   it("does not select a disabled tab on click", async () => {
     const user = userEvent.setup();
     render(<Example />);
