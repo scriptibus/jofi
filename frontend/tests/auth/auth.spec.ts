@@ -91,6 +91,9 @@ test.describe("in German", () => {
       const response = page.waitForResponse("**/api/auth/login");
       await submit.click();
       if ((await response).status() === 429) break;
+      // Wait until the form shows the refusal; typing before it arrives would put the server's
+      // "wrong password" on the next guess and block its submit.
+      await expect(page.getByText("Falsches Passwort. Bitte versuch es noch einmal.")).toBeVisible();
     }
     await expect(throttled).toBeVisible();
     await expect(submit).toBeDisabled();

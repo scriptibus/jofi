@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { createMemoryHistory } from "@tanstack/react-router";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -84,6 +84,19 @@ describe("login", () => {
     await user.click(screen.getByRole("button", { name: "Log in" }));
     expect(await screen.findByText("Wrong password. Please try again.")).toBeVisible();
     expect(screen.getByLabelText("Password")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("sends again after a wrong password once the field is edited", async () => {
+    const { router, user } = start("/login");
+    const field = await screen.findByLabelText("Password");
+    await user.type(field, "not the password");
+    await user.click(screen.getByRole("button", { name: "Log in" }));
+    await screen.findByText("Wrong password. Please try again.");
+
+    fireEvent.change(field, { target: { value: GOOD_PASSWORD } });
+    fireEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+    await waitFor(() => expect(pathname(router)).toBe("/"));
   });
 
   it("asks for the password before sending anything", async () => {
