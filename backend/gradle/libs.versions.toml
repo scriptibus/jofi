@@ -22,6 +22,8 @@ licensee = "1.14.1"
 # Newer than the Spring Boot BOM (jOOQ 3.21.7, Flyway 12.4.0); the explicit version wins in Gradle.
 jooq = "3.21.8"
 flyway = "13.7.0"
+# OpenAPI spec generation (adapters/web tests only; the running app does not serve the spec).
+springdoc = "3.1.1"
 
 # Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
 # Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
@@ -59,6 +61,11 @@ flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }
+
+# API contract (adapters/web tests): generates the committed OpenAPI spec, see adapters/web/AGENTS.md.
+springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
+# springdoc (via swagger-core) still reads models with Jackson 2; this module makes it honour Kotlin nullability.
+jackson2-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }

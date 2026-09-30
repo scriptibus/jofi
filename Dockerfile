@@ -15,6 +15,8 @@ RUN corepack enable
 COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
+# The API contract the typed client is generated from during `pnpm build` (ADR-0016).
+COPY api/openapi.json /build/api/openapi.json
 RUN pnpm build
 
 # --- 2. Backend build (JDK 25) -----------------------------------------------------------------

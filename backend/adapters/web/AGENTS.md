@@ -16,3 +16,9 @@ Rules:
 - Test each controller with a `@WebMvcTest` slice + `MockMvcTester`; provide use cases from a
   `@TestConfiguration` backed by MockK port fakes. `WebAdapterTestApplication` (test sources)
   is the slice's configuration root.
+- Errors are RFC 9457 problem details: map sealed failure results to a `ProblemDetail` via
+  `ErrorResponseException` (see "API contract" in `backend/AGENTS.md`).
+- After changing a controller or DTO, run `./gradlew :adapters:web:updateOpenApiSpec` and commit
+  `api/openapi.json`; `OpenApiSpecTest` fails `check` until you do. `OpenApiSpecApplication`
+  (test sources) picks up every `@RestController` and `@RestControllerAdvice` under
+  `io.github.scriptibus.jofi` and stubs their use cases, so new controllers need no extra wiring.

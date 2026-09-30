@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Breaking API changes a human has approved (ADR-0016). The ci `api-breaking-changes` job passes this
+# file to `oasdiff breaking --err-ignore`. To approve one, copy the method, path and message from the job
+# log onto its own line, e.g.:
+#   GET /api/system/info removed the required property `version` from the response with the `200` status
+# This file lives under .github/, a protected path (CODEOWNERS): only Lucas approves an entry, and agents
+# never add one on their own. Entries can be deleted once the approving PR is merged.

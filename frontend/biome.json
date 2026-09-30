@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!src/paraglide", "!dist", "!playwright-report", "!test-results"]
+    "includes": ["**", "!src/paraglide", "!src/api/generated", "!dist", "!playwright-report", "!test-results"]
   },
   "formatter": {
     "enabled": true,

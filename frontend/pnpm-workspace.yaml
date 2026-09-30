@@ -45,6 +45,10 @@ minimumReleaseAgeExclude:
 minimumReleaseAgeExcludePrune: true
 # Fail the install if a dependency has build scripts we have not reviewed.
 strictDepBuilds: true
-# Install-script allowlist (pnpm 11 removed onlyBuiltDependencies and friends).
-allowBuilds: {}
+# Install-script allowlist (pnpm 11 removed onlyBuiltDependencies and friends). `false` = reviewed, not run.
+allowBuilds:
+  # via orval: postinstall only verifies/links the platform binary, which pnpm installs as an optional dependency.
+  esbuild: false
+  # postinstall copies the browser Service Worker into a public dir; unit tests use msw/node only.
+  msw: false
 strictPeerDependencies: true

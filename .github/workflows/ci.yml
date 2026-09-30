@@ -63,6 +63,47 @@ jobs:
       - name: migration-lock.sh tests (stubbed gh)
         run: bash .github/scripts/migration-lock.test.sh
 
+  # Breaking changes to the API contract (api/openapi.json) against the base branch fail the PR (ADR-0016).
+  # Human-only override: the reported line goes into .github/oasdiff/breaking-changes-allowed.txt, a
+  # protected path (CODEOWNERS), so the PR cannot merge without Lucas approving it.
+  api-breaking-changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      # Bump both together: https://github.com/oasdiff/oasdiff/releases (checksums.txt)
+      OASDIFF_VERSION: 1.32.1
+      OASDIFF_SHA256: 7c8939fc49b75ee11fec66a5b83b37a2fca6aee109fed85013b1ba2ac2a1ee7f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          sparse-checkout: api
+          persist-credentials: false
+      - name: Install oasdiff (checksum-verified release binary)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/oasdiff.tar.gz" \
+            "https://github.com/oasdiff/oasdiff/releases/download/v${OASDIFF_VERSION}/oasdiff_${OASDIFF_VERSION}_linux_amd64.tar.gz"
+          echo "${OASDIFF_SHA256}  $RUNNER_TEMP/oasdiff.tar.gz" | sha256sum --check --strict -
+          tar -xzf "$RUNNER_TEMP/oasdiff.tar.gz" -C "$RUNNER_TEMP" oasdiff
+      - name: No breaking changes unless approved
+        run: |
+          if [[ ! -f base/api/openapi.json ]]; then
+            # Only the PR that introduces the contract meets a base without it.
+            echo "::notice::The base branch has no api/openapi.json yet; nothing to compare."
+            exit 0
+          fi
+          "$RUNNER_TEMP/oasdiff" breaking base/api/openapi.json api/openapi.json \
+            --fail-on ERR \
+            --err-ignore .github/oasdiff/breaking-changes-allowed.txt \
+            --format singleline
+
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 30
