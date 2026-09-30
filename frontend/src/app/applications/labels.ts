@@ -9,6 +9,7 @@ import type {
   ApplicationSourceResponseKind,
   ChangeActorDtoKind,
   DeclineReasonDtoCategory,
+  DescriptionSnapshotSummaryResponseReason,
   LanguageAndToneDtoFormOfAddress,
   LanguageAndToneDtoTone,
   PayBandDtoEstimateConfidence,
@@ -31,6 +32,7 @@ export type Tone = NonNullable<LanguageAndToneDtoTone>;
 export type SourceKind = ApplicationSourceResponseKind;
 export type DeclineCategory = DeclineReasonDtoCategory;
 export type ActorKind = ChangeActorDtoKind;
+export type SnapshotReason = DescriptionSnapshotSummaryResponseReason;
 
 export const statusLabels: Record<Status, () => string> = {
   DISCOVERED: m.application_status_discovered,
@@ -117,6 +119,12 @@ export const sourceKindLabels: Record<SourceKind, () => string> = {
   SCANNER: m.application_source_scanner,
   URL: m.application_source_url,
   MANUAL_CHAT: m.application_source_chat,
+};
+
+export const snapshotReasonLabels: Record<SnapshotReason, () => string> = {
+  DISCOVERY: m.application_description_reason_discovery,
+  CHANGE_DETECTED: m.application_description_reason_change_detected,
+  MANUAL: m.application_description_reason_manual,
 };
 
 export const declineCategoryLabels: Record<DeclineCategory, () => string> = {
