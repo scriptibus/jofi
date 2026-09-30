@@ -81,8 +81,47 @@ internal class BackupDomainSeeds(
             at,
         )
         dsl.execute("insert into application_contact (application_id, contact_id) values (?, ?)", application, contact)
+        seedDependants(application, contact)
+    }
+
+    // What belongs to an application: its status history, sources with snapshots and interviews.
+    private fun seedDependants(
+        application: UUID,
+        contact: UUID,
+    ) {
         seedStatusHistory(application)
         seedSources(application)
+        seedInterviews(application, contact)
+    }
+
+    // A zone id with a slash and an underscore, an offset zone, CR/LF, quotes and Markdown in notes, NULLs, a
+    // participant.
+    private fun seedInterviews(
+        application: UUID,
+        contact: UUID,
+    ) {
+        val interview = UUID.fromString("00000000-0000-0000-0000-0000000000f1")
+        dsl.execute(
+            "insert into interview (id, application_id, kind, starts_at, time_zone, preparation_notes, notes, " +
+                "outcome, version, created_at, updated_at) values (?, ?, 'TECHNICAL', '2026-10-05 08:00:00.5+00', " +
+                "'America/Argentina/Buenos_Aires', '# Prep\r\n- ask about \"on-call\", pay', " +
+                "'Went well;\nJJ, \"nice\"', 'PASSED', 2, ?::timestamptz, ?::timestamptz), " +
+                "(?, ?, 'PHONE_SCREEN', ?::timestamptz, '+05:30', null, null, null, 0, ?::timestamptz, ?::timestamptz)",
+            interview,
+            application,
+            at,
+            at,
+            UUID.fromString("00000000-0000-0000-0000-0000000000f2"),
+            application,
+            at,
+            at,
+            at,
+        )
+        dsl.execute(
+            "insert into interview_participant (interview_id, contact_id) values (?, ?)",
+            interview,
+            contact,
+        )
     }
 
     // A link with a query and an IDN host, an offline source without a link, and descriptions with quotes,

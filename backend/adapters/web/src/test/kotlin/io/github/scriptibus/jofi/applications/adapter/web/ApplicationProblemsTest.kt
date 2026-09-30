@@ -53,6 +53,33 @@ class ApplicationProblemsTest {
     }
 
     @Test
+    fun `interview violations name the interview request fields`() {
+        val failure =
+            ApplicationResult.Invalid(
+                listOf(
+                    ApplicationViolation(ApplicationField.INTERVIEW_START, ApplicationProblem.OUT_OF_RANGE),
+                    ApplicationViolation(ApplicationField.TIME_ZONE, ApplicationProblem.INVALID_TIME_ZONE),
+                    ApplicationViolation(ApplicationField.PARTICIPANTS, ApplicationProblem.NOT_FOUND),
+                    ApplicationViolation(ApplicationField.PREPARATION_NOTES, ApplicationProblem.TOO_LONG),
+                    ApplicationViolation(ApplicationField.INTERVIEW_NOTES, ApplicationProblem.INVALID_CHARACTER),
+                ),
+            )
+
+        ApplicationProblems
+            .of(failure)
+            .body
+            .shouldBeInstanceOf<ValidationProblem>()
+            .violations shouldBe
+            listOf(
+                FieldViolation("localStart", "OUT_OF_RANGE"),
+                FieldViolation("timeZone", "INVALID_TIME_ZONE"),
+                FieldViolation("participantIds", "NOT_FOUND"),
+                FieldViolation("preparationNotes", "TOO_LONG"),
+                FieldViolation("notes", "INVALID_CHARACTER"),
+            )
+    }
+
+    @Test
     fun `every field has its own request field name`() {
         ApplicationField.entries.map(ApplicationProblems::apiName).shouldBeUnique()
     }
@@ -62,6 +89,7 @@ class ApplicationProblemsTest {
         expect(ApplicationResult.NotFound, HttpStatus.NOT_FOUND, ApplicationProblems.NOT_FOUND)
         expect(ApplicationResult.SourceNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.SOURCE_NOT_FOUND)
         expect(ApplicationResult.SnapshotNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.SNAPSHOT_NOT_FOUND)
+        expect(ApplicationResult.InterviewNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.INTERVIEW_NOT_FOUND)
         expect(ApplicationResult.VersionConflict, HttpStatus.CONFLICT, ApplicationProblems.VERSION_CONFLICT)
         expect(
             ApplicationResult.InvalidTransition(ApplicationStatus.DISCOVERED, ApplicationStatus.ACCEPTED),

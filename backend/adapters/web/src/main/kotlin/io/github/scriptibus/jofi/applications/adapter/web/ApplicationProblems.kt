@@ -24,6 +24,7 @@ object ApplicationProblems {
     const val NOT_FOUND = "urn:jofi:problem:applications:application-not-found"
     const val SOURCE_NOT_FOUND = "urn:jofi:problem:applications:source-not-found"
     const val SNAPSHOT_NOT_FOUND = "urn:jofi:problem:applications:snapshot-not-found"
+    const val INTERVIEW_NOT_FOUND = "urn:jofi:problem:applications:interview-not-found"
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:applications:storage-unavailable"
@@ -40,21 +41,21 @@ object ApplicationProblems {
                 )
             }
 
-            ApplicationResult.NotFound, ApplicationResult.SourceNotFound, ApplicationResult.SnapshotNotFound -> {
+            ApplicationResult.NotFound,
+            ApplicationResult.SourceNotFound,
+            ApplicationResult.SnapshotNotFound,
+            ApplicationResult.InterviewNotFound,
+            -> {
                 val (type, detail) = NOT_FOUND_PROBLEMS.getValue(failure)
                 problem(HttpStatus.NOT_FOUND, type, detail)
             }
 
             ApplicationResult.VersionConflict -> {
-                problem(HttpStatus.CONFLICT, VERSION_CONFLICT, "The application changed meanwhile; reload it and retry")
+                problem(HttpStatus.CONFLICT, VERSION_CONFLICT, "It changed meanwhile; reload it and retry")
             }
 
             is ApplicationResult.InvalidTransition -> {
-                problem(
-                    HttpStatus.CONFLICT,
-                    INVALID_TRANSITION,
-                    "An application cannot move from ${failure.from} to ${failure.to}",
-                )
+                problem(HttpStatus.CONFLICT, INVALID_TRANSITION, transitionDetail(failure))
             }
 
             is ApplicationResult.Unconfirmed -> {
@@ -88,6 +89,8 @@ object ApplicationProblems {
             ApplicationResult.SourceNotFound to (SOURCE_NOT_FOUND to "The application has no source with this id"),
             ApplicationResult.SnapshotNotFound to
                 (SNAPSHOT_NOT_FOUND to "The application has no description with this id"),
+            ApplicationResult.InterviewNotFound to
+                (INTERVIEW_NOT_FOUND to "The application has no interview with this id"),
         )
 
     private val API_NAMES: Map<ApplicationField, String> =
@@ -118,7 +121,15 @@ object ApplicationProblems {
             ApplicationField.SOURCE_URL to "originalUrl",
             ApplicationField.DISCOVERED_AT to "discoveredAt",
             ApplicationField.DESCRIPTION to "description",
+            ApplicationField.INTERVIEW_START to "localStart",
+            ApplicationField.TIME_ZONE to "timeZone",
+            ApplicationField.PARTICIPANTS to "participantIds",
+            ApplicationField.PREPARATION_NOTES to "preparationNotes",
+            ApplicationField.INTERVIEW_NOTES to "notes",
         )
+
+    private fun transitionDetail(failure: ApplicationResult.InvalidTransition): String =
+        "An application cannot move from ${failure.from} to ${failure.to}"
 
     private fun problem(
         status: HttpStatus,
