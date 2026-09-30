@@ -15,7 +15,9 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.DismissTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.ListSuggestedTasksUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.UpdateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
@@ -24,6 +26,7 @@ import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
+import io.github.scriptibus.jofi.tasks.domain.TaskState
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.kotest.matchers.shouldBe
@@ -52,10 +55,15 @@ import java.util.UUID
 
 /**
  * The task endpoints over the real use cases (#93) with a mocked repository: mapping, problem details and the
- * two-step delete. The grouped list (#94) and the suggestions (#95) still answer `501`. Security (session, CSRF) is
- * the filter chain's job, tested in bootstrap.
+ * two-step delete; listing and dismissing suggestions (#85, [TaskSuggestionController]). The grouped list (#94)
+ * and accepting a suggestion (#95) still answer `501`. Security (session, CSRF) is the filter chain's job, tested
+ * in bootstrap.
  */
-@WebMvcTest(TaskController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
+@WebMvcTest(
+    TaskController::class,
+    TaskSuggestionController::class,
+    properties = ["spring.mvc.problemdetails.enabled=true"],
+)
 @AutoConfigureMockMvc(addFilters = false)
 @Import(TaskControllerTest.UseCases::class)
 class TaskControllerTest(
@@ -94,6 +102,13 @@ class TaskControllerTest(
 
         @Bean
         fun reopen(ports: Ports) = ReopenTaskUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
+
+        @Bean
+        fun listSuggestions(ports: Ports) = ListSuggestedTasksUseCase(ports.tasks)
+
+        @Bean
+        fun dismiss(ports: Ports) =
+            DismissTaskSuggestionUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
 
         @Bean
         fun delete(ports: Ports) =
@@ -298,13 +313,57 @@ class TaskControllerTest(
     }
 
     @Test
-    fun `the grouped list and the suggestions are not implemented yet`() {
-        notImplemented(mvc.get().uri("/api/tasks?timeZone=Europe/Berlin"))
-        notImplemented(mvc.get().uri("/api/tasks/suggestions"))
-        listOf("accept", "dismiss").forEach {
-            notImplemented(json(mvc.post().uri("$path/$it"), """{"basedOnVersion":0}"""))
-        }
+    fun `the suggestions are listed newest first with their rule`() {
+        val older = suggested("follow-up", Instant.parse("2026-09-01T08:00:00Z"))
+        val newer = suggested("ghosted-suggestion", Instant.parse("2026-09-02T08:00:00Z"))
+        every { ports.tasks.listByState(TaskState.SUGGESTED) } returns TaskStoreResult.Success(listOf(older, newer))
+
+        mvc
+            .get()
+            .uri("/api/tasks/suggestions")
+            .assertThat()
+            .hasStatusOk()
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """
+                {"tasks":[{"id":"${newer.id.value}","suggestionRule":"ghosted-suggestion","status":"SUGGESTED"},
+                          {"id":"${older.id.value}","suggestionRule":"follow-up","status":"SUGGESTED"}]}
+                """.trimIndent(),
+            )
     }
+
+    @Test
+    fun `dismissing a suggestion records it as the user, but an open task cannot be dismissed`() {
+        every { ports.tasks.findById(stored.id) } returns
+            TaskStoreResult.Success(suggested("ghosted-suggestion", Instant.parse("2026-09-01T08:00:00Z"), stored.id))
+
+        json(mvc.post().uri("$path/dismiss"), """{"basedOnVersion":0}""")
+            .assertThat()
+            .hasStatusOk()
+            .bodyJson()
+            .isLenientlyEqualTo("""{"status":"DISMISSED","version":1}""")
+        verify { ports.changelog.append(match { it.actor == Actor.User }) }
+
+        every { ports.tasks.findById(stored.id) } returns TaskStoreResult.Success(stored)
+        json(mvc.post().uri("$path/dismiss"), """{"basedOnVersion":0}""")
+            .assertThat()
+            .hasStatus(409)
+            .bodyJson()
+            .extractingPath("type")
+            .isEqualTo(TaskProblems.INVALID_TRANSITION)
+    }
+
+    @Test
+    fun `the grouped list and accepting a suggestion are not implemented yet`() {
+        notImplemented(mvc.get().uri("/api/tasks?timeZone=Europe/Berlin"))
+        notImplemented(json(mvc.post().uri("$path/accept"), """{"basedOnVersion":0}"""))
+    }
+
+    private fun suggested(
+        rule: String,
+        at: Instant,
+        id: TaskId = TaskId(UUID.randomUUID()),
+    ): Task = Task.suggest(id, stored.details, TaskOrigin.Suggested(rule, "application:$id"), at)
 
     @Test
     fun `requests that break the contract are rejected`() {

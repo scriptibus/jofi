@@ -36,8 +36,9 @@ import java.util.UUID
 /**
  * Tasks with exact or rough timing (spec §10.2, ADR-0049), for the logged-in user. Create, read, edit, complete,
  * reopen and delete (#93) call their use case as `Actor.User` (tasks created here are `Manual`) and map each
- * `TaskResult.Failure` with [TaskProblems.of]. The grouped list (#94) and the suggestions (#95) are still the contract
- * only and answer `501 Not Implemented`; their parameters only declare it, hence the suppressed unused-parameter rule.
+ * `TaskResult.Failure` with [TaskProblems.of]. The suggestions have their own [TaskSuggestionController]. The grouped
+ * list (#94) is still the contract only and answers `501 Not Implemented`; its parameter only declares it, hence the
+ * suppressed unused-parameter rule.
  */
 @Suppress("UnusedParameter", "TooManyFunctions")
 @RestController
@@ -59,10 +60,6 @@ class TaskController(
     fun listTaskGroups(
         @RequestParam timeZone: String,
     ): TaskGroupListResponse = throw notImplemented()
-
-    /** The suggestions waiting to be accepted or dismissed, newest first. */
-    @GetMapping("/suggestions")
-    fun listSuggestedTasks(): TaskListResponse = throw notImplemented()
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -103,22 +100,6 @@ class TaskController(
         @PathVariable id: UUID,
         @RequestBody request: TaskVersionRequest,
     ): TaskResponse = TaskResponse.from(reopenTask.execute(TaskId(id), request.basedOnVersion, Actor.User).orThrow())
-
-    /** Accepts a suggestion with one click: it becomes an open task. */
-    @PostMapping("/{id}/accept")
-    @ProblemResponses(ProblemKind.NOT_FOUND, ProblemKind.CONFLICT)
-    fun acceptTaskSuggestion(
-        @PathVariable id: UUID,
-        @RequestBody request: TaskVersionRequest,
-    ): TaskResponse = throw notImplemented()
-
-    /** Dismisses a suggestion; it is not suggested again. */
-    @PostMapping("/{id}/dismiss")
-    @ProblemResponses(ProblemKind.NOT_FOUND, ProblemKind.CONFLICT)
-    fun dismissTaskSuggestion(
-        @PathVariable id: UUID,
-        @RequestBody request: TaskVersionRequest,
-    ): TaskResponse = throw notImplemented()
 
     /** Two steps (ADR-0039): the first call answers 428 with a token, the repeat with it deletes. */
     @DeleteMapping("/{id}")

@@ -12,14 +12,10 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 
 /**
- * The saved view and settings endpoints exist with their contract (#81) and answer `501` problem details until the
- * use cases land (#99, #85). Security is the filter chain's job (bootstrap tests).
+ * The saved view endpoints exist with their contract (#81) and answer `501` problem details until the use cases
+ * land (#99). Security is the filter chain's job (bootstrap tests).
  */
-@WebMvcTest(
-    SavedViewController::class,
-    ApplicationSettingsController::class,
-    properties = ["spring.mvc.problemdetails.enabled=true"],
-)
+@WebMvcTest(SavedViewController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
 class SavedViewControllerTest(
     @param:Autowired private val mvc: MockMvcTester,
@@ -49,23 +45,11 @@ class SavedViewControllerTest(
     }
 
     @Test
-    fun `reading and changing the settings are not implemented yet`() {
-        notImplemented(mvc.get().uri("/api/applications/settings"))
-        notImplemented(
-            json(
-                mvc.put().uri("/api/applications/settings"),
-                """{"ghostedAfterWeeks":10,"followUpAfterDays":7,"basedOnVersion":0}""",
-            ),
-        )
-    }
-
-    @Test
     fun `requests that break the contract are rejected before the stub`() {
         badRequest(json(mvc.post().uri(views), """{"filter":{}}"""))
         badRequest(json(mvc.post().uri(views), """{"name":"x","filter":{"status":["SOMEWHERE"]}}"""))
         badRequest(json(mvc.put().uri(one), """{"view":$view}"""))
         badRequest(mvc.get().uri("$views/not-a-uuid"))
-        badRequest(json(mvc.put().uri("/api/applications/settings"), """{"ghostedAfterWeeks":10,"basedOnVersion":0}"""))
     }
 
     private fun json(

@@ -18,9 +18,12 @@ object JofiPackages {
 
     /**
      * The Spring Modulith metadata (in bootstrap) that makes `companies.application.port.spi` a named
-     * interface (ADR-0041): the one class in a port package that is no interface and uses Spring.
+     * interface (ADR-0041): one of the two classes in a port package that are no interface and use Spring.
      */
     const val SPI_METADATA = "$BASE.companies.application.port.spi.ModuleMetadata"
+
+    /** The same for `applications.application.port.api`, the ports other contexts call (#85). */
+    const val API_METADATA = "$BASE.applications.application.port.api.ModuleMetadata"
 }
 
 /** All production classes of the backend (every Gradle module), imported once per test run. */

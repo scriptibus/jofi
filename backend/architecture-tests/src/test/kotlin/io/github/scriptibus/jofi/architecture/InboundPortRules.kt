@@ -30,9 +30,7 @@ object InboundPortRules {
             "DeleteInterviewPort" to "#91",
             "ListUpcomingInterviewsPort" to "#92",
             "ListTaskGroupsPort" to "#94",
-            "ListSuggestedTasksPort" to "#95",
             "AcceptTaskSuggestionPort" to "#95",
-            "DismissTaskSuggestionPort" to "#95",
             "CreateCountdownPort" to "#112",
             "UpdateCountdownPort" to "#112",
             "DeleteCountdownPort" to "#112",
@@ -43,8 +41,6 @@ object InboundPortRules {
             "GetSavedViewPort" to "#99",
             "ListSavedViewsPort" to "#99",
             "DeleteSavedViewPort" to "#99",
-            "GetApplicationSettingsPort" to "#85",
-            "UpdateApplicationSettingsPort" to "#85",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */
