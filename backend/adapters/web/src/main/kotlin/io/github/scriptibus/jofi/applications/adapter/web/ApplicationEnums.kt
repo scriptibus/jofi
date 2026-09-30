@@ -73,5 +73,14 @@ enum class PipelineStatus {
 /** Who made a change: the user, the built-in AI, a scanner, an external client or an automatic rule or job. */
 enum class ChangeActorKind { USER, AI, SCANNER, EXTERNAL_CLIENT, SYSTEM }
 
+/** Copy of `SourceKind`: a scanner, an imported link, or entered by hand or in the chat. */
+enum class PostingSourceKind { SCANNER, URL, MANUAL_CHAT }
+
+/** Copy of `SnapshotReason`: why a description version was taken. */
+enum class SnapshotCaptureReason { DISCOVERY, CHANGE_DETECTED, MANUAL }
+
+/** Copy of `DiffOperation`. */
+enum class DiffSegmentOperation { UNCHANGED, ADDED, REMOVED }
+
 /** The constant of [T] with this constant's name (API enum to domain enum and back). */
 internal inline fun <reified T : Enum<T>> Enum<*>.mapByName(): T = enumValueOf<T>(name)

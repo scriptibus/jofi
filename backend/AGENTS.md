@@ -61,8 +61,8 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
 `tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
 providers, per-task models, capabilities, costs, budget), `companies` (companies with their use cases, #88; contacts with
-theirs, #89), `applications` (contracts: the application aggregate and its status pipeline, ADR-0044) and
-`shared` exist.
+theirs, #89), `applications` (contracts: the application aggregate, its status pipeline, ADR-0044, and its
+sources with their description snapshots, ADR-0046) and `shared` exist.
 The only class allowed directly in the base package is the application class; the only class
 allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 

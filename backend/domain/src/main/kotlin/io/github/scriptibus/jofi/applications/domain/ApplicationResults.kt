@@ -42,6 +42,18 @@ enum class ApplicationField {
 
     /** The decline category of a status change: required for `DECLINED` and `REJECTED`, absent otherwise. */
     DECLINE_CATEGORY,
+
+    /** The application's sources: too many. */
+    SOURCES,
+
+    /** A source's original link. */
+    SOURCE_URL,
+
+    /** When a source was found: not in the future. */
+    DISCOVERED_AT,
+
+    /** A job description's text (a source's first one, or a new version). */
+    DESCRIPTION,
 }
 
 enum class ApplicationProblem {
@@ -77,6 +89,9 @@ enum class ApplicationProblem {
 
     /** The field does not apply here, e.g. a decline category for a status other than Declined or Rejected. */
     NOT_APPLICABLE,
+
+    /** Not an absolute http(s) URL with a host and without user info. */
+    INVALID_URL,
 }
 
 /** Shared by the invariants and [ApplicationInput.validate]. */
@@ -94,7 +109,7 @@ internal object ApplicationRules {
 }
 
 /**
- * Outcome of an application use case (#82, #83, #84, #90). Callers map every case: the REST controller to
+ * Outcome of an application use case (#82, #83, #84, #86, #90, #96). Callers map every case: the REST controller to
  * a status and problem type, an MCP tool to a tool error.
  */
 sealed interface ApplicationResult<out T> {
@@ -114,6 +129,12 @@ sealed interface ApplicationResult<out T> {
     ) : Failure
 
     data object NotFound : Failure
+
+    /** The application has no source with the requested id. */
+    data object SourceNotFound : Failure
+
+    /** The application has no description snapshot with the requested id. */
+    data object SnapshotNotFound : Failure
 
     /** The change was based on an older version of the application; nothing was changed. */
     data object VersionConflict : Failure
@@ -141,7 +162,10 @@ sealed interface ApplicationStoreResult<out T> {
         val value: T,
     ) : ApplicationStoreResult<T>
 
-    /** No application with the requested id. */
+    /**
+     * No application with the requested id, or the source or snapshot asked for does not exist (for that
+     * application); an insert whose application or source is gone (by its foreign key's name) too.
+     */
     data object NotFound : ApplicationStoreResult<Nothing>
 
     /** The stored application has a newer version than the change was based on; reload and retry. */
@@ -152,6 +176,9 @@ sealed interface ApplicationStoreResult<out T> {
 
     /** A linked contact does not exist (any more): `application_contact_contact_fk` rejected it. */
     data object ContactNotFound : ApplicationStoreResult<Nothing>
+
+    /** The application has [Application.MAX_SOURCES] sources already (counted under a lock); nothing was added. */
+    data object SourceLimitReached : ApplicationStoreResult<Nothing>
 
     /** The confirmation proof does not cover deleting this application; nothing was deleted. */
     data object NotConfirmed : ApplicationStoreResult<Nothing>

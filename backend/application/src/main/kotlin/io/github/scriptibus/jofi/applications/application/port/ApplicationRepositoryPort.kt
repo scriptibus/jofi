@@ -20,7 +20,10 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
  * [ApplicationStoreResult.ContactNotFound]; anything else is a `StorageFailure`.
  */
 interface ApplicationRepositoryPort {
-    /** Stores a new application with its contact links and the first entry of its status history ([initial]). */
+    /**
+     * Stores a new application with its contact links and the first entry of its status history ([initial]).
+     * Its sources are stored through [ApplicationSourceRepositoryPort], in the same transaction.
+     */
     fun add(
         application: Application,
         initial: StatusChange,
@@ -63,12 +66,14 @@ interface ApplicationRepositoryPort {
         unread: Boolean,
     ): ApplicationStoreResult<Unit>
 
+    /** The application with its contact links and its sources, oldest first (only this and [search] read them). */
     fun findById(id: ApplicationId): ApplicationStoreResult<Application>
 
     fun search(search: ApplicationSearch): ApplicationStoreResult<ApplicationPage<Application>>
 
     /**
-     * Deletes the application and, by `ON DELETE CASCADE`, its contact links and status history. [proof] is what the
+     * Deletes the application and, by `ON DELETE CASCADE`, its contact links, status history, sources and
+     * their description snapshots (frozen ones too). [proof] is what the
      * confirmation gate returned (ADR-0039): the adapter answers [ApplicationStoreResult.NotConfirmed]
      * unless `proof.covers(Application.DELETE_OPERATION, id.value.toString())`.
      */

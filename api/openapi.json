@@ -389,6 +389,319 @@
         "tags" : [ "application-controller" ]
       }
     },
+    "/api/applications/{id}/description-diff" : {
+      "get" : {
+        "operationId" : "diffDescriptionSnapshots",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DescriptionDiffResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-source-controller" ]
+      }
+    },
+    "/api/applications/{id}/snapshots/{snapshotId}" : {
+      "get" : {
+        "operationId" : "getDescriptionSnapshot",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "path",
+          "name" : "snapshotId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DescriptionSnapshotResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-source-controller" ]
+      }
+    },
+    "/api/applications/{id}/sources" : {
+      "post" : {
+        "operationId" : "addApplicationSource",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AddApplicationSourceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationSourceResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-source-controller" ]
+      }
+    },
+    "/api/applications/{id}/sources/{sourceId}/snapshots" : {
+      "get" : {
+        "operationId" : "listDescriptionSnapshots",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "path",
+          "name" : "sourceId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DescriptionSnapshotListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-source-controller" ]
+      },
+      "post" : {
+        "operationId" : "recordDescriptionSnapshot",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "path",
+          "name" : "sourceId",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RecordDescriptionSnapshotRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DescriptionSnapshotRecordedResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-source-controller" ]
+      }
+    },
     "/api/applications/{id}/status" : {
       "put" : {
         "operationId" : "changeApplicationStatus",
@@ -2281,6 +2594,29 @@
   },
   "components" : {
     "schemas" : {
+      "AddApplicationSourceRequest" : {
+        "required" : [ "kind" ],
+        "type" : "object",
+        "properties" : {
+          "description" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "discoveredAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "SCANNER", "URL", "MANUAL_CHAT" ]
+          },
+          "originalUrl" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
       "ApplicationContactsRequest" : {
         "required" : [ "basedOnVersion", "contactIds" ],
         "type" : "object",
@@ -2387,7 +2723,7 @@
         }
       },
       "ApplicationResponse" : {
-        "required" : [ "companyId", "contactIds", "createdAt", "id", "languageAndTone", "status", "title", "unread", "updatedAt", "version" ],
+        "required" : [ "companyId", "contactIds", "createdAt", "id", "languageAndTone", "sources", "status", "title", "unread", "updatedAt", "version" ],
         "type" : "object",
         "properties" : {
           "companyId" : {
@@ -2467,6 +2803,12 @@
             "nullable" : true,
             "enum" : [ "ENTRY", "JUNIOR", "MID", "SENIOR", "LEAD", "PRINCIPAL", "EXECUTIVE" ]
           },
+          "sources" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ApplicationSourceResponse"
+            }
+          },
           "status" : {
             "type" : "string",
             "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
@@ -2487,6 +2829,36 @@
           },
           "wantScore" : {
             "type" : "number",
+            "nullable" : true
+          }
+        }
+      },
+      "ApplicationSourceResponse" : {
+        "required" : [ "discoveredAt", "id", "kind", "online" ],
+        "type" : "object",
+        "properties" : {
+          "discoveredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "SCANNER", "URL", "MANUAL_CHAT" ]
+          },
+          "offlineSince" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "online" : {
+            "type" : "boolean"
+          },
+          "originalUrl" : {
+            "type" : "string",
             "nullable" : true
           }
         }
@@ -3057,6 +3429,130 @@
           }
         }
       },
+      "DescriptionDiffResponse" : {
+        "required" : [ "from", "segments", "to" ],
+        "type" : "object",
+        "properties" : {
+          "from" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "segments" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DiffSegmentDto"
+            }
+          },
+          "to" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
+      "DescriptionSnapshotListResponse" : {
+        "required" : [ "snapshots" ],
+        "type" : "object",
+        "properties" : {
+          "snapshots" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/DescriptionSnapshotSummaryResponse"
+            }
+          }
+        }
+      },
+      "DescriptionSnapshotRecordedResponse" : {
+        "required" : [ "added", "snapshot" ],
+        "type" : "object",
+        "properties" : {
+          "added" : {
+            "type" : "boolean"
+          },
+          "snapshot" : {
+            "$ref" : "#/components/schemas/DescriptionSnapshotSummaryResponse"
+          }
+        }
+      },
+      "DescriptionSnapshotResponse" : {
+        "required" : [ "capturedAt", "contentHash", "description", "id", "reason", "sourceId" ],
+        "type" : "object",
+        "properties" : {
+          "capturedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "contentHash" : {
+            "type" : "string"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "frozenAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERY", "CHANGE_DETECTED", "MANUAL" ]
+          },
+          "sourceId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
+      "DescriptionSnapshotSummaryResponse" : {
+        "required" : [ "capturedAt", "contentHash", "id", "length", "reason", "sourceId" ],
+        "type" : "object",
+        "properties" : {
+          "capturedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "contentHash" : {
+            "type" : "string"
+          },
+          "frozenAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "length" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERY", "CHANGE_DETECTED", "MANUAL" ]
+          },
+          "sourceId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
+      "DiffSegmentDto" : {
+        "required" : [ "operation", "text" ],
+        "type" : "object",
+        "properties" : {
+          "operation" : {
+            "type" : "string",
+            "enum" : [ "UNCHANGED", "ADDED", "REMOVED" ]
+          },
+          "text" : {
+            "type" : "string"
+          }
+        }
+      },
       "FirstRunRequest" : {
         "required" : [ "password" ],
         "type" : "object",
@@ -3519,6 +4015,15 @@
           "kind" : {
             "type" : "string",
             "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          }
+        }
+      },
+      "RecordDescriptionSnapshotRequest" : {
+        "required" : [ "description" ],
+        "type" : "object",
+        "properties" : {
+          "description" : {
+            "type" : "string"
           }
         }
       },
