@@ -125,7 +125,8 @@ that includes making `shared.domain` and `shared.application.port` visible to th
 - Non-null Kotlin DTO properties are `required` in the contract; nullable ones are optional.
 - **Errors are RFC 9457 problem details**, the one error schema (`ProblemDetail`, declared as the
   `default` response of every operation). `spring.mvc.problemdetails.enabled` turns framework
-  errors into `application/problem+json`. The use case returns a sealed result; the controller
+  errors into `application/problem+json`; `shared.adapter.web.UnexpectedErrorAdvice` (lowest
+  precedence) turns any other exception into a 500 problem without internal details. The use case returns a sealed result; the controller
   maps its failure cases to a `ProblemDetail` and hands it to Spring as an `ErrorResponse`, so the
   success return type (and its schema in the contract) stays typed:
   `is NotFound -> throw ErrorResponseException(HttpStatus.NOT_FOUND, ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "..."), null)`.

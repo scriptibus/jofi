@@ -28,6 +28,8 @@ import kotlin.io.path.writeText
         "springdoc.writer-with-order-by-keys=true",
         "springdoc.writer-with-default-pretty-printer=true",
         "springdoc.default-produces-media-type=application/json",
+        // Errors are declared once, as the `default` ProblemDetail response (ContractCustomizer).
+        "springdoc.override-with-generic-response=false",
     ],
 )
 @AutoConfigureMockMvc

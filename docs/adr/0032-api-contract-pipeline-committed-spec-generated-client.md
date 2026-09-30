@@ -33,7 +33,9 @@ and a CI job that compares it with the base branch.
   run by `pnpm typecheck`, `pnpm test` and `pnpm build`. Like the jOOQ code (ADR-0030) it cannot go
   stale; a contract change the frontend does not follow is a `tsc` error in `pnpm check`.
   Docs: https://orval.dev/docs/reference/configuration/output
-- **One error schema:** every error is RFC 9457 problem details (`spring.mvc.problemdetails.enabled`).
+- **One error schema:** every error is RFC 9457 problem details (`spring.mvc.problemdetails.enabled`
+  for framework errors, plus a lowest-precedence catch-all advice that answers 500 without internal
+  details, so nothing falls through to Spring Boot's differently shaped `/error` JSON).
   The contract declares a `ProblemDetail` schema and a `default` `application/problem+json`
   response on every operation; web adapters map sealed failure results to `ProblemDetail`.
   The client throws `ApiProblemError` carrying it.

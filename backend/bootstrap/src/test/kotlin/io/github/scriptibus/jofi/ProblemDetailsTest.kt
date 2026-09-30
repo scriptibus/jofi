@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi
 
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -67,6 +68,23 @@ class ProblemDetailsTest(
             .isLenientlyEqualTo("""{"name":"known"}""")
     }
 
+    @Test
+    fun `unexpected exceptions are problem details without internal details`() {
+        mvc
+            .get()
+            .uri("/api/test/explode")
+            .exchange()
+            .response.contentAsString shouldNotContain "secret"
+        mvc
+            .get()
+            .uri("/api/test/explode")
+            .assertThat()
+            .hasStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+            .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+            .bodyJson()
+            .isLenientlyEqualTo("""{"status":500,"detail":"Unexpected server error"}""")
+    }
+
     /** What a use case returns: failures are values, not exceptions. */
     sealed interface ThingResult {
         data class Found(
@@ -94,6 +112,9 @@ class ProblemDetailsTest(
                 is ThingResult.Found -> ThingResponse(result.name)
                 is ThingResult.NotFound -> throw notFound(result)
             }
+
+        @GetMapping("/api/test/explode")
+        fun explode(): ThingResponse = error("secret internals")
 
         private fun find(name: String): ThingResult =
             if (name == "known") ThingResult.Found(name) else ThingResult.NotFound(name)
