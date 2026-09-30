@@ -33,6 +33,8 @@ dependencies {
     "codegenRuntimeOnly"(libs.postgresql)
 
     testImplementation(libs.testcontainers.postgresql)
+    // JobRunrSchemaTest compares our migration with the schema JobRunr's own migrations create.
+    testImplementation(libs.jobrunr) { exclude(group = "org.jobrunr", module = "jobrunr-bom") }
     testRuntimeOnly(libs.flyway.database.postgresql)
 }
 

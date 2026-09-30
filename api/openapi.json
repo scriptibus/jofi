@@ -178,6 +178,61 @@
         },
         "tags" : [ "system-info-controller" ]
       }
+    },
+    "/api/system/jobs" : {
+      "get" : {
+        "operationId" : "listJobs",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "status",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "SCHEDULED", "ENQUEUED", "PROCESSING", "SUCCEEDED", "FAILED", "DELETED" ]
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/JobLogPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "job-log-controller" ]
+      }
     }
   },
   "components" : {
@@ -276,6 +331,63 @@
         },
         "required" : [ "password" ]
       },
+      "JobLogEntryResponse" : {
+        "type" : "object",
+        "properties" : {
+          "attempts" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "lastFailure" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "SCHEDULED", "ENQUEUED", "PROCESSING", "SUCCEEDED", "FAILED", "DELETED" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        },
+        "required" : [ "attempts", "createdAt", "id", "name", "status", "updatedAt" ]
+      },
+      "JobLogPageResponse" : {
+        "type" : "object",
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/JobLogEntryResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        },
+        "required" : [ "entries", "page", "size", "total" ]
+      },
       "LoginRequest" : {
         "type" : "object",
         "properties" : {
@@ -301,8 +413,8 @@
           },
           "status" : {
             "type" : "integer",
-            "format" : "int32",
-            "description" : "HTTP status code"
+            "description" : "HTTP status code",
+            "format" : "int32"
           },
           "title" : {
             "type" : "string",

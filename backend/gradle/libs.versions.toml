@@ -29,6 +29,8 @@ wiremock = "3.13.2"
 # Secret encryption (adapters/crypto, ADR-0017) and the argon2id implementation behind Spring Security's encoder.
 tink = "1.23.0"
 bouncycastle = "1.86"
+# Background jobs (adapters/jobs, ADR-0010). JobRunr OSS, LGPL-3.0-or-later; no Pro features.
+jobrunr = "8.8.2"
 
 # Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
 # Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
@@ -79,6 +81,11 @@ spring-boot-starter-session-jdbc = { module = "org.springframework.boot:spring-b
 spring-security-crypto = { module = "org.springframework.security:spring-security-crypto" }
 tink = { module = "com.google.crypto.tink:tink", version.ref = "tink" }
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+
+# Background jobs (adapters/jobs, bootstrap). The starter brings the autoconfiguration; Jackson 3 from the Boot BOM.
+jobrunr = { module = "org.jobrunr:jobrunr", version.ref = "jobrunr" }
+jobrunr-spring-boot-starter = { module = "org.jobrunr:jobrunr-spring-boot-4-starter", version.ref = "jobrunr" }
+jackson3-databind = { module = "tools.jackson.core:jackson-databind" }
 
 # API contract (adapters/web tests): generates the committed OpenAPI spec, see adapters/web/AGENTS.md.
 springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }

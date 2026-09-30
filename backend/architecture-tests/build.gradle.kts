@@ -14,6 +14,7 @@ dependencies {
     testImplementation(project(":adapters:persistence"))
     testImplementation(project(":adapters:net"))
     testImplementation(project(":adapters:crypto"))
+    testImplementation(project(":adapters:jobs"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))
@@ -21,6 +22,8 @@ dependencies {
     testImplementation(libs.spring.modulith.core)
     testImplementation(libs.archunit)
     testImplementation(libs.konsist)
+    // Known-bad fixtures for the JobRunr rules (ADR-0038).
+    testImplementation(libs.jobrunr) { exclude(group = "org.jobrunr", module = "jobrunr-bom") }
     // Spring MVC annotations for the known-bad controller fixtures of the confirmation rules (ADR-0039);
     // already on the runtime classpath through bootstrap, version from the Boot BOM.
     testImplementation(libs.spring.web)

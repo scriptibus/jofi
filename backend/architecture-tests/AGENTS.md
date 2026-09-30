@@ -13,6 +13,9 @@ Owns the executable architecture rules. Test sources only; depends on every prod
   ports are interfaces, only `setup.adapter.ai` uses `AiProviderPort` (ADR-0032), only
   the `adapters/net` module uses HTTP clients, sockets or `java.net.URL` (ADR-0034, with
   known-bad fixtures incl. an impostor class in the net package from another module).
+- JobRunr (ADR-0038): only `shared.adapter.jobs` and `shared.config` may use `org.jobrunr` types, and no
+  class may use JobRunr's lambda/annotation job APIs (`JobScheduler`, `BackgroundJob`, `@Job`, `@Recurring`,
+  `@AsyncJob`), with known-bad fixtures in `fixture.adapter.web` and `shared.adapter.jobs` (test sources).
 - `AdapterRules`: rules shared with `AdapterRulesFixtureTest`, which evaluates them against
   known-bad and known-good fixture classes in `io.github.scriptibus.jofi.fixture` (test sources,
   never part of the production import). Adapter independence has one narrow exemption:

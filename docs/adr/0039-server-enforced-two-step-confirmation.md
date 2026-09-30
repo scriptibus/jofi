@@ -69,7 +69,8 @@ enforced by the compiler and the architecture tests, not by convention.
 - `ConfirmationRules.destructivePortCallsPassTheGate`: every use case that calls a port method named
   `delete*`, `remove*`, `send*` or `purge*` either takes `ConfirmActionUseCase` or calls a port method
   that requires `Confirmed`. Exceptions need a reviewed entry with a reason
-  (`USE_CASES_WITHOUT_CONFIRMATION`; today only `ResetPasswordUseCase`, the operator's startup reset).
+  (`USE_CASES_WITHOUT_CONFIRMATION`; today `ResetPasswordUseCase`, the operator's startup reset, and
+  `CleanUpExpiredSessionsUseCase`, the session housekeeping job).
 - `ConfirmationRules.destructiveEndpointsTakeTheConfirmationHeader`: every `DELETE` handler, and every
   handler listed in `OUTWARD_FACING_ENDPOINTS`, has a `@RequestHeader(Confirmations.HEADER)` parameter;
   exceptions (e.g. a logout, were it a `DELETE`) go to `ENDPOINTS_WITHOUT_CONFIRMATION` with a reason.

@@ -54,6 +54,8 @@ object ConfirmationRules {
             "ResetPasswordUseCase" to
                 "JOFI_RESET_PASSWORD is set by whoever runs the server: the operator's own action at startup, " +
                 "not a request",
+            "CleanUpExpiredSessionsUseCase" to
+                "housekeeping job (ADR-0038): drops sessions past their lifetime, no user data and no request",
         )
 
     /** Every `DELETE` (and [outward]-facing) handler takes the `Jofi-Confirmation` header. */
