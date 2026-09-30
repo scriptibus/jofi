@@ -1735,6 +1735,34 @@
         "tags" : [ "ai-provider-controller" ]
       }
     },
+    "/api/setup/providers/privacy" : {
+      "get" : {
+        "operationId" : "listProviderPrivacyInfo",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProviderPrivacyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "provider-privacy-controller" ]
+      }
+    },
     "/api/setup/providers/{id}" : {
       "delete" : {
         "operationId" : "deleteProvider",
@@ -3122,6 +3150,18 @@
           }
         }
       },
+      "LocalizedTextResponse" : {
+        "required" : [ "de", "en" ],
+        "type" : "object",
+        "properties" : {
+          "de" : {
+            "type" : "string"
+          },
+          "en" : {
+            "type" : "string"
+          }
+        }
+      },
       "LoginRequest" : {
         "required" : [ "password" ],
         "type" : "object",
@@ -3323,6 +3363,49 @@
           }
         }
       },
+      "PrivacyClaimResponse" : {
+        "required" : [ "evidence", "status", "summary" ],
+        "type" : "object",
+        "properties" : {
+          "evidence" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/PrivacyEvidenceResponse"
+            }
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "YES", "ON_REQUEST", "CONDITIONAL", "NO", "DEPENDS_ON_ENDPOINT", "UNKNOWN" ]
+          },
+          "summary" : {
+            "$ref" : "#/components/schemas/LocalizedTextResponse"
+          }
+        }
+      },
+      "PrivacyDisclaimerResponse" : {
+        "required" : [ "key", "text" ],
+        "type" : "object",
+        "properties" : {
+          "key" : {
+            "type" : "string"
+          },
+          "text" : {
+            "$ref" : "#/components/schemas/LocalizedTextResponse"
+          }
+        }
+      },
+      "PrivacyEvidenceResponse" : {
+        "required" : [ "quote", "source" ],
+        "type" : "object",
+        "properties" : {
+          "quote" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string"
+          }
+        }
+      },
       "ProblemDetail" : {
         "type" : "object",
         "additionalProperties" : true,
@@ -3363,6 +3446,55 @@
           },
           "totals" : {
             "$ref" : "#/components/schemas/CostTotalsResponse"
+          }
+        }
+      },
+      "ProviderPrivacyEntryResponse" : {
+        "required" : [ "checkedOn", "dataLocation", "kind", "noTraining", "stale", "zeroDataRetention" ],
+        "type" : "object",
+        "properties" : {
+          "checkedOn" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "dataLocation" : {
+            "$ref" : "#/components/schemas/PrivacyClaimResponse"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          },
+          "noTraining" : {
+            "$ref" : "#/components/schemas/PrivacyClaimResponse"
+          },
+          "stale" : {
+            "type" : "boolean"
+          },
+          "zeroDataRetention" : {
+            "$ref" : "#/components/schemas/PrivacyClaimResponse"
+          }
+        }
+      },
+      "ProviderPrivacyResponse" : {
+        "required" : [ "checkedOn", "disclaimer", "providers", "staleAfterMonths" ],
+        "type" : "object",
+        "properties" : {
+          "checkedOn" : {
+            "type" : "string",
+            "format" : "date"
+          },
+          "disclaimer" : {
+            "$ref" : "#/components/schemas/PrivacyDisclaimerResponse"
+          },
+          "providers" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ProviderPrivacyEntryResponse"
+            }
+          },
+          "staleAfterMonths" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         }
       },
