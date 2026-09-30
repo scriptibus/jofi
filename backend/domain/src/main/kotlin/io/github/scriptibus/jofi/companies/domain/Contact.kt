@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.companies.domain
 
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.DomainEvent
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import java.time.Instant
 import java.util.UUID
@@ -77,4 +78,4 @@ data class ContactDeleted(
     val contact: ContactId,
     val actor: Actor,
     val occurredAt: Instant,
-)
+) : DomainEvent

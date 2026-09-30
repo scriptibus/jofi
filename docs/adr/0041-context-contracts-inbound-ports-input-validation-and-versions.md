@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: issue #73 (M1-C1a, the first M1 contract) and Lucas's review of PR #130, amended by #74
-  (contacts) and #76 (applications); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
+  (contacts), #76 (applications) and #88 (company use cases); AGENTS.md §1 "contracts first", §3; refines ADR-0005, ADR-0030, ADR-0033, ADR-0039
 
 ## Context
 
@@ -110,7 +110,7 @@ Contacts are the first contract holding other people's personal data (spec §13)
 
 The company delete (#88) records one changelog entry per cascaded contact (ids only) besides its own.
 
-The company delete (#88) reads the ids of the company's contacts (`ContactRepositoryPort.findIdsByCompany`)
+The company delete (#88) reads the ids of the company's contacts (`CompanyRepositoryPort.findContactIds`, see below)
 in its transaction, counts them in the confirmation effect and publishes `ContactDeleted` for each, since
 the database cascade alone would not tell the other contexts.
 
@@ -136,8 +136,13 @@ the applications context reacts to `ContactDeleted` (#90).
     application (ids only); the `application_contact_contact_fk` cascade then removes the links. No
     `ContactDeleted` listener is needed for link cleanup.
 
-  The ports and the Modulith named interface that lets the applications context implement them come with
-  #88 and #90; this contract only records the direction.
+  Since #88 these ports live in **`companies.application.port.spi`**, the Spring Modulith named interface
+  `spi` of `companies` (a `@PackageInfo @NamedInterface("spi") ModuleMetadata` in bootstrap, so
+  `application` stays free of Spring; the architecture tests allow exactly that class there). The package
+  is all that the applications context sees of companies, so its ports name companies by `UUID` and nest
+  their result types (`ApplicationCountsPort.Counts`). `applications.adapter.persistence.ApplicationCountsRepository`
+  implements `ApplicationCountsPort`. `LayerDependencyTest` (bytecode) and `SourceConventionsTest` (imports,
+  which also sees value classes such as `CompanyRef`) fail any dependency of companies on applications.
 - Text rules every context applies (NFC, trim, no U+0000, length) live in `shared.domain.text`; each
   context keeps its own violation enums, since the API names fields and problems per context.
 
@@ -158,6 +163,25 @@ Further rules the applications contract adds:
   any case, so it stays at most as strict as the domain. `toString()` of pay types shows no amount and no estimate basis.
 - API enums map to domain enums by name through one helper (`mapByName`), and a test compares their
   constants.
+
+### The first feature on a contract (company use cases, #88)
+
+- **The contacts a company delete cascades to** are read by `CompanyRepositoryPort.findContactIds`, not
+  by `ContactRepositoryPort.findIdsByCompany` as first planned: the repository that runs the cascade
+  reports it, the company delete needs no contact repository (#89 implements that one whole), and the
+  delete use case stays within seven constructor parameters.
+- **Domain events** go out through the kernel port `DomainEventPort` (`shared.domain.DomainEvent` marks
+  them; `SpringDomainEventAdapter` in bootstrap publishes them as Spring application events). Use cases
+  publish inside the mutation's transaction after the store accepted it; a failed publication rolls the
+  mutation back. Listeners (none yet) react after the commit with `@ApplicationModuleListener`; a
+  durable event publication registry needs its own table and comes with the first listener.
+- **Fuzzy search** (`CompanyRepository`) matches a name that is similar as a whole (`%`), similar to a
+  word of it (`<%`, so "acme" finds "ACME Robotics GmbH"), or contains the text (`ILIKE` with `%`, `_`
+  and `\` escaped), all served by the trigram index; best match first (word similarity, similarity,
+  then name and id).
+- **Changelog** entries name changed detail fields with values; research notes and preference reasons
+  are free text, so the description only says they changed. A company delete records the company (with
+  its name) and one entry per cascaded contact (ids only, description "Deleted with its company").
 
 ## Consequences
 

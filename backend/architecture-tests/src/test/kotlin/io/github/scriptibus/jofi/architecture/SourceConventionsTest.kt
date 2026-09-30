@@ -13,6 +13,18 @@ class SourceConventionsTest {
     private val production = Konsist.scopeFromProduction()
     private val jofiClasses = production.classes().filter { it.resideInPackage("${JofiPackages.BASE}..") }
 
+    /**
+     * ADR-0041, on the sources: the bytecode rule in [LayerDependencyTest] cannot see value classes such
+     * as `CompanyRef`, which compile to their underlying type.
+     */
+    @Test
+    fun `the companies context imports nothing of the applications context`() {
+        production
+            .files
+            .filter { it.packagee?.name?.startsWith("${JofiPackages.BASE}.companies") == true }
+            .assertFalse { file -> file.imports.any { it.name.startsWith("${JofiPackages.BASE}.applications.") } }
+    }
+
     @Test
     fun `classes in application are use cases`() {
         jofiClasses

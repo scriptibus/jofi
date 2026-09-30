@@ -149,8 +149,15 @@ The generator lives in the `codegen` source set and has its own locked classpath
     counts them (`"contacts" to n`), so the user sees what goes.
   - The repository maps a violation of `application_company_fk` to `HasApplications` by its name;
     any other failure is a `StorageFailure`.
-- `CompanyRepositoryPort` is implemented with the use cases (#88). Its `update` stores only if the
-  stored `version` is one below the new one; `delete` checks the `Confirmed` proof (ADR-0039).
+- `CompanyRepository` (`CompanyRepositoryPort`, #88): `update` stores only if the stored `version` is one
+  below the new one (`VersionConflict` otherwise, `NotFound` without the row); `delete` checks the
+  `Confirmed` proof (ADR-0039) and maps `application_company_fk` by name (the PSQL error's constraint) to
+  `HasApplications`; `findContactIds` lists the contacts the delete cascades to. `search` matches names
+  with pg_trgm (`%`, `<%`) or an escaped `ILIKE`, all served by `company_name_trgm_idx`, best match first
+  (word similarity, similarity, name, id). `CompanyRepositoryTest` proves each of these.
+- `ApplicationCountsRepository` (`applications.adapter.persistence`) implements the companies context's
+  `ApplicationCountsPort` (`companies.application.port.spi`, ADR-0041): applications per company, grouped
+  over `application_company_idx`.
 - Changelog: research notes and profiles are free text that may hold personal data; record that they
   changed (in the description, e.g. "Research notes edited"), never their text in a `FieldChange`,
   until redaction exists (#52).

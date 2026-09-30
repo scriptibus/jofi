@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.architecture.JofiPackages.APPLICATION
 import io.github.scriptibus.jofi.architecture.JofiPackages.BASE
 import io.github.scriptibus.jofi.architecture.JofiPackages.CONFIG
 import io.github.scriptibus.jofi.architecture.JofiPackages.DOMAIN
+import io.github.scriptibus.jofi.architecture.JofiPackages.SPI_METADATA
 import org.junit.jupiter.api.Test
 
 /** Hexagonal layering and bounded-context boundaries, checked on the compiled classes. */
@@ -34,10 +35,39 @@ class LayerDependencyTest {
         noClasses()
             .that()
             .resideInAnyPackage(DOMAIN, APPLICATION)
+            .and()
+            .doNotHaveFullyQualifiedName(SPI_METADATA)
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(*FRAMEWORK_PACKAGES)
             .because("only adapters and bootstrap may use Spring, jOOQ, JPA or Jackson")
+            .check(classes)
+    }
+
+    /**
+     * The one exception to the rule above: the `ModuleMetadata` (in bootstrap) that makes the companies
+     * SPI package a Spring Modulith named interface (ADR-0041) may use Spring Modulith, nothing else.
+     */
+    @Test
+    fun `named interface metadata only uses Spring Modulith`() {
+        classes()
+            .that()
+            .haveFullyQualifiedName(SPI_METADATA)
+            .should()
+            .onlyDependOnClassesThat()
+            .resideInAnyPackage("org.springframework.modulith..", "java..", "kotlin..", "org.jetbrains.annotations..")
+            .check(classes)
+    }
+
+    /** ADR-0041: dependencies run applications -> companies; companies declares ports the applications implement. */
+    @Test
+    fun `the companies context never depends on the applications context`() {
+        noClasses()
+            .that()
+            .resideInAPackage("$BASE.companies..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("$BASE.applications..")
             .check(classes)
     }
 

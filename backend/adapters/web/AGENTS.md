@@ -60,8 +60,8 @@ parameter makes the contract document the 428 `ConfirmationRequiredProblem` auto
 `companies.adapter.web.CompanyController`: `GET /api/companies?search=&preference=&page=&size=`,
 `POST /api/companies`, `GET|PUT /api/companies/{id}` (PUT replaces all details),
 `PUT /api/companies/{id}/preference` and `DELETE /api/companies/{id}` (two steps, `Jofi-Confirmation`;
-deletes the company's contacts too). Contract only: every operation answers `501` until #88 injects the
-use cases (the search already answers 400 for paging out of range). `CompanyProblems.of` maps each
+deletes the company's contacts too; the 428's effect counts them as `contacts`). Each handler calls one
+use case (#88) as `Actor.User` and maps its failure with `orThrow()`. `CompanyProblems.of` maps each
 `CompanyResult.Failure`: `Invalid` -> 400 `ValidationProblem` (`violations: [{field, problem}]`, request
 field names), `NotFound` -> 404, `VersionConflict` and `HasApplications` -> 409 with their own
 `urn:jofi:problem:companies:*` type, `Unconfirmed` -> `Confirmations.problem`, `StorageFailure` -> 503.

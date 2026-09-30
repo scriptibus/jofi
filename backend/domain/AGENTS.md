@@ -11,6 +11,8 @@ domain events and sealed result types. Packages: `io.github.scriptibus.jofi.<con
 Rules:
 - Kotlin stdlib only. No Spring, jOOQ, JPA, Jackson or any other library (the build has none).
 - No `lateinit`, no `!!`, no magic numbers; data and value classes only have `val`s.
+- Domain events are data classes that implement `shared.domain.DomainEvent` and carry ids and states,
+  never personal data of third parties (contacts); use cases publish them through `DomainEventPort`.
 - Validate invariants in `init` blocks or factory functions; express expected failures as
   sealed result types, not exceptions that cross ports.
 - No I/O, no clock or randomness access; pass such values in.
