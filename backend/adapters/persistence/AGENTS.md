@@ -27,6 +27,18 @@ tests and `bootTestRun`. Bump tag and digest together.
   Migrations are a protected path: Lucas reviews every one.
 - Every new table or file must be covered by export/import (#26 enumerates the tables from the
   generated jOOQ schema, so a table it cannot round-trip fails its test).
+- **Check constraints are never stricter than the domain** (ADR-0041): whatever the domain accepts must
+  be storable, or a valid entity fails with a 500. No locale-dependent logic in SQL: no `lower()`/
+  `upper()`/`ILIKE` or collation-dependent comparison in constraints, and whitespace as the ASCII class
+  `[ \t\n\r\f\v]`, never `\s`. Case-insensitive rules stay in the domain. Schema tests accept every
+  value at **exactly** each domain limit and a sample the domain accepts (non-ASCII text, IDN hosts).
+- **Name every constraint** (`CONSTRAINT <table>_<column>_valid CHECK ...`, `<table>_pk`,
+  `<table>_<ref>_fk`): repositories map violations by constraint name, never by SQL state alone, and
+  schema tests assert the name.
+- **Never tighten a check function with `CREATE OR REPLACE`** (e.g. `company_locations_are_valid`):
+  existing rows are not checked again, so data that breaks the new rule stays and fails later. Add a
+  new function and constraint with `ADD CONSTRAINT ... NOT VALID`, clean the data, then `VALIDATE
+  CONSTRAINT` and drop the old one. Loosening in place is fine.
 
 ## jOOQ code generation
 
@@ -92,6 +104,41 @@ The generator lives in the `codegen` source set and has its own locked classpath
 - Other contexts' repositories live in `<context>.adapter.persistence` and may use the generated
   jOOQ code in `shared.adapter.persistence.jooq` (the one exemption from adapter independence,
   ADR-0032).
+
+## `companies` tables (#73, ADR-0041)
+
+- `company` (spec §5): details (trimmed name, http(s) website and careers page without user info, IDN
+  and underscore hosts allowed, industry, size band, ordered `locations text[]`, research notes), the AI
+  profile placeholder (`profile` + `profile_generated_at`, both or neither), the preference
+  (`NONE`/`FAVOURITE`/`BLACKLISTED`, a reason only with a flag) and `version` for optimistic locking.
+  Named check constraints (`company_*_valid`, ...) mirror `CompanyDetails`, `WebAddress`,
+  `CompanyPreference` and `CompanyProfile`, never stricter; `company_locations_are_valid` checks each
+  location but only exact duplicates (case-insensitive duplicates are the domain's job).
+  `CompanySchemaTest` proves every constraint, every limit and the names.
+  `company_name_trgm_idx` (GIN, `gin_trgm_ops`) serves fuzzy name search and duplicate detection
+  (spec §8.4); pg_trgm ignores case. User data: **covered by export/import** (#26).
+- Foreign keys to `company` (decided in ADR-0041; the dependent tables come with #74 and #76):
+  - `application.company_id` references `company (id)` **`ON DELETE RESTRICT`**, constraint
+    `application_company_fk`: a company with applications cannot be deleted (`HasApplications`).
+  - `contact.company_id` references `company (id)` **`ON DELETE CASCADE`**, constraint
+    `contact_company_fk`: contacts are deleted with their company, and the delete confirmation's effect
+    counts them (`"contacts" to n`), so the user sees what goes.
+  - The repository maps a violation of `application_company_fk` to `HasApplications` by its name;
+    any other failure is a `StorageFailure`.
+- `CompanyRepositoryPort` is implemented with the use cases (#88). Its `update` stores only if the
+  stored `version` is one below the new one; `delete` checks the `Confirmed` proof (ADR-0039).
+- Changelog: research notes and profiles are free text that may hold personal data; record that they
+  changed (in the description, e.g. "Research notes edited"), never their text in a `FieldChange`,
+  until redaction exists (#52).
+
+## Changelog entity types
+
+`EntityRef.type` is stored in every changelog entry, so these names never change. Each is a constant on
+the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
+
+| Entity type | Aggregate | Constant |
+|---|---|---|
+| `company` | `companies.domain.Company` | `CompanyId.ENTITY_TYPE` |
 
 ## Tests
 

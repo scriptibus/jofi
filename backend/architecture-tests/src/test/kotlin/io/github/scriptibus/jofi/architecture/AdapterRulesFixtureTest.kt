@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.architecture
 
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import io.github.scriptibus.jofi.fixture.adapter.persistence.JooqInPersistenceAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.persistence.SharedWebInPersistenceAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.AiProviderPortInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.ImageIoInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JdkHttpClientInWebAdapterFixture
@@ -12,6 +13,7 @@ import io.github.scriptibus.jofi.fixture.adapter.web.JobRunrInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JooqInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.OpenAiClientInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.SdkFromEnvFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.SharedWebInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.SocketsInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlClassLoaderInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlHolderInWebAdapterFixture
@@ -29,6 +31,7 @@ import io.github.scriptibus.jofi.shared.adapter.net.GuardedHttpClients
 import io.github.scriptibus.jofi.shared.adapter.net.ImpostorNetAdapterFixture
 import io.github.scriptibus.jofi.shared.adapter.net.OutboundHttpAdapter
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables
+import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.system.adapter.jobs.SessionCleanupJobAdapter
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -52,6 +55,19 @@ class AdapterRulesFixtureTest {
         val classes = ClassFileImporter().importClasses(JooqInWebAdapterFixture::class.java, Tables::class.java)
 
         AdapterRules.adaptersAreIndependent.evaluate(classes).hasViolation() shouldBe true
+    }
+
+    @Test
+    fun `a web adapter of another context may use the shared web conventions, other adapters may not`() {
+        val web = ClassFileImporter().importClasses(SharedWebInWebAdapterFixture::class.java, Confirmations::class.java)
+        val persistence =
+            ClassFileImporter().importClasses(
+                SharedWebInPersistenceAdapterFixture::class.java,
+                Confirmations::class.java,
+            )
+
+        AdapterRules.adaptersAreIndependent.evaluate(web).hasViolation() shouldBe false
+        AdapterRules.adaptersAreIndependent.evaluate(persistence).hasViolation() shouldBe true
     }
 
     @Test

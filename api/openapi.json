@@ -151,6 +151,388 @@
         "tags" : [ "auth-controller" ]
       }
     },
+    "/api/companies" : {
+      "get" : {
+        "operationId" : "searchCompanies",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "search",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "preference",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "NONE", "FAVOURITE", "BLACKLISTED" ]
+          }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CompanyPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "company-controller" ]
+      },
+      "post" : {
+        "operationId" : "createCompany",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CompanyDetailsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CompanyResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "company-controller" ]
+      }
+    },
+    "/api/companies/{id}" : {
+      "delete" : {
+        "operationId" : "deleteCompany",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Jofi-Confirmation",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "428" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConfirmationRequiredProblem"
+                }
+              }
+            },
+            "description" : "Nothing ran yet: confirm, then repeat with the token (ADR-0039)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "company-controller" ]
+      },
+      "get" : {
+        "operationId" : "getCompany",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CompanyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "company-controller" ]
+      },
+      "put" : {
+        "operationId" : "updateCompany",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateCompanyRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CompanyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "company-controller" ]
+      }
+    },
+    "/api/companies/{id}/preference" : {
+      "put" : {
+        "operationId" : "setCompanyPreference",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CompanyPreferenceRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/CompanyResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "company-controller" ]
+      }
+    },
     "/api/system/info" : {
       "get" : {
         "operationId" : "getSystemInfo",
@@ -238,6 +620,7 @@
   "components" : {
     "schemas" : {
       "AuthSessionResponse" : {
+        "required" : [ "authenticated", "setUp", "setupTokenRequired" ],
         "type" : "object",
         "properties" : {
           "authenticated" : {
@@ -249,10 +632,10 @@
           "setupTokenRequired" : {
             "type" : "boolean"
           }
-        },
-        "required" : [ "authenticated", "setUp", "setupTokenRequired" ]
+        }
       },
       "ChangePasswordRequest" : {
+        "required" : [ "currentPassword", "newPassword" ],
         "type" : "object",
         "properties" : {
           "currentPassword" : {
@@ -261,8 +644,169 @@
           "newPassword" : {
             "type" : "string"
           }
-        },
-        "required" : [ "currentPassword", "newPassword" ]
+        }
+      },
+      "CompanyDetailsRequest" : {
+        "required" : [ "name" ],
+        "type" : "object",
+        "properties" : {
+          "careersPage" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "industry" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "locations" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "researchNotes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "size" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "MICRO", "SMALL", "MEDIUM", "LARGE", "ENTERPRISE" ]
+          },
+          "website" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
+      "CompanyPageResponse" : {
+        "required" : [ "companies", "page", "size", "total" ],
+        "type" : "object",
+        "properties" : {
+          "companies" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/CompanyResponse"
+            }
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "CompanyPreferenceRequest" : {
+        "required" : [ "basedOnVersion", "preference" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "preference" : {
+            "type" : "string",
+            "enum" : [ "NONE", "FAVOURITE", "BLACKLISTED" ]
+          },
+          "reason" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
+      "CompanyProfileResponse" : {
+        "required" : [ "generatedAt", "markdown" ],
+        "type" : "object",
+        "properties" : {
+          "generatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "markdown" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CompanyResponse" : {
+        "required" : [ "applicationCount", "createdAt", "id", "locations", "name", "preference", "updatedAt", "version" ],
+        "type" : "object",
+        "properties" : {
+          "applicationCount" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "careersPage" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "industry" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "locations" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "preference" : {
+            "type" : "string",
+            "enum" : [ "NONE", "FAVOURITE", "BLACKLISTED" ]
+          },
+          "preferenceReason" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "profile" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/CompanyProfileResponse"
+            } ]
+          },
+          "researchNotes" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "size" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "MICRO", "SMALL", "MEDIUM", "LARGE", "ENTERPRISE" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "website" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
       },
       "ConfirmationRequiredProblem" : {
         "allOf" : [ {
@@ -319,6 +863,7 @@
         "description" : "428 answer of a destructive or outward-facing operation: nothing ran yet. Repeat the request with confirmationToken in the Jofi-Confirmation header once the user confirmed."
       },
       "FirstRunRequest" : {
+        "required" : [ "password" ],
         "type" : "object",
         "properties" : {
           "password" : {
@@ -328,10 +873,10 @@
             "type" : "string",
             "nullable" : true
           }
-        },
-        "required" : [ "password" ]
+        }
       },
       "JobLogEntryResponse" : {
+        "required" : [ "attempts", "createdAt", "id", "name", "status", "updatedAt" ],
         "type" : "object",
         "properties" : {
           "attempts" : {
@@ -361,10 +906,10 @@
             "type" : "string",
             "format" : "date-time"
           }
-        },
-        "required" : [ "attempts", "createdAt", "id", "name", "status", "updatedAt" ]
+        }
       },
       "JobLogPageResponse" : {
+        "required" : [ "entries", "page", "size", "total" ],
         "type" : "object",
         "properties" : {
           "entries" : {
@@ -385,17 +930,16 @@
             "type" : "integer",
             "format" : "int64"
           }
-        },
-        "required" : [ "entries", "page", "size", "total" ]
+        }
       },
       "LoginRequest" : {
+        "required" : [ "password" ],
         "type" : "object",
         "properties" : {
           "password" : {
             "type" : "string"
           }
-        },
-        "required" : [ "password" ]
+        }
       },
       "ProblemDetail" : {
         "type" : "object",
@@ -428,6 +972,7 @@
         }
       },
       "SystemInfoResponse" : {
+        "required" : [ "name", "version" ],
         "type" : "object",
         "properties" : {
           "name" : {
@@ -436,8 +981,49 @@
           "version" : {
             "type" : "string"
           }
-        },
-        "required" : [ "name", "version" ]
+        }
+      },
+      "UpdateCompanyRequest" : {
+        "required" : [ "basedOnVersion", "details" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "details" : {
+            "$ref" : "#/components/schemas/CompanyDetailsRequest"
+          }
+        }
+      },
+      "ValidationProblem" : {
+        "allOf" : [ {
+          "$ref" : "#/components/schemas/ProblemDetail"
+        }, {
+          "type" : "object",
+          "properties" : {
+            "violations" : {
+              "type" : "array",
+              "description" : "Every broken rule",
+              "items" : {
+                "type" : "object",
+                "properties" : {
+                  "field" : {
+                    "type" : "string",
+                    "description" : "The request field, e.g. name or careersPage"
+                  },
+                  "problem" : {
+                    "type" : "string",
+                    "description" : "REQUIRED, TOO_LONG, TOO_MANY, INVALID_URL or OUT_OF_RANGE"
+                  }
+                },
+                "required" : [ "field", "problem" ]
+              }
+            }
+          },
+          "required" : [ "violations" ]
+        } ],
+        "description" : "400 answer for input that breaks the rules: nothing changed."
       }
     }
   }

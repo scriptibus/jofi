@@ -44,7 +44,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
         ComponentScan.Filter(RestControllerAdvice::class),
     ],
 )
-@Import(OpenApiSpecApplication.UseCaseStubs::class, OpenApiSpecApplication.ContractCustomizer::class)
+@Import(
+    OpenApiSpecApplication.UseCaseStubs::class,
+    OpenApiSpecApplication.ContractCustomizer::class,
+    ProblemResponsesCustomizer::class,
+)
 class OpenApiSpecApplication {
     /** Registers a stub for every constructor parameter (a use case) of every controller. */
     class UseCaseStubs : BeanDefinitionRegistryPostProcessor {

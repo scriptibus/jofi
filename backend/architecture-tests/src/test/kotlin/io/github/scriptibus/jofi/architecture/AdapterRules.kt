@@ -28,10 +28,15 @@ object AdapterRules {
     /** Generated jOOQ code of the whole schema lives in the shared kernel's persistence adapter (ADR-0032). */
     const val GENERATED_JOOQ = "$BASE.shared.adapter.persistence.jooq.."
 
+    /** The web conventions every context's controllers share: problem details, confirmations (ADR-0033/0039). */
+    const val SHARED_WEB = "$BASE.shared.adapter.web.."
+
     /**
-     * Adapters talk to each other only through use cases and ports. One narrow exemption: every
+     * Adapters talk to each other only through use cases and ports. Two narrow exemptions: every
      * context's persistence adapter may use the generated jOOQ code, which is generated for the whole
-     * schema into one package. Other adapter kinds (web, ai, ...) still may not touch it.
+     * schema into one package; and every context's web adapter may use the shared web conventions
+     * (`Confirmations`, `ValidationProblem`, `ProblemResponses`), which ADR-0039 and ADR-0041 require.
+     * Other adapter kinds still may not touch either.
      */
     val adaptersAreIndependent: ArchRule =
         slices()
@@ -39,6 +44,7 @@ object AdapterRules {
             .should()
             .notDependOnEachOther()
             .ignoreDependency(resideInAPackage("..adapter.persistence.."), resideInAPackage(GENERATED_JOOQ))
+            .ignoreDependency(resideInAPackage("..adapter.web.."), resideInAPackage(SHARED_WEB))
             .because("adapters talk to each other only through use cases and ports")
 
     /**
