@@ -7,20 +7,22 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- One row per change (spec §13 Auditability). Append-only: see the trigger below.
+-- Text checks mirror the domain's not-blank rules: `~ '\S'` needs at least one non-whitespace
+-- character (NULL passes, so optional columns stay optional).
 CREATE TABLE changelog_entry (
     id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    entity_type   text        NOT NULL CHECK (entity_type <> ''),
-    entity_id     text        NOT NULL CHECK (entity_id <> ''),
+    entity_type   text        NOT NULL CHECK (entity_type ~ '\S'),
+    entity_id     text        NOT NULL CHECK (entity_id ~ '\S'),
     actor_kind    text        NOT NULL
         CHECK (actor_kind IN ('USER', 'AI', 'SCANNER', 'EXTERNAL_CLIENT', 'SYSTEM')),
     -- Scanner, external client and system actors carry a name; the user and the AI do not.
-    actor_name    text,
+    actor_name    text        CHECK (actor_name ~ '\S'),
     occurred_at   timestamptz NOT NULL,
-    description   text        NOT NULL CHECK (description <> ''),
+    description   text        NOT NULL CHECK (description ~ '\S'),
     -- JSON array of {"field", "before", "after"} objects.
     field_changes jsonb       NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(field_changes) = 'array'),
-    reason        text,
-    CONSTRAINT changelog_entry_actor_name_check
+    reason        text        CHECK (reason ~ '\S'),
+    CONSTRAINT changelog_entry_actor_name_matches_kind
         CHECK ((actor_kind IN ('USER', 'AI')) = (actor_name IS NULL))
 );
 

@@ -11,7 +11,8 @@ spring:
   datasource:
     url: ${JOFI_DB_URL:jdbc:postgresql://localhost:5432/jofi}
     username: ${JOFI_DB_USERNAME:jofi}
-    password: ${JOFI_DB_PASSWORD:}
+    # No default: startup fails without it (DatabasePasswordGuard).
+    password: ${JOFI_DB_PASSWORD}
   jooq:
     sql-dialect: postgres
 

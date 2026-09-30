@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.shared.adapter.persistence
 
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CHANGELOG_ENTRY
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.ChangelogEntryRecord
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangeSummary
 import io.github.scriptibus.jofi.shared.domain.ChangelogEntry
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
+import org.junit.jupiter.params.provider.ValueSource
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -110,6 +112,22 @@ class ChangelogRepositoryTest {
 
         shouldThrow<DataAccessException> { dsl.executeInsert(namedUser) }
         shouldThrow<DataAccessException> { dsl.executeInsert(namelessScanner) }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["", " ", "\t\n"])
+    fun `the schema rejects blank text where the domain requires text`(blank: String) {
+        val rows =
+            listOf<(ChangelogEntryRecord) -> Unit>(
+                { it.actorName = blank },
+                { it.reason = blank },
+                { it.entityType = blank },
+                { it.entityId = blank },
+                { it.description = blank },
+            ).map { blankOut -> ChangelogRecordMapper.toRecord(entry(actor = Actor.Scanner("x"))).apply(blankOut) }
+
+        rows.forEach { row -> shouldThrow<DataAccessException> { dsl.executeInsert(row) } }
+        dsl.fetchCount(CHANGELOG_ENTRY) shouldBe 0
     }
 
     @Test

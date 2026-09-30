@@ -19,42 +19,68 @@ import java.io.File
 /** Package of the generated jOOQ code; follows `<base>.<context>.adapter.<kind>`. */
 const val GENERATED_PACKAGE = "io.github.scriptibus.jofi.shared.adapter.persistence.jooq"
 
+/** An empty PostgreSQL database to migrate and read the schema from. */
+data class CodegenDatabase(
+    val url: String,
+    val user: String,
+    val password: String,
+)
+
 /**
- * Build-time jOOQ code generation (spec 4.5, ADR-0009): runs every Flyway migration from zero on
- * a throwaway PostgreSQL container, then generates jOOQ code from the resulting schema. Called by
- * the `generateJooq` Gradle task with: migrations directory, output directory, container image.
+ * Build-time jOOQ code generation (spec 4.5, ADR-0009, ADR-0030): runs every Flyway migration from
+ * zero on an empty PostgreSQL, then generates jOOQ code from the resulting schema. Called by the
+ * `generateJooq` Gradle task with: migrations directory, output directory, container image.
+ *
+ * The database is a throwaway Testcontainers PostgreSQL, unless `JOFI_CODEGEN_JDBC_URL` (plus
+ * `JOFI_CODEGEN_JDBC_USER` and `JOFI_CODEGEN_JDBC_PASSWORD`) names one: the container image build has
+ * no Docker daemon and starts the same pinned image's PostgreSQL itself.
  */
 fun main(args: Array<String>) {
     require(args.size == EXPECTED_ARGUMENTS) { "Usage: <migrations dir> <output dir> <postgres image>" }
     val (migrations, output, image) = args
-    val imageName = DockerImageName.parse(image).asCompatibleSubstituteFor("postgres")
-    PostgreSQLContainer(imageName).use { postgres ->
-        postgres.start()
-        Flyway
-            .configure()
-            .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
-            .locations("filesystem:$migrations")
-            .load()
-            .migrate()
-        File(output).deleteRecursively()
-        GenerationTool.generate(configuration(postgres, output))
+    val external = System.getenv("JOFI_CODEGEN_JDBC_URL")
+    if (external.isNullOrBlank()) {
+        val imageName = DockerImageName.parse(image).asCompatibleSubstituteFor("postgres")
+        PostgreSQLContainer(imageName).use { postgres ->
+            postgres.start()
+            generate(CodegenDatabase(postgres.jdbcUrl, postgres.username, postgres.password), migrations, output)
+        }
+    } else {
+        val user = System.getenv("JOFI_CODEGEN_JDBC_USER").orEmpty()
+        val password = System.getenv("JOFI_CODEGEN_JDBC_PASSWORD").orEmpty()
+        generate(CodegenDatabase(external, user, password), migrations, output)
     }
 }
 
 private const val EXPECTED_ARGUMENTS = 3
 
+private fun generate(
+    database: CodegenDatabase,
+    migrations: String,
+    output: String,
+) {
+    Flyway
+        .configure()
+        .dataSource(database.url, database.user, database.password)
+        .locations("filesystem:$migrations")
+        .load()
+        .migrate()
+    File(output).deleteRecursively()
+    GenerationTool.generate(configuration(database, output))
+}
+
 private fun configuration(
-    postgres: PostgreSQLContainer,
+    database: CodegenDatabase,
     output: String,
 ): Configuration =
     Configuration()
         .withLogging(Logging.WARN)
         .withJdbc(
             Jdbc()
-                .withDriver(postgres.driverClassName)
-                .withUrl(postgres.jdbcUrl)
-                .withUser(postgres.username)
-                .withPassword(postgres.password),
+                .withDriver("org.postgresql.Driver")
+                .withUrl(database.url)
+                .withUser(database.user)
+                .withPassword(database.password),
         ).withGenerator(
             Generator()
                 .withDatabase(
