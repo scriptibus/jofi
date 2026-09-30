@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { fakeAuthBackend } from "../../test/fakeAuthBackend";
-import { type FakeSetupState, fakeSetupBackend, model } from "../../test/fakeSetupBackend";
+import { type FakeSetupState, fakeSetupBackend, model, privacyInfo } from "../../test/fakeSetupBackend";
 import { App, createApp } from "../App";
 
 const server = setupServer();
@@ -81,8 +81,20 @@ describe("setup guide: a full run", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await user.click(screen.getByText("OpenAI-compatible endpoint", { exact: true }));
     const privacy = screen.getByRole("region", { name: "Privacy with OpenAI-compatible endpoint" });
-    expect(within(privacy).getByText(/a server on your own machine keeps it there/)).toBeVisible();
-    expect(within(privacy).getByRole("note")).toHaveTextContent("Check the terms yourself");
+    expect(await within(privacy).findByText("ZDR for OPENAI_COMPATIBLE on request.")).toBeVisible();
+    expect(within(privacy).getByText("On request")).toBeVisible();
+    expect(
+      within(privacy).getByText("Checked on September 30, 2026 against the provider's own pages."),
+    ).toBeVisible();
+    const source = within(privacy).getAllByRole("link", {
+      name: "docs.example.com/openai_compatible/privacy",
+    })[0];
+    expect(source).toHaveAttribute("href", "https://docs.example.com/openai_compatible/privacy");
+    expect(source).toHaveAttribute("rel", "noopener noreferrer nofollow");
+    expect(source).toHaveAttribute("target", "_blank");
+    expect(within(privacy).getByRole("note")).toHaveTextContent(
+      "Check the terms yourself" + "This is a summary of the provider's published terms",
+    );
 
     await user.type(screen.getByLabelText("Base URL"), "http://ollama.lan:11434/v1");
     expect(screen.getByText("This connection is not encrypted")).toBeVisible();
@@ -140,5 +152,39 @@ describe("setup guide: a full run", () => {
     await user.click(screen.getByRole("button", { name: "Add provider" }));
     expect(await screen.findByText(/Leave out user names, passwords/)).toBeVisible();
     expect(setup.providers).toEqual([]);
+  });
+});
+
+describe("setup guide: provider privacy info", () => {
+  it("shows each claim with its status and summary for the chosen kind", async () => {
+    const { user } = start("/setup?step=providers");
+    const privacy = await screen.findByRole("region", { name: "Privacy with Anthropic Claude" });
+    expect(await within(privacy).findByText("ZDR for ANTHROPIC on request.")).toBeVisible();
+    expect(within(privacy).getByText("Zero data retention")).toBeVisible();
+    expect(within(privacy).getByText("No training on your data")).toBeVisible();
+    expect(within(privacy).getByText("Not stated")).toBeVisible();
+    expect(
+      within(privacy).getByText("Quote from https://docs.example.com/anthropic/privacy/regions"),
+    ).toHaveAttribute("lang", "en");
+    await user.click(screen.getByText("Mistral", { exact: true }));
+    expect(await screen.findByText("ZDR for MISTRAL on request.")).toBeVisible();
+  });
+
+  it("warns when the details were checked too long ago", async () => {
+    start("/setup?step=providers", { privacy: privacyInfo(["ANTHROPIC"]) });
+    const privacy = await screen.findByRole("region", { name: "Privacy with Anthropic Claude" });
+    expect(await within(privacy).findByText("These details may be out of date")).toBeVisible();
+    expect(within(privacy).getByText(/checked more than 6 months ago/)).toBeVisible();
+    expect(within(privacy).getByText(/Checked on January 15, 2025/)).toBeVisible();
+  });
+
+  it("falls back to what is certain, with the disclaimer, when the info cannot be loaded", async () => {
+    start("/setup?step=providers", { privacy: null });
+    const privacy = await screen.findByRole("region", { name: "Privacy with Anthropic Claude" });
+    expect(await within(privacy).findByText(/goes to this provider's servers/)).toBeVisible();
+    expect(within(privacy).getByRole("note")).toHaveTextContent(
+      "This is a summary of the provider's published terms",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

@@ -74,7 +74,8 @@ test("the guide adds a provider, tests it, warns about a weak model, sets a budg
   await page.goto("/setup?step=providers");
   await page.getByRole("button", { name: "Add another provider" }).click();
   await page.getByRole("radiogroup", { name: "Provider" }).getByText("OpenAI-compatible endpoint").click();
-  await expect(page.getByRole("region", { name: "Privacy with OpenAI-compatible endpoint" })).toBeVisible();
+  const privacy = page.getByRole("region", { name: "Privacy with OpenAI-compatible endpoint" });
+  await expect(privacy.getByText("Depends on the endpoint", { exact: true })).toHaveCount(3);
   await page.getByLabel("Name in Jofi").fill(name);
   await page.getByLabel("Base URL").fill(FAKE_AI);
   await expect(page.getByText("This connection is not encrypted")).toBeVisible();

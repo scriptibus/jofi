@@ -159,7 +159,7 @@ src/
                   backup/ (Settings > Backup: export, upload, confirmed restore; ADR-0042),
                   ai/ (first-run setup guide at /setup and Settings > AI: providers, task models, budget)
   ui/             our component library (Alert, Button, ConfirmDialog, Dialog, DonkeyLogo, EmptyState,
-                  FilePicker, NavItem/TextLink, NumberField, SegmentedControl, Select, TextField, Form,
+                  ExternalLink, FilePicker, NavItem/TextLink, NumberField, SegmentedControl, Select, TextField, Form,
                   icons, appearance)
   pwa/            manifest.ts: web app manifest + theme-color from tokens.css (used by vite.config.ts)
   styles/         tokens.css (the only raw values) + app.css (Tailwind, fonts, base)
@@ -204,8 +204,10 @@ lint/             Biome GritQL plugins
   (`jofi.setup-guide`), and Settings > AI opens the guide again. API keys live only in the form's state:
   password inputs, never echoed (the server answers `apiKeySet`), never in browser storage. Money comes
   as integer USD micros; format it with `formatUsd` (exact decimal, locale-aware), never with float maths.
-  Provider privacy facts arrive with #138; until then `ProviderPrivacyInfo` shows a marked placeholder
-  plus the "check the terms yourself" disclaimer.
+  `ProviderPrivacyInfo` renders `GET /api/setup/providers/privacy` (ADR-0045): per claim a status,
+  the summary in the UI language, source links (`ExternalLink`: `noopener noreferrer nofollow`) and the
+  English quotes (`lang="en"`), the `checkedOn` date, a warning for `stale` entries, and always the
+  disclaimer (Paraglide `setup_provider_privacy_disclaimer`). Never add privacy facts in the UI.
 - **Page titles:** call `usePageTitle()` (or use `PageHeader`); focus moves to `<main>` on navigation.
 - **PWA:** the service worker precaches the shell only and has no runtime caching. Never add runtime
   caching for `/api/` (personal data). After changing the donkey or the light palette, run

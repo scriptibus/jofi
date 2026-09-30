@@ -10,6 +10,8 @@ import { HttpResponse, http } from "msw";
 import type {
   CapabilityNeedsResponse,
   ModelResponse,
+  ProviderPrivacyEntryResponse,
+  ProviderPrivacyResponse,
   ProviderResponse,
   TaskAssignmentResponse,
   TaskAssignmentResponseTask,
@@ -54,7 +56,51 @@ export function model(name: string, features: ModelResponse["features"] = [], co
   } satisfies ModelResponse;
 }
 
+function claim(
+  status: ProviderPrivacyEntryResponse["zeroDataRetention"]["status"],
+  en: string,
+  de: string,
+  source: string,
+) {
+  return { status, summary: { en, de }, evidence: [{ source, quote: `Quote from ${source}` }] };
+}
+
+function privacyEntry(
+  kind: ProviderPrivacyEntryResponse["kind"],
+  stale = false,
+): ProviderPrivacyEntryResponse {
+  const docs = `https://docs.example.com/${kind.toLowerCase()}/privacy`;
+  return {
+    kind,
+    checkedOn: stale ? "2025-01-15" : "2026-09-30",
+    stale,
+    zeroDataRetention: claim(
+      "ON_REQUEST",
+      `ZDR for ${kind} on request.`,
+      `ZDR für ${kind} auf Anfrage.`,
+      docs,
+    ),
+    noTraining: claim("YES", "API data is not used for training.", "API-Daten werden nicht trainiert.", docs),
+    dataLocation: claim("UNKNOWN", "Not stated.", "Nicht angegeben.", `${docs}/regions`),
+  };
+}
+
+/** Privacy info like `GET /api/setup/providers/privacy` (ADR-0045); `staleKinds` are read too long ago. */
+export function privacyInfo(
+  staleKinds: ProviderPrivacyEntryResponse["kind"][] = [],
+): ProviderPrivacyResponse {
+  const kinds = ["ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE"] as const;
+  return {
+    checkedOn: "2026-09-30",
+    staleAfterMonths: 6,
+    disclaimer: { key: "setup_provider_privacy_disclaimer", text: { en: "Server text", de: "Servertext" } },
+    providers: kinds.map((kind) => privacyEntry(kind, staleKinds.includes(kind))),
+  };
+}
+
 export interface FakeSetupState {
+  /** The privacy info; null answers 404, so the UI falls back to what is certain. */
+  privacy: ProviderPrivacyResponse | null;
   providers: ProviderResponse[];
   /** Keys as the server stored them: the UI must never get them back. */
   keys: Map<string, string>;
@@ -86,6 +132,7 @@ function originOf(url: string | null | undefined) {
 
 export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
   const state: FakeSetupState = {
+    privacy: privacyInfo(),
     providers: [],
     keys: new Map(),
     models: new Map(),
@@ -131,6 +178,9 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
   });
 
   const handlers = [
+    http.get(`${origin()}/api/setup/providers/privacy`, () =>
+      state.privacy ? json(state.privacy) : problem(404, "about:blank"),
+    ),
     http.get(`${origin()}/api/setup/providers`, () => json(state.providers)),
     http.post(`${origin()}/api/setup/providers`, async ({ request }) => {
       const body = (await request.json()) as {

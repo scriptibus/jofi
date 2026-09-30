@@ -22,7 +22,7 @@ export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { FilePicker, type FilePickerProps } from "./FilePicker";
 export * from "./icons";
-export { NavItem, TextLink } from "./Link";
+export { ExternalLink, type ExternalLinkProps, NavItem, TextLink } from "./Link";
 export { NumberField, type NumberFieldProps } from "./NumberField";
 export {
   AccentSwatch,

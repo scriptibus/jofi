@@ -50,7 +50,15 @@ test("setup guide: every step reads well, and skipping leads to the dashboard", 
   await expect(page.getByRole("heading", { level: 2, name: "Choose a provider" })).toBeVisible();
   await expect(page.getByRole("article", { name: SEEDED })).toBeVisible();
   await page.getByRole("button", { name: "Add another provider" }).click();
-  await expect(page.getByRole("region", { name: "Privacy with Anthropic Claude" })).toBeVisible();
+  // The dated privacy info file (ADR-0045): three claims with a status, sources and the disclaimer.
+  const privacy = page.getByRole("region", { name: "Privacy with Anthropic Claude" });
+  await expect(privacy.getByText(/^Checked on .+ against the provider's own pages\.$/)).toBeVisible();
+  for (const claim of ["Zero data retention", "No training on your data", "Data location"])
+    await expect(privacy.getByRole("term").filter({ hasText: claim })).toBeVisible();
+  const source = privacy.getByRole("link").first();
+  await expect(source).toHaveAttribute("href", /^https:\/\//);
+  await expect(source).toHaveAttribute("rel", "noopener noreferrer nofollow");
+  await expect(privacy.getByRole("note").filter({ hasText: "not legal advice" })).toBeVisible();
   await expect(page.getByLabel("API key")).toHaveAttribute("type", "password");
   await expectNoA11yViolations(page);
   await snapshot(page, "wizard-providers");
@@ -84,7 +92,17 @@ test.describe("in German", () => {
     await expect(page.getByRole("heading", { level: 1, name: "KI einrichten" })).toBeVisible();
     await expect(page.getByText("Schritt 2 von 5")).toBeVisible();
     await page.getByRole("button", { name: "Weiteren Anbieter hinzufügen" }).click();
-    await expect(page.getByRole("note").filter({ hasText: "Prüfe die Bedingungen selbst" })).toBeVisible();
+    const privacy = page.getByRole("region", { name: "Datenschutz bei Anthropic Claude" });
+    await expect(privacy.getByText(/^Am .+ anhand der Seiten des Anbieters geprüft\.$/)).toBeVisible();
+    await expect(
+      privacy.getByRole("term").filter({ hasText: "Kein Training mit deinen Daten" }),
+    ).toBeVisible();
+    await expect(
+      privacy
+        .getByRole("note")
+        .filter({ hasText: "Prüfe die Bedingungen selbst" })
+        .filter({ hasText: "keine Rechtsberatung" }),
+    ).toBeVisible();
     await expectNoA11yViolations(page);
     await snapshot(page, "wizard-providers-de");
 
