@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationValidation
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
 import io.github.scriptibus.jofi.applications.domain.SavedViewField
 import io.github.scriptibus.jofi.applications.domain.SavedViewViolation
+import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import java.time.Clock
 import java.time.Instant
@@ -98,3 +99,11 @@ internal fun <T> T.applicationIf(
     done: Boolean,
     operation: String,
 ): ApplicationResult<T> = if (done) ApplicationResult.Success(this) else ApplicationResult.StorageFailure(operation)
+
+/** The application if [source] is one of its sources, else [ApplicationResult.SourceNotFound]. */
+internal fun Application.withSource(source: SourceId): ApplicationResult<Application> =
+    if (sources.any { it.id == source }) ApplicationResult.Success(this) else ApplicationResult.SourceNotFound
+
+/** A snapshot read for an application that exists: not found means the application has no such snapshot. */
+internal fun <T> ApplicationStoreResult<T>.snapshotResult(): ApplicationResult<T> =
+    if (this == ApplicationStoreResult.NotFound) ApplicationResult.SnapshotNotFound else toResult()

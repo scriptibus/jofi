@@ -148,8 +148,23 @@ data class DescriptionSnapshot(
             SnapshotRecording.Added(DescriptionSnapshot(id, source, text, reason, at))
         }
 
+    /**
+     * This new snapshot as the first one of its source in [application]: frozen at once if the application is
+     * applied to already, as [discovery] does, since it is the only record of the posting there (ADR-0046).
+     */
+    fun firstOf(application: Application): DescriptionSnapshot =
+        if (application.status.impliesApplied) freeze(capturedAt) else this
+
     fun summary(): SnapshotSummary =
-        SnapshotSummary(id, source, contentHash, reason, capturedAt, frozenAt, text.value.length)
+        SnapshotSummary(
+            id,
+            source,
+            contentHash,
+            reason,
+            capturedAt,
+            frozenAt,
+            text.value.codePointCount(0, text.value.length),
+        )
 
     override fun toString(): String =
         "DescriptionSnapshot(id=${id.value}, source=${source.value}, reason=$reason, frozen=$frozen)"
@@ -212,7 +227,10 @@ sealed interface SnapshotRecording {
     ) : SnapshotRecording
 }
 
-/** A snapshot without its text, for the list of versions; [length] counts the text's characters. */
+/**
+ * A snapshot without its text, for the list of versions; [length] counts the text's characters (Unicode code
+ * points, as PostgreSQL's `char_length`, so the list can count them without reading the texts).
+ */
 data class SnapshotSummary(
     val id: SnapshotId,
     val source: SourceId,
@@ -235,12 +253,19 @@ data class DiffSegment(
 }
 
 /**
- * The difference between two snapshots of an application's descriptions (#86 computes it): the [segments]
- * in order turn [from]'s text into [to]'s (the unchanged and removed ones spell [from], the unchanged and
- * added ones [to]).
+ * The difference between two snapshots of an application's descriptions, line by line: the [segments] in order
+ * turn [from]'s text into [to]'s (the unchanged and removed ones spell [from], the unchanged and added ones [to]).
  */
 data class DescriptionDiff(
     val from: SnapshotId,
     val to: SnapshotId,
     val segments: List<DiffSegment>,
-)
+) {
+    companion object {
+        /** The line diff from [from] to [to], of any sources (the same job posted twice); bounded work, [LineDiff]. */
+        fun between(
+            from: DescriptionSnapshot,
+            to: DescriptionSnapshot,
+        ): DescriptionDiff = DescriptionDiff(from.id, to.id, LineDiff.segments(from.text.value, to.text.value))
+    }
+}
