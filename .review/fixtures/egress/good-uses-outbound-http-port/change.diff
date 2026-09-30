@@ -1,0 +1,24 @@
+diff --git a/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/CareerPageFetcher.kt b/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/CareerPageFetcher.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/CareerPageFetcher.kt
+@@ -0,0 +1,19 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.scanners.adapter.scanners
++
++import io.github.scriptibus.jofi.scanners.application.port.PageFetchPort
++import io.github.scriptibus.jofi.scanners.domain.FetchedPage
++import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
++import io.github.scriptibus.jofi.shared.application.port.OutboundRequest
++
++/** Fetches the career page a page watcher observes, through the SSRF-guarded client in adapters/net. */
++class CareerPageFetcher(
++    private val http: OutboundHttpPort,
++) : PageFetchPort {
++    override fun fetch(url: String): FetchedPage {
++        val response = http.fetch(OutboundRequest.get(url, respectRobotsTxt = true))
++        return FetchedPage(url = url, html = response.bodyAsText())
++    }
++}

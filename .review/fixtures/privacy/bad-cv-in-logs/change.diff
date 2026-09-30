@@ -1,0 +1,32 @@
+diff --git a/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ScorePostingUseCase.kt b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ScorePostingUseCase.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ScorePostingUseCase.kt
+@@ -0,0 +1,27 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.application
++
++import io.github.scriptibus.jofi.applications.application.port.ScoringPort
++import io.github.scriptibus.jofi.applications.domain.Posting
++import io.github.scriptibus.jofi.applications.domain.Score
++import io.github.scriptibus.jofi.knowledge.application.KnowledgeForAi
++import org.slf4j.LoggerFactory
++
++/** Scores one posting against the user's knowledge base. */
++class ScorePostingUseCase(
++    private val knowledge: KnowledgeForAi,
++    private val scoring: ScoringPort,
++) {
++    private val log = LoggerFactory.getLogger(javaClass)
++
++    fun execute(posting: Posting): Score {
++        val profile = knowledge.allowedForAi()
++        log.info("Scoring posting {} for profile {}", posting.id, profile)
++        log.debug("CV text used for scoring: {}", profile.cvText)
++        val score = scoring.score(posting, profile)
++        log.info("Score {} for {} (salary expectation {})", score.value, profile.fullName, profile.salaryExpectation)
++        return score
++    }
++}

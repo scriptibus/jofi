@@ -1,0 +1,10 @@
+{
+  "kind": "bad",
+  "why": "An outbound port in the application layer takes jOOQ records and conditions.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/port/ApplicationRecordPort.kt"
+    }
+  ]
+}

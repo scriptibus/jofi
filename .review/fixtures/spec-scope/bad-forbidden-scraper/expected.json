@@ -1,0 +1,9 @@
+{
+  "kind": "bad",
+  "why": "Scrapes LinkedIn (forbidden by the spec) instead of the API the issue asks for.",
+  "findings": [
+    {
+      "severity": "high"
+    }
+  ]
+}

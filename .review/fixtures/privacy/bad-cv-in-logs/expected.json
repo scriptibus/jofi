@@ -1,0 +1,10 @@
+{
+  "kind": "bad",
+  "why": "CV text, name and salary expectation are written to the logs.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ScorePostingUseCase.kt"
+    }
+  ]
+}

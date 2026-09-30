@@ -1,0 +1,40 @@
+diff --git a/backend/application/src/main/kotlin/io/github/scriptibus/jofi/documents/application/DraftCoverLetterUseCase.kt b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/documents/application/DraftCoverLetterUseCase.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/documents/application/DraftCoverLetterUseCase.kt
+@@ -0,0 +1,35 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.documents.application
++
++import io.github.scriptibus.jofi.documents.application.port.CoverLetterDraftPort
++import io.github.scriptibus.jofi.knowledge.application.KnowledgeForAi
++import io.github.scriptibus.jofi.shared.application.port.LlmPort
++import io.github.scriptibus.jofi.shared.application.port.LlmRequest
++import org.slf4j.LoggerFactory
++
++/** Drafts a cover letter for one application from the knowledge the user allows AI to see. */
++class DraftCoverLetterUseCase(
++    private val knowledge: KnowledgeForAi,
++    private val llm: LlmPort,
++    private val drafts: CoverLetterDraftPort,
++) {
++    private val log = LoggerFactory.getLogger(javaClass)
++
++    fun execute(command: DraftCoverLetterCommand): CoverLetterDraft {
++        // allowedForAi() applies the never-send-to-AI filter before anything reaches the provider.
++        val entries = knowledge.allowedForAi()
++        val prompt =
++            buildString {
++                appendLine("Write a cover letter in ${command.language} for this posting:")
++                appendLine(command.postingText)
++                appendLine("About the applicant:")
++                entries.forEach { appendLine("- ${it.title}: ${it.body}") }
++            }
++        val draft = CoverLetterDraft(command.applicationId, llm.complete(LlmRequest(prompt)).text)
++        drafts.save(draft)
++        log.info("Drafted cover letter for application {} from {} entries", command.applicationId, entries.size)
++        return draft
++    }
++}

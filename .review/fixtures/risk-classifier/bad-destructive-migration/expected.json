@@ -1,0 +1,8 @@
+{
+  "kind": "bad",
+  "why": "A Flyway migration (protected path) that drops audit data must never be rated low.",
+  "risk": [
+    "elevated",
+    "high"
+  ]
+}

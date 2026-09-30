@@ -1,0 +1,4 @@
+{
+  "kind": "good",
+  "why": "Fetching goes through OutboundHttpPort from adapters/net."
+}

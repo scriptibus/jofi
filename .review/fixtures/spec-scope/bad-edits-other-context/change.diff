@@ -1,0 +1,74 @@
+diff --git a/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/tasks/domain/Task.kt b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/tasks/domain/Task.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/tasks/domain/Task.kt
+@@ -0,0 +1,19 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.tasks.domain
++
++import java.time.LocalDate
++
++@JvmInline
++value class TaskId(val value: String)
++
++/** Something the user wants to do, optionally by a date. */
++data class Task(
++    val id: TaskId,
++    val title: String,
++    val dueDate: LocalDate? = null,
++    val done: Boolean = false,
++) {
++    fun isOverdue(today: LocalDate): Boolean = !done && dueDate != null && today.isAfter(dueDate)
++}
+diff --git a/backend/domain/src/test/kotlin/io/github/scriptibus/jofi/tasks/domain/TaskTest.kt b/backend/domain/src/test/kotlin/io/github/scriptibus/jofi/tasks/domain/TaskTest.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/domain/src/test/kotlin/io/github/scriptibus/jofi/tasks/domain/TaskTest.kt
+@@ -0,0 +1,25 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.tasks.domain
++
++import java.time.LocalDate
++import kotlin.test.Test
++import kotlin.test.assertFalse
++import kotlin.test.assertTrue
++
++class TaskTest {
++    private val due = LocalDate.of(2026, 10, 1)
++
++    @Test
++    fun `is overdue after the due date`() {
++        assertTrue(Task(TaskId("t1"), "Follow up", due).isOverdue(due.plusDays(1)))
++    }
++
++    @Test
++    fun `is not overdue on the due date, without one, or when done`() {
++        assertFalse(Task(TaskId("t1"), "Follow up", due).isOverdue(due))
++        assertFalse(Task(TaskId("t2"), "Follow up").isOverdue(due))
++        assertFalse(Task(TaskId("t3"), "Follow up", due, done = true).isOverdue(due.plusDays(1)))
++    }
++}
+diff --git a/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/ApplicationDeadline.kt b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/ApplicationDeadline.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/ApplicationDeadline.kt
+@@ -0,0 +1,15 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.domain
++
++import java.time.LocalDate
++
++/** Application deadline taken from the posting; used to create reminder tasks. */
++data class ApplicationDeadline(
++    val applicationId: ApplicationId,
++    val date: LocalDate,
++    val remindDaysBefore: Int = 3,
++) {
++    fun reminderDate(): LocalDate = date.minusDays(remindDaysBefore.toLong())
++}

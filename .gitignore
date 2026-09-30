@@ -40,3 +40,6 @@ blob-report/
 !.vscode/extensions.json
 .DS_Store
 Thumbs.db
+
+# Python (review lens scripts)
+__pycache__/

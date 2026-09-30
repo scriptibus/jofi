@@ -1,0 +1,36 @@
+diff --git a/backend/application/src/main/kotlin/io/github/scriptibus/jofi/documents/application/DraftCoverLetterUseCase.kt b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/documents/application/DraftCoverLetterUseCase.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/documents/application/DraftCoverLetterUseCase.kt
+@@ -0,0 +1,31 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.documents.application
++
++import io.github.scriptibus.jofi.documents.application.port.CoverLetterDraftPort
++import io.github.scriptibus.jofi.knowledge.application.port.KnowledgeRepositoryPort
++import io.github.scriptibus.jofi.shared.application.port.LlmPort
++import io.github.scriptibus.jofi.shared.application.port.LlmRequest
++
++/** Drafts a cover letter for one application from everything the user has told Jofi. */
++class DraftCoverLetterUseCase(
++    private val knowledge: KnowledgeRepositoryPort,
++    private val llm: LlmPort,
++    private val drafts: CoverLetterDraftPort,
++) {
++    fun execute(command: DraftCoverLetterCommand): CoverLetterDraft {
++        // All entries give the model the most context and produce the best letters.
++        val entries = knowledge.findAll()
++        val prompt =
++            buildString {
++                appendLine("Write a cover letter in ${command.language} for this posting:")
++                appendLine(command.postingText)
++                appendLine("About the applicant:")
++                entries.forEach { appendLine("- ${it.title}: ${it.body}") }
++            }
++        val draft = CoverLetterDraft(command.applicationId, llm.complete(LlmRequest(prompt)).text)
++        drafts.save(draft)
++        return draft
++    }
++}

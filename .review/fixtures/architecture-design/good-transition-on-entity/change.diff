@@ -1,0 +1,147 @@
+diff --git a/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/Application.kt b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/Application.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/Application.kt
+@@ -0,0 +1,23 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.domain
++
++/** One job application and its place in the status pipeline. */
++class Application(
++    val id: ApplicationId,
++    val title: String,
++    status: ApplicationStatus,
++) {
++    var status: ApplicationStatus = status
++        private set
++
++    /** Moves to [target] if the pipeline allows it; otherwise leaves the application unchanged. */
++    fun transitionTo(target: ApplicationStatus): TransitionResult {
++        val rejection = StatusPipeline.check(status, target)
++        if (rejection != null) return TransitionResult.Rejected(rejection)
++        val from = status
++        status = target
++        return TransitionResult.Moved(from, target)
++    }
++}
+diff --git a/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/StatusTransition.kt b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/StatusTransition.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/StatusTransition.kt
+@@ -0,0 +1,25 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.domain
++
++/** Outcome of asking an application to move to another status. */
++sealed interface TransitionResult {
++    data class Moved(val from: ApplicationStatus, val to: ApplicationStatus) : TransitionResult
++
++    data class Rejected(val reason: TransitionRejection) : TransitionResult
++}
++
++enum class TransitionRejection { BACKWARDS_FROM_APPLIED, CLOSED_APPLICATION }
++
++/** The allowed moves of the status pipeline (spec §6.2). */
++object StatusPipeline {
++    fun check(from: ApplicationStatus, to: ApplicationStatus): TransitionRejection? =
++        when {
++            from == ApplicationStatus.APPLIED && to == ApplicationStatus.DISCOVERED ->
++                TransitionRejection.BACKWARDS_FROM_APPLIED
++            from.isTerminal ->
++                TransitionRejection.CLOSED_APPLICATION
++            else -> null
++        }
++}
+diff --git a/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ChangeApplicationStatusUseCase.kt b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ChangeApplicationStatusUseCase.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ChangeApplicationStatusUseCase.kt
+@@ -0,0 +1,25 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.application
++
++import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
++import io.github.scriptibus.jofi.applications.domain.ApplicationId
++import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
++import io.github.scriptibus.jofi.applications.domain.TransitionResult
++
++/** Moves one application to another status; the entity decides whether the move is allowed. */
++class ChangeApplicationStatusUseCase(
++    private val applications: ApplicationRepositoryPort,
++) {
++    fun execute(id: ApplicationId, target: ApplicationStatus): ChangeStatusOutcome {
++        val application = applications.findById(id) ?: return ChangeStatusOutcome.NotFound
++        return when (val result = application.transitionTo(target)) {
++            is TransitionResult.Moved -> {
++                applications.save(application)
++                ChangeStatusOutcome.Changed(result)
++            }
++            is TransitionResult.Rejected -> ChangeStatusOutcome.NotAllowed(result.reason)
++        }
++    }
++}
+diff --git a/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ChangeStatusOutcome.kt b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ChangeStatusOutcome.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ChangeStatusOutcome.kt
+@@ -0,0 +1,15 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.application
++
++import io.github.scriptibus.jofi.applications.domain.TransitionRejection
++import io.github.scriptibus.jofi.applications.domain.TransitionResult
++
++sealed interface ChangeStatusOutcome {
++    data class Changed(val transition: TransitionResult.Moved) : ChangeStatusOutcome
++
++    data class NotAllowed(val reason: TransitionRejection) : ChangeStatusOutcome
++
++    data object NotFound : ChangeStatusOutcome
++}
+diff --git a/backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/applications/adapter/web/ApplicationStatusController.kt b/backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/applications/adapter/web/ApplicationStatusController.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/applications/adapter/web/ApplicationStatusController.kt
+@@ -0,0 +1,34 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.adapter.web
++
++import io.github.scriptibus.jofi.applications.application.ChangeApplicationStatusUseCase
++import io.github.scriptibus.jofi.applications.application.ChangeStatusOutcome
++import io.github.scriptibus.jofi.applications.domain.ApplicationId
++import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
++import org.springframework.http.ResponseEntity
++import org.springframework.web.bind.annotation.PathVariable
++import org.springframework.web.bind.annotation.PutMapping
++import org.springframework.web.bind.annotation.RequestBody
++import org.springframework.web.bind.annotation.RequestMapping
++import org.springframework.web.bind.annotation.RestController
++
++@RestController
++@RequestMapping("/api/applications")
++class ApplicationStatusController(
++    private val changeStatus: ChangeApplicationStatusUseCase,
++) {
++    @PutMapping("/{id}/status")
++    fun updateStatus(
++        @PathVariable id: String,
++        @RequestBody request: UpdateStatusRequest,
++    ): ResponseEntity<Unit> =
++        when (changeStatus.execute(ApplicationId(id), request.status)) {
++            is ChangeStatusOutcome.Changed -> ResponseEntity.noContent().build()
++            is ChangeStatusOutcome.NotAllowed -> ResponseEntity.unprocessableEntity().build()
++            ChangeStatusOutcome.NotFound -> ResponseEntity.notFound().build()
++        }
++}
++
++data class UpdateStatusRequest(val status: ApplicationStatus)

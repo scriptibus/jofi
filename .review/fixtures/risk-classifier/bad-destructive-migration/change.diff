@@ -1,0 +1,11 @@
+diff --git a/backend/adapters/persistence/src/main/resources/db/migration/V20261001120000__simplify_changelog.sql b/backend/adapters/persistence/src/main/resources/db/migration/V20261001120000__simplify_changelog.sql
+new file mode 100644
+--- /dev/null
++++ b/backend/adapters/persistence/src/main/resources/db/migration/V20261001120000__simplify_changelog.sql
+@@ -0,0 +1,6 @@
++-- SPDX-FileCopyrightText: 2026 Jofi contributors
++-- SPDX-License-Identifier: AGPL-3.0-or-later
++
++-- The actor column is not shown anywhere in the UI yet.
++ALTER TABLE changelog DROP COLUMN actor;
++DELETE FROM changelog WHERE created_at < now() - interval '90 days';
