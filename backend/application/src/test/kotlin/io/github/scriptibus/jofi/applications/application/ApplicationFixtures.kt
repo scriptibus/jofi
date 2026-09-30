@@ -10,12 +10,14 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationPage
 import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
 import io.github.scriptibus.jofi.applications.domain.SnapshotId
 import io.github.scriptibus.jofi.applications.domain.SnapshotSummary
 import io.github.scriptibus.jofi.applications.domain.SourceId
+import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
@@ -186,19 +188,32 @@ class ApplicationFixtures {
     val frozenAt = mutableMapOf<SnapshotId, Instant>()
     var failingFreeze = false
 
+    /** The stored description snapshots (#86), in the order they were added. */
+    val descriptions = mutableListOf<DescriptionSnapshot>()
+
     val snapshotPort =
         object : DescriptionSnapshotRepositoryPort {
-            override fun add(snapshot: DescriptionSnapshot): ApplicationStoreResult<Unit> = error("Not used")
+            override fun add(snapshot: DescriptionSnapshot): ApplicationStoreResult<Unit> {
+                if (failingStore) return ApplicationStoreResult.StorageFailure("add snapshot")
+                descriptions += snapshot
+                return ApplicationStoreResult.Success(Unit)
+            }
 
-            override fun latest(source: SourceId): ApplicationStoreResult<DescriptionSnapshot?> = error("Not used")
+            override fun latest(source: SourceId): ApplicationStoreResult<DescriptionSnapshot?> =
+                ApplicationStoreResult.Success(descriptions.lastOrNull { it.source == source })
 
             override fun listBySource(source: SourceId): ApplicationStoreResult<List<SnapshotSummary>> =
-                error("Not used")
+                ApplicationStoreResult.Success(descriptions.filter { it.source == source }.map { it.summary() })
 
             override fun findById(
                 application: ApplicationId,
                 id: SnapshotId,
-            ): ApplicationStoreResult<DescriptionSnapshot> = error("Not used")
+            ): ApplicationStoreResult<DescriptionSnapshot> {
+                val sources = applications[application]?.sources.orEmpty().map { it.id }
+                return descriptions
+                    .firstOrNull { it.id == id && it.source in sources }
+                    ?.let { ApplicationStoreResult.Success(it) } ?: ApplicationStoreResult.NotFound
+            }
 
             override fun freeze(
                 application: ApplicationId,
@@ -247,6 +262,7 @@ class ApplicationFixtures {
                 val entriesBefore = entries.toList()
                 val eventsBefore = events.toList()
                 val frozenBefore = frozenAt.toMap()
+                val descriptionsBefore = descriptions.toList()
                 val result = work()
                 if (!commitIf(result)) {
                     applications.clear()
@@ -259,6 +275,8 @@ class ApplicationFixtures {
                     events.addAll(eventsBefore)
                     frozenAt.clear()
                     frozenAt.putAll(frozenBefore)
+                    descriptions.clear()
+                    descriptions.addAll(descriptionsBefore)
                 }
                 return result
             }
@@ -279,6 +297,14 @@ class ApplicationFixtures {
         applications[application.id] = application
         history += StatusChange.initial(application, Actor.User)
         return application
+    }
+
+    /** A source of [application], found when it was created, stored with it. */
+    fun source(application: Application): ApplicationSource {
+        val source =
+            ApplicationSource(SourceId(UUID.randomUUID()), application.id, SourceKind.MANUAL_CHAT, null, CREATED)
+        applications[application.id] = application.copy(sources = application.sources + source)
+        return source
     }
 
     private class TokenStore : ConfirmationStorePort {

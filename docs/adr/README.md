@@ -57,3 +57,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0046](0046-application-sources-description-snapshots-hash-and-freeze.md) | Application sources and job description snapshots: content hash and freezing on applying | accepted |
 | [0047](0047-sanitised-markdown-rendering-in-the-frontend.md) | Sanitised Markdown rendering in the frontend | accepted |
 | [0048](0048-interviews-scheduled-times-as-instant-and-planning-zone.md) | Interviews and calls: an aggregate of their own, scheduled as an instant plus the zone planned in | accepted |
+| [0049](0049-tasks-absolute-due-buckets-single-link-and-suggestion-identity.md) | Tasks: absolute due buckets, one clearable link, suggestions identified by rule and key | accepted |

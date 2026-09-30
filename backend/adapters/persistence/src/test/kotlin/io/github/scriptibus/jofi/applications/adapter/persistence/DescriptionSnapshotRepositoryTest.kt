@@ -5,7 +5,11 @@ package io.github.scriptibus.jofi.applications.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
+import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
+import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.SnapshotId
+import io.github.scriptibus.jofi.applications.domain.SnapshotReason
+import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_DESCRIPTION_SNAPSHOT
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -13,13 +17,14 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** `DescriptionSnapshotRepository.freeze` on a real PostgreSQL migrated from zero (ADR-0046). */
+/** `DescriptionSnapshotRepository` on a real PostgreSQL migrated from zero (ADR-0046). */
 class DescriptionSnapshotRepositoryTest {
     private lateinit var dsl: DSLContext
     private lateinit var repository: DescriptionSnapshotRepository
@@ -85,6 +90,92 @@ class DescriptionSnapshotRepositoryTest {
         dsl.execute("drop table application_description_snapshot")
 
         repository.freeze(application, DAY_1) shouldBe ApplicationStoreResult.StorageFailure("freeze")
+    }
+
+    private fun <T> ApplicationStoreResult<T>.value(): T = shouldBeInstanceOf<ApplicationStoreResult.Success<T>>().value
+
+    private fun recorded(
+        source: UUID,
+        text: String,
+        at: Instant,
+        frozenAt: Instant? = null,
+    ): DescriptionSnapshot =
+        DescriptionSnapshot(
+            SnapshotId(UUID.randomUUID()),
+            SourceId(source),
+            DescriptionText(text),
+            SnapshotReason.MANUAL,
+            at,
+            frozenAt,
+        ).also { repository.add(it) shouldBe ApplicationStoreResult.Success(Unit) }
+
+    @Test
+    fun `added snapshots round-trip, the newest is the latest, and the list has no texts, oldest first`() {
+        val source = source(application)
+        val first = recorded(source, "Kotlin\nBerlin \uD83D\uDE80", DAY_1, frozenAt = DAY_1)
+        val second = recorded(source, "Kotlin\nHamburg", DAY_2)
+        recorded(source(application), "elsewhere", DAY_3)
+
+        repository.latest(SourceId(source)).value() shouldBe second
+        repository.latest(SourceId(UUID.randomUUID())).value() shouldBe null
+        repository.findById(application, first.id).value() shouldBe first
+        repository.listBySource(SourceId(source)).value() shouldBe listOf(first.summary(), second.summary())
+        repository.listBySource(SourceId(UUID.randomUUID())).value().shouldBeEmpty()
+    }
+
+    @Test
+    fun `a snapshot is found only through its own application, and one of a gone source is not stored`() {
+        val snapshot = recorded(source(application), "Kotlin", DAY_1)
+        val orphan =
+            DescriptionSnapshot(
+                SnapshotId(UUID.randomUUID()),
+                SourceId(UUID.randomUUID()),
+                DescriptionText("Kotlin"),
+                SnapshotReason.MANUAL,
+                DAY_1,
+            )
+
+        repository.findById(other, snapshot.id) shouldBe ApplicationStoreResult.NotFound
+        repository.findById(application, SnapshotId(UUID.randomUUID())) shouldBe ApplicationStoreResult.NotFound
+        repository.add(orphan) shouldBe ApplicationStoreResult.NotFound
+    }
+
+    @Test
+    fun `reading the latest locks the source against other recordings, not against snapshot inserts`() {
+        val source = source(application)
+        val database = PostgresTestDatabase.container
+        DSL.using(database.jdbcUrl, database.username, database.password).use { first ->
+            DSL.using(database.jdbcUrl, database.username, database.password).use { second ->
+                first.transaction { configuration ->
+                    DescriptionSnapshotRepository(configuration.dsl()).latest(SourceId(source)).value() shouldBe null
+                    second.execute("set lock_timeout = '200ms'")
+                    val concurrent = DescriptionSnapshotRepository(second)
+
+                    concurrent.latest(SourceId(source)) shouldBe
+                        ApplicationStoreResult.StorageFailure("latest snapshot")
+                    concurrent.add(
+                        DescriptionSnapshot(
+                            SnapshotId(UUID.randomUUID()),
+                            SourceId(source),
+                            DescriptionText("Kotlin"),
+                            SnapshotReason.MANUAL,
+                            DAY_1,
+                        ),
+                    ) shouldBe ApplicationStoreResult.Success(Unit)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `failing statements are storage failures, not exceptions`() {
+        dsl.execute("drop table application_description_snapshot")
+        val source = SourceId(UUID.randomUUID())
+
+        repository.latest(source) shouldBe ApplicationStoreResult.StorageFailure("latest snapshot")
+        repository.listBySource(source) shouldBe ApplicationStoreResult.StorageFailure("list snapshots")
+        repository.findById(application, SnapshotId(UUID.randomUUID())) shouldBe
+            ApplicationStoreResult.StorageFailure("find snapshot")
     }
 
     private fun source(application: ApplicationId): UUID {

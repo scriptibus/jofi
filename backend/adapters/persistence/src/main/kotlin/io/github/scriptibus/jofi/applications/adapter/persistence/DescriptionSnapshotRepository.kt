@@ -6,12 +6,17 @@ package io.github.scriptibus.jofi.applications.adapter.persistence
 import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
+import io.github.scriptibus.jofi.applications.domain.ContentHash
 import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
+import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.SnapshotId
+import io.github.scriptibus.jofi.applications.domain.SnapshotReason
 import io.github.scriptibus.jofi.applications.domain.SnapshotSummary
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_DESCRIPTION_SNAPSHOT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_SOURCE
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.ApplicationDescriptionSnapshotRecord
+import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import org.jooq.DSLContext
 import org.jooq.Record1
 import org.jooq.Select
@@ -25,28 +30,87 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * The job description history (`application_description_snapshot`), in the caller's transaction. Only
- * [freeze] exists yet: the status change needs it (#84, ADR-0046). Recording, listing and reading snapshots
- * are #86; until then their endpoints answer 501 and nothing calls those methods, so they answer a storage
- * failure. Posting text is untrusted and may be long, so only operations and exception types are logged.
+ * The job description history (`application_description_snapshot`), in the caller's transaction (ADR-0046).
+ * Posting text is untrusted and may be long, so only operations and exception types are logged, never rows.
  */
 @Component
 class DescriptionSnapshotRepository(
     private val dsl: DSLContext,
 ) : DescriptionSnapshotRepositoryPort {
     override fun add(snapshot: DescriptionSnapshot): ApplicationStoreResult<Unit> =
-        ApplicationStoreResult.StorageFailure("add snapshot")
+        storeCall("add snapshot") {
+            dsl.insertInto(APPLICATION_DESCRIPTION_SNAPSHOT).set(toRecord(snapshot)).execute()
+            ApplicationStoreResult.Success(Unit)
+        }
 
+    /** `FOR NO KEY UPDATE` on the source: recordings of one source wait for each other, snapshot inserts do not. */
     override fun latest(source: SourceId): ApplicationStoreResult<DescriptionSnapshot?> =
-        ApplicationStoreResult.StorageFailure("latest snapshot")
+        storeCall("latest snapshot") {
+            dsl
+                .select(APPLICATION_SOURCE.ID)
+                .from(APPLICATION_SOURCE)
+                .where(APPLICATION_SOURCE.ID.eq(source.value))
+                .forNoKeyUpdate()
+                .execute()
+            val newest =
+                dsl
+                    .selectFrom(APPLICATION_DESCRIPTION_SNAPSHOT)
+                    .where(APPLICATION_DESCRIPTION_SNAPSHOT.SOURCE_ID.eq(source.value))
+                    .orderBy(
+                        APPLICATION_DESCRIPTION_SNAPSHOT.CAPTURED_AT.desc(),
+                        APPLICATION_DESCRIPTION_SNAPSHOT.ID.desc(),
+                    ).limit(1)
+                    .fetchOne()
+            ApplicationStoreResult.Success(newest?.let(::toDomain))
+        }
 
+    /** Reads the texts' lengths, never the texts. */
     override fun listBySource(source: SourceId): ApplicationStoreResult<List<SnapshotSummary>> =
-        ApplicationStoreResult.StorageFailure("list snapshots")
+        storeCall("list snapshots") {
+            val snapshot = APPLICATION_DESCRIPTION_SNAPSHOT
+            val length = DSL.charLength(snapshot.DESCRIPTION)
+            val summaries =
+                dsl
+                    .select(
+                        snapshot.ID,
+                        snapshot.CONTENT_HASH,
+                        snapshot.REASON,
+                        snapshot.CAPTURED_AT,
+                        snapshot.FROZEN_AT,
+                        length,
+                    ).from(snapshot)
+                    .where(snapshot.SOURCE_ID.eq(source.value))
+                    .orderBy(snapshot.CAPTURED_AT, snapshot.ID)
+                    .fetch { row ->
+                        SnapshotSummary(
+                            SnapshotId(row.value1()),
+                            source,
+                            ContentHash(row.value2()),
+                            SnapshotReason.valueOf(row.value3()),
+                            row.value4().toInstant(),
+                            row.value5()?.toInstant(),
+                            row.value6(),
+                        )
+                    }
+            ApplicationStoreResult.Success(summaries)
+        }
 
     override fun findById(
         application: ApplicationId,
         id: SnapshotId,
-    ): ApplicationStoreResult<DescriptionSnapshot> = ApplicationStoreResult.StorageFailure("find snapshot")
+    ): ApplicationStoreResult<DescriptionSnapshot> =
+        storeCall("find snapshot") {
+            val found =
+                dsl
+                    .select(APPLICATION_DESCRIPTION_SNAPSHOT.asterisk())
+                    .from(APPLICATION_DESCRIPTION_SNAPSHOT)
+                    .join(APPLICATION_SOURCE)
+                    .on(APPLICATION_SOURCE.ID.eq(APPLICATION_DESCRIPTION_SNAPSHOT.SOURCE_ID))
+                    .where(APPLICATION_DESCRIPTION_SNAPSHOT.ID.eq(id.value))
+                    .and(APPLICATION_SOURCE.APPLICATION_ID.eq(application.value))
+                    .fetchOneInto(APPLICATION_DESCRIPTION_SNAPSHOT)
+            found?.let { ApplicationStoreResult.Success(toDomain(it)) } ?: ApplicationStoreResult.NotFound
+        }
 
     /**
      * One statement, as `DescriptionSnapshot.toFreeze` decides per source: of each source of [application]
@@ -56,7 +120,7 @@ class DescriptionSnapshotRepository(
         application: ApplicationId,
         asOf: Instant,
     ): ApplicationStoreResult<List<SnapshotId>> =
-        try {
+        storeCall("freeze") {
             val snapshot = APPLICATION_DESCRIPTION_SNAPSHOT
             val at = asOf.atOffset(ZoneOffset.UTC)
             val ids =
@@ -67,9 +131,6 @@ class DescriptionSnapshotRepository(
                     .returning(snapshot.ID)
                     .fetch(snapshot.ID)
             ApplicationStoreResult.Success(ids.map(::SnapshotId))
-        } catch (exception: RuntimeException) {
-            log.error("Description snapshot store freeze failed: {}", exception.javaClass.name)
-            ApplicationStoreResult.StorageFailure("freeze")
         }
 
     /** Per source of [application] without a frozen snapshot, the id of its newest snapshot captured by [at]. */
@@ -96,7 +157,50 @@ class DescriptionSnapshotRepository(
             ).orderBy(snapshot.SOURCE_ID, snapshot.CAPTURED_AT.desc(), snapshot.ID.desc())
     }
 
+    private fun toRecord(snapshot: DescriptionSnapshot): ApplicationDescriptionSnapshotRecord =
+        ApplicationDescriptionSnapshotRecord().apply {
+            id = snapshot.id.value
+            sourceId = snapshot.source.value
+            description = snapshot.text.value
+            contentHash = snapshot.contentHash.hex
+            reason = snapshot.reason.name
+            capturedAt = snapshot.capturedAt.atOffset(ZoneOffset.UTC)
+            frozenAt = snapshot.frozenAt?.atOffset(ZoneOffset.UTC)
+        }
+
+    private fun toDomain(record: ApplicationDescriptionSnapshotRecord): DescriptionSnapshot =
+        DescriptionSnapshot(
+            SnapshotId(record.id),
+            SourceId(record.sourceId),
+            DescriptionText(record.description),
+            SnapshotReason.valueOf(record.reason),
+            record.capturedAt.toInstant(),
+            record.frozenAt?.toInstant(),
+        )
+
+    /**
+     * No exception crosses the port. An insert whose source is gone is recognised by the foreign key's name;
+     * messages can carry row values (posting text), so only the exception type is logged.
+     */
+    private fun <T> storeCall(
+        operation: String,
+        block: () -> ApplicationStoreResult<T>,
+    ): ApplicationStoreResult<T> =
+        try {
+            block()
+        } catch (exception: RuntimeException) {
+            if (exception.violatedConstraint() == SNAPSHOT_SOURCE_FK) {
+                ApplicationStoreResult.NotFound
+            } else {
+                log.error("Description snapshot store {} failed: {}", operation, exception.javaClass.name)
+                ApplicationStoreResult.StorageFailure(operation)
+            }
+        }
+
     private companion object {
+        /** `application_description_snapshot.source_id`: the source (or its application) is gone. */
+        const val SNAPSHOT_SOURCE_FK = "application_description_snapshot_source_fk"
+
         val log: Logger = LoggerFactory.getLogger(DescriptionSnapshotRepository::class.java)
     }
 }

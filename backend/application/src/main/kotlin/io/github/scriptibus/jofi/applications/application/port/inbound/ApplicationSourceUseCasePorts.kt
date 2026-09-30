@@ -43,6 +43,7 @@ interface AddApplicationSourcePort {
  * Records [input] as the source's current description (#86): a new version, unless its content hash equals
  * the newest snapshot's (`SnapshotRecording.Unchanged`, nothing stored, no changelog entry). A frozen
  * snapshot never changes; a changed text after applying is a new, unfrozen version (`DescriptionSnapshot.next`).
+ * A source's first text, recorded after applying, is frozen at once (`DescriptionSnapshot.firstOf`).
  */
 interface RecordDescriptionSnapshotPort {
     fun execute(

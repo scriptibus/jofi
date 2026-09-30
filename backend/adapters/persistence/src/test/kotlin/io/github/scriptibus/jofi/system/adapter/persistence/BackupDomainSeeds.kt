@@ -82,6 +82,49 @@ internal class BackupDomainSeeds(
         )
         dsl.execute("insert into application_contact (application_id, contact_id) values (?, ?)", application, contact)
         seedDependants(application, contact)
+        seedTasks(company, application, contact)
+    }
+
+    // Each timing (exact, day, week, month, someday), each link, a done task, a dismissed suggestion, and CR/LF,
+    // quotes and Markdown in titles and notes; a custom countdown. Ids are fixed UUIDs, safe to inline.
+    private fun seedTasks(
+        company: UUID,
+        application: UUID,
+        contact: UUID,
+    ) {
+        listOf(
+            "'Call \"JJ\", then\r\nmail', '# Ask\n- pay, \"on-call\"', '2026-10-05 08:00:00.5+00', " +
+                "'America/Argentina/Buenos_Aires', null, null, '$application', null, null, 'MANUAL', null, null, " +
+                "'DONE', '$at'::timestamptz, 3",
+            "'Research, deeply', null, null, null, 'WEEK', '2026-09-28', null, '$company', null, 'CHAT', null, " +
+                "null, 'OPEN', null, 0",
+            "'Follow up', null, null, null, 'DAY', '2026-10-14', null, null, '$contact', 'SUGGESTED', 'follow-up', " +
+                "'application:b1', 'DISMISSED', null, 1",
+            "'Someday', null, null, null, 'SOMEDAY', null, null, null, null, 'MANUAL', null, null, 'OPEN', null, 0",
+            "'This month', null, null, null, 'MONTH', '2026-10-01', null, null, null, 'MANUAL', null, null, " +
+                "'OPEN', null, 0",
+        ).forEachIndexed { index, values ->
+            dsl.execute(
+                "insert into task (id, title, notes, due_at, time_zone, bucket_span, bucket_starts_on, " +
+                    "application_id, company_id, contact_id, origin, suggestion_rule, suggestion_key, state, " +
+                    "completed_at, version, created_at, updated_at) values " +
+                    "(?, $values, ?::timestamptz, ?::timestamptz)",
+                UUID.fromString("00000000-0000-0000-0000-00000000001$index"),
+                at,
+                at,
+            )
+        }
+        seedCountdown()
+    }
+
+    private fun seedCountdown() {
+        dsl.execute(
+            "insert into countdown (id, title, target_date, version, created_at, updated_at) values " +
+                "(?, 'Notice ends, \"finally\";\nparty', '2026-12-31', 1, ?::timestamptz, ?::timestamptz)",
+            UUID.fromString("00000000-0000-0000-0000-000000000021"),
+            at,
+            at,
+        )
     }
 
     // What belongs to an application: its status history, sources with snapshots and interviews.
