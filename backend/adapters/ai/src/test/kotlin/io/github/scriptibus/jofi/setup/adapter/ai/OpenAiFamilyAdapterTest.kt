@@ -78,10 +78,12 @@ class OpenAiFamilyAdapterTest {
         stub.server.stubFor(post(path).willReturn(sse(ProviderStub.openAiStream("openai/chat-stream.json"))))
         val fragments = mutableListOf<String>()
 
-        val result = adapter.stream(stub.target(kind), greeting(), { false }) { fragments += it }
+        val usages = mutableListOf<TokenUsage>()
+        val result = adapter.stream(stub.target(kind), greeting(), { false }, { usages += it }) { fragments += it }
 
         fragments shouldContainExactly listOf("Guten", " Tag", "!")
         result shouldBe AiResult.Success(LlmResponse("Guten Tag!", emptyList(), FinishReason.STOP, TokenUsage(21, 4)))
+        usages shouldContainExactly listOf(TokenUsage(21, 4))
         stub.server.verify(
             postRequestedFor(urlEqualTo(path)).withRequestBody(matchingJsonPath("$.stream", equalTo("true"))),
         )
@@ -96,7 +98,7 @@ class OpenAiFamilyAdapterTest {
         val result =
             adapter.embed(
                 stub.target(kind, "text-embedding-3-small"),
-                EmbeddingRequest(listOf("Kotlin", "Spring")),
+                EmbeddingRequest.ofTexts(listOf("Kotlin", "Spring")),
             )
 
         val response =

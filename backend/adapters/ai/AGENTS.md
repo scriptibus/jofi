@@ -8,9 +8,17 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 The only place where AI provider types appear (ADR-0011, ADR-0032, ADR-0040). **Protected path**:
 every change is reviewed by Lucas. Package: `io.github.scriptibus.jofi.setup.adapter.ai`.
 
-- `SpringAiProviderAdapter` implements `AiProviderPort`: complete, stream (with cancellation) and
-  embed for exactly the given `ResolvedModel`. No routing, filtering or metering; that is the AI
-  gateway (#20), the only caller of the port.
+- `AiGatewayAdapter` (ADR-0043) implements `LlmPort` and `EmbeddingPort`, and is the only caller
+  of `AiProviderPort` (architecture rules). Per call: `AiRouter` (assignment, provider, capabilities,
+  read once) → capability check for what the call needs → `AiMeter.admit` (budget, non-essential
+  tasks only) → `NeverSendGuard` (the "never send to AI" filter over `AiVisibilityPort`, fail closed)
+  → provider call → `AiMeter.record` (one `CostEntry`; unknown cost stays null, never guessed).
+- `price-table.json` (resources, next to `PriceTableFile`): list prices per model with the provider's
+  page and the day read. Only add a row you read on the official page; bump `checkedOn` with every
+  change. `PriceTableFileTest` checks sources and spot prices.
+- `SpringAiProviderAdapter` implements `AiProviderPort`: complete, stream (with cancellation and
+  usage totals through `onUsage`) and embed for exactly the given `ResolvedModel`. No routing,
+  filtering or metering; that is the gateway.
 - `ModelCatalogAdapter` implements `ModelCatalogPort`: the provider's model listing plus
   `CapabilityTable` (known model families) as `DETECTED` capability profiles.
 - `ProviderModels` builds the vendor SDK clients and Spring AI models per call. Anthropic uses
@@ -33,8 +41,15 @@ Rules:
   `ExecutorService` they are given) and the shared no-op sleepers (the default starts a thread per
   client). `ProviderModelsTest` guards both.
 - Nothing crosses the port: exceptions map to `AiResult`, a `LinkageError` too (logged as an error).
-- Never log prompts, answers, tool arguments or keys: provider kind, model and result kind only.
+- The filter runs on every message part and embedding input; never pass a request to
+  `AiProviderPort` that did not come out of `NeverSendGuard`. New `AiResult` variants from the
+  gateway: `PrivacyFilterFailed` (fail closed) and `Withheld` (flagged embedding input).
+- Never log prompts, answers, tool arguments or keys: task, provider kind, model, result kind and
+  counts only.
   `application.yaml` switches Spring AI's and the SDKs' loggers off; `LogPrivacyTest` reads that file.
+- Gateway tests: `AiGatewayAdapterTest` (spy provider, in-memory stores from `GatewayFixtures`),
+  `AiGatewayWireTest` (real adapter, WireMock; asserts on the bodies the provider received);
+  bootstrap `AiGatewayPrivacyTest` runs the wired app against PostgreSQL.
 - Tests: WireMock on loopback behind the real guarded transport (`ProviderStub`), recorded provider
   responses under `src/test/resources/fixtures` (streams as JSON arrays of events). Cancellation is
   checked on a raw socket (`StallingProvider`), which sees the client hang up. No real keys, no

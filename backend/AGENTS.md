@@ -79,7 +79,8 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | Port | For | Adapter |
 |---|---|---|
 | `ChangelogPort` | the audit trail of every mutation | `adapters/persistence` |
-| `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | the AI gateway (`setup.adapter.ai`, module `adapters/ai`, #20) |
+| `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask`; text from stored items goes in as `ContentPart.Sourced` | `AiGatewayAdapter` (`setup.adapter.ai`, module `adapters/ai`, ADR-0043) |
+| `AiVisibilityPort` | the "never send to AI" flags: a verdict per content source plus all flagged values; unknown source = refused | `NoKnowledgeYetAiVisibilityAdapter` (`bootstrap`) until the knowledge context (M2) |
 | `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (ADR-0034) |
 | `JobSchedulerPort` | background jobs (ids-only arguments), recurring schedules with a random delay | `JobRunrJobSchedulerAdapter` (`adapters/jobs`, ADR-0038) |
 | `JobHandlerPort` | inbound: runs the jobs of one type in the worker; one `*JobAdapter` per type | `<context>.adapter.jobs` |
@@ -93,11 +94,13 @@ Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for
 `setup` context owns what it configures around it.
 
 AI calls: callers use only `LlmPort`/`EmbeddingPort`. The gateway behind them resolves the task's
-model once per call, checks capabilities, applies the "never send to AI" filter and the budget,
+model once per call, checks capabilities, applies the budget and the "never send to AI" filter,
 meters the cost, and calls `AiProviderPort` (`setup.application.port`), which Spring AI implements
-in `setup.adapter.ai` (#19, ADR-0040). Nothing outside `setup.adapter.ai` may use `AiProviderPort`
-(architecture test). `ModelCatalogPort` lists a provider's models with their known capabilities for
-the setup checks. Costs and the budget are in USD only.
+in `setup.adapter.ai` (#19, ADR-0040, ADR-0043). Only the gateway implements `LlmPort`/`EmbeddingPort`
+and calls `AiProviderPort`; nothing outside `setup.adapter.ai` may use `AiProviderPort` (architecture
+tests). Mark text copied from a stored item as `ContentPart.Sourced`, and handle the results
+`PrivacyFilterFailed` and `Withheld`. `ModelCatalogPort` lists a provider's models with their known
+capabilities for the setup checks. Costs and the budget are in USD only; an unknown cost is null.
 
 ## Rules (all fail `check`)
 

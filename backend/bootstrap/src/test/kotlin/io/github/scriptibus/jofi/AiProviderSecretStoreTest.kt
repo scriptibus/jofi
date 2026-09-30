@@ -31,29 +31,35 @@ import io.github.scriptibus.jofi.shared.domain.secret.SecretValue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import java.net.URI
 import java.util.UUID
 
 /**
  * The wired AI provider adapter reads the key through the real secret store (Tink over PostgreSQL)
- * and sends it to the configured endpoint, which the provider store also puts on the allowlist.
+ * and sends it to the configured endpoint, which the real provider store also puts on the allowlist.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(PostgresTestConfiguration::class, AiProviderSecretStoreTest.LocalProvider::class)
+@Import(PostgresTestConfiguration::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class AiProviderSecretStoreTest(
     @param:Autowired private val aiProvider: AiProviderPort,
     @param:Autowired private val secrets: SecretStorePort,
+    @param:Autowired private val providers: ProviderConfigPort,
 ) {
+    @BeforeAll
+    fun configureProvider() {
+        secrets.put(KEY_ID, SecretValue(KEY)) shouldBe SecretResult.Success(Unit)
+        providers.save(PROVIDER) shouldBe SetupStoreResult.Success(Unit)
+    }
+
     @AfterAll
     fun stop() {
         LOCAL_MODEL.stop()
@@ -66,8 +72,6 @@ class AiProviderSecretStoreTest(
                 "/v1/chat/completions",
             ).willReturn(aResponse().withHeader("Content-Type", "application/json").withBody(ANSWER)),
         )
-        secrets.put(KEY_ID, SecretValue(KEY)) shouldBe SecretResult.Success(Unit)
-
         val result = aiProvider.complete(ResolvedModel(PROVIDER, ModelName("llama3.1")), request())
 
         result.shouldBeInstanceOf<AiResult.Success<*>>()
@@ -87,26 +91,6 @@ class AiProviderSecretStoreTest(
     }
 
     private fun request() = LlmRequest(AiTask.CHAT, listOf(LlmMessage.User("Hallo")))
-
-    /** One configured OpenAI-compatible provider on loopback, as the provider store would list it. */
-    @TestConfiguration(proxyBeanMethods = false)
-    class LocalProvider {
-        @Bean
-        fun providerConfigPort(): ProviderConfigPort =
-            object : ProviderConfigPort {
-                override fun findAll(): SetupStoreResult<List<ProviderConfig>> =
-                    SetupStoreResult.Success(listOf(PROVIDER))
-
-                override fun findById(id: ProviderId): SetupStoreResult<ProviderConfig> =
-                    SetupStoreResult.Success(PROVIDER)
-
-                override fun save(config: ProviderConfig): SetupStoreResult<Unit> =
-                    SetupStoreResult.StorageFailure("read-only")
-
-                override fun delete(id: ProviderId): SetupStoreResult<Unit> =
-                    SetupStoreResult.StorageFailure("read-only")
-            }
-    }
 
     private companion object {
         val LOCAL_MODEL: WireMockServer =

@@ -18,9 +18,12 @@ import io.github.scriptibus.jofi.fixture.adapter.web.SocketsInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlClassLoaderInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlHolderInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.UrlReadInWebAdapterFixture
+import io.github.scriptibus.jofi.setup.adapter.ai.AiGatewayAdapter
 import io.github.scriptibus.jofi.setup.adapter.ai.ImpostorAiAdapterFixture
 import io.github.scriptibus.jofi.setup.adapter.ai.ModelCatalogAdapter
 import io.github.scriptibus.jofi.setup.adapter.ai.ProviderModels
+import io.github.scriptibus.jofi.setup.adapter.ai.ShortcutLlmFixture
+import io.github.scriptibus.jofi.setup.adapter.ai.SpringAiProviderAdapter
 import io.github.scriptibus.jofi.setup.application.port.AiProviderPort
 import io.github.scriptibus.jofi.shared.adapter.jobs.BackgroundJobLambdaFixture
 import io.github.scriptibus.jofi.shared.adapter.jobs.JobSchedulerLambdaFixture
@@ -32,6 +35,7 @@ import io.github.scriptibus.jofi.shared.adapter.net.ImpostorNetAdapterFixture
 import io.github.scriptibus.jofi.shared.adapter.net.OutboundHttpAdapter
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
+import io.github.scriptibus.jofi.shared.application.port.LlmPort
 import io.github.scriptibus.jofi.system.adapter.jobs.SessionCleanupJobAdapter
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -76,6 +80,28 @@ class AdapterRulesFixtureTest {
             ClassFileImporter().importClasses(AiProviderPortInWebAdapterFixture::class.java, AiProviderPort::class.java)
 
         AdapterRules.onlyTheAiAdapterUsesAiProviderPort.evaluate(classes).hasViolation() shouldBe true
+    }
+
+    @Test
+    fun `a second LLM port that calls the provider directly is rejected`() {
+        val classes =
+            ClassFileImporter().importClasses(
+                ShortcutLlmFixture::class.java,
+                AiGatewayAdapter::class.java,
+                SpringAiProviderAdapter::class.java,
+                AiProviderPort::class.java,
+                LlmPort::class.java,
+            )
+
+        AdapterRules.onlyTheGatewayImplementsTheAiPorts.evaluate(classes).hasViolation() shouldBe true
+        AdapterRules.onlyTheGatewayCallsTheProviderPort.evaluate(classes).hasViolation() shouldBe true
+        val withoutShortcut =
+            ClassFileImporter().importClasses(
+                AiGatewayAdapter::class.java,
+                SpringAiProviderAdapter::class.java,
+                AiProviderPort::class.java,
+            )
+        AdapterRules.onlyTheGatewayCallsTheProviderPort.evaluate(withoutShortcut).hasViolation() shouldBe false
     }
 
     @ParameterizedTest(name = "{0} is rejected")

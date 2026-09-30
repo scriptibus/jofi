@@ -30,6 +30,22 @@ sealed interface AiResult<out T> {
         val task: AiTask,
     ) : AiResult<Nothing>
 
+    /**
+     * The "never send to AI" filter could not decide: its source failed, or it did not know an item
+     * the request quotes. Fail closed: the provider was not called (spec §4.1, ADR-0043).
+     */
+    data class PrivacyFilterFailed(
+        val task: AiTask,
+    ) : AiResult<Nothing>
+
+    /**
+     * An embedding input comes from an item flagged "never send to AI". Embedding a redacted text
+     * would only pollute the search index, so nothing was sent; the caller skips flagged items.
+     */
+    data class Withheld(
+        val task: AiTask,
+    ) : AiResult<Nothing>
+
     /** The provider rejected the configured key. */
     data object AuthenticationFailed : AiResult<Nothing>
 

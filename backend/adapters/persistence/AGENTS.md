@@ -80,6 +80,11 @@ The generator lives in the `codegen` source set and has its own locked classpath
 - `master_key_check` (#16): at most one row, a Tink ciphertext of a fixed text proving which master
   keyset encrypted `secret` (`MasterKeyRecordRepository`, ADR-0035). Covered by export/import; it
   must travel with `secret` and the keyset.
+- `ai_provider_config`, `ai_model_assignment`, `ai_model_capability`, `ai_monthly_budget`,
+  `ai_cost_entry` (#11, repositories in `setup.adapter.persistence` since #20, ADR-0043): read by the
+  AI gateway on every call. `ai_cost_entry` is append-only; `cost_micros` NULL means the cost is
+  unknown (no list price, or no usage reported), and sums skip it. A provider with assignments
+  cannot be deleted (`InUse`).
 - `spring_session`, `spring_session_attributes`: login sessions, managed by Spring Session JDBC (schema
   copied from spring-session-jdbc 4.1.1). Ephemeral bearer credentials: **excluded from export/import**
   (#26), a restore starts logged out. Never log their ids.

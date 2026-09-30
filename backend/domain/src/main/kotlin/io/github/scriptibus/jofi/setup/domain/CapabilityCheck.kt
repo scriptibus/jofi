@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.setup.domain
 
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
+import io.github.scriptibus.jofi.shared.domain.ai.LlmRequest
 
 /** The model assigned to [task] lacks [missing]. A warning, not an error: the user may still choose it. */
 data class CapabilityWarning(
@@ -42,6 +43,24 @@ object CapabilityCheck {
             AiTask.SPEECH_TO_TEXT to setOf(Capability.SpeechToText, Capability.Streaming),
             AiTask.TEXT_TO_SPEECH to setOf(Capability.TextToSpeech, Capability.Streaming),
         )
+
+    /**
+     * What one text-generation call needs from its model, so the AI gateway can refuse it before
+     * the provider is called: tool use when it declares tools, streaming when it streams. The task's
+     * other requirements (such as a long context) stay warnings, because the user may still choose
+     * a weaker model; the provider answers a request that does not fit with `ContextTooLong`.
+     */
+    fun neededBy(
+        request: LlmRequest,
+        streaming: Boolean,
+    ): Set<Capability> =
+        buildSet {
+            if (request.tools.isNotEmpty()) add(Capability.ToolUse)
+            if (streaming) add(Capability.Streaming)
+        }
+
+    /** What an embedding call needs from its model. */
+    val neededForEmbedding: Set<Capability> = setOf(Capability.Embedding)
 
     /** The capabilities [task] needs. */
     fun requiredFor(task: AiTask): Set<Capability> = requirements.getValue(task)

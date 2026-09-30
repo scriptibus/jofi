@@ -7,28 +7,39 @@ package io.github.scriptibus.jofi.shared.domain.ai
  * One turn of a conversation with a language model, provider-neutral. Messages carry personal data
  * (CVs, postings, chat), so [toString] shows the role and sizes only, never the content (threat
  * model T4): a message that slips into a log line or an exception stays unreadable.
+ *
+ * Text that Jofi takes from a stored item goes in as a [ContentPart.Sourced] part, so the AI gateway
+ * can withhold it when the item is flagged "never send to AI" (spec §4.1, ADR-0043).
  */
 sealed interface LlmMessage {
     /** Instructions from Jofi itself. Untrusted content (postings, pages) never goes here. */
     data class System(
-        val text: String,
+        val parts: List<ContentPart>,
     ) : LlmMessage {
+        constructor(text: String) : this(listOf(ContentPart.Plain(text)))
+
+        val text: String get() = ContentPart.join(parts)
+
         init {
             require(text.isNotBlank()) { "A system message must not be blank" }
         }
 
-        override fun toString(): String = "System(chars=${text.length})"
+        override fun toString(): String = "System(chars=${text.length}, parts=${parts.size})"
     }
 
     /** What the user (or content on the user's behalf) says to the model. */
     data class User(
-        val text: String,
+        val parts: List<ContentPart>,
     ) : LlmMessage {
+        constructor(text: String) : this(listOf(ContentPart.Plain(text)))
+
+        val text: String get() = ContentPart.join(parts)
+
         init {
             require(text.isNotBlank()) { "A user message must not be blank" }
         }
 
-        override fun toString(): String = "User(chars=${text.length})"
+        override fun toString(): String = "User(chars=${text.length}, parts=${parts.size})"
     }
 
     /** An earlier model answer: text, tool calls or both. */
@@ -46,13 +57,18 @@ sealed interface LlmMessage {
     /** The result of running the tool call [toolCallId], returned to the model as data. */
     data class ToolResult(
         val toolCallId: String,
-        val content: String,
+        val parts: List<ContentPart>,
     ) : LlmMessage {
+        constructor(toolCallId: String, content: String) : this(toolCallId, listOf(ContentPart.Plain(content)))
+
+        val content: String get() = ContentPart.join(parts)
+
         init {
             require(toolCallId.isNotBlank()) { "A tool result must name its tool call" }
         }
 
-        override fun toString(): String = "ToolResult(toolCallId=$toolCallId, chars=${content.length})"
+        override fun toString(): String =
+            "ToolResult(toolCallId=$toolCallId, chars=${content.length}, parts=${parts.size})"
     }
 }
 

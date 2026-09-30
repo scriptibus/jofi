@@ -3,20 +3,35 @@
 
 package io.github.scriptibus.jofi.shared.domain.ai
 
-/** Embed each of [texts] for [task] (semantic search over knowledge, postings, documents). */
+/**
+ * Embed each of [inputs] for [task] (semantic search over knowledge, postings, documents). An input
+ * taken from a stored item is a [ContentPart.Sourced] part, so the AI gateway can refuse to embed an
+ * item flagged "never send to AI" (ADR-0043).
+ */
 data class EmbeddingRequest(
-    val texts: List<String>,
+    val inputs: List<ContentPart>,
     val task: AiTask = AiTask.EMBEDDING,
 ) {
     init {
         require(task.kind == AiTaskKind.EMBEDDING) { "Task $task is not an embedding task" }
-        require(texts.isNotEmpty()) { "An embedding request needs at least one text" }
-        require(texts.none { it.isBlank() }) { "Texts to embed must not be blank" }
+        require(inputs.isNotEmpty()) { "An embedding request needs at least one text" }
+        require(inputs.none { it.text.isBlank() }) { "Texts to embed must not be blank" }
     }
+
+    /** The texts to embed, in request order. */
+    val texts: List<String> get() = inputs.map { it.text }
 
     /** Sizes only: the texts hold personal data (threat model T4). */
     override fun toString(): String =
-        "EmbeddingRequest(task=$task, texts=${texts.size}, chars=${texts.sumOf { it.length }})"
+        "EmbeddingRequest(task=$task, texts=${inputs.size}, chars=${inputs.sumOf { it.text.length }})"
+
+    companion object {
+        /** A request for texts without a stored source (postings, search queries). */
+        fun ofTexts(
+            texts: List<String>,
+            task: AiTask = AiTask.EMBEDDING,
+        ): EmbeddingRequest = EmbeddingRequest(texts.map(ContentPart::Plain), task)
+    }
 }
 
 /** One vector per input text, in request order, plus the tokens the call consumed. */

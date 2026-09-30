@@ -65,6 +65,12 @@ class AdapterRulesTest {
     }
 
     @Test
+    fun `the AI gateway is the only LLM and embedding port, and the only caller of the provider port`() {
+        AdapterRules.onlyTheGatewayImplementsTheAiPorts.check(classes)
+        AdapterRules.onlyTheGatewayCallsTheProviderPort.check(classes)
+    }
+
+    @Test
     fun `only the jobs adapter uses JobRunr, and never its lambda or annotation jobs`() {
         AdapterRules.onlyTheJobsAdapterUsesJobRunr.check(classes)
         AdapterRules.noJobRunrLambdasOrAnnotations.check(classes)

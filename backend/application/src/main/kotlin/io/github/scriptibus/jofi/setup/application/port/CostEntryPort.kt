@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.setup.application.port
 
 import io.github.scriptibus.jofi.setup.domain.CostEntry
+import io.github.scriptibus.jofi.setup.domain.Money
 import io.github.scriptibus.jofi.setup.domain.SetupStoreResult
 import java.time.Instant
 
@@ -19,4 +20,13 @@ interface CostEntryPort {
         from: Instant,
         until: Instant,
     ): SetupStoreResult<List<CostEntry>>
+
+    /**
+     * The sum of the known estimated costs of the entries with `from <= occurredAt < until`, in USD;
+     * entries with an unknown cost add nothing. The budget check reads it before non-essential calls.
+     */
+    fun totalBetween(
+        from: Instant,
+        until: Instant,
+    ): SetupStoreResult<Money>
 }

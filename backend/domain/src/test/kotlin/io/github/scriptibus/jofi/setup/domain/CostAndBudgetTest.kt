@@ -48,7 +48,7 @@ class CostAndBudgetTest {
 
         entry.providerKind shouldBe ProviderKind.ANTHROPIC
         entry.usage.totalTokens shouldBe 1500
-        entry.estimatedCost.amount shouldBe BigDecimal("0.003600")
+        entry.estimatedCost?.amount shouldBe BigDecimal("0.003600")
         entry.occurredAt shouldBe at
         shouldThrow<IllegalArgumentException> { cost(Money(3600, eur)) }
     }
