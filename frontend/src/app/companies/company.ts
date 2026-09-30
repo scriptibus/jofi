@@ -99,7 +99,8 @@ export function isWebAddress(text: string): boolean {
   return /^https?:\/\/[^\s/?#@]+(?:[/?#]\S*)?$/i.test(text.trim());
 }
 
-const violationMessages: Record<string, () => string> = {
+/** Messages for the server's violation kinds (backend `ViolationKind`), shared by companies and contacts. */
+export const VIOLATION_MESSAGES: Readonly<Record<string, () => string>> = {
   REQUIRED: m.company_violation_required,
   TOO_LONG: m.company_violation_too_long,
   TOO_MANY: m.company_violation_too_many,
@@ -108,13 +109,16 @@ const violationMessages: Record<string, () => string> = {
 };
 
 /** A 400's field violations as form errors by field name, or undefined for any other error. */
-export function fieldErrorsOf(error: unknown): Record<string, string> | undefined {
+export function fieldErrorsOf(
+  error: unknown,
+  messages: Readonly<Record<string, () => string>> = VIOLATION_MESSAGES,
+): Record<string, string> | undefined {
   if (!(error instanceof ApiProblemError) || error.status !== 400) return undefined;
   const violations = (error.problem as Partial<ValidationProblem>).violations;
   if (!Array.isArray(violations) || violations.length === 0) return undefined;
   const errors: Record<string, string> = {};
   for (const { field, problem } of violations) {
-    const message = Object.hasOwn(violationMessages, problem) ? violationMessages[problem] : undefined;
+    const message = Object.hasOwn(messages, problem) ? messages[problem] : undefined;
     errors[field] = message ? message() : m.company_violation_other();
   }
   return errors;

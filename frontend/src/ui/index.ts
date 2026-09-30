@@ -22,7 +22,7 @@ export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
 export { FilePicker, type FilePickerProps } from "./FilePicker";
 export * from "./icons";
-export { ExternalLink, type ExternalLinkProps, NavItem, TextLink } from "./Link";
+export { AppLink, ExternalLink, type ExternalLinkProps, NavItem, TextLink } from "./Link";
 export { MARKDOWN_SCHEMA, Markdown, type MarkdownProps, safeHref } from "./Markdown";
 export { NumberField, type NumberFieldProps } from "./NumberField";
 export {

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { ApiProblemError } from "../../api/fetcher";
 import { useSearchApplications, useSearchContacts } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
+import { AddIcon, TextLink } from "../../ui";
 import { describeError } from "../problems";
 import { FailureMessage } from "./CompanyLoadFailure";
 
@@ -24,10 +25,12 @@ interface RelatedSectionProps {
   /** Shown while the server has no such endpoint yet (501). */
   notYet?: string;
   empty: string;
-  items: { id: string; primary: string; secondary?: string | null | undefined }[] | undefined;
+  items: { id: string; primary: ReactNode; secondary?: string | null | undefined }[] | undefined;
+  /** An action for the section, e.g. a link that adds a record, below the list. */
+  action?: ReactNode;
 }
 
-function RelatedSection({ id, title, query, notYet, empty, items }: RelatedSectionProps) {
+function RelatedSection({ id, title, query, notYet, empty, items, action }: RelatedSectionProps) {
   let content: ReactNode;
   if (query.error) {
     content =
@@ -58,11 +61,12 @@ function RelatedSection({ id, title, query, notYet, empty, items }: RelatedSecti
         {title}
       </h2>
       {content}
+      {action}
     </section>
   );
 }
 
-/** The company's contacts, read-only; editing them is the contacts pages' job (#109). */
+/** The company's contacts, each linking to its page, and the way to add one to this company. */
 export function CompanyContacts({ companyId }: { companyId: string }) {
   const contacts = useSearchContacts({ companyId, size: RELATED_PAGE_SIZE }, { query: quietly });
   return (
@@ -73,9 +77,23 @@ export function CompanyContacts({ companyId }: { companyId: string }) {
       empty={m.company_contacts_empty()}
       items={contacts.data?.contacts.map((contact) => ({
         id: contact.id,
-        primary: contact.name,
+        primary: (
+          <TextLink to="/contacts/$contactId" params={{ contactId: contact.id }}>
+            {contact.name}
+          </TextLink>
+        ),
         secondary: contact.role,
       }))}
+      action={
+        <TextLink
+          to="/contacts/new"
+          search={{ company: companyId }}
+          className="inline-flex items-center gap-2 self-start"
+        >
+          <AddIcon className="size-4" aria-hidden="true" />
+          {m.contacts_new()}
+        </TextLink>
+      }
     />
   );
 }
@@ -90,6 +108,25 @@ export function CompanyApplications({ companyId, count }: { companyId: string; c
       query={applications}
       notYet={m.company_applications_not_yet({ count })}
       empty={m.company_applications_empty()}
+      items={applications.data?.applications.map((application) => ({
+        id: application.id,
+        primary: application.title,
+        secondary: application.location,
+      }))}
+    />
+  );
+}
+
+/** A contact's linked applications, read-only; linking them is the applications pages' job (#90). */
+export function ContactApplications({ contactId }: { contactId: string }) {
+  const applications = useSearchApplications({ contactId, size: RELATED_PAGE_SIZE }, { query: quietly });
+  return (
+    <RelatedSection
+      id="contact-applications-heading"
+      title={m.company_applications_heading()}
+      query={applications}
+      notYet={m.contact_applications_not_yet()}
+      empty={m.contact_applications_empty()}
       items={applications.data?.applications.map((application) => ({
         id: application.id,
         primary: application.title,

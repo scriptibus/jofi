@@ -161,8 +161,8 @@ src/
                   shell/ (layout, navigation, logout, notices), pages/ (placeholders, settings, share),
                   backup/ (Settings > Backup: export, upload, confirmed restore; ADR-0042),
                   ai/ (first-run setup guide at /setup and Settings > AI: providers, task models, budget),
-                  companies/ (list with fuzzy search and flag filter, detail, create/edit, flag, delete)
-  ui/             our component library (Alert, Button, ConfirmDialog, Dialog, DonkeyLogo, EmptyState,
+                  companies/ (list with fuzzy search and flag filter, detail, create/edit, flag, delete), contacts/
+  ui/             our component library (Alert, AppLink, Button, ConfirmDialog, Dialog, DonkeyLogo, EmptyState,
                   ExternalLink, FilePicker, Markdown, NavItem/TextLink, NumberField, SegmentedControl, Select,
                   TextArea, TextField, Form, icons, appearance)
   pwa/            manifest.ts: web app manifest + theme-color from tokens.css (used by vite.config.ts)
@@ -216,6 +216,7 @@ lint/             Biome GritQL plugins
   never with another renderer or `dangerouslySetInnerHTML`. It drops raw HTML and images (no remote
   loads: tracking pixels), sanitises against a strict schema, and links only absolute http(s)/mailto URLs
   as `ExternalLink`. Plain URLs from the server (a company's website) render as `ExternalLink` too.
+- **Untrusted links** (e.g. contact channels): `mailto:`/`tel:` hrefs only from `contacts/channels.ts` (encoded, never concatenated) via `AppLink`, web links via `ExternalLink`, everything else plain text.
 - **Optimistic versions** (ADR-0041): an edit sends the `version` it was opened with as `basedOnVersion`
   and keeps that snapshot while the user types (a background refetch must not replace their input). A 409
   `version-conflict` shows "Changed meanwhile" with a button that loads the latest version; see

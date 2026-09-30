@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
-import { choose, expectNoA11yViolations, onStack, snapshot } from "./helpers.ts";
+import { expect, type Page, test } from "@playwright/test";
+import { api, choose, expectNoA11yViolations, onStack, snapshot, uniqueName } from "./helpers.ts";
 
 // The companies pages against the real backend (spec §5, #108). Every browser project runs these in
 // parallel on one stack, so each test works on companies of its own (unique names) and only reads the
@@ -11,20 +11,6 @@ test.skip(!onStack, "Needs the full stack: run `pnpm e2e`.");
 
 const SEEDED_ID = "00000000-0000-4000-8000-0000000e2e10";
 const SEEDED_NAME = "Seeded Holdings (e2e)";
-
-/** A name no other test or project uses, e.g. `Quokka Robotics phone 3kz9x1`. */
-function uniqueName(prefix: string): string {
-  const suffix = `${test.info().project.name} ${Date.now().toString(36)}${test.info().retry}`;
-  return `${prefix} ${suffix}`;
-}
-
-/** Jofi's API as the logged-in user of this page (same cookies), with the CSRF header it requires. */
-async function api(page: Page): Promise<{ request: APIRequestContext; headers: Record<string, string> }> {
-  const cookies = await page.context().cookies();
-  const token = cookies.find((cookie) => cookie.name === "XSRF-TOKEN")?.value;
-  if (token === undefined) throw new Error("no XSRF-TOKEN cookie: is the storage state logged in?");
-  return { request: page.request, headers: { "X-XSRF-TOKEN": decodeURIComponent(token) } };
-}
 
 interface Company {
   id: string;

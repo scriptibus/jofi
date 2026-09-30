@@ -20,6 +20,9 @@ import { authState, refreshSession, safeRedirect, sessionQueryOptions } from "./
 import { CompaniesPage, parseCompaniesSearch } from "./companies/CompaniesPage";
 import { CompanyDetailPage } from "./companies/CompanyDetailPage";
 import { EditCompanyPage, NewCompanyPage } from "./companies/CompanyEditPages";
+import { ContactDetailPage } from "./contacts/ContactDetailPage";
+import { EditContactPage, NewContactPage } from "./contacts/ContactEditPages";
+import { ContactsPage, parseContactsSearch, parseNewContactSearch } from "./contacts/ContactsPage";
 import type { NoticeStore } from "./notices";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -161,6 +164,33 @@ const editCompanyRoute = createRoute({
   component: EditCompanyPage,
 });
 
+// Contacts (spec §5): list with search and company filter, create, detail, edit. Only ids in URLs.
+const contactsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "contacts",
+  validateSearch: parseContactsSearch,
+  component: ContactsPage,
+});
+
+const newContactRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "contacts/new",
+  validateSearch: parseNewContactSearch,
+  component: NewContactPage,
+});
+
+const contactRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "contacts/$contactId",
+  component: ContactDetailPage,
+});
+
+const editContactRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "contacts/$contactId/edit",
+  component: EditContactPage,
+});
+
 const settingsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "settings",
@@ -203,6 +233,10 @@ export const routeTree = rootRoute.addChildren([
     newCompanyRoute,
     companyRoute,
     editCompanyRoute,
+    contactsRoute,
+    newContactRoute,
+    contactRoute,
+    editContactRoute,
     tasksRoute,
     chatRoute,
     settingsRoute,
