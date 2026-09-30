@@ -141,7 +141,8 @@ notes, reasons, pay amounts or an estimate basis print none of them.
 `POST /sources` (201; kind, original link, discovery time, optional text at discovery), `POST
 /sources/{sourceId}/snapshots` (record the current text by hand, reason `MANUAL`; `added` says whether it was a
 new version), `GET /sources/{sourceId}/snapshots` (versions without texts), `GET /snapshots/{snapshotId}` (one
-version with its text) and `GET /description-diff?from=&to=`. Contract only: `501` until #86 and #96. None takes
+version with its text) and `GET /description-diff?from=&to=` (line-level segments). Adding a source answers `501`
+until #96. None takes
 `basedOnVersion` (sources and snapshots are no version of the application) and none deletes. An unknown source
 or snapshot is 404 `source-not-found` / `snapshot-not-found`. `ApplicationResponse.sources` lists the sources.
 Posting texts are untrusted (render sanitised) and links may carry tracking parameters: these DTOs print neither.

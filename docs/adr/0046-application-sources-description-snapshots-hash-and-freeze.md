@@ -104,6 +104,21 @@ has its own history, and the snapshot is what the user applied for. (Decided by 
   (`content_hash = encode(sha256(convert_to(description, 'UTF8')), 'hex')`, which the check enforces anyway).
   Nothing else ever disables it.
 
+- **A source's first text after applying:** recording the first snapshot of a source that has none while the
+  application `impliesApplied` stores it frozen at once (`DescriptionSnapshot.firstOf`), for the same reason as a
+  source found after applying: it is the only record of that posting. Every later recording is unfrozen.
+
+### The diff: an in-house line diff with bounded work
+
+The diff (#86) compares whole lines, each keeping its `\n`, so the segments spell both texts exactly, and returns
+runs of `UNCHANGED`/`REMOVED`/`ADDED` lines as structured data (never HTML; clients render them sanitised). It is
+Myers' O((N+M)·D) algorithm, about 150 lines in the domain (`LineDiff`), rather than a library: the domain takes no
+dependencies, the need is one function, and a line diff of trimmed text needs no patch format. Common first and
+last lines are set aside first. The work is bounded without a clock: past 1,000 inserted plus deleted lines
+(`LineDiff.MAX_EDITS`) the differing middle becomes one removed and one added segment, so even two unrelated texts
+at the 100,000-character limit cost at most about (N+M)·1,000 steps. Since stored texts are trimmed, the last line
+has no `\n`: a line appended at the end shows the former last line as removed and added again.
+
 ### API shape
 
 `POST /api/applications/{id}/sources` (add a source, optionally with its text at discovery, 201),
