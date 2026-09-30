@@ -99,7 +99,7 @@ function SortPicker({ order, onOrder }: Pick<ApplicationListProps, "order" | "on
   );
 }
 
-interface ItemProps {
+export interface ItemProps {
   application: ApplicationResponse;
   companies: CompanyChoices;
 }
@@ -156,7 +156,7 @@ function Card({ application, companies }: ItemProps) {
 }
 
 /** The title as link; an unread one gets a dot (its presence, not its colour, is the signal) named "Unread". */
-function Title({ application }: { application: ApplicationResponse }) {
+export function Title({ application }: { application: ApplicationResponse }) {
   return (
     <span className="inline-flex items-center gap-2">
       {application.unread ? (
@@ -173,7 +173,7 @@ function Title({ application }: { application: ApplicationResponse }) {
   );
 }
 
-function CompanyLink({ application, companies }: ItemProps) {
+export function CompanyLink({ application, companies }: ItemProps) {
   const name = useCompanyName(application.companyId, companies);
   return (
     <TextLink to="/companies/$companyId" params={{ companyId: application.companyId }}>

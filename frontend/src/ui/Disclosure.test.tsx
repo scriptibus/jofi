@@ -22,6 +22,26 @@ describe("Disclosure", () => {
     expect(screen.getByRole("textbox", { name: "Language" })).toBeVisible();
   });
 
+  it("can be controlled by the caller", async () => {
+    const user = userEvent.setup();
+    const changes: boolean[] = [];
+    const { rerender } = render(
+      <Disclosure label="Ended" isExpanded={false} onExpandedChange={(open) => changes.push(open)}>
+        <input aria-label="Language" />
+      </Disclosure>,
+    );
+    const trigger = screen.getByRole("button", { name: "Ended" });
+    await user.click(trigger);
+    expect(changes).toEqual([true]);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    rerender(
+      <Disclosure label="Ended" isExpanded onExpandedChange={(open) => changes.push(open)}>
+        <input aria-label="Language" />
+      </Disclosure>,
+    );
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("can start open", () => {
     render(
       <Disclosure label="More filters" defaultExpanded>

@@ -25,6 +25,9 @@ export const SORT_KEYS = Object.values(SearchApplicationsSort);
 export const UPDATED_WITHIN = [7, 30, 90] as const;
 export type UpdatedWithin = (typeof UPDATED_WITHIN)[number];
 export const PAGE_SIZE = 50;
+/** The board asks for this many at once (the server's largest page, backend `ApplicationSearch.MAX_SIZE`). */
+export const BOARD_SIZE = 200;
+export type View = "table" | "board";
 const MAX_SCORE = 5;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LANGUAGE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/;
@@ -48,6 +51,8 @@ export interface ApplicationsSearch {
   sort?: SortKey;
   dir?: Direction;
   page?: number;
+  /** The Kanban board instead of the table; absent means the table. */
+  view?: "board";
 }
 
 /** The server's default direction per column (backend `ApplicationSortKey`): dates newest first. */
@@ -94,6 +99,7 @@ export function parseApplicationsSearch(search: Record<string, unknown>): Applic
   }
   if (typeof search.page === "number" && Number.isInteger(search.page) && search.page > 0)
     result.page = search.page;
+  if (search.view === "board") result.view = "board";
   return result;
 }
 
@@ -151,7 +157,7 @@ export function sortedBy(search: ApplicationsSearch, sort: SortKey): Application
   return withOrder(search, { sort, dir: current?.sort === sort ? flipped : defaultDirection(sort) });
 }
 
-export type FilterKey = Exclude<keyof ApplicationsSearch, "sort" | "dir" | "page">;
+export type FilterKey = Exclude<keyof ApplicationsSearch, "sort" | "dir" | "page" | "view">;
 
 /** Sets (or, with `undefined`, clears) one filter; a new filter starts on the first page. */
 export function withFilter<K extends FilterKey>(
@@ -164,13 +170,33 @@ export function withFilter<K extends FilterKey>(
   return empty ? rest : { ...rest, [key]: value };
 }
 
-/** Every filter off; the order stays. */
-export function withoutFilters({ sort, dir }: ApplicationsSearch): ApplicationsSearch {
-  return { ...(sort ? { sort } : {}), ...(dir ? { dir } : {}) };
+/** Every filter off; the order and the view stay. */
+export function withoutFilters({ sort, dir, view }: ApplicationsSearch): ApplicationsSearch {
+  return { ...(sort ? { sort } : {}), ...(dir ? { dir } : {}), ...(view ? { view } : {}) };
 }
 
+const NOT_FILTERS: readonly string[] = ["sort", "dir", "page", "view"];
+
 export function isFiltered(search: ApplicationsSearch): boolean {
-  return Object.keys(search).some((key) => key !== "sort" && key !== "dir" && key !== "page");
+  return Object.keys(search).some((key) => !NOT_FILTERS.includes(key));
+}
+
+export function currentView(search: ApplicationsSearch): View {
+  return search.view ?? "table";
+}
+
+/** The table or the board with the same filters and order; the board has no pages. */
+export function withView(search: ApplicationsSearch, view: View): ApplicationsSearch {
+  const { view: _old, page: _page, ...rest } = search;
+  return view === "board" ? { ...rest, view } : rest;
+}
+
+/** The board's request: the same filters and order as the table, the first `BOARD_SIZE` applications. */
+export function toBoardSearchParams(
+  search: ApplicationsSearch,
+  now: Date = new Date(),
+): SearchApplicationsParams {
+  return { ...toSearchParams({ ...search, page: 0 }, now), size: BOARD_SIZE };
 }
 
 export function withPage(search: ApplicationsSearch, page: number): ApplicationsSearch {
