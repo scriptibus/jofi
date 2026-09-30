@@ -205,9 +205,9 @@ data class ApplicationStatusChanged(
     val occurredAt: Instant,
 ) {
     /**
-     * The move is the application being applied to (or a later stage skipped to), so the newest description
-     * snapshot of each source captured by [occurredAt] is frozen (spec §6.1, ADR-0046). Reopening within the
-     * applied stages freezes nothing new.
+     * The move is the application being applied to (or a later stage skipped to), so the use case that makes
+     * it freezes the descriptions in the same transaction (spec §6.1, ADR-0046): per source the newest snapshot
+     * captured by [occurredAt], unless the source has a frozen one already (only the first freeze counts).
      */
     val freezesDescriptions: Boolean get() = !from.impliesApplied && to.impliesApplied
 }

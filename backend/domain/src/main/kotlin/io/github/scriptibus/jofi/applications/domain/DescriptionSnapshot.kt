@@ -110,9 +110,9 @@ value class ContentHash(
 /**
  * One version of a source's job description (spec §6.1): the full [text] as captured [at][capturedAt],
  * stored locally so it survives the posting going offline. Snapshots never change: a new text is a new
- * snapshot ([next]). [frozenAt] is set once, when the application was applied to (ADR-0046); a frozen
- * snapshot is what the user applied for and stays so ([freeze] keeps the first time). [toString] leaves out
- * the text.
+ * snapshot ([next]). [frozenAt] is set once, when the application was first applied to (ADR-0046); a frozen
+ * snapshot is what the user applied for and stays so ([freeze] keeps the first time, [toFreeze] picks which
+ * snapshot of a source to freeze). [toString] leaves out the text.
  */
 data class DescriptionSnapshot(
     val id: SnapshotId,
@@ -153,6 +153,50 @@ data class DescriptionSnapshot(
 
     override fun toString(): String =
         "DescriptionSnapshot(id=${id.value}, source=${source.value}, reason=$reason, frozen=$frozen)"
+
+    companion object {
+        /**
+         * The source's first snapshot, captured [at] for [application]: frozen at once if the application is
+         * applied to already ([ApplicationStatus.impliesApplied]; a source found after applying shows what was
+         * applied for, ADR-0046).
+         */
+        fun discovery(
+            id: SnapshotId,
+            source: SourceId,
+            text: DescriptionText,
+            application: Application,
+            at: Instant,
+        ): DescriptionSnapshot =
+            DescriptionSnapshot(
+                id,
+                source,
+                text,
+                SnapshotReason.DISCOVERY,
+                at,
+                at.takeIf { application.status.impliesApplied },
+            )
+
+        /**
+         * Which snapshot of one source's [history] freezing [asOf] freezes (ADR-0046): none if the source has a
+         * frozen snapshot already (only the first freeze counts, also after reopening), otherwise its newest
+         * snapshot captured at or before [asOf], frozen then; none if it has no such snapshot.
+         */
+        fun toFreeze(
+            history: List<DescriptionSnapshot>,
+            asOf: Instant,
+        ): DescriptionSnapshot? =
+            if (history.any(DescriptionSnapshot::frozen)) {
+                null
+            } else {
+                history
+                    .filter {
+                        !it.capturedAt.isAfter(
+                            asOf,
+                        )
+                    }.maxByOrNull(DescriptionSnapshot::capturedAt)
+                    ?.freeze(asOf)
+            }
+    }
 }
 
 /** Outcome of recording a description: a new version, or the [latest] one if the text is unchanged. */

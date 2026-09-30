@@ -67,12 +67,17 @@ data class ApplicationSource(
 
     override fun toString(): String =
         "ApplicationSource(id=${id.value}, application=${application.value}, kind=$kind, online=$online)"
+
+    companion object {
+        /** The earliest discovery time input may name (as `BillingMonth.EARLIEST`); anything earlier is a typo. */
+        val EARLIEST_DISCOVERY: Instant = Instant.parse("2000-01-01T00:00:00Z")
+    }
 }
 
 /**
- * A source as entered: [originalUrl] is required for [SourceKind.URL]; [discoveredAt] defaults to now and
- * cannot be later; [description] is the posting's text at discovery, which becomes the source's first
- * snapshot ([SnapshotReason.DISCOVERY]). The text is untrusted data, never instructions. [toString]
+ * A source as entered: [originalUrl] is required for [SourceKind.URL]; [discoveredAt] defaults to now and lies between
+ * [ApplicationSource.EARLIEST_DISCOVERY] and now; [description] is the posting's text at discovery, which becomes the
+ * source's first snapshot ([SnapshotReason.DISCOVERY]). The text is untrusted data, never instructions. [toString]
  * leaves out the link and the text.
  */
 data class SourceInput(
@@ -92,7 +97,7 @@ data class SourceInput(
         ) {
             checks.report(ApplicationField.SOURCE_URL, ApplicationProblem.REQUIRED)
         }
-        if (discoveredAt?.isAfter(now) == true) {
+        if (discoveredAt != null && !discoveredAt.isWithin(ApplicationSource.EARLIEST_DISCOVERY, now)) {
             checks.report(ApplicationField.DISCOVERED_AT, ApplicationProblem.OUT_OF_RANGE)
         }
         val text = description?.let { checks.description(it, required = false) }
@@ -103,7 +108,15 @@ data class SourceInput(
     override fun toString(): String = "SourceInput(kind=$kind, discoveredAt=$discoveredAt)"
 }
 
-/** A valid [SourceInput]: the source to add once it has an id, and its text at discovery, if any. */
+private fun Instant.isWithin(
+    earliest: Instant,
+    latest: Instant,
+): Boolean = !isBefore(earliest) && !isAfter(latest)
+
+/**
+ * A valid [SourceInput]: the source to add once it has an id, and its text at discovery, if any, which
+ * becomes the source's first snapshot through [DescriptionSnapshot.discovery].
+ */
 data class SourceDraft(
     val kind: SourceKind,
     val originalUrl: WebAddress?,

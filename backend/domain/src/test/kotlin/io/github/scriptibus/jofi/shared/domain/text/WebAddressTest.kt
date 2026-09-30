@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.shared.domain.text
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -44,7 +45,16 @@ class WebAddressTest {
     )
     fun `internationalised and underscore hosts, ports, paths and queries are kept as entered`(raw: String) {
         WebAddress.parse(raw)?.value shouldBe raw
-        WebAddress.parse(raw).toString() shouldBe raw
+    }
+
+    @Test
+    fun `it prints only its host, so paths and tracking parameters stay out of logs`() {
+        val address = WebAddress("https://bücher.example:8443/stellen/köln?utm_source=mail&uid=secret#top")
+
+        address.host shouldBe "bücher.example"
+        address.toString() shouldBe "WebAddress(host=bücher.example)"
+        "$address" shouldNotContain "secret"
+        WebAddress("http://my_team.example").host shouldBe "my_team.example"
     }
 
     @Test

@@ -96,6 +96,92 @@ class DescriptionSnapshotTest {
         shouldThrow<IllegalArgumentException> { snapshot.freeze(at.minusSeconds(1)) }
     }
 
+    private fun version(
+        n: Int,
+        text: String,
+        at: Instant,
+    ) = DescriptionSnapshot(
+        SnapshotId(UUID(0, n.toLong())),
+        source,
+        DescriptionText(text),
+        SnapshotReason.CHANGE_DETECTED,
+        at,
+    )
+
+    /** What a move freezes of one source's [history]: what #84's use case stores in the same transaction. */
+    private fun move(
+        history: List<DescriptionSnapshot>,
+        from: ApplicationStatus,
+        to: ApplicationStatus,
+        at: Instant,
+    ): List<DescriptionSnapshot> {
+        from.canMoveTo(to) shouldBe true
+        val event = ApplicationStatusChanged(ApplicationId(UUID(0, 1)), from, to, Actor.User, at)
+        val frozen = if (event.freezesDescriptions) DescriptionSnapshot.toFreeze(history, at) else null
+        return history.map { if (it.id == frozen?.id) frozen else it }
+    }
+
+    @Test
+    fun `only the first freeze counts, so OFFER to DECLINED to OFFER keeps what was applied for`() {
+        val applied =
+            move(
+                listOf(version(1, "Kotlin", at)),
+                ApplicationStatus.DISCOVERED,
+                ApplicationStatus.APPLIED,
+                at.plusSeconds(10),
+            )
+        val offered = move(applied, ApplicationStatus.APPLIED, ApplicationStatus.OFFER, at.plusSeconds(20))
+        val declined = move(offered, ApplicationStatus.OFFER, ApplicationStatus.DECLINED, at.plusSeconds(30))
+        val changed = declined + version(2, "Kotlin, Remote", at.plusSeconds(40))
+
+        val reopened = move(changed, ApplicationStatus.DECLINED, ApplicationStatus.OFFER, at.plusSeconds(50))
+
+        reopened.map { it.frozenAt } shouldBe listOf(at.plusSeconds(10), null)
+        DescriptionSnapshot.toFreeze(reopened, later) shouldBe null
+    }
+
+    @Test
+    fun `declined before applying, then applied after a change, freezes the changed version, not a later one`() {
+        val declined =
+            move(
+                listOf(version(1, "Kotlin", at)),
+                ApplicationStatus.DISCOVERED,
+                ApplicationStatus.DECLINED,
+                at.plusSeconds(10),
+            )
+        val changed = declined + version(2, "Kotlin, Remote", at.plusSeconds(20))
+        val preparing = move(changed, ApplicationStatus.DECLINED, ApplicationStatus.PREPARING, at.plusSeconds(30))
+        val afterwards = preparing + version(3, "Kotlin, Hybrid", at.plusSeconds(50))
+
+        val applied = move(afterwards, ApplicationStatus.PREPARING, ApplicationStatus.APPLIED, at.plusSeconds(40))
+
+        applied.map { it.frozenAt } shouldBe listOf(null, at.plusSeconds(40), null)
+        DescriptionSnapshot.toFreeze(emptyList(), later) shouldBe null
+    }
+
+    @Test
+    fun `a source found after applying has its discovery snapshot frozen at once`() {
+        val details = ApplicationDetails("Backend Engineer", CompanyRef(UUID(0, 2)))
+        val discovered = Application.create(ApplicationId(UUID(0, 1)), details, at)
+        val applied = discovered.copy(status = ApplicationStatus.INTERVIEWING)
+        val text = DescriptionText("Kotlin")
+
+        DescriptionSnapshot.discovery(first, source, text, discovered, later).frozenAt shouldBe null
+        DescriptionSnapshot.discovery(first, source, text, applied, later) shouldBe
+            DescriptionSnapshot(first, source, text, SnapshotReason.DISCOVERY, later, later)
+        DescriptionSnapshot
+            .discovery(
+                first,
+                source,
+                text,
+                discovered.copy(
+                    status = ApplicationStatus.DECLINED,
+                    declineReason = DeclineReason(DeclineCategory.ROLE, null),
+                ),
+                later,
+            ).frozen shouldBe false
+    }
+
     @Test
     fun `a summary leaves out the text, and nothing prints it`() {
         snapshot.summary() shouldBe

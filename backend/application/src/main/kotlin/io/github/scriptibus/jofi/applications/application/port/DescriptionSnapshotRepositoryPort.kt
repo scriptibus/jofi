@@ -40,10 +40,13 @@ interface DescriptionSnapshotRepositoryPort {
     ): ApplicationStoreResult<DescriptionSnapshot>
 
     /**
-     * Freezes, for each source of [application], its newest snapshot captured at or before [asOf], setting
-     * `frozen_at` to [asOf] unless it is frozen already ([DescriptionSnapshot.freeze]; ADR-0046). Returns the
-     * ids it froze (none if nothing was left to freeze), for the changelog. Idempotent, so a repeated or late
-     * `ApplicationStatusChanged` freezes what the user applied for, not what was captured afterwards.
+     * Freezes what the user applied for (ADR-0046), as [DescriptionSnapshot.toFreeze] decides per source: for each
+     * source of [application] **without a frozen snapshot** (`NOT EXISTS (… frozen_at IS NOT NULL)`; only the first
+     * freeze counts, also after a reopening), its newest snapshot captured at or before [asOf] gets `frozen_at =`
+     * [asOf]. Returns the ids it froze (none if nothing was left to freeze), for the changelog; repeating it freezes
+     * nothing new. Called synchronously, in the same transaction as the status change that
+     * `ApplicationStatusChanged.freezesDescriptions` (#84's `ChangeApplicationStatusUseCase`, [asOf] = the change's
+     * time), so no freeze can be lost between a commit and an event listener.
      */
     fun freeze(
         application: ApplicationId,

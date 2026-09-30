@@ -41,7 +41,6 @@ object InboundPortRules {
             "ListDescriptionSnapshotsPort" to "#86",
             "GetDescriptionSnapshotPort" to "#86",
             "DiffDescriptionSnapshotsPort" to "#86",
-            "FreezeDescriptionSnapshotsPort" to "#86",
         )
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */

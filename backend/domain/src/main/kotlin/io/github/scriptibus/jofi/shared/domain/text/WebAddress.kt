@@ -12,7 +12,8 @@ import java.net.URI
  * (`bücher.example`) or contain underscores (`my_team.example`), which `java.net.URI` alone does not
  * accept as a host, so the host is checked as its ASCII form (`IDN.toASCII`) and the rest as a URI
  * (ADR-0041). Only a value: nothing here fetches it (outbound fetches go through `OutboundHttpPort`).
- * The companies context keeps its own copy until it is next touched.
+ * [toString] prints only the [host], so paths and tracking parameters stay out of logs; use [value] for the
+ * link itself. The companies context keeps its own copy until it is next touched.
  */
 @JvmInline
 value class WebAddress(
@@ -22,7 +23,10 @@ value class WebAddress(
         require(isValid(value)) { "A web address must be an absolute http(s) URL with a host and no user info" }
     }
 
-    override fun toString(): String = value
+    /** The host as entered, without port, path, query or fragment. */
+    val host: String get() = checkNotNull(SHAPE.matchEntire(value)?.groups?.get(1)).value.replace(PORT, "")
+
+    override fun toString(): String = "WebAddress(host=$host)"
 
     companion object {
         const val MAX_LENGTH = 2_048

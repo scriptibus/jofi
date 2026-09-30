@@ -107,7 +107,10 @@ interface DeleteApplicationPort {
  * `Invalid` (NOT_APPLICABLE). A move the matrix does not allow is `InvalidTransition`; moving to the current
  * status with the same reason is a no-op. Stores through `ApplicationRepositoryPort.changeStatus` (the
  * history entry with it), writes a changelog entry (field `status`, before and after; the reason's text
- * stays out of it) and publishes `ApplicationStatusChanged` after the commit.
+ * stays out of it) and publishes `ApplicationStatusChanged`. If the move `freezesDescriptions` (the application is
+ * first applied to, ADR-0046), it freezes the job descriptions in the same transaction through
+ * `DescriptionSnapshotRepositoryPort.freeze` (as of the change's time), writing one changelog entry per frozen snapshot
+ * (entity `description_snapshot`, same actor), so a status change and its freeze are stored together or not at all.
  */
 interface ChangeApplicationStatusPort {
     fun execute(

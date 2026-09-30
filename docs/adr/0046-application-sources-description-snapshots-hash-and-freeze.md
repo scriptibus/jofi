@@ -35,10 +35,13 @@ port (`ApplicationSourceRepositoryPort`), never by the application's detail, sta
 application's `version` and `updatedAt`, like read/unread: imports and scanners record sources while the user
 edits, and a scanner must not turn the user's next save into a `409`. Each source and each snapshot is its own
 changelog entity (`application_source`, `description_snapshot`). An application holds at most 50 sources (a
-domain rule; the table does not limit it, and since adds take no version, the repository counts again under a
-lock of the application's row, `SourceLimitReached`, so concurrent adds cannot exceed it). A `URL` source always has a link. Links are stored as found and
-never fetched here; fetching is the URL import's job, through the SSRF guard (#97). They may carry personal
-tracking parameters, so `toString()` and changelog entries leave them out. The same link may belong to several
+domain rule; the table does not limit it, and since adds take no version, the repository counts again after
+locking the application's row with `SELECT … FOR NO KEY UPDATE`, answering `SourceLimitReached`, so concurrent
+adds cannot exceed it). A `URL` source always has a link. The discovery time input may name lies between
+2000-01-01 (as `BillingMonth.EARLIEST`) and now (`OUT_OF_RANGE` otherwise); the table has no bound, so it is
+never stricter. Links are stored as found and never fetched here; fetching is the URL import's job, through the
+SSRF guard (#97). They may carry personal tracking parameters, so changelog entries leave them out and
+`WebAddress.toString()` prints only the host. The same link may belong to several
 applications (a careers page listing several jobs), so it is indexed (hash index, links are up to 2048
 characters) but not unique.
 
@@ -59,27 +62,34 @@ goes back to an earlier version (A → B → A) is a new version again, so there
 `(source_id, content_hash)`. The repository locks the source row while reading the newest snapshot, so two
 concurrent recordings of the same new text cannot both store it.
 
-### Freezing: a timestamp on the snapshot, set once, on entering the applied stages
+### Freezing: a timestamp on the snapshot, set once, in the status change's transaction
 
 The freeze flag lives on each snapshot as `frozen_at` (`null` = not frozen), not on the application: each source
-has its own history, and the snapshot is what the user applied for.
+has its own history, and the snapshot is what the user applied for. (Decided by Lucas in the review of PR #152.)
 
-- **When:** a status change is the application being applied to when it moves from a status in which the user
-  has not applied (`DISCOVERED`, `SHORTLISTED`, `PREPARING`, `DECLINED`) into one in which they have (`APPLIED`
-  and everything after it: `INTERVIEWING`, `OFFER`, `ACCEPTED`, `REJECTED`, `WITHDRAWN`, `GHOSTED`).
+- **When:** a status change freezes when it moves from a status in which the user has not applied
+  (`DISCOVERED`, `SHORTLISTED`, `PREPARING`, `DECLINED`) into one in which they have (`APPLIED` and everything
+  after it: `INTERVIEWING`, `OFFER`, `ACCEPTED`, `REJECTED`, `WITHDRAWN`, `GHOSTED`).
   `ApplicationStatus.impliesApplied` and `ApplicationStatusChanged.freezesDescriptions` encode it, so skipping
   straight to `INTERVIEWING` (ADR-0044 allows forward skips) freezes too, and reopening within the applied stages
-  (e.g. `REJECTED` → `INTERVIEWING`) freezes nothing new. `DECLINED` counts as not applied, since the user may
-  decline before applying; reopening a declined offer freezes the newest snapshot again, which is a no-op if
-  nothing changed since.
-- **What:** for each source of the application, its newest snapshot captured at or before the event's
-  `occurredAt`, set to `frozen_at = occurredAt` unless already frozen. Using the event's time, not the time the
-  freeze runs, makes it exact and idempotent: a late or repeated event freezes what the user applied for, not
-  what a scanner captured afterwards.
-- **How #86 sets it:** `FreezeDescriptionSnapshotsUseCase` (port `FreezeDescriptionSnapshotsPort`) handles every
-  `ApplicationStatusChanged` after the status change commits and calls `DescriptionSnapshotRepositoryPort.freeze`
-  in its own transaction, writing one changelog entry per frozen snapshot with the event's actor. The status
-  change (#84) stays independent of the snapshot tables.
+  (e.g. `REJECTED` → `INTERVIEWING`) asks for nothing. `DECLINED` counts as not applied, since the user may
+  decline before applying.
+- **Only the first freeze counts.** A source that has a frozen snapshot is never frozen again: the freeze
+  selects only sources `NOT EXISTS (… frozen_at IS NOT NULL)` (`DescriptionSnapshot.toFreeze` in the domain).
+  So `OFFER` → `DECLINED` → `OFFER` keeps what was applied for, even if a change was detected while declined.
+  An application declined *before* applying and applied to later has no frozen snapshot yet, so its first
+  application freezes the version current then (including a change detected in between).
+- **What:** for each such source, its newest snapshot captured at or before the status change's time, set to
+  `frozen_at` = that time. A snapshot captured later is never frozen by it.
+- **How: synchronously, in the status change's transaction.** #84's `ChangeApplicationStatusUseCase` calls
+  `DescriptionSnapshotRepositoryPort.freeze(application, change time)` when the move `freezesDescriptions`, and
+  writes one changelog entry per frozen snapshot (entity `description_snapshot`, the status change's actor). The
+  status change and its freeze are stored together or not at all: no event can be lost between a commit and a
+  listener, so no reconcile job is needed. There is no freeze inbound port; #86 owns recording, listing, reading
+  and diffing only.
+- **Sources found after applying:** a source added while `application.status.impliesApplied` stores its
+  discovery snapshot already frozen (`frozen_at = captured_at`, `DescriptionSnapshot.discovery`), in the add's
+  transaction (#96): it is the only record of the posting the user applied to at that place.
 - **Kept:** a snapshot never changes. `DescriptionSnapshot.freeze` keeps the first freeze time, and a changed
   text after applying is a new, unfrozen snapshot; the frozen one stays as it was. In the database the trigger
   `application_description_snapshot_immutable` rejects every `UPDATE` except setting `frozen_at` once with
@@ -87,6 +97,12 @@ has its own history, and the snapshot is what the user applied for.
   are deleted only with their source, and sources with their application (`ON DELETE CASCADE`, behind the
   application delete's confirmation); a restore replaces the table with `TRUNCATE`, which the row trigger does
   not see.
+- **Escape hatch for migrations:** a later migration that must rewrite snapshots (e.g. a new normalization)
+  runs `ALTER TABLE application_description_snapshot DISABLE TRIGGER application_description_snapshot_immutable`,
+  its `UPDATE`, and `ENABLE TRIGGER …` **within the same migration** (one transaction, so the trigger is never
+  left off), and keeps `content_hash` consistent in the same statement
+  (`content_hash = encode(sha256(convert_to(description, 'UTF8')), 'hex')`, which the check enforces anyway).
+  Nothing else ever disables it.
 
 ### API shape
 

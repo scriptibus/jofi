@@ -21,10 +21,13 @@ import io.github.scriptibus.jofi.shared.domain.text.WebAddress
  */
 interface ApplicationSourceRepositoryPort {
     /**
-     * Stores a new source and, if given, its first snapshot ([discovery], of this source), both or neither.
-     * The use case checked the limit before ([Application.addSource]); the adapter counts again under a lock of
-     * the application's row, so concurrent adds (which take no version) can never store more than
-     * [Application.MAX_SOURCES] and make the application unreadable: [ApplicationStoreResult.SourceLimitReached].
+     * Stores a new source and, if given, its first snapshot ([discovery], of this source, built with
+     * [DescriptionSnapshot.discovery]: already frozen when the application is applied to), both or neither.
+     * The use case checked the limit before ([Application.addSource]); the adapter counts again after locking the
+     * application's row with `SELECT … FOR NO KEY UPDATE` (enough against concurrent adds, and it does not block
+     * inserts elsewhere that only reference the application), so adds, which take no version, can never store
+     * more than [Application.MAX_SOURCES] and make the application unreadable:
+     * [ApplicationStoreResult.SourceLimitReached].
      */
     fun add(
         source: ApplicationSource,

@@ -229,14 +229,20 @@ The generator lives in the `codegen` source set and has its own locked classpath
   (as `company.website`; required for `URL`, `application_source_url_matches_kind`), `discovered_at`,
   `offline_since` (NULL while online, not before discovery). Not unique per link (a careers page can list several
   jobs); `application_source_original_url_idx` is a **hash** index for the URL import's lookup (#97), since a
-  btree row could exceed its size limit. The 50-sources limit stays in the domain. Written only by
+  btree row could exceed its size limit. The 50-sources limit stays in the domain; `add` re-counts after locking
+  the application row with `FOR NO KEY UPDATE`. `discovered_at` has no lower bound here (the domain's is 2000-01-01). Written only by
   `ApplicationSourceRepositoryPort` (#86, #96), read with the application; adding one is no new version.
 - `application_description_snapshot` (#78, ADR-0046): one row per version of a source's description, deleted with
   its source. `description` is untrusted posting text (at most 100,000 characters), `content_hash` must equal
   `encode(sha256(convert_to(description, 'UTF8')), 'hex')` (`..._content_hash_matches`, what `ContentHash`
   computes), `reason` (`DISCOVERY`/`CHANGE_DETECTED`/`MANUAL`), `captured_at`, `frozen_at` (set once, not before
   capture). The trigger `application_description_snapshot_immutable` rejects every `UPDATE` but freezing an
-  unfrozen row with nothing else changing; it raises with that name as its constraint. Repositories never log
+  unfrozen row with nothing else changing; it raises with that name as its constraint. Only the first freeze
+  counts (`freeze` skips sources that have a frozen snapshot) and it runs in the status change's transaction; a
+  source added after applying stores its discovery snapshot frozen (ADR-0046). **Escape hatch:** a migration that
+  must rewrite snapshots disables the trigger, updates (keeping `content_hash` equal to
+  `encode(sha256(convert_to(description, 'UTF8')), 'hex')`) and enables it again, all within that one migration;
+  nothing else disables it. Repositories never log
   the text, and changelog entries never hold it. `ApplicationSourceSchemaTest` proves the constraints, the
   limits, the hash, the trigger and both cascades. User data: **covered by export/import**.
 

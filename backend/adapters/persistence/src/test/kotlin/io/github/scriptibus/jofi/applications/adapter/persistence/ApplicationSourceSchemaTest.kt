@@ -5,8 +5,13 @@ package io.github.scriptibus.jofi.applications.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.adapter.persistence.ApplicationRows.Companion.NOW
 import io.github.scriptibus.jofi.applications.adapter.persistence.ApplicationRows.Companion.rejects
+import io.github.scriptibus.jofi.applications.domain.Application
+import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationValidation
+import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContentHash
 import io.github.scriptibus.jofi.applications.domain.DescriptionInput
 import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
@@ -82,6 +87,7 @@ class ApplicationSourceSchemaTest {
                 draft(SourceInput(SourceKind.URL, prefix + "x".repeat(WebAddress.MAX_LENGTH - prefix.length))),
                 draft(SourceInput(SourceKind.SCANNER, "HTTP://my_team.example:8080/careers#open")),
                 draft(SourceInput(SourceKind.MANUAL_CHAT, discoveredAt = at)),
+                draft(SourceInput(SourceKind.MANUAL_CHAT, discoveredAt = ApplicationSource.EARLIEST_DISCOVERY)),
             )
         drafts.forEach { store(it) }
         // Exactly the limit in UTF-16 units, which the domain counts (the rocket is two).
@@ -150,6 +156,30 @@ class ApplicationSourceSchemaTest {
     }
 
     @Test
+    fun `a source found after applying stores its discovery snapshot frozen at capture`() {
+        val details = ApplicationDetails("Backend Engineer", CompanyRef(UUID.randomUUID()))
+        val applied =
+            Application
+                .create(
+                    ApplicationId(application),
+                    details,
+                    at,
+                ).copy(status = ApplicationStatus.APPLIED)
+        val discovery =
+            DescriptionSnapshot.discovery(
+                SnapshotId(UUID.randomUUID()),
+                SourceId(source),
+                DescriptionText("Text"),
+                applied,
+                at,
+            )
+
+        store(discovery)
+
+        dsl.fetchValues(APPLICATION_DESCRIPTION_SNAPSHOT.FROZEN_AT).map { it?.toInstant() } shouldBe listOf(at)
+    }
+
+    @Test
     fun `a snapshot is frozen once and never changes otherwise`() {
         val id = insertSnapshot("Text")
         val later = NOW.plusMinutes(5)
@@ -211,6 +241,8 @@ class ApplicationSourceSchemaTest {
             id = snapshot.id.value
             contentHash = snapshot.contentHash.hex
             reason = snapshot.reason.name
+            capturedAt = snapshot.capturedAt.atOffset(ZoneOffset.UTC)
+            frozenAt = snapshot.frozenAt?.atOffset(ZoneOffset.UTC)
         }
     }
 

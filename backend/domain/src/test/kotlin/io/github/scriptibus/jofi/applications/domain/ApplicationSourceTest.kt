@@ -125,6 +125,22 @@ class ApplicationSourceTest {
     }
 
     @Test
+    fun `discovery lies between 2000 and now, both bounds included`() {
+        val earliest = ApplicationSource.EARLIEST_DISCOVERY
+
+        SourceInput(SourceKind.MANUAL_CHAT, discoveredAt = earliest).validate(at) shouldBe
+            ApplicationValidation.Valid(SourceDraft(SourceKind.MANUAL_CHAT, null, earliest, null))
+        SourceInput(
+            SourceKind.MANUAL_CHAT,
+            discoveredAt = at,
+        ).validate(at).shouldBeInstanceOf<ApplicationValidation.Valid<*>>()
+        SourceInput(SourceKind.MANUAL_CHAT, discoveredAt = earliest.minusNanos(1_000)).validate(at) shouldBe
+            ApplicationValidation.Invalid(
+                listOf(ApplicationViolation(ApplicationField.DISCOVERED_AT, ApplicationProblem.OUT_OF_RANGE)),
+            )
+    }
+
+    @Test
     fun `nothing prints the link or the text`() {
         val input = SourceInput(SourceKind.URL, link.value, description = "Secret text")
 
