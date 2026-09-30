@@ -4,6 +4,7 @@
 import { useGetSystemInfo } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { PasswordChangeForm } from "../auth/PasswordChangeForm";
+import { BackupSection } from "../backup/BackupSection";
 import { AccentSwitch, LanguageSwitch, ThemeSwitch } from "../preferences";
 import { LogoutButton } from "../shell/LogoutButton";
 import { PageHeader } from "./PlaceholderPage";
@@ -26,6 +27,9 @@ export function SettingsPage() {
         </section>
         <div className={card}>
           <PasswordChangeForm />
+        </div>
+        <div className={`${card} lg:col-span-2`}>
+          <BackupSection />
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-4">

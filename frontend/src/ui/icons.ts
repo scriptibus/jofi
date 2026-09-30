@@ -6,9 +6,12 @@
 
 export type { LucideIcon as Icon } from "lucide-react";
 export {
+  ArchiveRestore as RestoreIcon,
   Briefcase as ApplicationsIcon,
   Building as CompaniesIcon,
+  CircleAlert as WarningIcon,
   CircleCheck as SuccessIcon,
+  Download as DownloadIcon,
   Info as InfoIcon,
   KeyRound as KeyIcon,
   LayoutDashboard as DashboardIcon,
@@ -18,6 +21,7 @@ export {
   Settings as SettingsIcon,
   Share2 as ShareIcon,
   TriangleAlert as ErrorIcon,
+  Upload as UploadIcon,
   WifiOff as OfflineIcon,
   X as CloseIcon,
 } from "lucide-react";

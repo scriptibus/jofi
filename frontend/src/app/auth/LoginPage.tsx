@@ -17,7 +17,7 @@ import { useThrottle } from "./useThrottle";
 const route = getRouteApi("/login");
 
 /** Why the user sees the login screen, when it is not the first visit. */
-export type LoginReason = "expired" | "logged-out";
+export type LoginReason = "expired" | "logged-out" | "restored";
 
 export function LoginPage() {
   const { redirect, reason } = route.useSearch();
@@ -62,6 +62,7 @@ export function LoginPage() {
     <AuthLayout title={m.login_heading()} intro={m.login_intro()}>
       {reason === "expired" && !attempted ? <Alert tone="info">{m.session_expired()}</Alert> : null}
       {reason === "logged-out" && !attempted ? <Alert tone="success">{m.logged_out()}</Alert> : null}
+      {reason === "restored" && !attempted ? <Alert tone="success">{m.login_restored()}</Alert> : null}
       <FormFeedback throttle={throttle} failure={failure} />
       <Form onSubmit={submit} validationErrors={fieldErrors.errors} className="flex flex-col gap-5">
         <TextField

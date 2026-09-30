@@ -17,8 +17,10 @@ export {
 } from "./appearance";
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
+export { Dialog, type DialogProps } from "./Dialog";
 export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";
 export { EmptyState, type EmptyStateProps } from "./EmptyState";
+export { FilePicker, type FilePickerProps } from "./FilePicker";
 export * from "./icons";
 export { NavItem, TextLink } from "./Link";
 export {
