@@ -49,7 +49,8 @@ server:
       internal-proxies: ${JOFI_TRUSTED_PROXIES:127.0.0.0/8, ::1/128}
 
 jofi:
-  # The data volume: master keyset and setup token (owner-only files), later knowledge and documents.
+  # The data volume: master keyset and setup token (owner-only files), knowledge/ and documents/, and
+  # backup-work/ for exports and restores in progress.
   # Must be an absolute path; no default, so a working directory never decides where keys go
   # (/data in the container image).
   data-dir: ${JOFI_DATA_DIR:}
@@ -62,6 +63,12 @@ jofi:
   secrets:
     # `true` accepts that a lost or different master keyset makes the stored secrets unreadable.
     accept-loss: ${JOFI_ACCEPT_SECRET_LOSS:false}
+  # Backup and restore (ADR-0042). Limits for an uploaded backup: the upload itself, everything it
+  # unpacks to (zip bombs) and its number of entries. Unpacking needs that much free space in the data volume.
+  backup:
+    max-upload-size: ${JOFI_BACKUP_MAX_UPLOAD_SIZE:2GB}
+    max-unpacked-size: ${JOFI_BACKUP_MAX_UNPACKED_SIZE:8GB}
+    max-entries: ${JOFI_BACKUP_MAX_ENTRIES:100000}
 
 # Background jobs (ADR-0010, ADR-0038): JobRunr on the Flyway-managed tables. `app` only enqueues; the
 # `worker` profile (application-worker.yaml) runs the background job server.

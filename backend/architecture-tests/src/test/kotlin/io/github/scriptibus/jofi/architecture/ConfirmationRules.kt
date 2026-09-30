@@ -20,6 +20,9 @@ import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
+import io.github.scriptibus.jofi.system.application.RecoverRestoreUseCase
+import io.github.scriptibus.jofi.system.application.port.MasterKeyBackupPort
+import io.github.scriptibus.jofi.system.domain.backup.MasterKeysetCopy
 
 /**
  * The two-step confirmation (ADR-0039) enforced on the compiled classes, shared by the production
@@ -33,10 +36,31 @@ object ConfirmationRules {
     private val DESTRUCTIVE_PORT_METHOD = Regex("^(delete|remove|send|purge).*")
 
     /**
-     * Outward-facing endpoints that are not `DELETE` (e.g. a future "send email"), as `"POST /api/..."`.
-     * They need the confirmation header too. Add every such endpoint here when it is created.
+     * `MasterKeyBackupPort.reinstate` replaces the master keyset without a confirmation proof: it
+     * exists only to undo an interrupted restore (ADR-0042). Nothing but `RecoverRestoreUseCase` (and
+     * the adapter implementing the port) may call it.
      */
-    val OUTWARD_FACING_ENDPOINTS: Set<String> = emptySet()
+    val onlyRestoreRecoveryReinstatesTheKeyset: ArchRule =
+        noClasses()
+            .that()
+            .doNotHaveFullyQualifiedName(RecoverRestoreUseCase::class.java.name)
+            .and()
+            .doNotImplement(MasterKeyBackupPort::class.java)
+            .should()
+            .callMethod(MasterKeyBackupPort::class.java, "reinstate", MasterKeysetCopy::class.java)
+            .because("only restore recovery may put a keyset back without a confirmation (ADR-0042)")
+            .allowEmptyShould(true)
+
+    /**
+     * Outward-facing endpoints that are not `DELETE` (e.g. a future "send email"), as `"POST /api/..."`.
+     * They need the confirmation header too. Add every such endpoint here when it is created, and
+     * destructive ones that are not `DELETE` as well.
+     */
+    val OUTWARD_FACING_ENDPOINTS: Set<String> =
+        setOf(
+            // Replaces all data with a backup (ADR-0042).
+            "POST /api/system/backup/restores/{id}",
+        )
 
     /**
      * `DELETE` handlers that are not destructive for the user's data and need no confirmation,

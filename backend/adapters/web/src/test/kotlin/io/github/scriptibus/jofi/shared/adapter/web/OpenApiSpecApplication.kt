@@ -5,8 +5,10 @@ package io.github.scriptibus.jofi.shared.adapter.web
 
 import io.mockk.mockkClass
 import io.swagger.v3.oas.models.OpenAPI
+import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.info.Info
 import io.swagger.v3.oas.models.media.ArraySchema
+import io.swagger.v3.oas.models.media.BinarySchema
 import io.swagger.v3.oas.models.media.ComposedSchema
 import io.swagger.v3.oas.models.media.Content
 import io.swagger.v3.oas.models.media.IntegerSchema
@@ -18,6 +20,7 @@ import io.swagger.v3.oas.models.media.StringSchema
 import io.swagger.v3.oas.models.responses.ApiResponse
 import io.swagger.v3.oas.models.servers.Server
 import org.springdoc.core.customizers.OpenApiCustomizer
+import org.springdoc.core.customizers.OperationCustomizer
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
 import org.springframework.beans.factory.support.GenericBeanDefinition
@@ -25,9 +28,12 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Import
+import org.springframework.core.annotation.AnnotatedElementUtils
 import org.springframework.util.ClassUtils
+import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.HandlerMethod
 
 /**
  * The application context the API contract is rendered from: every controller and controller
@@ -48,6 +54,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
     OpenApiSpecApplication.UseCaseStubs::class,
     OpenApiSpecApplication.ContractCustomizer::class,
     ProblemResponsesCustomizer::class,
+    OpenApiSpecApplication.BinaryBodies::class,
     WriteOnlySecretCustomizer::class,
 )
 class OpenApiSpecApplication {
@@ -158,7 +165,39 @@ class OpenApiSpecApplication {
         }
     }
 
+    /**
+     * Binary bodies (the `application/zip` backups, ADR-0042), which springdoc cannot infer: a handler
+     * that consumes a non-JSON media type gets a `string`/`binary` request body, and one that produces
+     * a non-JSON media type while writing the response itself (a `void` handler) a `string`/`binary`
+     * 200 response.
+     */
+    class BinaryBodies : OperationCustomizer {
+        override fun customize(
+            operation: Operation,
+            handlerMethod: HandlerMethod,
+        ): Operation {
+            val mapping =
+                AnnotatedElementUtils.findMergedAnnotation(handlerMethod.method, RequestMapping::class.java)
+                    ?: return operation
+            binaryContent(mapping.consumes)?.let { content -> operation.requestBody?.content(content) }
+            if (handlerMethod.isVoid) {
+                binaryContent(mapping.produces)?.let { content ->
+                    val ok = operation.responses[OK] ?: ApiResponse().description("OK")
+                    operation.responses.addApiResponse(OK, ok.content(content))
+                }
+            }
+            return operation
+        }
+
+        private fun binaryContent(mediaTypes: Array<String>): Content? {
+            val binary = mediaTypes.filterNot { it.contains("json") }
+            if (binary.isEmpty()) return null
+            return Content().apply { binary.forEach { addMediaType(it, MediaType().schema(BinarySchema())) } }
+        }
+    }
+
     private companion object {
+        const val OK = "200"
         const val PROBLEM_DETAIL = "ProblemDetail"
         const val CONFIRMATION_REQUIRED = "ConfirmationRequiredProblem"
         const val PRECONDITION_REQUIRED = "428"

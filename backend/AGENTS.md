@@ -39,7 +39,7 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
-- `adapters/<kind>`: framework code (web, persistence, net, crypto, jobs, ai, ...); depends on `application`.
+- `adapters/<kind>`: framework code (web, persistence, net, crypto, jobs, ai, backup, ...); depends on `application`.
   Adapters never depend on each other (two exemptions: persistence adapters of every context use
   the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032; web adapters use the shared
   web conventions in `shared.adapter.web`, ADR-0041).
@@ -151,7 +151,11 @@ capabilities for the setup checks. Costs and the budget are in USD only; an unkn
   `AnthropicSdkHttpClient`) instead (ADR-0040). Never create an HTTP client elsewhere; see
   `adapters/net/AGENTS.md` and `adapters/ai/AGENTS.md`.
 - **A table or migration**: see `adapters/persistence/AGENTS.md` (timestamp versions, one open
-  migration PR at a time, jOOQ codegen, export/import coverage, changelog on every mutation).
+  migration PR at a time, jOOQ codegen, export/import coverage, changelog on every mutation). Every
+  table goes into `BackupTables.EXPORTED` (and gets a seed row in `DatabaseBackupRepositoryTest`) or
+  into `BackupTables.EXCLUDED` with a reason; `DatabaseBackupRepositoryTest` fails otherwise (ADR-0042).
+- **Files in the data volume**: only below `<data>/knowledge` or `<data>/documents`, which backups carry
+  (`adapters/backup`, ADR-0042); anything else needs its own entry in the backup format.
 - **A mutation**: append a `ChangelogEntry` with the acting `Actor` through `ChangelogPort` in the
   same use case (spec §13), inside `TransactionPort.inTransaction` so both are stored or neither.
   The changelog is append-only; the audit lens checks the actor.

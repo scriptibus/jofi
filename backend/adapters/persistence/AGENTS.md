@@ -25,8 +25,10 @@ tests and `bootTestRun`. Bump tag and digest together.
 - **Only one open PR at a time may add migrations.** The `migration-lock` CI job fails a PR that
   adds a migration while an older open PR also adds one; wait for it to merge, rebase, re-run.
   Migrations are a protected path: Lucas reviews every one.
-- Every new table or file must be covered by export/import (#26 enumerates the tables from the
-  generated jOOQ schema, so a table it cannot round-trip fails its test).
+- Every new table or file must be covered by export/import (ADR-0042): add the table to
+  `BackupTables.EXPORTED` and a seed row with awkward values to `DatabaseBackupRepositoryTest`, or to
+  `BackupTables.EXCLUDED` with a reason. The test enumerates the generated jOOQ schema and fails for a
+  table in neither list or one it cannot round-trip.
 - **Check constraints are never stricter than the domain** (ADR-0041): whatever the domain accepts must
   be storable, or a valid entity fails with a 500. No locale-dependent logic in SQL: no `lower()`/
   `upper()`/`ILIKE` or collation-dependent comparison in constraints, and whitespace as the ASCII class
@@ -76,10 +78,10 @@ The generator lives in the `codegen` source set and has its own locked classpath
   through `SecretCipherPort`; the key is the master keyset in the data volume (ADR-0035). Never store
   or log a key in clear text anywhere else; provider configs reference a secret id.
 - `user_account` (#16): the single user, at most one row, argon2id hash only, plus the `account_id`
-  sessions are bound to (`UserAccountRepository`). Covered by export/import.
+  sessions are bound to (`UserAccountRepository`). Exported (ADR-0042).
 - `master_key_check` (#16): at most one row, a Tink ciphertext of a fixed text proving which master
-  keyset encrypted `secret` (`MasterKeyRecordRepository`, ADR-0035). Covered by export/import; it
-  must travel with `secret` and the keyset.
+  keyset encrypted `secret` (`MasterKeyRecordRepository`, ADR-0035). Exported; a restore checks it
+  against the backup's keyset (ADR-0042).
 - `ai_provider_config`, `ai_model_assignment`, `ai_model_capability`, `ai_monthly_budget`,
   `ai_cost_entry` (#11, repositories in `setup.adapter.persistence` since #20, ADR-0043): read by the
   AI gateway on every call. `ai_cost_entry` is append-only; `cost_micros` NULL means the cost is
@@ -87,7 +89,7 @@ The generator lives in the `codegen` source set and has its own locked classpath
   cannot be deleted (`InUse`).
 - `spring_session`, `spring_session_attributes`: login sessions, managed by Spring Session JDBC (schema
   copied from spring-session-jdbc 4.1.1). Ephemeral bearer credentials: **excluded from export/import**
-  (#26), a restore starts logged out. Never log their ids.
+  (ADR-0042); a restore empties them, so it ends every session. Never log their ids.
 - `ExpiredSessionsRepository` (`ExpiredSessionsPort`, #17): deletes sessions past their idle timeout (the
   statement Spring Session's own cleanup runs, which is switched off in `app`); the hourly `session-cleanup`
   worker job calls it and records the count in the changelog.
@@ -96,10 +98,23 @@ The generator lives in the `codegen` source set and has its own locked classpath
   JobRunr 8.8.2's own migrations; JobRunr runs with `NO_VALIDATE` and never touches the schema).
   `JobRunrSchemaTest` compares it with the schema JobRunr's migrations create: after a JobRunr upgrade that
   fails, add a migration with the difference. Only JobRunr reads and writes these tables (no jOOQ
-  repositories). Operational state: **excluded from export/import** (#26), a restore starts with an empty
+  repositories). Operational state: **excluded from export/import** (ADR-0042), a restore starts with an empty
   queue and `app` registers its recurring schedules again.
 - `TransactionAdapter` (`TransactionPort`): Spring's JDBC transaction around several repository calls;
   jOOQ joins it.
+- `DatabaseBackupRepository` (`DatabaseBackupPort`, ADR-0042): dumps the exported tables with
+  PostgreSQL `COPY ... TO STDOUT (FORMAT csv, HEADER true)` (pgjdbc's `CopyManager`, which is why the
+  driver is a compile dependency) from one `REPEATABLE READ, READ ONLY` snapshot, and restores them in
+  the caller's transaction: `TRUNCATE` of the exported and session tables, `COPY ... FROM STDIN (FORMAT
+  csv, HEADER match)` in foreign-key order, row counts checked, identity sequences continued. It acts
+  only with the gate's `Confirmed` for exactly that backup.
+  `ScratchMigration` migrates an older backup's dumps in a scratch database `jofi_restore_<id>` (Flyway to
+  the backup's version, load, Flyway to latest, dump again, drop), so the app's database is never touched;
+  it needs the right to create databases. Migrations therefore must also work on restored old data.
+  Leftover scratch databases are dropped at startup and before each migration (`dropScratchDatabases`).
+- **No SQL built from row values**: no `EXECUTE` in functions and no `DO` blocks that assemble SQL from
+  table contents. A restored backup (or a migrated one in the scratch database) is untrusted data, and
+  migrations run on it.
 - `ai_provider_config` (base URL without credentials, query or fragment; one secret per provider),
   `ai_model_capability` (per provider + model, deleted with the provider), `ai_model_assignment`
   (one row per `AiTask`: provider + model only), `ai_cost_entry` (append-only by trigger, integer

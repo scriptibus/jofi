@@ -15,6 +15,7 @@ dependencies {
     implementation(project(":adapters:crypto"))
     implementation(project(":adapters:jobs"))
     implementation(project(":adapters:ai"))
+    implementation(project(":adapters:backup"))
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.session.jdbc)

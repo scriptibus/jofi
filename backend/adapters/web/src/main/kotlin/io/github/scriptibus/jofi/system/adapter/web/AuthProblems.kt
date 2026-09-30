@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.system.adapter.web
 import io.github.scriptibus.jofi.system.domain.FirstRunResult
 import io.github.scriptibus.jofi.system.domain.LoginResult
 import io.github.scriptibus.jofi.system.domain.PasswordChangeResult
+import io.github.scriptibus.jofi.system.domain.PasswordCheckResult
 import io.github.scriptibus.jofi.system.domain.PasswordPolicyCheck
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -107,6 +108,27 @@ object AuthProblems {
             }
 
             PasswordChangeResult.StorageFailure, PasswordChangeResult.Changed -> {
+                unavailable()
+            }
+        }
+
+    /** The problem for a current password that did not confirm a sensitive action (backup export, restore). */
+    fun of(failure: PasswordCheckResult): ErrorResponseException =
+        when (failure) {
+            PasswordCheckResult.Wrong -> {
+                logger.warn("Sensitive action refused: wrong current password")
+                problem(HttpStatus.FORBIDDEN, INVALID_CREDENTIALS, "Wrong current password")
+            }
+
+            PasswordCheckResult.NotSetUp -> {
+                problem(HttpStatus.CONFLICT, NOT_SET_UP, "No password is set yet")
+            }
+
+            is PasswordCheckResult.Throttled -> {
+                throttled(failure.retryAfter)
+            }
+
+            PasswordCheckResult.StorageFailure, PasswordCheckResult.Verified -> {
                 unavailable()
             }
         }

@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.system.config
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.system.application.PrepareFirstRunUseCase
+import io.github.scriptibus.jofi.system.application.RecoverRestoreUseCase
 import io.github.scriptibus.jofi.system.application.ResetPasswordUseCase
 import io.github.scriptibus.jofi.system.application.VerifyMasterKeyUseCase
 import io.github.scriptibus.jofi.system.application.port.MasterKeyPort
@@ -49,7 +50,8 @@ class AuthStartupConfiguration {
     ): VerifyMasterKeyUseCase = VerifyMasterKeyUseCase(masterKey, records, audit.changelog, audit.transactions, clock)
 
     /**
-     * The master key check, the optional password reset and the setup token, after the context refresh
+     * Recovery of an interrupted restore (ADR-0042), the master key check, the optional password reset
+     * and the setup token, after the context refresh
      * and before the web server accepts requests (a lifecycle bean, see [AuthStartup]), so it never runs
      * in the image build's AOT training run. Only in `app`: the `worker` container shares image and
      * volume, and a worker restart must never reset the password or touch the keyset.
@@ -61,8 +63,9 @@ class AuthStartupConfiguration {
         verifyMasterKey: VerifyMasterKeyUseCase,
         resetPassword: ResetPasswordUseCase,
         prepareFirstRun: PrepareFirstRunUseCase,
+        recoverRestore: RecoverRestoreUseCase,
         environment: Environment,
-    ): AuthStartup = AuthStartup(verifyMasterKey, resetPassword, prepareFirstRun, environment)
+    ): AuthStartup = AuthStartup(recoverRestore, verifyMasterKey, resetPassword, prepareFirstRun, environment)
 
     /** The changelog and its transaction, grouped to keep the bean methods short. */
     class AuditPorts(
