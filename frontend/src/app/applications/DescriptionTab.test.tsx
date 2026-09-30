@@ -96,6 +96,8 @@ describe("description tab", () => {
       sources: [source],
       languageAndTone: { postingLanguage: "de" },
     });
+    // The script tag is the test's hostile input; the assertions below prove it is rendered as text only.
+    // nosemgrep: javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag
     start(application, { snapshots: [aSnapshot(source.id, text)] });
 
     const shown = await within(await screen.findByRole("region", { name: "Text of version 1" })).findByText(
