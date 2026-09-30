@@ -185,6 +185,69 @@ class BackgroundJobsTest {
         ) shouldBe 1
     }
 
+    @Test
+    fun `the daily Ghosted suggestion is scheduled by app and suggests once per silence, never changing a status`() {
+        val database = freshDatabase()
+        val app = start(database, worker = false)
+        count(database, "SELECT count(*) FROM jobrunr_recurring_jobs WHERE id = 'ghosted-suggestion'") shouldBe 1
+        val company = UUID.randomUUID()
+        sql(
+            database,
+            "INSERT INTO company (id, name, created_at, updated_at) VALUES ('$company', 'ACME', now(), now())",
+        )
+        insertApplication(database, company, "00000000-0000-0000-0000-0000000000a1", appliedWeeksAgo = 20)
+        insertApplication(database, company, "00000000-0000-0000-0000-0000000000a2", appliedWeeksAgo = 2)
+        start(database, worker = true)
+        val jobs = app.getBean(JobSchedulerPort::class.java)
+        val log = app.getBean(ListJobsUseCase::class.java)
+
+        repeat(2) { run ->
+            jobs.enqueue(JobRequest(JobType("ghosted-suggestion")))
+            waitUntil({ allJobs(log) }) {
+                finished(log).count { it.name == "ghosted-suggestion" && it.status == JobStatus.SUCCEEDED } == run + 1
+            }
+        }
+
+        assertOneGhostedSuggestionAndNoStatusChange(database)
+    }
+
+    private fun assertOneGhostedSuggestionAndNoStatusChange(database: String) {
+        count(
+            database,
+            "SELECT count(*) FROM task WHERE state = 'SUGGESTED' AND suggestion_rule = 'ghosted-suggestion' " +
+                "AND application_id = '00000000-0000-0000-0000-0000000000a1'",
+        ) shouldBe 1
+        count(database, "SELECT count(*) FROM task") shouldBe 1
+        count(database, "SELECT count(*) FROM application WHERE status = 'APPLIED'") shouldBe 2
+        count(database, "SELECT count(*) FROM application_status_change") shouldBe 4
+        count(
+            database,
+            "SELECT count(*) FROM changelog_entry WHERE actor_kind = 'SYSTEM' AND actor_name = 'ghosted-suggestion' " +
+                "AND entity_type = 'task'",
+        ) shouldBe 1
+        count(database, "SELECT count(*) FROM changelog_entry WHERE entity_type = 'application'") shouldBe 0
+    }
+
+    private fun insertApplication(
+        database: String,
+        company: UUID,
+        id: String,
+        appliedWeeksAgo: Int,
+    ) {
+        val applied = "now() - interval '$appliedWeeksAgo weeks'"
+        sql(
+            database,
+            "INSERT INTO application (id, company_id, title, status, created_at, updated_at) " +
+                "VALUES ('$id', '$company', 'Backend Engineer', 'APPLIED', $applied - interval '1 day', $applied)",
+        )
+        sql(
+            database,
+            "INSERT INTO application_status_change (application_id, from_status, to_status, actor_kind, changed_at) " +
+                "VALUES ('$id', NULL, 'DISCOVERED', 'USER', $applied - interval '1 day'), " +
+                "('$id', 'DISCOVERED', 'APPLIED', 'USER', $applied)",
+        )
+    }
+
     private fun enqueue(
         jobs: JobSchedulerPort,
         type: String,

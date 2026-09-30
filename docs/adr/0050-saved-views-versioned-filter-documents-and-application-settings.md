@@ -8,7 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: spec §6.3 (list with filters and saved views), §6.2 (Ghosted after 14 weeks, configurable), §6.1
-  (follow-up rules); issue #81 (M1-C2f); builds on ADR-0041 and the list of #83 (PR #162)
+  (follow-up rules); issue #81 (M1-C2f); builds on ADR-0041 and the list of #83 (PR #162). Amended by #85 (M1-1d):
+  the settings use cases and the Ghosted suggestion
 
 ## Context
 
@@ -71,6 +72,40 @@ backup from before the table restores to the defaults. Bounds: 1 to 52 weeks, 1 
 and the table. Changes are versioned (`basedOnVersion`) and logged with their values (`application_settings`,
 id `applications`); they are not personal. The tasks context (#95) reads the follow-up period through a named
 interface of the applications context, since it may depend on applications but not on its internals.
+
+### The Ghosted suggestion (amended by #85)
+
+- **Settings use cases**: `GetApplicationSettingsUseCase` and `UpdateApplicationSettingsUseCase`
+  (`GET|PUT /api/applications/settings`, `Actor.User`). The version is checked first, then the bounds; unchanged
+  values store and record nothing; a change stores the row (inserted on the first change, `ON CONFLICT DO NOTHING`
+  so a racing first change is a 409 like a stale version) and its changelog entry naming only the changed values,
+  in one transaction.
+- **"No answer" means no activity.** An application is silent when it is `APPLIED` or `INTERVIEWING` (spec §6.2) and
+  its last activity lies at least `ghostedAfterWeeks` weeks of seven days before now. Its last activity is the latest
+  of its last status change (any move, also `APPLIED` ⇄ `INTERVIEWING`), each interview's last change (`updated_at`,
+  set on creation) and start (so an interview still to come keeps it active), and the last changelog entry that
+  changed its contact links (field `contacts`; Jofi keeps no other contact activity yet). Detail edits, the unread
+  flag, scores, sources and scanner checks are no answer from the company and do not count. `Offer` is not
+  suggested (the spec names Applied and Interviewing), though a user may still move an offer to `Ghosted` (ADR-0044).
+- **The suggestion is a suggested task** (ADR-0049), not a flag on the application, so no migration was needed and
+  the user sees it with the other suggestions: rule `ghosted-suggestion` (also the job type and the
+  `Actor.System` name), key `application:<id>:<last activity>`, title "Mark as Ghosted: <job title>", no due date,
+  linked to the application. The key makes one silence one suggestion: a repeated run gets `SuggestionExists`, a
+  dismissed silence is never suggested again, and new activity starts a new silence with a new key.
+- **Dependency direction: tasks → applications.** The suggestion run lives in the tasks context
+  (`SuggestGhostedApplicationsUseCase`), which asks the applications context through its Modulith named interface
+  `api` (`applications.application.port.api`, the ports other contexts call; only plain values cross it):
+  `FindGhostedCandidatesPort`, implemented by `FindGhostedCandidatesUseCase`, which reads the period from these
+  settings. The applications context never depends on tasks (`ModulithTest`), as this ADR already fixed for #95.
+- **Nothing changes a status by itself.** The user accepts by moving the application to `Ghosted` through the
+  status change (ADR-0044, `Actor.User`) or dismisses the task (`POST /api/tasks/{id}/dismiss`,
+  `DismissTaskSuggestionUseCase`; `GET /api/tasks/suggestions` lists them). A waiting suggestion whose silence
+  ended (an answer, a status move, the user's own move to `Ghosted`, a deleted application) is dismissed by the next
+  run as obsolete, recorded as `System("ghosted-suggestion")`. Accepting it as a to-do (`POST .../accept`) stays
+  #95's generic accept.
+- **The job**: `ghosted-suggestion`, registered by `app` at start, daily at 04:00 UTC with a random delay of up to
+  15 minutes (tech-stack proposal §7), run in the worker by `GhostedSuggestionJobAdapter`. Each suggestion and each
+  dismissal is its own transaction with its changelog entry, so a retry only does what is left.
 
 ## Consequences
 

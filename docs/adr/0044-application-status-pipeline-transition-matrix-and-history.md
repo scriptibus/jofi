@@ -128,8 +128,10 @@ allowed moves (the server still decides); `statusMatrix.test.ts` checks the same
 
 - #84 implemented the use cases (`ChangeApplicationStatusUseCase`, `GetApplicationStatusHistoryUseCase`) and
   the endpoints (`PUT /api/applications/{id}/status`,
-  `GET /api/applications/{id}/status-history`); #85 suggests `Ghosted` through the same use case with a
-  `System` actor; #83 filters by status and decline category.
+  `GET /api/applications/{id}/status-history`); #83 filters by status and decline category.
+- **Ghosted is only ever suggested (amended by #85)**: the daily Ghosted suggestion (ADR-0050) creates a suggested
+  task and never calls this use case; the user applies it by moving the application to `Ghosted` through this use
+  case as `Actor.User`, so no status changes by itself and the history names the user.
 - The reason of a declined or rejected application is edited by moving to the same status with the new
   reason, which leaves a history entry, rather than through the details.
 - A new status or move is a change to `ApplicationStatus`, this ADR's table and `ApplicationStatusTest`,
