@@ -144,6 +144,8 @@ the applications context reacts to `ContactDeleted` (#90).
   their result types (`ApplicationCountsPort.Counts`). `applications.adapter.persistence.ApplicationCountsRepository`
   implements `ApplicationCountsPort`. `LayerDependencyTest` (bytecode) and `SourceConventionsTest` (imports,
   which also sees value classes such as `CompanyRef`) fail any dependency of companies on applications.
+- **Tasks → applications** likewise (#87): applications declares `LinkedTasksPort` in its named interface `spi`
+  (`applications.application.port.spi`), which the tasks context implements; applications never depends on tasks.
 - Text rules every context applies (NFC, trim, no U+0000, length) live in `shared.domain.text`; each
   context keeps its own violation enums, since the API names fields and problems per context.
 

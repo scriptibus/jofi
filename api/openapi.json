@@ -1589,6 +1589,79 @@
         "tags" : [ "application-controller" ]
       }
     },
+    "/api/applications/{id}/timeline" : {
+      "get" : {
+        "operationId" : "getApplicationTimeline",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "query",
+          "name" : "cursor",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 50
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationTimelineResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-timeline-controller" ]
+      }
+    },
     "/api/applications/{id}/unread" : {
       "put" : {
         "operationId" : "setApplicationUnread",
@@ -4604,6 +4677,22 @@
           }
         }
       },
+      "ApplicationTimelineResponse" : {
+        "required" : [ "entries" ],
+        "type" : "object",
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TimelineEntryResponse"
+            }
+          },
+          "nextCursor" : {
+            "type" : "string",
+            "nullable" : true
+          }
+        }
+      },
       "ApplicationUnreadRequest" : {
         "required" : [ "unread" ],
         "type" : "object",
@@ -6377,6 +6466,165 @@
           "basedOnVersion" : {
             "type" : "integer",
             "format" : "int64"
+          }
+        }
+      },
+      "TimelineChangeDto" : {
+        "required" : [ "actor", "fields" ],
+        "type" : "object",
+        "properties" : {
+          "actor" : {
+            "$ref" : "#/components/schemas/ChangeActorDto"
+          },
+          "fields" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TimelineFieldChangeDto"
+            }
+          }
+        }
+      },
+      "TimelineEntryResponse" : {
+        "required" : [ "id", "kind", "occurredAt" ],
+        "type" : "object",
+        "properties" : {
+          "change" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/TimelineChangeDto"
+            } ]
+          },
+          "descriptionSnapshot" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/TimelineSnapshotDto"
+            } ]
+          },
+          "id" : {
+            "type" : "string"
+          },
+          "interview" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/TimelineInterviewDto"
+            } ]
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "CHANGE", "STATUS_CHANGE", "DESCRIPTION_SNAPSHOT", "INTERVIEW", "TASK" ]
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "statusChange" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/TimelineStatusChangeDto"
+            } ]
+          },
+          "task" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/TimelineTaskDto"
+            } ]
+          }
+        }
+      },
+      "TimelineFieldChangeDto" : {
+        "required" : [ "field" ],
+        "type" : "object",
+        "properties" : {
+          "after" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "before" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "field" : {
+            "type" : "string"
+          }
+        }
+      },
+      "TimelineInterviewDto" : {
+        "required" : [ "localStart", "timeZone", "type" ],
+        "type" : "object",
+        "properties" : {
+          "localStart" : {
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?$",
+            "type" : "string",
+            "description" : "A date and time on a clock, without zone or offset (ISO 8601)",
+            "example" : "2026-10-05T10:00:00"
+          },
+          "outcome" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "PASSED", "REJECTED", "WITHDRAWN", "CANCELLED" ]
+          },
+          "timeZone" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "PHONE_SCREEN", "HR", "TECHNICAL", "CASE", "ON_SITE", "FINAL", "OTHER" ]
+          }
+        }
+      },
+      "TimelineSnapshotDto" : {
+        "required" : [ "reason", "sourceId" ],
+        "type" : "object",
+        "properties" : {
+          "frozenAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "reason" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERY", "CHANGE_DETECTED", "MANUAL" ]
+          },
+          "sourceId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
+      "TimelineStatusChangeDto" : {
+        "required" : [ "actor", "to" ],
+        "type" : "object",
+        "properties" : {
+          "actor" : {
+            "$ref" : "#/components/schemas/ChangeActorDto"
+          },
+          "declineCategory" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "SALARY", "LOCATION", "REMOTE_POLICY", "ROLE", "COMPANY", "SKILLS", "TIMING", "OTHER_OFFER", "POSITION_FILLED", "NO_REASON_GIVEN", "OTHER" ]
+          },
+          "from" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
+          },
+          "to" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
+          }
+        }
+      },
+      "TimelineTaskDto" : {
+        "required" : [ "title" ],
+        "type" : "object",
+        "properties" : {
+          "completedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "title" : {
+            "type" : "string"
           }
         }
       },

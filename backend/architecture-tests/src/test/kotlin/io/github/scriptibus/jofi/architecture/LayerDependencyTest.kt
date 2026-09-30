@@ -37,7 +37,7 @@ class LayerDependencyTest {
             .that()
             .resideInAnyPackage(DOMAIN, APPLICATION)
             .and()
-            .doNotHaveFullyQualifiedName(SPI_METADATA)
+            .haveNameNotMatching(SPI_METADATA)
             .and()
             .doNotHaveFullyQualifiedName(API_METADATA)
             .should()
@@ -48,15 +48,15 @@ class LayerDependencyTest {
     }
 
     /**
-     * The exceptions to the rule above: the `ModuleMetadata` (in bootstrap) that makes the companies SPI
-     * package (ADR-0041) and the applications API package (#85) Spring Modulith named interfaces may use
-     * Spring Modulith, nothing else.
+     * The exceptions to the rule above: the `ModuleMetadata` (in bootstrap) that makes the companies and
+     * applications SPI packages (ADR-0041) and the applications API package (#85) Spring Modulith named
+     * interfaces may use Spring Modulith, nothing else.
      */
     @Test
     fun `named interface metadata only uses Spring Modulith`() {
         classes()
             .that()
-            .haveFullyQualifiedName(SPI_METADATA)
+            .haveNameMatching(SPI_METADATA)
             .or()
             .haveFullyQualifiedName(API_METADATA)
             .should()
@@ -74,6 +74,18 @@ class LayerDependencyTest {
             .should()
             .dependOnClassesThat()
             .resideInAPackage("$BASE.applications..")
+            .check(classes)
+    }
+
+    /** ADR-0041: dependencies run tasks -> applications; applications declares ports the tasks context implements. */
+    @Test
+    fun `the applications context never depends on the tasks context`() {
+        noClasses()
+            .that()
+            .resideInAPackage("$BASE.applications..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("$BASE.tasks..")
             .check(classes)
     }
 

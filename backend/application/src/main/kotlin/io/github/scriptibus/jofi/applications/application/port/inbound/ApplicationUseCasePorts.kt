@@ -12,6 +12,8 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.applications.domain.StatusChangeInput
+import io.github.scriptibus.jofi.applications.domain.TimelinePage
+import io.github.scriptibus.jofi.applications.domain.TimelineQuery
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
@@ -128,4 +130,17 @@ interface ChangeApplicationStatusPort {
 /** The application's status history (#84), oldest entry first. */
 interface GetApplicationStatusHistoryPort {
     fun execute(id: ApplicationId): ApplicationResult<List<StatusChange>>
+}
+
+/**
+ * One page of the application's timeline (#87), newest first: its changes (values only for
+ * `TimelineEntry.Change.VALUED_FIELDS`), status changes, captured job descriptions, interviews (at their start) and
+ * linked tasks, merged from one read per source.
+ * `NotFound` if there is no such application, `StorageFailure` if a source cannot be read.
+ */
+interface GetApplicationTimelinePort {
+    fun execute(
+        id: ApplicationId,
+        query: TimelineQuery,
+    ): ApplicationResult<TimelinePage>
 }
