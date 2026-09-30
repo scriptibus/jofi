@@ -69,6 +69,10 @@ interface ApplicationRepositoryPort {
     /** The application with its contact links and its sources, oldest first (only this and [search] read them). */
     fun findById(id: ApplicationId): ApplicationStoreResult<Application>
 
+    /**
+     * One page of the applications matching [search] in its order (see [ApplicationSearch]), each with its
+     * contact links and sources, and the number of all matches.
+     */
     fun search(search: ApplicationSearch): ApplicationStoreResult<ApplicationPage<Application>>
 
     /**

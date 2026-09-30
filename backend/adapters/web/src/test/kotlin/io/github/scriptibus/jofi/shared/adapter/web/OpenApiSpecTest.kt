@@ -31,6 +31,9 @@ import kotlin.io.path.writeText
         "springdoc.default-produces-media-type=application/json",
         // Errors are declared once, as the `default` ProblemDetail response (ContractCustomizer).
         "springdoc.override-with-generic-response=false",
+        // A query parameter object (e.g. `ApplicationListQuery`) is one query parameter per property, as
+        // Spring binds it; `@ParameterObject` would do the same, but springdoc is not on the main classpath.
+        "springdoc.default-flat-param-object=true",
     ],
 )
 // The spec is rendered without the security filter chain, which lives in bootstrap.

@@ -171,14 +171,7 @@ class ApplicationValuesTest {
     }
 
     @Test
-    fun `a search checks its paging and drops a blank text`() {
-        val company = CompanyRef(java.util.UUID.randomUUID())
-        ApplicationSearch.of(" backend ", ApplicationSearch(company = company), 2, 20) shouldBe
-            ApplicationSearch("backend", company, null, 2, 20)
-        ApplicationSearch.of("  ", page = 0, size = 1)?.text shouldBe null
-        ApplicationSearch.of(null, page = -1, size = 10) shouldBe null
-        ApplicationSearch.of(null, page = 0, size = ApplicationSearch.MAX_SIZE + 1) shouldBe null
-        shouldThrow<IllegalArgumentException> { ApplicationSearch(text = " ") }
+    fun `a page is never smaller than its items`() {
         shouldThrow<IllegalArgumentException> { ApplicationPage(listOf(1, 2), total = 1) }
     }
 }

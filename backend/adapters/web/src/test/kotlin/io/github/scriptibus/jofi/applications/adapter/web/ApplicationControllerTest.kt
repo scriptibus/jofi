@@ -15,7 +15,6 @@ import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapsh
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
-import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
@@ -55,8 +54,8 @@ import java.util.UUID
 
 /**
  * The application endpoints over the real use cases (#82) with mocked repositories: mapping, problem
- * details and the two-step delete; the status endpoints (#84) are `ApplicationStatusControllerTest`. The list
- * (#83) and contact links (#90) still answer `501`.
+ * details and the two-step delete; the list (#83) is `ApplicationListControllerTest`, the status endpoints (#84)
+ * `ApplicationStatusControllerTest`. Contact links (#90) still answer `501`.
  * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(ApplicationController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
@@ -304,14 +303,12 @@ class ApplicationControllerTest(
     }
 
     @Test
-    fun `the list and contact links are not implemented yet`() {
-        notImplemented(mvc.get().uri("/api/applications?search=backend&companyId=$companyId&contactId=$contactId"))
+    fun `contact links are not implemented yet`() {
         notImplemented(json(mvc.put().uri("$path/contacts"), """{"contactIds":["$contactId"],"basedOnVersion":3}"""))
     }
 
     @Test
     fun `requests that break the contract are rejected`() {
-        badRequest(mvc.get().uri("/api/applications?companyId=acme"))
         badRequest(mvc.get().uri("/api/applications/not-a-uuid"))
         badRequest(json(mvc.post().uri("/api/applications"), """{"title":"Backend Engineer"}"""))
         badRequest(
@@ -323,22 +320,6 @@ class ApplicationControllerTest(
         badRequest(json(mvc.put().uri("$path/status"), """{"status":"APPLIED"}"""))
         badRequest(json(mvc.put().uri("$path/status"), """{"status":"HIRED","basedOnVersion":1}"""))
         verify(exactly = 0) { ports.changelog.append(any()) }
-    }
-
-    @Test
-    fun `search parameters out of range are a 400 naming them`() {
-        mvc
-            .get()
-            .uri("/api/applications?page=-1&size=${ApplicationSearch.MAX_SIZE + 1}")
-            .assertThat()
-            .hasStatus(400)
-            .bodyJson()
-            .isLenientlyEqualTo(
-                """
-                {"type":"${ApplicationProblems.INVALID_SEARCH}",
-                 "violations":[{"field":"page","problem":"OUT_OF_RANGE"},{"field":"size","problem":"OUT_OF_RANGE"}]}
-                """.trimIndent(),
-            )
     }
 
     private fun deleteStored(

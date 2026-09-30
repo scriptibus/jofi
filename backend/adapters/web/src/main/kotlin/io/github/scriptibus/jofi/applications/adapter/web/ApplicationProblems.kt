@@ -5,7 +5,8 @@ package io.github.scriptibus.jofi.applications.adapter.web
 
 import io.github.scriptibus.jofi.applications.domain.ApplicationField
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
-import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
+import io.github.scriptibus.jofi.applications.domain.SearchField
+import io.github.scriptibus.jofi.applications.domain.SearchViolation
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.FieldViolation
 import io.github.scriptibus.jofi.shared.adapter.web.ValidationProblem
@@ -28,9 +29,6 @@ object ApplicationProblems {
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:applications:storage-unavailable"
-
-    /** The problem of a search parameter out of range. */
-    const val OUT_OF_RANGE = "OUT_OF_RANGE"
 
     fun of(failure: ApplicationResult.Failure): ErrorResponseException =
         when (failure) {
@@ -67,18 +65,14 @@ object ApplicationProblems {
             }
         }
 
-    /** The 400 for search parameters [ApplicationSearch.of] refused. */
-    fun invalidSearch(
-        page: Int,
-        size: Int,
-    ): ErrorResponseException {
-        val violations =
-            listOfNotNull(
-                FieldViolation("page", OUT_OF_RANGE).takeIf { page < 0 },
-                FieldViolation("size", OUT_OF_RANGE).takeIf { size !in 1..ApplicationSearch.MAX_SIZE },
-            )
-        return ValidationProblem.of(INVALID_SEARCH, violations)
-    }
+    /** The 400 for search parameters `ApplicationSearchInput.validate` refused, named as query parameters. */
+    fun invalidSearch(violations: List<SearchViolation>): ErrorResponseException =
+        ValidationProblem.of(
+            INVALID_SEARCH,
+            violations.map {
+                FieldViolation(SEARCH_PARAMETERS.getValue(it.field), it.problem.name)
+            },
+        )
 
     /** The request field a violation belongs to, e.g. `payBand.max`, so clients can show it there. */
     fun apiName(field: ApplicationField): String = API_NAMES.getValue(field)
@@ -91,6 +85,20 @@ object ApplicationProblems {
                 (SNAPSHOT_NOT_FOUND to "The application has no description with this id"),
             ApplicationResult.InterviewNotFound to
                 (INTERVIEW_NOT_FOUND to "The application has no interview with this id"),
+        )
+
+    private val SEARCH_PARAMETERS: Map<SearchField, String> =
+        mapOf(
+            SearchField.TEXT to "search",
+            SearchField.LANGUAGES to "language",
+            SearchField.CREATED_TO to "createdTo",
+            SearchField.UPDATED_TO to "updatedTo",
+            SearchField.WANT_MIN to "wantMin",
+            SearchField.WANT_MAX to "wantMax",
+            SearchField.FIT_MIN to "fitMin",
+            SearchField.FIT_MAX to "fitMax",
+            SearchField.PAGE to "page",
+            SearchField.SIZE to "size",
         )
 
     private val API_NAMES: Map<ApplicationField, String> =

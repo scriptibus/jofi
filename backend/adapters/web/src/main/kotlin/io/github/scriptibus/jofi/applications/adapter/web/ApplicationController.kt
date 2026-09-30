@@ -12,9 +12,6 @@ import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUs
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
-import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
-import io.github.scriptibus.jofi.applications.domain.CompanyRef
-import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
@@ -31,16 +28,16 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
  * Applications (spec §6.1), for the logged-in user. Create, read, edit, read/unread and delete (#82) and the
- * status change with its history (#84) call their use case and map its `ApplicationResult.Failure` with
- * [ApplicationProblems.of]. The list (#83) and the contact links (#90) are still the contract only and answer
- * `501 Not Implemented`; their parameters only declare it, hence the suppressed unused-parameter rule.
+ * status change with its history (#84) call their use case and map its `ApplicationResult.Failure`
+ * with [ApplicationProblems.of]; the list (#83) is [ApplicationListController]. The contact links (#90) are
+ * still the contract only and answer `501 Not Implemented`; their parameters only declare it, hence the
+ * suppressed unused-parameter rule.
  */
 @Suppress("UnusedParameter")
 @RestController
@@ -54,29 +51,6 @@ class ApplicationController(
     private val changeStatus: ChangeApplicationStatusUseCase,
     private val statusHistory: GetApplicationStatusHistoryUseCase,
 ) {
-    /**
-     * Applications whose title matches [search] fuzzily (best match first, otherwise newest first),
-     * filtered by company and linked contact ("linked applications per contact", #90). #83 adds the
-     * unread, status, score, source, language and date filters and the sort order.
-     */
-    @GetMapping
-    @ProblemResponses(ProblemKind.INVALID_INPUT)
-    fun searchApplications(
-        @RequestParam(required = false) search: String?,
-        @RequestParam(required = false) companyId: UUID?,
-        @RequestParam(required = false) contactId: UUID?,
-        @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "${ApplicationSearch.DEFAULT_SIZE}") size: Int,
-    ): ApplicationPageResponse {
-        val filters =
-            ApplicationSearch(
-                company = companyId?.let(::CompanyRef),
-                contact = contactId?.let(::ContactRef),
-            )
-        ApplicationSearch.of(search, filters, page, size) ?: throw ApplicationProblems.invalidSearch(page, size)
-        throw notImplemented()
-    }
-
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @ProblemResponses(ProblemKind.INVALID_INPUT)

@@ -8,6 +8,7 @@ import io.github.scriptibus.jofi.applications.application.CreateApplicationUseCa
 import io.github.scriptibus.jofi.applications.application.DeleteApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationStatusHistoryUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.SearchApplicationsUseCase
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
@@ -21,8 +22,8 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
 /**
- * The application use cases: create, read, edit, read/unread and delete (#82); status change and history (#84).
- * The job description history has its own, [DescriptionSnapshotConfiguration].
+ * The application use cases: create, read, edit, read/unread and delete (#82); the list (#83); status change and
+ * history (#84). The job description history has its own, [DescriptionSnapshotConfiguration].
  */
 @Configuration(proxyBeanMethods = false)
 class ApplicationsConfiguration {
@@ -43,6 +44,10 @@ class ApplicationsConfiguration {
     @Bean
     fun getApplicationUseCase(applications: ApplicationRepositoryPort): GetApplicationUseCase =
         GetApplicationUseCase(applications)
+
+    @Bean
+    fun searchApplicationsUseCase(applications: ApplicationRepositoryPort): SearchApplicationsUseCase =
+        SearchApplicationsUseCase(applications)
 
     @Bean
     fun setApplicationUnreadUseCase(

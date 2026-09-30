@@ -99,9 +99,28 @@ class ApplicationRepository(
                 ?: ApplicationStoreResult.NotFound
         }
 
-    /** The list with its filters and ranking is #83; until then its endpoint answers 501 and nothing calls this. */
+    /** One query for the page, one for the total, and one each for the page's contact links and sources. */
     override fun search(search: ApplicationSearch): ApplicationStoreResult<ApplicationPage<Application>> =
-        ApplicationStoreResult.StorageFailure("search")
+        storeCall("search") {
+            val query = ApplicationQuery(search)
+            val records =
+                dsl
+                    .select(APPLICATION.fields().toList())
+                    .from(query.table)
+                    .where(query.condition)
+                    .orderBy(query.order)
+                    .limit(search.size)
+                    .offset(search.page.toLong() * search.size)
+                    .fetchInto(APPLICATION)
+            val ids = records.map { ApplicationId(it.id) }
+            val links = tables.linksOf(ids)
+            val sources = tables.sourcesOf(ids)
+            val applications =
+                records.map { ApplicationRecords.toDomain(it, links[it.id].orEmpty(), sources[it.id].orEmpty()) }
+            ApplicationStoreResult.Success(
+                ApplicationPage(applications, dsl.fetchCount(APPLICATION, query.condition).toLong()),
+            )
+        }
 
     override fun snapshotCount(id: ApplicationId): ApplicationStoreResult<Int> =
         storeCall("snapshotCount") {
