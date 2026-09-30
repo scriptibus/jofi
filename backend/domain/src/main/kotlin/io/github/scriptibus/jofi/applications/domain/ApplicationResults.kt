@@ -69,6 +69,12 @@ enum class ApplicationField {
 
     /** The user's notes after an interview. */
     INTERVIEW_NOTES,
+
+    /** After how many weeks without news Ghosted is suggested ([ApplicationSettings.GHOSTED_WEEKS]). */
+    GHOSTED_AFTER_WEEKS,
+
+    /** After how many days without a response a follow-up is suggested ([ApplicationSettings.FOLLOW_UP_DAYS]). */
+    FOLLOW_UP_AFTER_DAYS,
 }
 
 enum class ApplicationProblem {
@@ -110,6 +116,9 @@ enum class ApplicationProblem {
 
     /** Not a time zone Java knows: an IANA id such as `Europe/Berlin`, or an offset such as `+02:00`. */
     INVALID_TIME_ZONE,
+
+    /** Another saved view has this name already (names are unique ignoring case). */
+    TAKEN,
 }
 
 /** Shared by the invariants and [ApplicationInput.validate]. */
@@ -127,8 +136,8 @@ internal object ApplicationRules {
 }
 
 /**
- * Outcome of an application use case (#82, #83, #84, #86, #90, #91, #92, #96). Callers map every case: the REST
- * controller to a status and problem type, an MCP tool to a tool error.
+ * Outcome of an application use case (#82, #83, #84, #85, #86, #90, #91, #92, #96, #99). Callers map every case:
+ * the REST controller to a status and problem type, an MCP tool to a tool error.
  */
 sealed interface ApplicationResult<out T> {
     data class Success<out T>(
@@ -157,7 +166,21 @@ sealed interface ApplicationResult<out T> {
     /** The application has no interview with the requested id. */
     data object InterviewNotFound : Failure
 
-    /** The change was based on an older version of the application (or interview); nothing was changed. */
+    /** No saved view with the requested id. */
+    data object SavedViewNotFound : Failure
+
+    /**
+     * A saved view's name or filter breaks the rules of [SavedViewInput] (the list's own rules for the filter), or
+     * another view has the name already ([SavedViewField.Name], [ApplicationProblem.TAKEN]).
+     */
+    data class InvalidView(
+        val violations: List<SavedViewViolation>,
+    ) : Failure
+
+    /**
+     * The change was based on an older version of the application (or interview, saved view or settings); nothing
+     * was changed.
+     */
     data object VersionConflict : Failure
 
     /** The status matrix (ADR-0044) has no move [from] the application's status [to] the requested one. */
@@ -185,11 +208,15 @@ sealed interface ApplicationStoreResult<out T> {
 
     /**
      * No application with the requested id, or the source, snapshot or interview asked for does not exist (for
-     * that application); an insert whose application or source is gone (by its foreign key's name) too.
+     * that application), or no saved view with that id; an insert whose application or source is gone (by its
+     * foreign key's name) too.
      */
     data object NotFound : ApplicationStoreResult<Nothing>
 
-    /** The stored application (or interview) has a newer version than the change was based on; reload and retry. */
+    /**
+     * The stored application (or interview, saved view or settings) has a newer version than the change was based
+     * on; reload and retry.
+     */
     data object VersionConflict : ApplicationStoreResult<Nothing>
 
     /** The application's company does not exist (any more): `application_company_fk` rejected it. */
@@ -203,6 +230,9 @@ sealed interface ApplicationStoreResult<out T> {
 
     /** The application has [Application.MAX_SOURCES] sources already (counted under a lock); nothing was added. */
     data object SourceLimitReached : ApplicationStoreResult<Nothing>
+
+    /** Another saved view has exactly this name: `saved_view_name_unique` rejected it; nothing was stored. */
+    data object ViewNameTaken : ApplicationStoreResult<Nothing>
 
     /** The confirmation proof does not cover deleting this application; nothing was deleted. */
     data object NotConfirmed : ApplicationStoreResult<Nothing>
