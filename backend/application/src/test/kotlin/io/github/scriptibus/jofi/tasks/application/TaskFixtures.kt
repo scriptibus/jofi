@@ -49,9 +49,21 @@ class TaskFixtures {
         object : TaskRepositoryPort {
             override fun add(task: Task): TaskStoreResult<Unit> =
                 when {
-                    failingStore -> TaskStoreResult.StorageFailure("add")
-                    !linkExists(task) -> TaskStoreResult.LinkNotFound
-                    else -> TaskStoreResult.Success(Unit).also { tasks[task.id] = task }
+                    failingStore -> {
+                        TaskStoreResult.StorageFailure("add")
+                    }
+
+                    !linkExists(task) -> {
+                        TaskStoreResult.LinkNotFound
+                    }
+
+                    task.origin is TaskOrigin.Suggested && tasks.values.any { it.origin == task.origin } -> {
+                        TaskStoreResult.SuggestionExists
+                    }
+
+                    else -> {
+                        TaskStoreResult.Success(Unit).also { tasks[task.id] = task }
+                    }
                 }
 
             override fun update(task: Task): TaskStoreResult<Unit> {
@@ -73,7 +85,7 @@ class TaskFixtures {
             override fun listByState(state: TaskState): TaskStoreResult<List<Task>> =
                 when {
                     failingStore -> TaskStoreResult.StorageFailure("listByState")
-                    else -> TaskStoreResult.Success(tasks.values.filter { it.state == state })
+                    else -> TaskStoreResult.Success(tasks.values.filter { it.state == state }.sortedBy { it.createdAt })
                 }
 
             override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> = error("Not used by these use cases")

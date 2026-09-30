@@ -8,6 +8,7 @@ import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.github.scriptibus.jofi.architecture.JofiPackages.ADAPTER
+import io.github.scriptibus.jofi.architecture.JofiPackages.API_METADATA
 import io.github.scriptibus.jofi.architecture.JofiPackages.PORT
 import io.github.scriptibus.jofi.architecture.JofiPackages.SPI_METADATA
 import org.junit.jupiter.api.Test
@@ -96,6 +97,8 @@ class AdapterRulesTest {
             .areTopLevelClasses()
             .and()
             .doNotHaveFullyQualifiedName(SPI_METADATA)
+            .and()
+            .doNotHaveFullyQualifiedName(API_METADATA)
             .should()
             .beInterfaces()
             .check(classes)

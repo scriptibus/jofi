@@ -20,8 +20,6 @@ import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
-import org.springframework.http.ProblemDetail
-import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -38,11 +36,9 @@ import java.util.UUID
 /**
  * Tasks with exact or rough timing (spec §10.2, ADR-0049), for the logged-in user. Create, read, edit, complete,
  * reopen and delete (#93) call their use case as `Actor.User` (tasks created here are `Manual`) and map each
- * `TaskResult.Failure` with [TaskProblems.of]; so does the grouped list (#94). The suggestions (#95) are still the
- * contract only and answer `501 Not Implemented`; their parameters only declare it, hence the suppressed
- * unused-parameter rule.
+ * `TaskResult.Failure` with [TaskProblems.of]; so does the grouped list (#94). The suggestions have their own
+ * [TaskSuggestionController].
  */
-@Suppress("UnusedParameter", "TooManyFunctions")
 @RestController
 @RequestMapping("/api/tasks")
 class TaskController(
@@ -66,10 +62,6 @@ class TaskController(
         val zone = TaskTiming.zoneOf(timeZone) ?: throw TaskProblems.invalidViewerZone()
         return TaskGroupListResponse.from(listTaskGroups.execute(zone).orThrow())
     }
-
-    /** The suggestions waiting to be accepted or dismissed, newest first. */
-    @GetMapping("/suggestions")
-    fun listSuggestedTasks(): TaskListResponse = throw notImplemented()
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -111,22 +103,6 @@ class TaskController(
         @RequestBody request: TaskVersionRequest,
     ): TaskResponse = TaskResponse.from(reopenTask.execute(TaskId(id), request.basedOnVersion, Actor.User).orThrow())
 
-    /** Accepts a suggestion with one click: it becomes an open task. */
-    @PostMapping("/{id}/accept")
-    @ProblemResponses(ProblemKind.NOT_FOUND, ProblemKind.CONFLICT)
-    fun acceptTaskSuggestion(
-        @PathVariable id: UUID,
-        @RequestBody request: TaskVersionRequest,
-    ): TaskResponse = throw notImplemented()
-
-    /** Dismisses a suggestion; it is not suggested again. */
-    @PostMapping("/{id}/dismiss")
-    @ProblemResponses(ProblemKind.NOT_FOUND, ProblemKind.CONFLICT)
-    fun dismissTaskSuggestion(
-        @PathVariable id: UUID,
-        @RequestBody request: TaskVersionRequest,
-    ): TaskResponse = throw notImplemented()
-
     /** Two steps (ADR-0039): the first call answers 428 with a token, the repeat with it deletes. */
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -137,11 +113,6 @@ class TaskController(
         request: HttpServletRequest,
     ) {
         deleteTask.execute(TaskId(id), Confirmations.requester(request), Confirmations.token(confirmation)).orThrow()
-    }
-
-    private fun notImplemented(): ErrorResponseException {
-        val problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Tasks are not available yet")
-        return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
     }
 }
 
