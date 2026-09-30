@@ -25,8 +25,9 @@ Rules:
 - Never log, return or put into an exception message a password, token, key, plaintext or
   ciphertext. Log the operation and the exception type only.
 - Nothing may touch the data volume or generate keys during the context refresh: the image build's
-  AOT training run exits on refresh, and a key generated there would be baked into the image. Use an
-  `ApplicationRunner` (or lazy initialisation) instead.
+  AOT training run exits on refresh, and a key generated there would be baked into the image. Do it
+  from a lifecycle bean that starts after the refresh (like `AuthStartup`, before the web server) or
+  lazily instead.
 - Adapters never throw across their port; key-loading failures are `SecretResult.StorageFailure`,
   tampered or foreign ciphertexts `SecretResult.Undecryptable`.
 - Use Tink's current API (`KeysetHandle.generateNew(PredefinedAeadParameters...)`,
