@@ -11,10 +11,16 @@ import type { ManifestOptions } from "vite-plugin-pwa";
 export function tokenValue(css: string, selector: string, name: string): string {
   const start = css.indexOf(`${selector} {`);
   if (start === -1) throw new Error(`tokens.css has no rule "${selector}"`);
-  const block = css.slice(start, css.indexOf("}", start));
-  const match = new RegExp(`--${name}:\\s*([^;]+);`).exec(block);
-  if (!match?.[1]) throw new Error(`tokens.css rule "${selector}" has no --${name}`);
-  return match[1].trim();
+  const block = css.slice(css.indexOf("{", start) + 1, css.indexOf("}", start));
+  // Plain string matching per declaration: no regular expression built from the name.
+  const property = `--${name}:`;
+  const declaration = block
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(property));
+  const value = declaration?.slice(property.length).trim();
+  if (!value) throw new Error(`tokens.css rule "${selector}" has no --${name}`);
+  return value;
 }
 
 export interface ThemeColours {
