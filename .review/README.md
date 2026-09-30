@@ -41,7 +41,8 @@ The body says what to look for, what to ignore, bad and good examples, and how t
 `tests/` and `python3 .review/selftest.py validate`, which checks the shape of all fixtures without calling a model.
 
 How one fixture runs: `selftest.py prepare` builds a synthetic PR in a fresh `git init`. The base
-(`origin/main`) is the committed tree without `.review/fixtures`, the head adds `change.diff`. The workflow
+(`origin/main`) is the committed tree without `.review/fixtures` and without every path the fixture adds, the
+head adds `change.diff`. The workflow
 then replaces the checkout with it, so no file, object or ref the lens can reach holds the expectations. The lens
 runs with exactly the prompt, schema and tools of `lenses.yml`. Only after it has finished does the workflow
 fetch `expected.json` through the API, and `selftest.py evaluate` compares the lens's JSON with it.
@@ -52,7 +53,7 @@ Each lens needs at least **two bad** and **one good** fixture. Add one whenever 
 
 ```
 fixtures/<lens>/<bad-or-good>-<what-it-shows>/
-  change.diff     # the change under review; may only ADD new files, so it keeps applying as main moves on
+  change.diff     # the change under review; may only ADD files (plain relative paths), see below
   context.md      # PR description and linked issue, in the format lenses.yml writes (line "PR #<n>: <title>")
   expected.json   # what the lens must (not) report
 ```
@@ -77,6 +78,14 @@ fixtures/<lens>/<bad-or-good>-<what-it-shows>/
 - `kind: good`: no finding may have a severity the lens blocks on; `max_severity` (optional) caps the
   severity of any finding, useful for advisory lenses such as `docs`.
 - `risk` (optional, for the risk classifier): the rating must be one of these.
+
+**Fixtures always apply onto a base without their own paths.** Realistic paths collide with real code as
+features land (a fixture's `applications/domain/Application.kt` is also the real aggregate). So `prepare` leaves
+out of the base every file the diff adds, every file below it (if main has a directory there) and every file where
+one of its parent directories must go; `validate` checks the diff the same way against a throwaway index of
+`HEAD`, never the real checkout. The lens therefore sees only the fixture's version of each added file, never the
+real one, and nobody has to rename fixtures when main grows. Other files of main stay in the base, so a fixture
+that relies on a neighbouring real file still reads today's version of it.
 
 To write `change.diff`, commit the new files on a scratch branch and run `git diff main...HEAD > change.diff`,
 or use `git diff --no-index /dev/null <file>` per file. Keep fixtures realistic: plausible paths, SPDX headers,
