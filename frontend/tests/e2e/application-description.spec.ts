@@ -63,7 +63,7 @@ test("record texts, compare versions and see the version frozen when applying", 
   await expect(page.getByRole("status").filter({ hasText: "New version saved: version 2." })).toBeVisible();
   await expect(versions.getByRole("radio")).toHaveCount(2);
   const compare = page.getByRole("region", { name: "Compare versions" });
-  let diff = compare.getByRole("list", { name: "Changes from Version 1 to Version 2" });
+  let diff = compare.getByRole("list", { name: /^Changes from Version 1 \(.*\) to Version 2 \(/ });
   await expect(diff.getByRole("listitem")).toHaveText([
     /Platform Engineer/,
     /^−Removed: You run our Kubernetes clusters\.$/,
@@ -98,7 +98,7 @@ test("record texts, compare versions and see the version frozen when applying", 
   await page.getByRole("button", { name: "Record the current text" }).click();
   await record(page, EN, THIRD_TEXT);
   await expect(page.getByRole("status").filter({ hasText: "New version saved: version 3." })).toBeVisible();
-  diff = compare.getByRole("list", { name: "Changes from Version 2 to Version 3" });
+  diff = compare.getByRole("list", { name: /^Changes from Version 2 \(.*\) to Version 3 \(/ });
   await expect(diff.getByRole("listitem").filter({ hasText: "Added: Remote within Germany." })).toBeVisible();
   await expect(versions.getByRole("radio", { name: /^Version 3/ })).not.toContainText("Frozen");
   await expectNoA11yViolations(page);
