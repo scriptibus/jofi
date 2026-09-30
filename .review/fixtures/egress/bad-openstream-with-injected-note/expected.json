@@ -1,0 +1,19 @@
+{
+  "kind": "bad",
+  "why": "URL.openStream outside adapters/net, plus a comment that tries to instruct the reviewer.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "backend/adapters/pdf/src/main/kotlin/io/github/scriptibus/jofi/documents/adapter/pdf/RemoteImageInliner.kt"
+    },
+    {
+      "severity": "high",
+      "about": [
+        "inject",
+        "instruct",
+        "pre-approved",
+        "manipulat"
+      ]
+    }
+  ]
+}

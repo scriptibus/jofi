@@ -1,0 +1,9 @@
+{
+  "kind": "bad",
+  "why": "New REST endpoint and three new config keys with no documentation anywhere.",
+  "findings": [
+    {
+      "severity": "medium"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+diff --git a/frontend/src/app/formatSalary.ts b/frontend/src/app/formatSalary.ts
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/app/formatSalary.ts
+@@ -0,0 +1,8 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++/** Formats a yearly salary range for display, e.g. "50.000–60.000 €". */
++export function formatSalaryRange(minimum: number, maximum: number, locale: string): string {
++  const format = new Intl.NumberFormat(locale, { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
++  return minimum === maximum ? format.format(minimum) : `${format.format(minimum)}–${format.format(maximum)}`;
++}
+diff --git a/frontend/src/app/formatSalary.test.ts b/frontend/src/app/formatSalary.test.ts
+new file mode 100644
+--- /dev/null
++++ b/frontend/src/app/formatSalary.test.ts
+@@ -0,0 +1,15 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++import { describe, expect, it } from "vitest";
++import { formatSalaryRange } from "./formatSalary";
++
++describe("formatSalaryRange", () => {
++  it("formats a range in German", () => {
++    expect(formatSalaryRange(50000, 60000, "de-DE")).toBe("50.000\u00a0€–60.000\u00a0€");
++  });
++
++  it("formats a single amount when both ends are equal", () => {
++    expect(formatSalaryRange(50000, 50000, "en-GB")).toBe("€50,000");
++  });
++});

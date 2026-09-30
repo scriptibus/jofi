@@ -1,0 +1,5 @@
+{
+  "kind": "good",
+  "why": "Internal value object with tests; nothing user-facing to document.",
+  "max_severity": "medium"
+}

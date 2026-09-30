@@ -1,0 +1,24 @@
+diff --git a/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/CareerPageFetcher.kt b/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/CareerPageFetcher.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/CareerPageFetcher.kt
+@@ -0,0 +1,19 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.scanners.adapter.scanners
++
++import io.github.scriptibus.jofi.scanners.application.port.PageFetchPort
++import io.github.scriptibus.jofi.scanners.domain.FetchedPage
++import org.springframework.web.client.RestClient
++import org.springframework.web.client.body
++
++/** Fetches the career page a page watcher observes. */
++class CareerPageFetcher : PageFetchPort {
++    private val client = RestClient.create()
++
++    override fun fetch(url: String): FetchedPage {
++        val html = client.get().uri(url).retrieve().body<String>().orEmpty()
++        return FetchedPage(url = url, html = html)
++    }
++}

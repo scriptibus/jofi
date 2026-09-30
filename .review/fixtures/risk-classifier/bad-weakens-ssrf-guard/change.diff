@@ -1,0 +1,20 @@
+diff --git a/backend/adapters/net/src/main/kotlin/io/github/scriptibus/jofi/shared/adapter/net/TrustedHosts.kt b/backend/adapters/net/src/main/kotlin/io/github/scriptibus/jofi/shared/adapter/net/TrustedHosts.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/adapters/net/src/main/kotlin/io/github/scriptibus/jofi/shared/adapter/net/TrustedHosts.kt
+@@ -0,0 +1,15 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.shared.adapter.net
++
++import java.net.InetAddress
++
++/** Hosts the SSRF guard lets through even when they resolve to private addresses (for local job boards). */
++object TrustedHosts {
++    private val trustedSuffixes = listOf(".local", ".internal", ".lan")
++
++    fun bypassesGuard(host: String): Boolean =
++        trustedSuffixes.any { host.endsWith(it) } ||
++            InetAddress.getByName(host).isSiteLocalAddress
++}

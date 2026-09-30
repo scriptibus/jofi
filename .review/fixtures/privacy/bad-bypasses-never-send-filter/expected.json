@@ -1,0 +1,10 @@
+{
+  "kind": "bad",
+  "why": "All knowledge entries, including never-send-to-AI ones, go straight into the prompt.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "backend/application/src/main/kotlin/io/github/scriptibus/jofi/documents/application/DraftCoverLetterUseCase.kt"
+    }
+  ]
+}

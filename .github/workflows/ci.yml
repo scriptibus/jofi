@@ -137,3 +137,19 @@ jobs:
         run: |
           cp .env.example .env
           scripts/compose-smoke-test.sh
+
+  review-lenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Unit tests for the lens scripts
+        run: python3 -m unittest discover -s .review/tests
+      - name: Lens fixtures are well-formed and apply to this tree
+        run: python3 .review/selftest.py validate

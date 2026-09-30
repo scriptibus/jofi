@@ -1,0 +1,10 @@
+{
+  "kind": "bad",
+  "why": "Adds a type to the applications context although the issue scopes only tasks.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/ApplicationDeadline.kt"
+    }
+  ]
+}

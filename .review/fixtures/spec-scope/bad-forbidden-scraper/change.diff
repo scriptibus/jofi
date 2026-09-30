@@ -1,0 +1,33 @@
+diff --git a/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/LinkedInJobScanner.kt b/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/LinkedInJobScanner.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/LinkedInJobScanner.kt
+@@ -0,0 +1,28 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.scanners.adapter.scanners
++
++import io.github.scriptibus.jofi.scanners.application.port.JobSourcePort
++import io.github.scriptibus.jofi.scanners.domain.DiscoveredPosting
++import io.github.scriptibus.jofi.scanners.domain.SearchProfile
++import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
++import io.github.scriptibus.jofi.shared.application.port.OutboundRequest
++import org.jsoup.Jsoup
++
++/** Finds postings on LinkedIn by parsing the public job search result pages. */
++class LinkedInJobScanner(
++    private val http: OutboundHttpPort,
++) : JobSourcePort {
++    override fun search(profile: SearchProfile): List<DiscoveredPosting> {
++        val url = "https://www.linkedin.com/jobs/search?keywords=${profile.keywords}&location=${profile.location}"
++        val page = Jsoup.parse(http.fetch(OutboundRequest.get(url)).bodyAsText())
++        return page.select("li div.base-card").map {
++            DiscoveredPosting(
++                title = it.select("h3").text(),
++                company = it.select("h4").text(),
++                url = it.select("a.base-card__full-link").attr("href"),
++            )
++        }
++    }
++}

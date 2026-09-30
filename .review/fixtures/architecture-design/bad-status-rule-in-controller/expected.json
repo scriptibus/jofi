@@ -1,0 +1,10 @@
+{
+  "kind": "bad",
+  "why": "Status transition rules live in the controller instead of the Application entity.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "backend/adapters/web/src/main/kotlin/io/github/scriptibus/jofi/applications/adapter/web/ApplicationStatusController.kt"
+    }
+  ]
+}

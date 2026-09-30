@@ -1,0 +1,7 @@
+{
+  "kind": "bad",
+  "why": "Weakens the SSRF guard in adapters/net; must be rated high.",
+  "risk": [
+    "high"
+  ]
+}

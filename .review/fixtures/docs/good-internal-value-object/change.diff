@@ -1,0 +1,49 @@
+diff --git a/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/SalaryRange.kt b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/SalaryRange.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/domain/src/main/kotlin/io/github/scriptibus/jofi/applications/domain/SalaryRange.kt
+@@ -0,0 +1,17 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.domain
++
++/** Yearly gross salary range from a posting, in whole euros. */
++data class SalaryRange(
++    val minimum: Int,
++    val maximum: Int,
++) {
++    init {
++        require(minimum >= 0) { "Minimum salary must not be negative" }
++        require(maximum >= minimum) { "Maximum salary must not be below the minimum" }
++    }
++
++    fun contains(amount: Int): Boolean = amount in minimum..maximum
++}
+diff --git a/backend/domain/src/test/kotlin/io/github/scriptibus/jofi/applications/domain/SalaryRangeTest.kt b/backend/domain/src/test/kotlin/io/github/scriptibus/jofi/applications/domain/SalaryRangeTest.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/domain/src/test/kotlin/io/github/scriptibus/jofi/applications/domain/SalaryRangeTest.kt
+@@ -0,0 +1,22 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.domain
++
++import kotlin.test.Test
++import kotlin.test.assertFailsWith
++import kotlin.test.assertFalse
++import kotlin.test.assertTrue
++
++class SalaryRangeTest {
++    @Test
++    fun `contains amounts inside the range`() {
++        assertTrue(SalaryRange(50_000, 60_000).contains(55_000))
++        assertFalse(SalaryRange(50_000, 60_000).contains(61_000))
++    }
++
++    @Test
++    fun `rejects a maximum below the minimum`() {
++        assertFailsWith<IllegalArgumentException> { SalaryRange(60_000, 50_000) }
++    }
++}

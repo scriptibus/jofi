@@ -1,0 +1,10 @@
+{
+  "kind": "bad",
+  "why": "A scanner creates its own RestClient and fetches user URLs without the SSRF guard.",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "backend/adapters/scanners/src/main/kotlin/io/github/scriptibus/jofi/scanners/adapter/scanners/CareerPageFetcher.kt"
+    }
+  ]
+}

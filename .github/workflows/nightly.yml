@@ -1,0 +1,183 @@
+# SPDX-FileCopyrightText: 2026 Jofi contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Scheduled checks that are too slow or too costly for every PR (proposal §4.5, §4.6b). Not required for merge;
+# a failure opens or updates one tracking issue instead.
+#
+# Runs weekly for now: the lens self-test spends Lucas's Claude subscription quota (one lens run per fixture),
+# and Scorecard's data changes slowly. Add a daily cron with the first job that needs one (full e2e, PIT).
+#
+# Placeholders, added by the issues that make them possible:
+# - full e2e on the compose stack (`pnpm e2e` against `docker compose --profile e2e`), after the e2e profile (#21)
+# - PIT mutation testing on `domain` + `application` (proposal §4.5)
+# - docs drift: a weekly doc-gardener agent that opens a PR for drift (proposal §4.8)
+# - live-provider prompt evals (proposal §4.5)
+#
+# No top-level `env` or `defaults` and no workflow-level write permissions: Scorecard rejects published results
+# from workflows that have them.
+name: nightly
+
+on:
+  schedule:
+    - cron: "41 3 * * 0" # Sundays 03:41 UTC
+  workflow_dispatch:
+    inputs:
+      lens:
+        description: Run the self-test for this lens only (empty = all lenses, "none" = skip the self-test)
+        type: string
+        default: ""
+
+permissions: {}
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  scorecard:
+    if: inputs.lens == '' || inputs.lens == 'none' # skipped when re-running a single lens
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF to code scanning
+      id-token: write # publish results to the OpenSSF API (badge, public data)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+      - uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: results.sarif
+          category: scorecard
+
+  lens-fixtures:
+    if: inputs.lens != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash # -eo pipefail (job level: Scorecard forbids workflow-level defaults)
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: matrix
+        env:
+          LENS: ${{ inputs.lens }}
+        run: |
+          matrix=$(python3 .review/selftest.py matrix --lens "$LENS")
+          if [ "$matrix" = "[]" ]; then
+            echo "::error::No fixtures for lens '$LENS'."
+            exit 1
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  # Runs each lens exactly like lenses.yml does (same prompt, schema, tools and turn limit), on a synthetic PR
+  # made from one fixture. Keep the prompt and claude_args below in sync with lenses.yml.
+  lens-self-test:
+    needs: lens-fixtures
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash # -eo pipefail (job level: Scorecard forbids workflow-level defaults)
+    permissions:
+      contents: read # the lens only reads the checkout; the action gets this job token instead of the App token
+    strategy:
+      fail-fast: false
+      max-parallel: 3 # spread the subscription usage
+      matrix:
+        fixture: ${{ fromJSON(needs.lens-fixtures.outputs.matrix) }}
+    name: lens self-test (${{ matrix.fixture.lens }}/${{ matrix.fixture.case }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Replace the checkout with a synthetic PR
+        id: context
+        env:
+          FIXTURE: .review/fixtures/${{ matrix.fixture.lens }}/${{ matrix.fixture.case }}
+          LENS: ${{ matrix.fixture.lens }}
+        run: |
+          python3 .review/selftest.py prepare "$FIXTURE" --out "$RUNNER_TEMP/synthetic-pr" \
+            --context-out "$RUNNER_TEMP/pr-context.md"
+          # The lens works in the workspace. Swap the source checkout (fixtures, expectations, history) for the
+          # fresh synthetic repository, so nothing the lens can read or reach through git holds the answers.
+          find . -mindepth 1 -delete
+          cp -a "$RUNNER_TEMP/synthetic-pr/." .
+          rm -rf "$RUNNER_TEMP/synthetic-pr"
+          {
+            echo 'prompt<<LENS_PROMPT_EOF'
+            cat .review/prompt.md ".review/lenses/$LENS.md"
+            echo
+            echo "The PR description and linked issues are in $RUNNER_TEMP/pr-context.md."
+            echo "The base branch is origin/main."
+            echo 'LENS_PROMPT_EOF'
+            echo "schema=$(jq -c . .review/findings.schema.json)"
+          } >> "$GITHUB_OUTPUT"
+      - name: Run lens
+        id: lens
+        uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7 # v1.0.237
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }} # read-only job token; no OIDC exchange for the Claude App needed
+          prompt: ${{ steps.context.outputs.prompt }}
+          claude_args: >-
+            --max-turns 40
+            --allowedTools "Read,Grep,Glob,Bash(git diff *),Bash(git log *),Bash(git show *)"
+            --json-schema '${{ steps.context.outputs.schema }}'
+      - name: Compare with the expected findings
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ steps.lens.outputs.structured_output }}
+          FIXTURE: .review/fixtures/${{ matrix.fixture.lens }}/${{ matrix.fixture.case }}
+        run: |
+          # Fetched only now, after the lens has finished: the expectation is never on this runner while the
+          # lens can read files (it could read anything under $RUNNER_TEMP, too).
+          gh api "repos/$GITHUB_REPOSITORY/contents/$FIXTURE/expected.json?ref=$GITHUB_SHA" \
+            -H "Accept: application/vnd.github.raw+json" > "$RUNNER_TEMP/expected.json"
+          printf '%s' "$RESULT" > "$RUNNER_TEMP/result.json"
+          python3 .review/selftest.py evaluate "$FIXTURE" --expected "$RUNNER_TEMP/expected.json" \
+            --result "$RUNNER_TEMP/result.json" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  report-failure:
+    needs: [scorecard, lens-fixtures, lens-self-test]
+    if: always() && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash # -eo pipefail (job level: Scorecard forbids workflow-level defaults)
+    permissions:
+      actions: read # list the failed jobs of this run
+      issues: write # open or update the tracking issue
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          TITLE: "nightly: scheduled checks failing"
+        run: |
+          failed=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs" --paginate \
+            --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | "- \(.name)"') || failed=""
+          body=$(printf 'Run %s failed on %s.\n\nFailed jobs:\n%s\n\nA failing lens self-test means a lens missed a known-bad fixture or blocked a known-good one; see the job summary. Fix the lens or the fixture (`.review/README.md`).\n' \
+            "$RUN_URL" "$(date -u +%Y-%m-%d)" "${failed:-"- (could not list jobs)"}")
+          number=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number,title \
+            | jq -r --arg title "$TITLE" '[.[] | select(.title == $title)][0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "$body"
+          else
+            gh issue create --title "$TITLE" --body "$body"
+          fi

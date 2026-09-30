@@ -1,0 +1,7 @@
+{
+  "kind": "good",
+  "why": "Small, pure frontend helper with tests outside every protected path.",
+  "risk": [
+    "low"
+  ]
+}

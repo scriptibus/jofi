@@ -1,0 +1,9 @@
+{
+  "kind": "bad",
+  "why": "Two new libraries and an in-process PDF renderer (instead of Gotenberg) with no ADR and no dependency table in the PR.",
+  "findings": [
+    {
+      "severity": "medium"
+    }
+  ]
+}

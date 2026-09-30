@@ -1,0 +1,41 @@
+diff --git a/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/port/ApplicationRecordPort.kt b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/port/ApplicationRecordPort.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/port/ApplicationRecordPort.kt
+@@ -0,0 +1,14 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.application.port
++
++import io.github.scriptibus.jofi.persistence.jooq.tables.records.ApplicationsRecord
++import org.jooq.Condition
++
++/** Loads and stores applications. */
++interface ApplicationRecordPort {
++    fun find(condition: Condition): List<ApplicationsRecord>
++
++    fun store(record: ApplicationsRecord)
++}
+diff --git a/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ListOpenApplicationsUseCase.kt b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ListOpenApplicationsUseCase.kt
+new file mode 100644
+--- /dev/null
++++ b/backend/application/src/main/kotlin/io/github/scriptibus/jofi/applications/application/ListOpenApplicationsUseCase.kt
+@@ -0,0 +1,17 @@
++// SPDX-FileCopyrightText: 2026 Jofi contributors
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++package io.github.scriptibus.jofi.applications.application
++
++import io.github.scriptibus.jofi.applications.application.port.ApplicationRecordPort
++import io.github.scriptibus.jofi.persistence.jooq.tables.references.APPLICATIONS
++
++/** Lists applications that are not in a terminal state. */
++class ListOpenApplicationsUseCase(
++    private val applications: ApplicationRecordPort,
++) {
++    fun execute(): List<String> =
++        applications
++            .find(APPLICATIONS.STATUS.notIn("ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED"))
++            .map { it.title }
++}
