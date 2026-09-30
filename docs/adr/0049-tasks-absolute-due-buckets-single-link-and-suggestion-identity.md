@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: spec §10.1 (countdowns), §10.2 (task list), §6.1 (follow-up rules); issue #80 (M1-C2e); builds on
-  ADR-0041 and ADR-0048
+  ADR-0041 and ADR-0048. Amended by #95 (M1-5c): the suggestion rules and accepting
 
 ## Context
 
@@ -73,7 +73,7 @@ optional reference to `contact`, applied to all three so that:
 The row changes without a new `version`, as the link is gone rather than edited. For now (#93) the task gets no
 changelog entry of its own: the deleted entity's "Deleted …" entry is the trace. An entry per task needs the linked
 task ids before the delete (the tasks context cannot find them once `SET NULL` ran), read through an SPI port the
-tasks context implements, like `LinkedApplicationsPort`; that is #168. Dismissing obsolete suggestions is #95.
+tasks context implements, like `LinkedApplicationsPort`; that is #168. A suggestion whose application is deleted is obsolete and dismissed by its rule's next run (#95).
 
 ### States and origins
 
@@ -111,6 +111,38 @@ carries the timing (`2026-10-05T08:00:00Z Europe/Berlin`, `WEEK 2026-09-28`, `SO
 (`contact:<id>`) as values, `state` for completing and reopening, and only the names of a changed title or notes;
 a delete records the id alone. The delete's confirmation effect is `("task", <title>)` without counts, since nothing
 goes with a task. The tasks domain defines no events yet: no other context reacts to tasks.
+
+### Suggestion rules (amended by #95)
+
+- **Three rules, one job.** `follow-up`, `interview-preparation` and `offer-answer` (each also its
+  `Actor.System` name) run together in `SuggestTasksUseCase`, job `task-suggestions`: daily at 04:30 UTC with a
+  random delay of up to 15 minutes (registered by `app`, run by the worker, ADR-0038), and after the applications
+  context's events. The run asks the applications context what the rules are about through its named interface
+  `api` (`FindSuggestionFactsPort`, plain values only; tasks → applications, never the reverse), suggests what is
+  new and dismisses the waiting suggestions of these rules whose fact is gone (`reconcileSuggestions`, shared with
+  the Ghosted run of ADR-0050). Accepted, done and other rules' suggestions are never touched.
+- **Follow-up**: an `APPLIED` application without activity (as the Ghosted suggestion defines it) for the settings'
+  `followUpAfterDays` (default 14, ADR-0050). Key `application:<id>:<last activity>` (one silence, one suggestion),
+  due on the UTC day the period ended (Jofi keeps no user zone).
+- **Interview preparation**: every interview still to come and not cancelled, due the day before it on the calendar
+  of the zone it was planned in (ADR-0048). Key `interview:<id>:<that day>`: a reschedule to another day dismisses
+  the old suggestion and makes a new one; one within the same day keeps it. Once the interview has begun, a waiting
+  preparation is obsolete.
+- **Offer answer**: an application at `OFFER` whose offer has `answerBy` today (UTC) or later, due the day before.
+  Key `application:<id>:<answerBy>`: a new date is a new suggestion; a passed date, a removed date or a move on from
+  `OFFER` makes the waiting one obsolete.
+- **Events trigger, the daily run catches up.** A `@TransactionalEventListener` (after commit) hands every domain
+  event to `RequestTaskSuggestionsUseCase`, which asks the applications context to name it
+  (`DescribeApplicationEventPort`: `ApplicationStatusChanged`, `InterviewScheduled`, `InterviewRescheduled`) and, if
+  it is one of those, queues a `task-suggestions` run. Queuing instead of running keeps the request fast, retries a
+  failed run and writes nothing into the committed transaction. Facts without an event (an offer date edited, an
+  interview cancelled or deleted) and a lost queue entry are caught by the next daily run. Runs are idempotent
+  (`task_suggestion_unique`), so several queued runs do no harm.
+- **Accept** (`POST /api/tasks/{id}/accept`, `AcceptTaskSuggestionUseCase`): `TaskTransition.ACCEPT` as the user,
+  version checked first, the state change in the changelog in the same transaction. The task keeps its origin, so
+  the rule never suggests it again.
+- Titles are English like the Ghosted one ("Follow up: …", "Prepare for the interview: …", "Answer the offer: …");
+  localized titles need a key per rule, left to the UI (#111).
 
 ## Consequences
 

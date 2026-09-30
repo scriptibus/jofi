@@ -13,6 +13,7 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationProblem
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationSettings
 import io.github.scriptibus.jofi.applications.domain.ApplicationSettingsInput
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
@@ -38,6 +39,7 @@ class ApplicationSettingsUseCasesTest {
     private val entries = mutableListOf<ChangelogEntry>()
     private var failingChangelog = false
     private val cutoffs = mutableListOf<Instant>()
+    private val statusesAsked = mutableListOf<Set<ApplicationStatus>>()
     private var failingActivity = false
 
     private val settings =
@@ -90,8 +92,10 @@ class ApplicationSettingsUseCasesTest {
         object : ApplicationActivityRepositoryPort {
             override fun silentSince(
                 cutoff: Instant,
+                statuses: Set<ApplicationStatus>,
             ): ApplicationStoreResult<List<FindGhostedCandidatesPort.Candidate>> {
                 cutoffs += cutoff
+                statusesAsked += statuses
                 return if (failingActivity) {
                     ApplicationStoreResult.StorageFailure("silentSince")
                 } else {
@@ -171,6 +175,8 @@ class ApplicationSettingsUseCasesTest {
         candidates.execute(NOW)
 
         cutoffs shouldContainExactly listOf(NOW.minusSeconds(14 * WEEK), NOW.minusSeconds(WEEK))
+        statusesAsked.distinct() shouldContainExactly
+            listOf(setOf(ApplicationStatus.APPLIED, ApplicationStatus.INTERVIEWING))
     }
 
     @Test
