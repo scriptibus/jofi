@@ -24,7 +24,7 @@ async function createCompany(page: Page, prefix: string): Promise<Company> {
 
 /** The company picker: a button named by its value and label. */
 const companyPicker = (page: Page, label: string) =>
-  page.getByRole("button", { name: new RegExp(`${label.replace(/[()]/g, "\\$&")}$`) });
+  page.getByRole("button", { name: new RegExp(`${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) });
 
 test("create an application from the table's header: it opens, and the table lists it", async ({ page }) => {
   const company = await createCompany(page, "Aardvark Analytics");
