@@ -93,6 +93,28 @@ class ApplicationFlowTest(
         created["status"].asString() shouldBe "DISCOVERED"
         browser.get("/api/applications/$id").ok()["remoteShare"].asInt() shouldBe 60
 
+        editThenMarkRead(browser, id, company)
+
+        val first = browser.delete("/api/applications/$id")
+        first.response.status shouldBe 428
+        first.body()["effect"].toString() shouldBe
+            """{"kind":"application","name":"Staff Engineer","counts":{"contactLinks":0,"statusChanges":1}}"""
+        val token = first.body()["confirmationToken"].asString()
+        browser.delete("/api/applications/$id", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
+
+        browser.get("/api/applications/$id").response.status shouldBe 404
+        dsl.fetchCount(APPLICATION_STATUS_CHANGE) shouldBe 0
+        actorsOf(id) shouldContainExactly listOf("USER", "USER", "USER", "USER", "USER")
+        events.stream(ApplicationDeleted::class.java).map { it.application.value }.toList() shouldContainExactly
+            listOf(UUID.fromString(id))
+    }
+
+    /** Edits the details (a stale version is a 409), then marks the application unread and read again. */
+    private fun editThenMarkRead(
+        browser: Browser,
+        id: String,
+        company: String,
+    ) {
         val edited =
             browser
                 .put(
@@ -109,19 +131,6 @@ class ApplicationFlowTest(
         val read = browser.put("/api/applications/$id/unread", """{"unread":false}""").ok()
         read["unread"].asBoolean() shouldBe false
         read["version"].asInt() shouldBe 1
-
-        val first = browser.delete("/api/applications/$id")
-        first.response.status shouldBe 428
-        first.body()["effect"].toString() shouldBe
-            """{"kind":"application","name":"Staff Engineer","counts":{"contactLinks":0,"statusChanges":1}}"""
-        val token = first.body()["confirmationToken"].asString()
-        browser.delete("/api/applications/$id", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
-
-        browser.get("/api/applications/$id").response.status shouldBe 404
-        dsl.fetchCount(APPLICATION_STATUS_CHANGE) shouldBe 0
-        actorsOf(id) shouldContainExactly listOf("USER", "USER", "USER", "USER", "USER")
-        events.stream(ApplicationDeleted::class.java).map { it.application.value }.toList() shouldContainExactly
-            listOf(UUID.fromString(id))
     }
 
     @Test

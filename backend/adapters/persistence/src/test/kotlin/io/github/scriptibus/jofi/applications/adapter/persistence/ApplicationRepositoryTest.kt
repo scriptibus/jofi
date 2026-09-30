@@ -296,32 +296,34 @@ class ApplicationRepositoryTest {
             deadline = LocalDate.parse("2026-10-31"),
             howApplied = HowApplied.REFERRAL,
             portalNotes = "# Notes\nAccount: me@example.org",
-            payBand =
-                PayBand(
-                    BigDecimal("70000.00"),
-                    BigDecimal("9999999999.99"),
-                    CurrencyCode("EUR"),
-                    PayPeriod.YEAR,
-                    PaySource.Estimated("levels.fyi, Berlin", EstimateConfidence.MEDIUM),
-                ),
+            payBand = ESTIMATE,
             languageAndTone =
                 LanguageAndTone(LanguageTag("de-CH"), LanguageTag("en"), FormOfAddress.DU, Tone.PERSONAL),
-            offer =
-                OfferDetails(
-                    Pay(BigDecimal("80000.00"), CurrencyCode("EUR"), PayPeriod.MONTH),
-                    "10 % bonus",
-                    "Bike",
-                    RemoteShare(100),
-                    30,
-                    "3 months",
-                    LocalDate.parse("2027-01-01"),
-                    LocalDate.parse("2026-11-15"),
-                ),
+            offer = OFFER,
         )
 
     private fun proofFor(id: ApplicationId) = ConfirmedProofs.of(Application.DELETE_OPERATION, id.value.toString())
 
     private companion object {
+        val ESTIMATE =
+            PayBand(
+                BigDecimal("70000.00"),
+                BigDecimal("9999999999.99"),
+                CurrencyCode("EUR"),
+                PayPeriod.YEAR,
+                PaySource.Estimated("levels.fyi, Berlin", EstimateConfidence.MEDIUM),
+            )
+        val OFFER =
+            OfferDetails(
+                Pay(BigDecimal("80000.00"), CurrencyCode("EUR"), PayPeriod.MONTH),
+                "10 % bonus",
+                "Bike",
+                RemoteShare(100),
+                30,
+                "3 months",
+                LocalDate.parse("2027-01-01"),
+                LocalDate.parse("2026-11-15"),
+            )
         val CREATED: Instant = Instant.parse("2026-09-30T08:00:00.123456Z")
         val LATER: Instant = Instant.parse("2026-09-30T09:00:00.654321Z")
     }

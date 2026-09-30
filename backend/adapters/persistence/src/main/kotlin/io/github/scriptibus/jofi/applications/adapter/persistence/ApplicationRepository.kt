@@ -9,12 +9,8 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationPage
 import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
-import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
-import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_CONTACT
-import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION_STATUS_CHANGE
-import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.ApplicationRecord
 import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import org.jooq.DSLContext
@@ -33,30 +29,26 @@ import org.springframework.stereotype.Component
 class ApplicationRepository(
     private val dsl: DSLContext,
 ) : ApplicationRepositoryPort {
+    private val tables = ApplicationTables(dsl)
+
     override fun add(
         application: Application,
         initial: StatusChange,
     ): ApplicationStoreResult<Unit> =
         storeCall("add") {
             dsl.insertInto(APPLICATION).set(ApplicationRecords.toRecord(application)).execute()
-            insertLinks(application.id, application.contacts)
-            appendHistory(initial)
+            tables.insertLinks(application.id, application.contacts)
+            tables.appendHistory(initial)
             ApplicationStoreResult.Success(Unit)
         }
 
     override fun updateDetails(application: Application): ApplicationStoreResult<Unit> =
-        storeCall("updateDetails") { versioned(application, ApplicationRecords.detailsRecord(application)) {} }
+        storeCall("updateDetails") { tables.versioned(application, ApplicationRecords.detailsRecord(application)) {} }
 
     override fun replaceContacts(application: Application): ApplicationStoreResult<Unit> =
         storeCall("replaceContacts") {
-            versioned(application, ApplicationRecords.versionRecord(application)) {
-                if (linksOf(application.id) != application.contacts) {
-                    dsl
-                        .deleteFrom(APPLICATION_CONTACT)
-                        .where(APPLICATION_CONTACT.APPLICATION_ID.eq(application.id.value))
-                        .execute()
-                    insertLinks(application.id, application.contacts)
-                }
+            tables.versioned(application, ApplicationRecords.versionRecord(application)) {
+                tables.replaceLinksIfChanged(application.id, application.contacts)
             }
         }
 
@@ -65,21 +57,18 @@ class ApplicationRepository(
         change: StatusChange,
     ): ApplicationStoreResult<Unit> =
         storeCall("changeStatus") {
-            versioned(application, ApplicationRecords.statusRecord(application)) { appendHistory(change) }
+            tables.versioned(application, ApplicationRecords.statusRecord(application)) { tables.appendHistory(change) }
         }
 
     override fun statusHistory(id: ApplicationId): ApplicationStoreResult<List<StatusChange>> =
         storeCall("statusHistory") {
-            if (!exists(id)) {
-                ApplicationStoreResult.NotFound
+            if (tables.exists(
+                    id,
+                )
+            ) {
+                ApplicationStoreResult.Success(tables.history(id))
             } else {
-                val entries =
-                    dsl
-                        .selectFrom(APPLICATION_STATUS_CHANGE)
-                        .where(APPLICATION_STATUS_CHANGE.APPLICATION_ID.eq(id.value))
-                        .orderBy(APPLICATION_STATUS_CHANGE.ID)
-                        .fetch()
-                ApplicationStoreResult.Success(entries.map(ApplicationRecords::toDomain))
+                ApplicationStoreResult.NotFound
             }
         }
 
@@ -102,7 +91,7 @@ class ApplicationRepository(
         storeCall("findById") {
             dsl
                 .fetchOne(APPLICATION, APPLICATION.ID.eq(id.value))
-                ?.let { ApplicationStoreResult.Success(ApplicationRecords.toDomain(it, linksOf(id))) }
+                ?.let { ApplicationStoreResult.Success(ApplicationRecords.toDomain(it, tables.linksOf(id))) }
                 ?: ApplicationStoreResult.NotFound
         }
 
@@ -120,92 +109,39 @@ class ApplicationRepository(
             if (deleted == 0) ApplicationStoreResult.NotFound else ApplicationStoreResult.Success(Unit)
         }
     }
+}
 
-    /**
-     * Writes [record]'s columns only if the stored version is one below [application]'s, then runs
-     * [andThen]; otherwise tells a stale version from a missing application.
-     */
-    private fun versioned(
-        application: Application,
-        record: ApplicationRecord,
-        andThen: () -> Unit,
-    ): ApplicationStoreResult<Unit> {
-        val updated =
-            dsl
-                .update(APPLICATION)
-                .set(record)
-                .where(APPLICATION.ID.eq(application.id.value))
-                .and(APPLICATION.VERSION.eq(application.version - 1))
-                .execute()
-        return when {
-            updated == 1 -> ApplicationStoreResult.Success(Unit).also { andThen() }
-            exists(application.id) -> ApplicationStoreResult.VersionConflict
-            else -> ApplicationStoreResult.NotFound
-        }
-    }
+/**
+ * No exception crosses the port. A missing company or contact is recognised by the name of the violated
+ * foreign key (ADR-0041); messages can carry row values, so only the exception type is logged.
+ */
+private fun <T> storeCall(
+    operation: String,
+    block: () -> ApplicationStoreResult<T>,
+): ApplicationStoreResult<T> =
+    try {
+        block()
+    } catch (exception: RuntimeException) {
+        when (exception.violatedConstraint()) {
+            APPLICATION_COMPANY_FK -> {
+                ApplicationStoreResult.CompanyNotFound
+            }
 
-    private fun exists(id: ApplicationId): Boolean = dsl.fetchExists(APPLICATION, APPLICATION.ID.eq(id.value))
+            APPLICATION_CONTACT_CONTACT_FK -> {
+                ApplicationStoreResult.ContactNotFound
+            }
 
-    private fun linksOf(id: ApplicationId): Set<ContactRef> =
-        dsl
-            .select(APPLICATION_CONTACT.CONTACT_ID)
-            .from(APPLICATION_CONTACT)
-            .where(APPLICATION_CONTACT.APPLICATION_ID.eq(id.value))
-            .fetch(APPLICATION_CONTACT.CONTACT_ID)
-            .mapTo(mutableSetOf(), ::ContactRef)
-
-    private fun insertLinks(
-        id: ApplicationId,
-        contacts: Set<ContactRef>,
-    ) {
-        if (contacts.isEmpty()) return
-        val insert =
-            dsl.insertInto(
-                APPLICATION_CONTACT,
-                APPLICATION_CONTACT.APPLICATION_ID,
-                APPLICATION_CONTACT.CONTACT_ID,
-            )
-        contacts.fold(insert) { statement, contact -> statement.values(id.value, contact.value) }.execute()
-    }
-
-    private fun appendHistory(change: StatusChange) {
-        dsl.insertInto(APPLICATION_STATUS_CHANGE).set(ApplicationRecords.toRecord(change)).execute()
-    }
-
-    /**
-     * No exception crosses the port. A missing company or contact is recognised by the name of the violated
-     * foreign key (ADR-0041); messages can carry row values, so only the exception type is logged.
-     */
-    private fun <T> storeCall(
-        operation: String,
-        block: () -> ApplicationStoreResult<T>,
-    ): ApplicationStoreResult<T> =
-        try {
-            block()
-        } catch (exception: RuntimeException) {
-            when (exception.violatedConstraint()) {
-                APPLICATION_COMPANY_FK -> {
-                    ApplicationStoreResult.CompanyNotFound
-                }
-
-                APPLICATION_CONTACT_CONTACT_FK -> {
-                    ApplicationStoreResult.ContactNotFound
-                }
-
-                else -> {
-                    log.error("Application store {} failed: {}", operation, exception.javaClass.name)
-                    ApplicationStoreResult.StorageFailure(operation)
-                }
+            else -> {
+                log.error("Application store {} failed: {}", operation, exception.javaClass.name)
+                ApplicationStoreResult.StorageFailure(operation)
             }
         }
-
-    private companion object {
-        /** `application.company_id`: the application's company does not exist (any more). */
-        const val APPLICATION_COMPANY_FK = "application_company_fk"
-
-        /** `application_contact.contact_id`: a linked contact does not exist (any more). */
-        const val APPLICATION_CONTACT_CONTACT_FK = "application_contact_contact_fk"
-
-        val log: Logger = LoggerFactory.getLogger(ApplicationRepository::class.java)
     }
-}
+
+/** `application.company_id`: the application's company does not exist (any more). */
+private const val APPLICATION_COMPANY_FK = "application_company_fk"
+
+/** `application_contact.contact_id`: a linked contact does not exist (any more). */
+private const val APPLICATION_CONTACT_CONTACT_FK = "application_contact_contact_fk"
+
+private val log: Logger = LoggerFactory.getLogger(ApplicationRepository::class.java)

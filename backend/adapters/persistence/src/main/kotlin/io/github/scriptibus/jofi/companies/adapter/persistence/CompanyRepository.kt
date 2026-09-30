@@ -11,8 +11,8 @@ import io.github.scriptibus.jofi.companies.domain.CompanySearch
 import io.github.scriptibus.jofi.companies.domain.CompanyStoreResult
 import io.github.scriptibus.jofi.companies.domain.ContactId
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
-import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
+import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import org.jooq.DSLContext
 import org.slf4j.Logger

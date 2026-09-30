@@ -55,13 +55,22 @@ class ApplicationFixtures {
             override fun add(
                 application: Application,
                 initial: StatusChange,
-            ): ApplicationStoreResult<Unit> {
-                if (failingStore) return ApplicationStoreResult.StorageFailure("add")
-                if (application.details.company !in companies) return ApplicationStoreResult.CompanyNotFound
-                applications[application.id] = application
-                history += initial
-                return ApplicationStoreResult.Success(Unit)
-            }
+            ): ApplicationStoreResult<Unit> =
+                when {
+                    failingStore -> {
+                        ApplicationStoreResult.StorageFailure("add")
+                    }
+
+                    application.details.company !in companies -> {
+                        ApplicationStoreResult.CompanyNotFound
+                    }
+
+                    else -> {
+                        applications[application.id] = application
+                        history += initial
+                        ApplicationStoreResult.Success(Unit)
+                    }
+                }
 
             override fun updateDetails(application: Application): ApplicationStoreResult<Unit> {
                 val stored = applications[application.id]

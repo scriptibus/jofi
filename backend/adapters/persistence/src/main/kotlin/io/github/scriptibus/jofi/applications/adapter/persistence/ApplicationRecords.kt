@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.applications.adapter.persistence
 
+import io.github.scriptibus.jofi.applications.adapter.persistence.DetailColumns.writeDetails
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -38,8 +39,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
 /**
- * Maps applications to `application` rows and status changes to `application_status_change` rows, and
- * back, explicitly and without business logic. Each write owns its columns (ADR-0041): [detailsRecord]
+ * Maps applications to `application` rows and back, explicitly and without business logic. Each write owns its columns (ADR-0041): [detailsRecord]
  * and [statusRecord] set only theirs, and jOOQ updates only the fields a record has set.
  */
 internal object ApplicationRecords {
@@ -79,7 +79,7 @@ internal object ApplicationRecords {
     ): Application =
         Application(
             id = ApplicationId(record.id),
-            details = details(record),
+            details = DetailColumns.details(record),
             contacts = contacts,
             unread = record.unread,
             wantScore = record.wantScore?.let(::score),
@@ -92,6 +92,24 @@ internal object ApplicationRecords {
             updatedAt = record.updatedAt.toInstant(),
         )
 
+    private fun ApplicationRecord.writeStatus(application: Application) {
+        status = application.status.name
+        declineCategory = application.declineReason?.category?.name
+        declineReason = application.declineReason?.text
+    }
+
+    private fun ApplicationRecord.writeVersion(application: Application) {
+        version = application.version
+        updatedAt = application.updatedAt.toUtc()
+    }
+
+    private fun Score.decimal(): BigDecimal = BigDecimal.valueOf(tenths.toLong(), 1)
+
+    private fun score(value: BigDecimal): Score = Score(value.movePointRight(1).intValueExact())
+}
+
+/** Maps status changes to `application_status_change` rows and back; the actor as in `changelog_entry`. */
+internal object StatusChangeRecords {
     fun toRecord(change: StatusChange): ApplicationStatusChangeRecord =
         ApplicationStatusChangeRecord().apply {
             applicationId = change.application.value
@@ -114,8 +132,11 @@ internal object ApplicationRecords {
             actor = ActorColumns.toActor(record.actorKind, record.actorName),
             at = record.changedAt.toInstant(),
         )
+}
 
-    private fun ApplicationRecord.writeDetails(details: ApplicationDetails) {
+/** The detail columns of `application` (what the user edits), written and read as a whole. */
+internal object DetailColumns {
+    fun ApplicationRecord.writeDetails(details: ApplicationDetails) {
         companyId = details.company.value
         title = details.title
         location = details.location
@@ -161,18 +182,7 @@ internal object ApplicationRecords {
         offerAnswerBy = offer?.answerBy
     }
 
-    private fun ApplicationRecord.writeStatus(application: Application) {
-        status = application.status.name
-        declineCategory = application.declineReason?.category?.name
-        declineReason = application.declineReason?.text
-    }
-
-    private fun ApplicationRecord.writeVersion(application: Application) {
-        version = application.version
-        updatedAt = application.updatedAt.toUtc()
-    }
-
-    private fun details(record: ApplicationRecord): ApplicationDetails =
+    fun details(record: ApplicationRecord): ApplicationDetails =
         ApplicationDetails(
             title = record.title,
             company = CompanyRef(record.companyId),
@@ -225,38 +235,27 @@ internal object ApplicationRecords {
 
     // `application_offer_salary_complete`: amount, currency and period together. No offer column set: no offer.
     private fun offer(record: ApplicationRecord): OfferDetails? {
-        val salary =
-            record.offerSalary?.let {
-                Pay(it, CurrencyCode(record.offerSalaryCurrency), PayPeriod.valueOf(record.offerSalaryPeriod))
+        val columns =
+            with(record) {
+                listOf(offerSalary, offerBonus, offerBenefits, offerRemoteShare, offerVacationDays, offerNoticePeriod)
             }
-        return with(record) {
-            val columns =
-                listOf(
-                    salary,
-                    offerBonus,
-                    offerBenefits,
-                    offerRemoteShare,
-                    offerVacationDays,
-                    offerNoticePeriod,
-                    offerStartDate,
-                    offerAnswerBy,
-                )
-            if (columns.all { it == null }) {
-                null
-            } else {
-                OfferDetails(
-                    salary,
-                    offerBonus,
-                    offerBenefits,
-                    offerRemoteShare?.let { RemoteShare(it.toInt()) },
-                    offerVacationDays?.toInt(),
-                    offerNoticePeriod,
-                    offerStartDate,
-                    offerAnswerBy,
-                )
-            }
-        }
+        val dates = listOf(record.offerStartDate, record.offerAnswerBy)
+        return if (columns.all { it == null } && dates.all { it == null }) null else offerDetails(record)
     }
+
+    private fun offerDetails(record: ApplicationRecord): OfferDetails =
+        with(record) {
+            OfferDetails(
+                offerSalary?.let { Pay(it, CurrencyCode(offerSalaryCurrency), PayPeriod.valueOf(offerSalaryPeriod)) },
+                offerBonus,
+                offerBenefits,
+                offerRemoteShare?.let { RemoteShare(it.toInt()) },
+                offerVacationDays?.toInt(),
+                offerNoticePeriod,
+                offerStartDate,
+                offerAnswerBy,
+            )
+        }
 
     private fun kindOf(source: PaySource): PaySourceKind =
         when (source) {
@@ -264,10 +263,6 @@ internal object ApplicationRecords {
             PaySource.Recruiter -> PaySourceKind.RECRUITER
             is PaySource.Estimated -> PaySourceKind.ESTIMATED
         }
-
-    private fun Score.decimal(): BigDecimal = BigDecimal.valueOf(tenths.toLong(), 1)
-
-    private fun score(value: BigDecimal): Score = Score(value.movePointRight(1).intValueExact())
-
-    private fun Instant.toUtc(): OffsetDateTime = atOffset(ZoneOffset.UTC)
 }
+
+private fun Instant.toUtc(): OffsetDateTime = atOffset(ZoneOffset.UTC)
