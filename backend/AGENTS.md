@@ -60,8 +60,8 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
 `tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
-providers, per-task models, capabilities, costs, budget), `companies` (contracts: company and contact
-models, ports, tables, API shape), `applications` (contract: the application aggregate) and `shared` exist.
+providers, per-task models, capabilities, costs, budget), `companies` (companies with their use cases, #88; contacts as a
+contract), `applications` (contract: the application aggregate) and `shared` exist.
 The only class allowed directly in the base package is the application class; the only class
 allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 
@@ -70,7 +70,8 @@ A context spans Gradle modules (e.g. `system.domain` lives in `domain/`, `system
 are internal, so other contexts may not reach into them. `shared` is the exception: an **open**
 module (`bootstrap/.../shared/ModuleMetadata.kt`, ADR-0032) whose domain types and ports every
 context may use. Cross-context APIs of other contexts are exposed deliberately through Modulith
-named interfaces when the first one is needed. Until then a context refers to another context's
+named interfaces: `companies.application.port.spi` (named interface `spi`, ADR-0041) holds the ports
+the applications context implements for companies. Otherwise a context refers to another context's
 aggregates by id only, with its own reference type (`applications.domain.CompanyRef`, ADR-0041).
 
 ## Shared kernel ports (ADR-0032)
@@ -90,6 +91,7 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | `SecretCipherPort` | AES-GCM under the master keyset; **only secret stores use it** | `adapters/crypto` |
 | `TransactionPort` | one transaction around a mutation and its changelog entry; commit only accepted results | `adapters/persistence` |
 | `ConfirmationStorePort` | pending two-step confirmations; features call `ConfirmActionUseCase`, never the port | `InMemoryConfirmationStoreAdapter` (`bootstrap`), ADR-0039 |
+| `DomainEventPort` | domain events (`shared.domain.DomainEvent`, ids and states, no third-party personal data) to other contexts; publish inside the mutation's transaction, false = roll back | `SpringDomainEventAdapter` (`bootstrap`), ADR-0041 |
 
 Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for that reason; the
 `setup` context owns what it configures around it.

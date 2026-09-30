@@ -8,7 +8,10 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 Owns the executable architecture rules. Test sources only; depends on every production module.
 
 - `LayerDependencyTest` (ArchUnit, compiled classes): package convention, framework-free core,
-  inward-only layers, independent adapters, no cycles between contexts.
+  inward-only layers, independent adapters, no cycles between contexts, and companies never depends on
+  applications (ADR-0041; `SourceConventionsTest` checks the imports too, since value classes vanish
+  from bytecode). The one exemption from the framework-free core is `JofiPackages.SPI_METADATA`, the
+  Modulith `ModuleMetadata` of `companies.application.port.spi`, which may use only Spring Modulith.
 - `AdapterRulesTest` (ArchUnit): controller/adapter naming, controllers only use use cases,
   ports are interfaces, only `setup.adapter.ai` uses `AiProviderPort` (ADR-0032), only
   the `adapters/net` module uses HTTP clients, sockets or `java.net.URL` (ADR-0034, with
@@ -36,7 +39,8 @@ Owns the executable architecture rules. Test sources only; depends on every prod
   naming, controller constructor takes use cases only, immutable domain types, no `lateinit`.
 - `ModulithTest` (Spring Modulith): contexts are application modules, `verify()` passes, only
   `shared` is open and exposes its domain types and ports, a second context (`setup`) depends on
-  it, other contexts keep their sub-packages internal.
+  it, other contexts keep their sub-packages internal, and `companies` exposes only its named interface
+  `spi` (`ApplicationCountsPort`) to `applications`, which depends on it and not the reverse.
 
 Rules:
 - Never weaken or delete a rule to make a change pass; fix the code. Changing a rule needs a

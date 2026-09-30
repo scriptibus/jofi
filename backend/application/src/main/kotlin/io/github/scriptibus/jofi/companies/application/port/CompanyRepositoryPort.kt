@@ -8,10 +8,11 @@ import io.github.scriptibus.jofi.companies.domain.CompanyId
 import io.github.scriptibus.jofi.companies.domain.CompanyPage
 import io.github.scriptibus.jofi.companies.domain.CompanySearch
 import io.github.scriptibus.jofi.companies.domain.CompanyStoreResult
+import io.github.scriptibus.jofi.companies.domain.ContactId
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 
 /**
- * Stores companies (table `company`; implemented with the use cases in #88). The use case that
+ * Stores companies (table `company`, `CompanyRepository`). The use case that
  * changes a company appends its changelog entry in the same transaction (`TransactionPort`).
  * Implementations never throw.
  */
@@ -27,6 +28,14 @@ interface CompanyRepositoryPort {
     fun findById(id: CompanyId): CompanyStoreResult<Company>
 
     fun search(search: CompanySearch): CompanyStoreResult<CompanyPage<Company>>
+
+    /**
+     * The ids of [id]'s contacts, in id order: [delete] removes them with the company (`ON DELETE
+     * CASCADE`), so the delete counts them in its confirmation effect and announces each as
+     * `ContactDeleted`. The repository that runs the cascade reports it, which keeps the contact
+     * repository (#89) out of the company delete.
+     */
+    fun findContactIds(id: CompanyId): CompanyStoreResult<List<ContactId>>
 
     /**
      * Deletes the company and, by `ON DELETE CASCADE`, its contacts. [proof] is what the confirmation
