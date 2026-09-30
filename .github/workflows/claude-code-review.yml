@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Jofi contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# General multi-agent code review (code-review plugin), complementary to the narrow lenses.
+# General multi-agent code review (code-review plugin), complementary to the narrow lenses (ADR 0031).
 name: Claude Code Review
 
 on:
@@ -11,16 +11,23 @@ on:
 
 permissions: {}
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   claude-review:
     if: github.event.pull_request.draft == false
 
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The review runs on the job's own GITHUB_TOKEN, scoped to exactly these permissions and expiring with
+    # the job. No id-token: the Claude GitHub App token would carry contents/issues write, and its OIDC
+    # exchange refuses any workflow that differs from main, so changes to this file could never be tested.
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
+      contents: read # checkout, Read/Grep of the PR's files
+      issues: read # gh issue view for linked issues
+      pull-requests: write # gh pr comment (summary) and inline review comments
 
     steps:
       - name: Checkout repository
@@ -29,15 +36,72 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Record start time
+        id: start
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7 # v1.0.237
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
-          claude_args: '--allowedTools "mcp__github_inline_comment__create_inline_comment"'
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
+          # Exactly the tools the plugin's command declares (plugins/code-review/commands/code-review.md in
+          # anthropics/claude-code). Keep show_full_output off (the default) and don't re-run with debug
+          # logging: both print every tool result, which may include tokens (docs/security.md of the action).
+          claude_args: >-
+            --allowedTools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),mcp__github_inline_comment__create_inline_comment"
 
+      - name: Show what the review did
+        if: always() && steps.claude-review.outputs.execution_file != ''
+        env:
+          EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
+        # Tool names, turn counts and the final summary only, never tool inputs or results.
+        run: |
+          jq -r '
+            (.[] | select(.type == "system" and .subtype == "init")
+              | "plugins: \([.plugins[]?.name] | join(", "))",
+                "code-review commands: \([.slash_commands[]? | select(test("code-review"))] | join(", "))"),
+            "tool calls: \([.[] | select(.type == "assistant") | .message.content[]?
+              | select(.type == "tool_use")
+              | if .name == "Bash" then "Bash(" + (.input.command | split(" ")[0:3] | join(" ")) + ")" else .name end]
+              | group_by(.) | map("\(.[0]) x\(length)") | join(", "))",
+            (.[] | select(.type == "result")
+              | "result: \(.subtype), turns: \(.num_turns), denied: \([.permission_denials[]?.tool_name] | join(", "))",
+                "",
+                (.result // "(no final message)"))
+          ' "$EXECUTION_FILE"
+
+      - name: Fail if the review posted nothing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SINCE: ${{ steps.start.outputs.at }}
+          BOT: github-actions[bot]
+        # The plugin always posts: a "## Code review" summary when it finds nothing, inline comments otherwise.
+        # Its eligibility check may skip a PR it already reviewed; everything else without a comment is a
+        # review that did no work and must not pass silently.
+        run: |
+          set -euo pipefail
+          count() { # $1: endpoint, $2: jq filter on comments by the bot
+            gh api --paginate --slurp "repos/$REPO/$1" |
+              jq --arg bot "$BOT" --arg since "$SINCE" "[.[][] | select(.user.login == \$bot) | $2] | length"
+          }
+          summaries='select(.body | test("(^|\n)#+ *Code review"; "i"))'
+          new=$(( $(count "issues/$PR/comments" "$summaries | select(.created_at >= \$since)") \
+                + $(count "pulls/$PR/comments" 'select(.created_at >= $since)') ))
+          if [ "$new" -gt 0 ]; then
+            echo "Review posted $new comment(s)."
+            exit 0
+          fi
+          old=$(( $(count "issues/$PR/comments" "$summaries") + $(count "pulls/$PR/comments" '.') ))
+          if [ "$old" -gt 0 ]; then
+            echo "::warning::Claude Code Review posted nothing new; this PR already has a review from an earlier run."
+            exit 0
+          fi
+          echo "::error::Claude Code Review posted no comment. See 'Show what the review did' for why."
+          exit 1
