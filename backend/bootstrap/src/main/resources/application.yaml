@@ -7,6 +7,13 @@ spring:
   threads:
     virtual:
       enabled: true
+  # PostgreSQL from the environment. Never put credentials in this file or in the URL.
+  datasource:
+    url: ${JOFI_DB_URL:jdbc:postgresql://localhost:5432/jofi}
+    username: ${JOFI_DB_USERNAME:jofi}
+    password: ${JOFI_DB_PASSWORD:}
+  jooq:
+    sql-dialect: postgres
 
 management:
   endpoints:

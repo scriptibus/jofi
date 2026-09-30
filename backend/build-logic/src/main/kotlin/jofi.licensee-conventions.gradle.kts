@@ -35,4 +35,16 @@ licensee {
     allowUrl("https://opensource.org/license/mit") {
         because("MIT, declared by URL instead of SPDX id (org.slf4j:slf4j-api, jul-to-slf4j via Spring Boot logging)")
     }
+    allowUrl("https://github.com/flyway/flyway/blob/main/README.txt") {
+        because("Apache-2.0, declared by name + URL in flyway-parent (org.flywaydb:flyway-*)")
+    }
+    allowUrl("https://www.jooq.org/inc/LICENSE.txt") {
+        because("Apache-2.0 (jOOQ Open Source Edition), declared by name + URL in jooq-parent (org.jooq:jooq*)")
+    }
+    allowUrl("https://jdbc.postgresql.org/about/license.html") {
+        because("BSD-2-Clause, named in the pom of org.postgresql:postgresql")
+    }
+    allowDependency("org.reactivestreams", "reactive-streams", "1.0.4") {
+        because("MIT-0 (MIT without attribution; already accepted for the frontend), via jOOQ -> r2dbc-spi")
+    }
 }

@@ -38,6 +38,7 @@ include(
     "domain",
     "application",
     "adapters:web",
+    "adapters:persistence",
     "bootstrap",
     "architecture-tests",
 )
