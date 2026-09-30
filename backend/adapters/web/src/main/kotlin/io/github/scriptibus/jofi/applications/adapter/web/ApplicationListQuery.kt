@@ -7,6 +7,8 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationSearchInput
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.CompanyRef
 import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.SavedViewFilter
+import io.github.scriptibus.jofi.applications.domain.Score
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import java.math.BigDecimal
 import java.time.Instant
@@ -78,4 +80,30 @@ data class ApplicationListQuery(
 
     /** Leaves out [search], which may quote a title. */
     override fun toString(): String = "ApplicationListQuery(companyId=$companyId, contactId=$contactId, status=$status)"
+
+    companion object {
+        /** The parameters that list [filter]'s applications again (a saved view's filter, ADR-0050). */
+        fun from(filter: SavedViewFilter): ApplicationListQuery =
+            ApplicationListQuery(
+                search = filter.text,
+                companyId = filter.company?.value,
+                contactId = filter.contact?.value,
+                status = filter.statuses.map { it.mapByName<PipelineStatus>() }.takeIf { it.isNotEmpty() },
+                unread = filter.unread,
+                language = filter.languages.map { it.value }.takeIf { it.isNotEmpty() },
+                sourceKind = filter.sourceKinds.map { it.mapByName<PostingSourceKind>() }.takeIf { it.isNotEmpty() },
+                createdFrom = filter.created?.from,
+                createdTo = filter.created?.to,
+                updatedFrom = filter.updated?.from,
+                updatedTo = filter.updated?.to,
+                wantMin = filter.wantScore?.min.decimal(),
+                wantMax = filter.wantScore?.max.decimal(),
+                fitMin = filter.fitScore?.min.decimal(),
+                fitMax = filter.fitScore?.max.decimal(),
+                sort = filter.order?.key?.mapByName(),
+                direction = filter.order?.direction?.mapByName(),
+            )
+
+        private fun Score?.decimal(): BigDecimal? = this?.let { BigDecimal.valueOf(it.tenths.toLong(), 1) }
+    }
 }

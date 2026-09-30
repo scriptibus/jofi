@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.adapter.web
 
 import io.github.scriptibus.jofi.applications.domain.ApplicationField
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
+import io.github.scriptibus.jofi.applications.domain.SavedViewField
 import io.github.scriptibus.jofi.applications.domain.SearchField
 import io.github.scriptibus.jofi.applications.domain.SearchViolation
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
@@ -26,23 +27,23 @@ object ApplicationProblems {
     const val SOURCE_NOT_FOUND = "urn:jofi:problem:applications:source-not-found"
     const val SNAPSHOT_NOT_FOUND = "urn:jofi:problem:applications:snapshot-not-found"
     const val INTERVIEW_NOT_FOUND = "urn:jofi:problem:applications:interview-not-found"
+    const val INVALID_VIEW = "urn:jofi:problem:applications:invalid-saved-view"
+    const val SAVED_VIEW_NOT_FOUND = "urn:jofi:problem:applications:saved-view-not-found"
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:applications:storage-unavailable"
 
     fun of(failure: ApplicationResult.Failure): ErrorResponseException =
         when (failure) {
-            is ApplicationResult.Invalid -> {
-                ValidationProblem.of(
-                    INVALID,
-                    failure.violations.map { FieldViolation(apiName(it.field), it.problem.name) },
-                )
+            is ApplicationResult.Invalid, is ApplicationResult.InvalidView -> {
+                invalid(failure)
             }
 
             ApplicationResult.NotFound,
             ApplicationResult.SourceNotFound,
             ApplicationResult.SnapshotNotFound,
             ApplicationResult.InterviewNotFound,
+            ApplicationResult.SavedViewNotFound,
             -> {
                 val (type, detail) = NOT_FOUND_PROBLEMS.getValue(failure)
                 problem(HttpStatus.NOT_FOUND, type, detail)
@@ -74,6 +75,24 @@ object ApplicationProblems {
             },
         )
 
+    private fun invalid(failure: ApplicationResult.Failure): ErrorResponseException =
+        if (failure is ApplicationResult.InvalidView) {
+            ValidationProblem.of(
+                INVALID_VIEW,
+                failure.violations.map { FieldViolation(viewFieldName(it.field), it.problem.name) },
+            )
+        } else {
+            val violations = (failure as ApplicationResult.Invalid).violations
+            ValidationProblem.of(INVALID, violations.map { FieldViolation(apiName(it.field), it.problem.name) })
+        }
+
+    /** A saved view's request field: `name`, or `filter.` and the list's query parameter (`filter.wantMax`). */
+    fun viewFieldName(field: SavedViewField): String =
+        when (field) {
+            SavedViewField.Name -> "name"
+            is SavedViewField.Filter -> "filter." + SEARCH_PARAMETERS.getValue(field.field)
+        }
+
     /** The request field a violation belongs to, e.g. `payBand.max`, so clients can show it there. */
     fun apiName(field: ApplicationField): String = API_NAMES.getValue(field)
 
@@ -85,6 +104,7 @@ object ApplicationProblems {
                 (SNAPSHOT_NOT_FOUND to "The application has no description with this id"),
             ApplicationResult.InterviewNotFound to
                 (INTERVIEW_NOT_FOUND to "The application has no interview with this id"),
+            ApplicationResult.SavedViewNotFound to (SAVED_VIEW_NOT_FOUND to "No saved view with this id"),
         )
 
     private val SEARCH_PARAMETERS: Map<SearchField, String> =
@@ -134,6 +154,8 @@ object ApplicationProblems {
             ApplicationField.PARTICIPANTS to "participantIds",
             ApplicationField.PREPARATION_NOTES to "preparationNotes",
             ApplicationField.INTERVIEW_NOTES to "notes",
+            ApplicationField.GHOSTED_AFTER_WEEKS to "ghostedAfterWeeks",
+            ApplicationField.FOLLOW_UP_AFTER_DAYS to "followUpAfterDays",
         )
 
     private fun transitionDetail(failure: ApplicationResult.InvalidTransition): String =

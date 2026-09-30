@@ -285,6 +285,8 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 | `interview` | `applications.domain.Interview` (with its participants) | `InterviewId.ENTITY_TYPE` |
 | `task` | `tasks.domain.Task` (also its suggestions) | `TaskId.ENTITY_TYPE` |
 | `countdown` | `tasks.domain.Countdown` (custom countdowns only) | `CountdownId.ENTITY_TYPE` |
+| `saved_view` | `applications.domain.SavedView` (saved views of the application list) | `SavedViewId.ENTITY_TYPE` |
+| `application_settings` | `applications.domain.ApplicationSettings`, a single entity (id `applications`) | `ApplicationSettings.ENTITY_TYPE` |
 
 ## Tests
 

@@ -250,6 +250,341 @@
         "tags" : [ "application-controller" ]
       }
     },
+    "/api/applications/saved-views" : {
+      "get" : {
+        "operationId" : "listSavedViews",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SavedViewListResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "saved-view-controller" ]
+      },
+      "post" : {
+        "operationId" : "createSavedView",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SavedViewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SavedViewResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "saved-view-controller" ]
+      }
+    },
+    "/api/applications/saved-views/{id}" : {
+      "delete" : {
+        "operationId" : "deleteSavedView",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Jofi-Confirmation",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "428" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConfirmationRequiredProblem"
+                }
+              }
+            },
+            "description" : "Nothing ran yet: confirm, then repeat with the token (ADR-0039)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "saved-view-controller" ]
+      },
+      "get" : {
+        "operationId" : "getSavedView",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SavedViewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "saved-view-controller" ]
+      },
+      "put" : {
+        "operationId" : "updateSavedView",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateSavedViewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SavedViewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "saved-view-controller" ]
+      }
+    },
+    "/api/applications/settings" : {
+      "get" : {
+        "operationId" : "getApplicationSettings",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationSettingsResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-settings-controller" ]
+      },
+      "put" : {
+        "operationId" : "updateApplicationSettings",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ApplicationSettingsRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApplicationSettingsResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "application-settings-controller" ]
+      }
+    },
     "/api/applications/{id}" : {
       "delete" : {
         "operationId" : "deleteApplication",
@@ -3971,6 +4306,98 @@
           }
         }
       },
+      "ApplicationListQuery" : {
+        "type" : "object",
+        "properties" : {
+          "companyId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "nullable" : true
+          },
+          "contactId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "nullable" : true
+          },
+          "createdFrom" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "createdTo" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "direction" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "ASCENDING", "DESCENDING" ]
+          },
+          "fitMax" : {
+            "type" : "number",
+            "nullable" : true
+          },
+          "fitMin" : {
+            "type" : "number",
+            "nullable" : true
+          },
+          "language" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "search" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "sort" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "UPDATED", "CREATED", "TITLE", "COMPANY", "STATUS", "DEADLINE" ]
+          },
+          "sourceKind" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "type" : "string",
+              "enum" : [ "SCANNER", "URL", "MANUAL_CHAT" ]
+            }
+          },
+          "status" : {
+            "type" : "array",
+            "nullable" : true,
+            "items" : {
+              "type" : "string",
+              "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
+            }
+          },
+          "unread" : {
+            "type" : "boolean",
+            "nullable" : true
+          },
+          "updatedFrom" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "updatedTo" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "wantMax" : {
+            "type" : "number",
+            "nullable" : true
+          },
+          "wantMin" : {
+            "type" : "number",
+            "nullable" : true
+          }
+        }
+      },
       "ApplicationPageResponse" : {
         "required" : [ "applications", "page", "size", "total" ],
         "type" : "object",
@@ -4103,6 +4530,47 @@
           "wantScore" : {
             "type" : "number",
             "nullable" : true
+          }
+        }
+      },
+      "ApplicationSettingsRequest" : {
+        "required" : [ "basedOnVersion", "followUpAfterDays", "ghostedAfterWeeks" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "followUpAfterDays" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "ghostedAfterWeeks" : {
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }
+      },
+      "ApplicationSettingsResponse" : {
+        "required" : [ "followUpAfterDays", "ghostedAfterWeeks", "version" ],
+        "type" : "object",
+        "properties" : {
+          "followUpAfterDays" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "ghostedAfterWeeks" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         }
       },
@@ -5520,6 +5988,61 @@
           }
         }
       },
+      "SavedViewListResponse" : {
+        "required" : [ "views" ],
+        "type" : "object",
+        "properties" : {
+          "views" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/SavedViewResponse"
+            }
+          }
+        }
+      },
+      "SavedViewRequest" : {
+        "required" : [ "filter", "name" ],
+        "type" : "object",
+        "properties" : {
+          "filter" : {
+            "$ref" : "#/components/schemas/ApplicationListQuery"
+          },
+          "name" : {
+            "type" : "string"
+          }
+        }
+      },
+      "SavedViewResponse" : {
+        "required" : [ "adjusted", "createdAt", "filter", "id", "name", "updatedAt", "version" ],
+        "type" : "object",
+        "properties" : {
+          "adjusted" : {
+            "type" : "boolean"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "filter" : {
+            "$ref" : "#/components/schemas/ApplicationListQuery"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
       "SetMonthlyBudgetRequest" : {
         "required" : [ "capMicros" ],
         "type" : "object",
@@ -5962,6 +6485,19 @@
           },
           "displayName" : {
             "type" : "string"
+          }
+        }
+      },
+      "UpdateSavedViewRequest" : {
+        "required" : [ "basedOnVersion", "view" ],
+        "type" : "object",
+        "properties" : {
+          "basedOnVersion" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "view" : {
+            "$ref" : "#/components/schemas/SavedViewRequest"
           }
         }
       },

@@ -2,25 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  type ApplicationResponse,
-  getGetApplicationQueryKey,
-  getSearchApplicationsQueryKey,
-  useSetApplicationUnread,
-} from "../../api/generated/jofi";
+import { type ApplicationResponse, useSetApplicationUnread } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { Button, EmailIcon, ReadIcon, Select, Table, TableCell, type TableColumn, TextLink } from "../../ui";
 import { type CompanyChoices, useCompanyName } from "../contacts/companyChoices";
+import { storeSavedApplication } from "./applicationCache";
 import type { Direction, Order, SortKey } from "./applicationsSearch";
-import {
-  applicationLanguage,
-  formatDate,
-  formatInstantDate,
-  formatScore,
-  languageName,
-  sourceText,
-  statusLabels,
-} from "./listFormat";
+import { formatDate, formatInstantDate } from "./format";
+import { statusLabels } from "./labels";
+import { applicationLanguage, formatBareScore, languageLabel, sourceText } from "./listFormat";
 
 type Column = SortKey | "SCORES" | "SOURCE" | "LANGUAGE" | "READ";
 
@@ -131,7 +121,7 @@ function Row({ application, companies }: ItemProps) {
         <Scores application={application} />
       </TableCell>
       <TableCell>{sourceText(application)}</TableCell>
-      <TableCell>{language ? languageName(language) : <None />}</TableCell>
+      <TableCell>{language ? languageLabel(language) : <None />}</TableCell>
       <TableCell className="whitespace-nowrap">
         {application.deadline ? formatDate(application.deadline) : <None />}
       </TableCell>
@@ -202,7 +192,7 @@ function StatusBadge({ application }: { application: ApplicationResponse }) {
 
 function Scores({ application: { wantScore, fitScore } }: { application: ApplicationResponse }) {
   if (wantScore == null && fitScore == null) return <None />;
-  const show = (score: number | null | undefined) => (score == null ? "–" : formatScore(score));
+  const show = (score: number | null | undefined) => (score == null ? "–" : formatBareScore(score));
   return <span>{m.applications_scores({ want: show(wantScore), fit: show(fitScore) })}</span>;
 }
 
@@ -223,10 +213,7 @@ function ReadToggle({ application }: { application: ApplicationResponse }) {
   const queryClient = useQueryClient();
   const mutation = useSetApplicationUnread({
     mutation: {
-      onSuccess: (saved) => {
-        queryClient.setQueryData(getGetApplicationQueryKey(saved.id), saved);
-        void queryClient.invalidateQueries({ queryKey: getSearchApplicationsQueryKey() });
-      },
+      onSuccess: (saved) => storeSavedApplication(queryClient, saved),
     },
   });
   const { unread, title } = application;

@@ -4,24 +4,12 @@
 import type { ApplicationResponse } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { getLocale } from "../../paraglide/runtime.js";
-import type { SourceKind, Status } from "./applicationsSearch";
+import type { SourceKind } from "./applicationsSearch";
+import { languageName } from "./format";
 
-// The words and formats of the application list, in the user's language.
+// The list's own words and formats; statuses and dates come from `labels.ts` and `format.ts`.
 
-export const statusLabels: Record<Status, () => string> = {
-  DISCOVERED: m.application_status_discovered,
-  SHORTLISTED: m.application_status_shortlisted,
-  PREPARING: m.application_status_preparing,
-  APPLIED: m.application_status_applied,
-  INTERVIEWING: m.application_status_interviewing,
-  OFFER: m.application_status_offer,
-  ACCEPTED: m.application_status_accepted,
-  REJECTED: m.application_status_rejected,
-  WITHDRAWN: m.application_status_withdrawn,
-  DECLINED: m.application_status_declined,
-  GHOSTED: m.application_status_ghosted,
-};
-
+/** Short source names for a table cell and the source filter (the detail page says more). */
 export const sourceLabels: Record<SourceKind, () => string> = {
   SCANNER: m.applications_source_scanner,
   URL: m.applications_source_url,
@@ -43,29 +31,11 @@ export function applicationLanguage(application: ApplicationResponse): string | 
 }
 
 /** A language tag's name in the user's language ("German"), or the tag when Intl does not know it. */
-export function languageName(tag: string, locale: string = getLocale()): string {
-  try {
-    return new Intl.DisplayNames([locale], { type: "language", fallback: "none" }).of(tag) ?? tag;
-  } catch {
-    return tag;
-  }
+export function languageLabel(tag: string): string {
+  return languageName(tag) ?? tag;
 }
 
-/** A calendar date from the API (`2026-10-15`, no time zone), the same in every time zone. */
-export function formatDate(isoDate: string, locale: string = getLocale()): string {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  if (year === undefined || month === undefined || day === undefined) return isoDate;
-  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone: "UTC" }).format(
-    new Date(Date.UTC(year, month - 1, day)),
-  );
-}
-
-/** An instant from the API as a date in the user's time zone. */
-export function formatInstantDate(instant: string, locale: string = getLocale()): string {
-  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(instant));
-}
-
-/** A score 0–5 with one decimal ("4.5", "4,5"). */
-export function formatScore(score: number, locale: string = getLocale()): string {
+/** A bare score 0–5 with one decimal ("4.5", "4,5"), for the compact "Want / Fit" cell. */
+export function formatBareScore(score: number, locale: string = getLocale()): string {
   return new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(score);
 }

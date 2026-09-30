@@ -17,7 +17,8 @@ import {
   withFilter,
   withoutFilters,
 } from "./applicationsSearch";
-import { languageName, sourceLabels, statusLabels } from "./listFormat";
+import { statusLabels } from "./labels";
+import { languageLabel, sourceLabels } from "./listFormat";
 
 const ANY = "any";
 /** The languages offered to filter by; a tag from the URL outside these is offered too. */
@@ -107,7 +108,7 @@ export function ApplicationFilters({ search, onSearch, text, onText, companies }
             onChange={(id) => set("language", id === ANY ? undefined : id)}
             groups={[
               { id: "any-language", options: [{ id: ANY, label: m.applications_filter_language_any() }] },
-              { id: "languages", options: languages.map((tag) => ({ id: tag, label: languageName(tag) })) },
+              { id: "languages", options: languages.map((tag) => ({ id: tag, label: languageLabel(tag) })) },
             ]}
           />
           <Select

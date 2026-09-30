@@ -14,8 +14,11 @@ import {
 import { m } from "../paraglide/messages.js";
 import { SetupWizard } from "./ai/SetupWizard";
 import { parseSetupStep, type SetupStep, shouldOpenSetupGuide } from "./ai/setupGuide";
+import { ApplicationDetailPage } from "./applications/ApplicationDetailPage";
 import { ApplicationsPage } from "./applications/ApplicationsPage";
 import { parseApplicationsSearch } from "./applications/applicationsSearch";
+import { EditApplicationPage } from "./applications/EditApplicationPage";
+import { parseApplicationSearch } from "./applications/tabs";
 import { FirstRunPage } from "./auth/FirstRunPage";
 import { LoginPage, type LoginReason } from "./auth/LoginPage";
 import { authState, refreshSession, safeRedirect, sessionQueryOptions } from "./auth/session";
@@ -136,15 +139,28 @@ const dashboardRoute = createRoute({
     </PlaceholderPage>
   ),
 });
-// Applications (spec §6.3): the list with its filters, order and page in the URL.
+// Applications (spec §6.3): the list with its filters, order and page in the URL; the detail page with
+// its tabs (`?tab=`) and the edit page.
 const applicationsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "applications",
   validateSearch: parseApplicationsSearch,
   component: ApplicationsPage,
 });
-// The detail page is #102; until it lands, the list's links open this placeholder.
-const applicationRoute = placeholder("applications/$applicationId", m.nav_applications, m.applications_empty);
+
+const applicationRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "applications/$applicationId",
+  validateSearch: parseApplicationSearch,
+  component: ApplicationDetailPage,
+});
+
+const editApplicationRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "applications/$applicationId/edit",
+  component: EditApplicationPage,
+});
+
 const tasksRoute = placeholder("tasks", m.nav_tasks, m.tasks_empty);
 const chatRoute = placeholder("chat", m.nav_chat, m.chat_empty);
 
@@ -240,6 +256,7 @@ export const routeTree = rootRoute.addChildren([
     dashboardRoute,
     applicationsRoute,
     applicationRoute,
+    editApplicationRoute,
     companiesRoute,
     newCompanyRoute,
     companyRoute,

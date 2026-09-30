@@ -48,5 +48,6 @@ export {
   type TableProps,
   type TableSort,
 } from "./Table";
+export { type TabDefinition, Tabs, type TabsProps } from "./Tabs";
 export { TextArea, type TextAreaProps } from "./TextArea";
 export { TextField, type TextFieldProps } from "./TextField";

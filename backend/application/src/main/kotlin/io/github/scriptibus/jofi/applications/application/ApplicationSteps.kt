@@ -10,6 +10,8 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationValidation
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
+import io.github.scriptibus.jofi.applications.domain.SavedViewField
+import io.github.scriptibus.jofi.applications.domain.SavedViewViolation
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import java.time.Clock
@@ -55,19 +57,22 @@ internal fun <T> ApplicationStoreResult<T>.toResult(): ApplicationResult<T> =
 
         // `application_company_fk`: the input named a company that does not exist (any more).
         ApplicationStoreResult.CompanyNotFound -> {
-            notFound(ApplicationField.COMPANY)
+            invalid(ApplicationField.COMPANY, ApplicationProblem.NOT_FOUND)
         }
 
         // `application_contact_contact_fk`: a linked contact does not exist (any more).
         ApplicationStoreResult.ContactNotFound -> {
-            notFound(ApplicationField.CONTACTS)
+            invalid(ApplicationField.CONTACTS, ApplicationProblem.NOT_FOUND)
         }
 
         // Only the source port answers it (#96): the application has as many sources as it may.
         ApplicationStoreResult.SourceLimitReached -> {
-            ApplicationResult.Invalid(
-                listOf(ApplicationViolation(ApplicationField.SOURCES, ApplicationProblem.TOO_MANY)),
-            )
+            invalid(ApplicationField.SOURCES, ApplicationProblem.TOO_MANY)
+        }
+
+        // `saved_view_name_unique`: a view with exactly this name was stored meanwhile.
+        ApplicationStoreResult.ViewNameTaken -> {
+            ApplicationResult.InvalidView(listOf(SavedViewViolation(SavedViewField.Name, ApplicationProblem.TAKEN)))
         }
 
         // Only a proof for another target gets here, a bug of the use case; nothing was deleted.
@@ -80,8 +85,10 @@ internal fun <T> ApplicationStoreResult<T>.toResult(): ApplicationResult<T> =
         }
     }
 
-private fun notFound(field: ApplicationField): ApplicationResult.Invalid =
-    ApplicationResult.Invalid(listOf(ApplicationViolation(field, ApplicationProblem.NOT_FOUND)))
+private fun invalid(
+    field: ApplicationField,
+    problem: ApplicationProblem,
+): ApplicationResult.Invalid = ApplicationResult.Invalid(listOf(ApplicationViolation(field, problem)))
 
 /** The application if the caller based its change on its current version, else [ApplicationResult.VersionConflict]. */
 internal fun Application.basedOn(version: Long): ApplicationResult<Application> =

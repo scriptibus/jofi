@@ -172,9 +172,10 @@ test("unread applications stand out and are marked read and unread", async ({ pa
   await card.getByRole("button", { name: `Mark ${scanned.title} as unread` }).click();
   await expect(card.getByRole("img", { name: "Unread" })).toBeVisible();
 
-  // Opening the application marks it read (the detail page, #102); the list shows that after a reload.
-  await setUnread(page, scanned.id, false);
-  await page.reload();
+  // Opening the application marks it read (the detail page); back on the list, the dot is gone.
+  await card.getByRole("link", { name: scanned.title }).click();
+  await expect(page.getByRole("heading", { level: 1, name: scanned.title })).toBeVisible();
+  await page.goBack();
   await expect(page.getByText("2 applications match")).toBeVisible();
   await expect(card.getByRole("img", { name: "Unread" })).toHaveCount(0);
 });
