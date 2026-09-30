@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.shared.adapter.web
 
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmableAction
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRejection
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
@@ -27,7 +28,16 @@ import java.net.URI
 import java.time.Instant
 
 class ConfirmationsTest {
-    private val action = ConfirmableAction("applications.delete", listOf("42"), "application 42")
+    private val action =
+        ConfirmableAction(
+            "applications.delete",
+            listOf("42"),
+            ConfirmationEffect(
+                "application",
+                "ACME",
+                mapOf("documents" to 3),
+            ),
+        )
 
     @Test
     fun `a missing or blank header is a first step`() {
@@ -61,7 +71,10 @@ class ConfirmationsTest {
 
         problem.statusCode shouldBe HttpStatus.PRECONDITION_REQUIRED
         problem.body.type shouldBe URI.create(Confirmations.REQUIRED)
-        (problem.body as Confirmations.ConfirmationRequiredProblem).confirmationToken shouldBe "t0k3n"
+        val body = problem.body as Confirmations.ConfirmationRequiredProblem
+        body.confirmationToken shouldBe "t0k3n"
+        body.effect shouldBe Confirmations.ConfirmationEffectResponse("application", "ACME", mapOf("documents" to 3))
+        problem.toString() shouldNotContain "ACME"
         problem.toString() shouldNotContain "t0k3n"
         problem.message shouldNotContain "t0k3n"
         problem.body.properties shouldBe

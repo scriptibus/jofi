@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.shared.adapter.confirmation
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmableAction
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationBinding
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.kotest.matchers.collections.shouldHaveSize
@@ -23,7 +24,7 @@ class InMemoryConfirmationStoreAdapterTest {
     private val binding =
         ConfirmationBinding.of(
             ConfirmationRequester(Actor.User, "session"),
-            ConfirmableAction("applications.delete", listOf("42"), "application 42"),
+            ConfirmableAction("applications.delete", listOf("42"), ConfirmationEffect("application", "ACME")),
         )
 
     private fun pending(expiresAt: Instant = now.plusSeconds(300)) = PendingConfirmation(binding, expiresAt)

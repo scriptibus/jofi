@@ -21,6 +21,9 @@ dependencies {
     testImplementation(libs.spring.modulith.core)
     testImplementation(libs.archunit)
     testImplementation(libs.konsist)
+    // Spring MVC annotations for the known-bad controller fixtures of the confirmation rules (ADR-0039);
+    // already on the runtime classpath through bootstrap, version from the Boot BOM.
+    testImplementation(libs.spring.web)
 }
 
 tasks.withType<Test>().configureEach {

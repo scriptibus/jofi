@@ -4,7 +4,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { CONFIRM_ARM_DELAY_MS, ConfirmDialog } from "./ConfirmDialog";
 
 function renderDialog(isOpen = true) {
   const onConfirm = vi.fn();
@@ -32,10 +32,27 @@ describe("ConfirmDialog", () => {
     expect(dialog).toHaveTextContent("its 3 documents will be deleted");
   });
 
+  it("keeps Confirm disabled right after opening, so the opening tap cannot confirm", async () => {
+    const opened = performance.now();
+    const { onConfirm } = renderDialog();
+    const confirm = screen.getByRole("button", { name: "Delete" });
+
+    expect(confirm).toBeDisabled();
+    await userEvent.click(confirm);
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => expect(confirm).toBeEnabled());
+    expect(performance.now() - opened).toBeGreaterThanOrEqual(CONFIRM_ARM_DELAY_MS - 1);
+    await userEvent.click(confirm);
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
   it("confirms only on the confirm button", async () => {
     const { onConfirm, onCancel } = renderDialog();
+    const confirm = screen.getByRole("button", { name: "Delete" });
 
-    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await vi.waitFor(() => expect(confirm).toBeEnabled());
+    await userEvent.click(confirm);
 
     expect(onConfirm).toHaveBeenCalledOnce();
     expect(onCancel).not.toHaveBeenCalled();

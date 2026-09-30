@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.shared.application
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmableAction
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRejection
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequest
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
@@ -37,7 +38,14 @@ class ConfirmActionUseCaseTest {
     private val useCase = ConfirmActionUseCase(store, clock, TTL)
 
     private val user = ConfirmationRequester(Actor.User, "session-a")
-    private val delete = ConfirmableAction("applications.delete", listOf("42"), "application 42")
+    private val effect = ConfirmationEffect("application", "ACME", mapOf("documents" to 3))
+    private val delete = ConfirmableAction("applications.delete", listOf("42"), effect)
+
+    private fun ConfirmableAction.with(
+        operation: String = this.operation,
+        targets: List<String> = this.targets,
+        effect: ConfirmationEffect = this.effect,
+    ) = ConfirmableAction(operation, targets, effect)
 
     private fun firstStep(
         requester: ConfirmationRequester = user,
@@ -64,13 +72,14 @@ class ConfirmActionUseCaseTest {
     fun `the second step with the token confirms`() {
         val required = firstStep()
 
-        secondStep(required.token) shouldBe ConfirmationResult.Confirmed
+        val confirmed = secondStep(required.token).shouldBeInstanceOf<ConfirmationResult.Confirmed>()
+        confirmed.action shouldBe delete
     }
 
     @Test
     fun `a token works only once`() {
         val required = firstStep()
-        secondStep(required.token) shouldBe ConfirmationResult.Confirmed
+        secondStep(required.token).shouldBeInstanceOf<ConfirmationResult.Confirmed>()
 
         secondStep(required.token) shouldBe ConfirmationResult.Rejected(ConfirmationRejection.UNKNOWN)
     }
@@ -102,9 +111,9 @@ class ConfirmActionUseCaseTest {
     fun `a token cannot be retargeted to another operation, target or effect`() {
         val retargeted =
             listOf(
-                delete.copy(operation = "applications.archive"),
-                delete.copy(targets = listOf("43")),
-                delete.copy(effect = "application 42 with a new document"),
+                delete.with(operation = "applications.archive"),
+                delete.with(targets = listOf("43")),
+                delete.with(effect = effect.copy(counts = mapOf("documents" to 4))),
             )
 
         retargeted.forEach { action ->

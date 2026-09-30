@@ -8,6 +8,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.USER_ACC
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmableAction
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequest
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
@@ -33,6 +34,7 @@ import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Import
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.security.test.context.support.WithMockUser
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import org.springframework.test.web.servlet.assertj.MvcTestResult
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -75,6 +77,7 @@ class ConfirmationFlowTest(
         context.getBean(LoginThrottlePort::class.java).reset(ThrottleKey.Everyone)
         context.getBean(SetupTokenPort::class.java).issue()
         probes.deleted.clear()
+        probes.reached.set(0)
     }
 
     private fun browser() = Browser(mvc, "203.0.113.${addresses.incrementAndGet()}").open()
@@ -111,6 +114,7 @@ class ConfirmationFlowTest(
         problem["operation"].asString() shouldBe "test.probes.delete"
         problem["targets"].toString() shouldBe """["42"]"""
         problem["expiresAt"].asString() shouldContain "T"
+        problem["effect"].toString() shouldBe """{"kind":"probe","name":"Probe 42","counts":{"parts":2}}"""
         probes.deleted.shouldBeEmpty()
 
         browser.confirm("/api/test/probes/42", token).response.status shouldBe 204
@@ -192,6 +196,26 @@ class ConfirmationFlowTest(
     }
 
     /**
+     * The filter chain lets an authenticated request without a session through only in tests (a mock
+     * user); the requester must still refuse it instead of binding the confirmation to nothing.
+     * `@WithMockUser` rather than the `user()`/`csrf()` post-processors, which rewire the shared chain.
+     */
+    @Test
+    @WithMockUser
+    fun `an authenticated request without a session is 401 from the requester, never bound to nothing`() {
+        val browser = browser()
+        browser.sessionId shouldBe null
+
+        val result = browser.delete("/api/test/probes/42")
+
+        probes.reached.get() shouldBe 1
+        result.response.status shouldBe HttpStatus.UNAUTHORIZED.value()
+        result.response.contentType shouldBe MediaType.APPLICATION_PROBLEM_JSON_VALUE
+        result.response.contentAsString shouldContain "urn:jofi:problem:system:not-logged-in"
+        probes.deleted.shouldBeEmpty()
+    }
+
+    /**
      * The convention as a destructive endpoint uses it. In a feature the confirmation call and the
      * operation both sit in the feature's use case, so MCP tools get the same gate; the probe folds
      * them together because it has nothing to delete.
@@ -202,6 +226,7 @@ class ConfirmationFlowTest(
         private val confirmAction: ConfirmActionUseCase,
     ) {
         val deleted = CopyOnWriteArrayList<String>()
+        val reached = AtomicInteger()
 
         @DeleteMapping("/api/test/probes/{id}")
         @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -210,11 +235,21 @@ class ConfirmationFlowTest(
             @RequestHeader(Confirmations.HEADER, required = false) confirmation: String?,
             request: HttpServletRequest,
         ) {
-            val action = ConfirmableAction("test.probes.delete", listOf(id), "probe $id")
+            reached.incrementAndGet()
+            val action =
+                ConfirmableAction(
+                    "test.probes.delete",
+                    listOf(id),
+                    ConfirmationEffect(
+                        "probe",
+                        "Probe $id",
+                        mapOf("parts" to 2),
+                    ),
+                )
             val confirmationRequest =
                 ConfirmationRequest(Confirmations.requester(request), action, Confirmations.token(confirmation))
             when (val result = confirmAction.execute(confirmationRequest)) {
-                ConfirmationResult.Confirmed -> deleted += id
+                is ConfirmationResult.Confirmed -> deleted += id
                 is ConfirmationResult.Unconfirmed -> throw Confirmations.problem(result)
             }
         }

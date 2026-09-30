@@ -10,6 +10,7 @@ import io.swagger.v3.oas.models.media.ArraySchema
 import io.swagger.v3.oas.models.media.ComposedSchema
 import io.swagger.v3.oas.models.media.Content
 import io.swagger.v3.oas.models.media.IntegerSchema
+import io.swagger.v3.oas.models.media.MapSchema
 import io.swagger.v3.oas.models.media.MediaType
 import io.swagger.v3.oas.models.media.ObjectSchema
 import io.swagger.v3.oas.models.media.Schema
@@ -111,11 +112,25 @@ class OpenApiSpecApplication {
                         ).addProperty(
                             "targets",
                             ArraySchema().items(StringSchema()).description("Ids of what it would affect"),
-                        ).required(listOf("confirmationToken", "expiresAt", "operation", "targets")),
+                        ).addProperty("effect", effectSchema())
+                        .required(listOf("confirmationToken", "expiresAt", "operation", "targets", "effect")),
                 ).description(
                     "428 answer of a destructive or outward-facing operation: nothing ran yet. Repeat the request " +
                         "with confirmationToken in the ${Confirmations.HEADER} header once the user confirmed.",
                 )
+
+        /** Structured, server-derived effect; clients render it in the user's language (no prose). */
+        private fun effectSchema(): Schema<*> =
+            ObjectSchema()
+                .description("What would change: kind of thing, its name, and counts of what goes with it")
+                .addProperty("kind", StringSchema().description("Kind of thing affected, e.g. application"))
+                .addProperty("name", StringSchema().description("Display name of the target"))
+                .addProperty(
+                    "counts",
+                    MapSchema()
+                        .additionalProperties(IntegerSchema().format("int32"))
+                        .description("What goes with it, e.g. documents: 3"),
+                ).required(listOf("kind", "name", "counts"))
 
         private fun problemDetailSchema(): Schema<*> =
             ObjectSchema()

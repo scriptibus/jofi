@@ -136,12 +136,22 @@ in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProvi
 - **A mutation**: append a `ChangelogEntry` with the acting `Actor` through `ChangelogPort` in the
   same use case (spec §13), inside `TransactionPort.inTransaction` so both are stored or neither.
   The changelog is append-only; the audit lens checks the actor.
-- **A delete or outward-facing action** (spec §9, ADR-0039): the feature use case takes
-  `ConfirmActionUseCase` and a `ConfirmationRequester` + optional `ConfirmationToken`, builds the
-  `ConfirmableAction` (operation `<context>.<verb>`, target ids, an effect derived from the current
-  state), calls the gate first and mutates only on `ConfirmationResult.Confirmed`; it returns
-  `ConfirmationResult.Unconfirmed` as one case of its sealed result. Never put the gate in a
-  controller or MCP tool: it must hold for every caller. Test the unconfirmed, confirmed and replay paths.
+- **A delete or outward-facing action** (spec §9, ADR-0039), enforced by `ConfirmationRulesTest`:
+  - The feature use case takes `ConfirmActionUseCase` and a `ConfirmationRequester` + optional
+    `ConfirmationToken`. Inside one `TransactionPort.inTransaction` it reads the targets, builds the
+    `ConfirmableAction` from **that same read** (operation `<context>.<verb>`; targets = concrete,
+    server-resolved ids, never filters; a `ConfirmationEffect(kind, name, counts)`), calls the gate,
+    and mutates only with the `ConfirmationResult.Confirmed` it returns. It returns
+    `ConfirmationResult.Unconfirmed` as one case of its sealed result.
+  - The port method takes the proof: `fun delete(id: ThingId, proof: ConfirmationResult.Confirmed)`,
+    and the adapter checks `proof.covers("<context>.delete", id.toString())` first. Only the gate can
+    mint a `Confirmed` (internal constructor + architecture test).
+  - Port methods named `delete*`/`remove*`/`send*`/`purge*` may only be called by use cases that hold
+    the gate or pass a `Confirmed`; `DELETE` endpoints (and those in
+    `ConfirmationRules.OUTWARD_FACING_ENDPOINTS`, which every new outward endpoint joins) take the
+    `Jofi-Confirmation` header. Allowlist entries need a reason and a human review.
+  - Never put the gate in a controller or MCP tool: it must hold for every caller. Test the
+    unconfirmed, confirmed, replay and changed-effect paths.
 - **A controller**: `adapters/web/.../<context>/adapter/web/<Name>Controller.kt`; inject use cases
   only, map domain types to DTOs (`*Response`/`*Request`) in the same package. Test with a
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).

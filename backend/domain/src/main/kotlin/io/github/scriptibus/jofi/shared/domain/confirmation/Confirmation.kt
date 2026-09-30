@@ -4,8 +4,6 @@
 package io.github.scriptibus.jofi.shared.domain.confirmation
 
 import io.github.scriptibus.jofi.shared.domain.Actor
-import java.security.MessageDigest
-import java.time.Instant
 
 /**
  * Who asks for a destructive or outward-facing action, and through which session or client
@@ -24,20 +22,51 @@ data class ConfirmationRequester(
 }
 
 /**
- * Exactly what would be executed: the [operation] (e.g. `applications.delete`), its [targets]
- * (entity ids) and the [effect], a description the feature derives from the current state (e.g.
- * "application 42 with 3 documents"). If any of them differs at the second step, for instance
- * because the target changed in between, the confirmation no longer matches.
+ * What executing would change, as structured data the client renders in the user's language (the
+ * server sends no prose): the [kind] of thing (`application`), its display [name] and [counts] of
+ * what goes with it (`documents` -> 3). The feature derives it from the same read its mutation acts
+ * on, inside one transaction (ADR-0039).
  */
-data class ConfirmableAction(
-    val operation: String,
-    val targets: List<String>,
-    val effect: String,
+data class ConfirmationEffect(
+    val kind: String,
+    val name: String,
+    val counts: Map<String, Int> = emptyMap(),
 ) {
     init {
-        require(operation.isNotBlank()) { "A confirmable action needs an operation" }
-        require(targets.isNotEmpty() && targets.none { it.isBlank() }) { "A confirmable action needs its targets" }
+        require(kind.isNotBlank()) { "A confirmation effect needs the kind of thing it affects" }
+        require(counts.keys.none { it.isBlank() } && counts.values.all { it >= 0 }) {
+            "Effect counts need names and must not be negative"
+        }
     }
+}
+
+/**
+ * Exactly what would be executed: the [operation] (`<context>.<verb>`, e.g. `applications.delete`),
+ * its targets and the [effect]. Targets are concrete ids the server resolved, never filters or
+ * queries; they are kept sorted and without duplicates, so the same set always binds the same way.
+ * If anything differs at the second step, for instance because the target changed in between, the
+ * confirmation no longer matches.
+ */
+class ConfirmableAction(
+    val operation: String,
+    targets: Collection<String>,
+    val effect: ConfirmationEffect,
+) {
+    val targets: List<String> = targets.toSortedSet().toList()
+
+    init {
+        require(operation.isNotBlank()) { "A confirmable action needs an operation" }
+        require(this.targets.isNotEmpty() && this.targets.none { it.isBlank() }) {
+            "A confirmable action needs its targets"
+        }
+    }
+
+    override fun equals(other: Any?): Boolean =
+        other is ConfirmableAction && operation == other.operation && targets == other.targets && effect == other.effect
+
+    override fun hashCode(): Int = listOf(operation, targets, effect).hashCode()
+
+    override fun toString(): String = "ConfirmableAction(operation=$operation, targets=$targets, effect=$effect)"
 }
 
 /** The unguessable, single-use proof of the first step. Never logged, so [toString] hides it. */
@@ -52,94 +81,9 @@ value class ConfirmationToken(
     override fun toString(): String = "ConfirmationToken(redacted)"
 }
 
-/**
- * A SHA-256 digest of requester and action, so the store keeps no session ids or action details and
- * a match is checked in constant time (`MessageDigest.isEqual`). Fields are length-prefixed, so no
- * two different requests encode to the same text.
- */
-class ConfirmationBinding private constructor(
-    private val digest: ByteArray,
-) {
-    fun matches(other: ConfirmationBinding): Boolean = MessageDigest.isEqual(digest, other.digest)
-
-    companion object {
-        private const val ALGORITHM = "SHA-256"
-
-        fun of(
-            requester: ConfirmationRequester,
-            action: ConfirmableAction,
-        ): ConfirmationBinding {
-            val fields =
-                listOf(actorKey(requester.actor), requester.session, action.operation) +
-                    action.targets.size.toString() + action.targets + action.effect
-            val canonical = fields.joinToString("") { "${it.length}:$it" }
-            return ConfirmationBinding(MessageDigest.getInstance(ALGORITHM).digest(canonical.toByteArray()))
-        }
-
-        private fun actorKey(actor: Actor): String =
-            when (actor) {
-                Actor.User -> "user"
-                Actor.Ai -> "ai"
-                is Actor.Scanner -> "scanner/${actor.name}"
-                is Actor.ExternalClient -> "external-client/${actor.name}"
-                is Actor.System -> "system/${actor.name}"
-            }
-    }
-}
-
-/** A first step waiting for its confirmation until [expiresAt] (exclusive). */
-class PendingConfirmation(
-    val binding: ConfirmationBinding,
-    val expiresAt: Instant,
-) {
-    /** Whether a second step for [candidate] at [now] confirms this one. */
-    fun check(
-        candidate: ConfirmationBinding,
-        now: Instant,
-    ): ConfirmationResult =
-        when {
-            !now.isBefore(expiresAt) -> ConfirmationResult.Rejected(ConfirmationRejection.EXPIRED)
-            !binding.matches(candidate) -> ConfirmationResult.Rejected(ConfirmationRejection.MISMATCH)
-            else -> ConfirmationResult.Confirmed
-        }
-}
-
 /** One call of a destructive operation; [token] is absent on the first step. */
 data class ConfirmationRequest(
     val requester: ConfirmationRequester,
     val action: ConfirmableAction,
     val token: ConfirmationToken?,
 )
-
-/** The outcome of the confirmation gate. Only [Confirmed] lets the operation run. */
-sealed interface ConfirmationResult {
-    /** The second step matched a pending first step: execute now. */
-    data object Confirmed : ConfirmationResult
-
-    /** Anything that must not execute; features pass it on to their caller unchanged. */
-    sealed interface Unconfirmed : ConfirmationResult
-
-    /** First step: nothing ran; show [action] to the user and repeat the call with [token]. */
-    data class Required(
-        val token: ConfirmationToken,
-        val expiresAt: Instant,
-        val action: ConfirmableAction,
-    ) : Unconfirmed
-
-    /** The token does not confirm this call; nothing ran and the token is spent. */
-    data class Rejected(
-        val reason: ConfirmationRejection,
-    ) : Unconfirmed
-}
-
-/** Why a token was refused. */
-enum class ConfirmationRejection {
-    /** Never issued, already used, or dropped from the bounded store. */
-    UNKNOWN,
-
-    /** Issued, but its time ran out. */
-    EXPIRED,
-
-    /** Issued for another actor, session, operation, target or effect. */
-    MISMATCH,
-}

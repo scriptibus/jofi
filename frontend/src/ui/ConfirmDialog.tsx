@@ -1,9 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Dialog, Heading, Modal, ModalOverlay } from "react-aria-components";
 import { Button } from "./Button";
+
+/** How long Confirm stays disabled after the dialog opens, so a double tap cannot confirm unseen. */
+export const CONFIRM_ARM_DELAY_MS = 300;
 
 export interface ConfirmDialogProps {
   isOpen: boolean;
@@ -19,8 +22,8 @@ export interface ConfirmDialogProps {
 
 /**
  * A modal `alertdialog` asking the user to confirm a destructive or outward-facing action. Focus
- * starts on the dialog and stays inside it; Cancel comes first, so Enter on the first button never
- * confirms by accident.
+ * starts on the dialog and stays inside it; Cancel comes first, and Confirm is disabled for
+ * [CONFIRM_ARM_DELAY_MS] after opening, so the click or tap that opened it cannot confirm it.
  */
 export function ConfirmDialog({
   isOpen,
@@ -31,6 +34,15 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    setArmed(false);
+    if (!isOpen) return undefined;
+    const timer = setTimeout(() => setArmed(true), CONFIRM_ARM_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
   return (
     <ModalOverlay
       isOpen={isOpen}
@@ -49,7 +61,9 @@ export function ConfirmDialog({
             <Button variant="secondary" onPress={onCancel}>
               {cancelLabel}
             </Button>
-            <Button onPress={onConfirm}>{confirmLabel}</Button>
+            <Button isDisabled={!armed} onPress={onConfirm}>
+              {confirmLabel}
+            </Button>
           </div>
         </Dialog>
       </Modal>

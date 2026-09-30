@@ -180,11 +180,15 @@ lint/             Biome GritQL plugins
 - **Errors:** requests that fail go through the QueryClient: 401 `not-logged-in` returns to login,
   everything else becomes a global notice. A form that shows its own errors sets
   `meta: { errorHandledLocally: true }` on its mutation. Map new problem types in `problems.ts`.
-- **Deletes and outward-facing actions** (ADR-0039): the server answers the first call with 428 and a
-  token. Run the generated request function through `useConfirmation()` (`src/app/useConfirmation.tsx`):
-  `confirmed((options) => deleteThing(id, options), { message: m.thing_delete_confirm({ name }) })`,
-  and render its `dialog`. It shows `ConfirmDialog` and repeats the call with the `Jofi-Confirmation`
-  header only on a yes; `cancelled` means nothing ran. A 412 (stale token) maps to a notice in `problems.ts`.
+- **Deletes and outward-facing actions** (ADR-0039): the server answers the first call with 428, a
+  token and a structured `effect` (`kind`, `name`, `counts`). Run the generated request function
+  through `useConfirmation()` (`src/app/useConfirmation.tsx`) and render its `dialog`:
+  `confirmed((options) => deleteThing(id, options), { expect: { operation: "things.delete", targets: [id] },
+  describe: (effect) => m.thing_delete_confirm({ name: effect.name, parts: effect.counts.parts ?? 0 }) })`.
+  The dialog text comes from the server's effect (what it would really run); a 428 for another
+  operation or target throws `ConfirmationMismatchError` without asking. The call is repeated with the
+  `Jofi-Confirmation` header only on a yes; `cancelled` means nothing ran (also when a newer question
+  replaced it or the page unmounted). A 412 (stale token) maps to a notice in `problems.ts`.
 - **Page titles:** call `usePageTitle()` (or use `PageHeader`); focus moves to `<main>` on navigation.
 - **PWA:** the service worker precaches the shell only and has no runtime caching. Never add runtime
   caching for `/api/` (personal data). After changing the donkey or the light palette, run

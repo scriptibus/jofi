@@ -22,7 +22,8 @@ import java.net.URI
  * outward-facing endpoint:
  *
  * 1. The first call (without [HEADER]) runs nothing and answers `428 Precondition Required` with a
- *    [REQUIRED] problem carrying `confirmationToken`, `expiresAt`, `operation` and `targets`.
+ *    [REQUIRED] problem carrying `confirmationToken`, `expiresAt`, `operation`, `targets` and the
+ *    structured `effect` the client renders (and checks against what it meant to do).
  * 2. After the user confirmed, the client repeats the same call with the token in [HEADER]; only
  *    then does the operation run.
  * 3. A token that is unknown, used, expired or issued for another session, operation, target or
@@ -58,7 +59,12 @@ object Confirmations {
         }
 
     private fun required(outcome: ConfirmationResult.Required): ErrorResponseException {
-        val body = ConfirmationRequiredProblem(outcome.token.value)
+        val effect = outcome.action.effect
+        val body =
+            ConfirmationRequiredProblem(
+                outcome.token.value,
+                ConfirmationEffectResponse(effect.kind, effect.name, effect.counts.toSortedMap()),
+            )
         body.detail = "Confirm this action, then repeat the request with the token in the $HEADER header"
         body.type = URI.create(REQUIRED)
         body.setProperty("expiresAt", outcome.expiresAt.toString())
@@ -68,13 +74,21 @@ object Confirmations {
     }
 
     /**
-     * Carries the token as a serialized property of its own, outside the extension map that
-     * `ProblemDetail.toString()` prints: Spring logs resolved exceptions (message = problem) at debug
-     * level, and the token must not reach any log.
+     * Carries the token and the effect as serialized properties of their own, outside the extension
+     * map that `ProblemDetail.toString()` prints: Spring logs resolved exceptions (message = problem)
+     * at debug level, and neither the token nor names (personal data) may reach any log.
      */
     class ConfirmationRequiredProblem(
         val confirmationToken: String,
+        val effect: ConfirmationEffectResponse,
     ) : ProblemDetail(HttpStatus.PRECONDITION_REQUIRED.value())
+
+    /** What would change, for the client to render in the user's language (`ConfirmationEffect`). */
+    data class ConfirmationEffectResponse(
+        val kind: String,
+        val name: String,
+        val counts: Map<String, Int>,
+    )
 
     private fun rejected(reason: ConfirmationRejection): ErrorResponseException {
         logger.warn("Confirmation refused: {}", reason)

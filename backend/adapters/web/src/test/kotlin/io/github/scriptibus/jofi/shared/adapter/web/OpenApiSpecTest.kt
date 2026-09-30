@@ -91,7 +91,7 @@ class OpenApiSpecTest(
         servedSpec()
             .extractingPath("$.components.schemas.ConfirmationRequiredProblem.allOf[1].required")
             .asArray()
-            .containsExactlyInAnyOrder("confirmationToken", "expiresAt", "operation", "targets")
+            .containsExactlyInAnyOrder("confirmationToken", "expiresAt", "operation", "targets", "effect")
     }
 
     private fun servedSpec() =
