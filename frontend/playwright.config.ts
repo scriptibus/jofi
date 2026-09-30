@@ -42,13 +42,22 @@ const target: PlaywrightTestConfig = stackUrl
           dependencies: ["seed"],
           use: { ...project.use, storageState: E2E_STORAGE_STATE },
         })),
+        // Adding, assigning, budgeting and deleting change the one AI setup every other test sees, so they
+        // run after the browser projects, alone, and put the seeded setup back (tests/ai/ai-setup.spec.ts).
+        {
+          name: "ai-setup",
+          testDir: "./tests/ai",
+          fullyParallel: false,
+          dependencies: browsers.map((project) => project.name ?? ""),
+          use: { ...devices["Desktop Chrome"], colorScheme: "light", storageState: E2E_STORAGE_STATE },
+        },
         // Wrong passwords and password changes: they share the one-client login backoff with every
         // other test and end the seeded session, so they run last, alone (tests/auth/auth.spec.ts).
         {
           name: "auth",
           testDir: "./tests/auth",
           fullyParallel: false,
-          dependencies: browsers.map((project) => project.name ?? ""),
+          dependencies: ["ai-setup"],
           use: { ...devices["Desktop Chrome"], colorScheme: "light" },
         },
         // Backup export and restore: wrong passwords, the one backup lock, and a restore that ends every
