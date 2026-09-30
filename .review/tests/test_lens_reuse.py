@@ -36,6 +36,8 @@ class Repo:
         self.write(".review/prompt.md", "prompt\n")
         self.write(".review/findings.schema.json", "{}\n")
         self.write(".review/select-lenses.py", "print('[]')\n")
+        self.write(".review/lens_reuse.py", "# reuse rules\n")
+        self.write("other.txt", "other\n")
         self.write(".github/workflows/lenses.yml", "name: lenses\n")
         self.write(".review/lenses/privacy.md", "privacy lens\n")
         self.write(".review/lenses/risk-classifier.md", "risk lens\n")
@@ -78,8 +80,8 @@ class RepoTestCase(unittest.TestCase):
     def tearDown(self):
         self._tmp.cleanup()
 
-    def advance_main(self, path: str = "app.txt", old: str = "line 1\n", new: str = "line 0\nline 1\n") -> str:
-        """A later commit on main; by default it shifts every line number of the PR's hunk."""
+    def advance_main(self, path: str = "other.txt", old: str = "other\n", new: str = "other\nmore\n") -> str:
+        """A later commit on main; by default in a file the PR doesn't touch."""
         self.repo.git("switch", "-q", "main")
         self.repo.replace(path, old, new)
         sha = self.repo.commit("main moves on")
@@ -131,7 +133,7 @@ class FingerprintTest(RepoTestCase):
                             self.repo.fingerprint(self.base, elsewhere)["fingerprint"])
 
     def test_main_changing_the_lines_around_the_change_changes_the_fingerprint(self):
-        new_base = self.advance_main(old="line 57\n", new="line 57 edited on main\n")  # in the context
+        new_base = self.advance_main("app.txt", "line 57\n", "line 57 edited on main\n")  # in the context
         self.repo.git("rebase", "-q", "main")
         self.assertNotEqual(self.repo.fingerprint(self.base, self.head)["fingerprint"],
                             self.repo.fingerprint(new_base, self.repo.git("rev-parse", "HEAD"))["fingerprint"])
@@ -155,6 +157,52 @@ class FingerprintTest(RepoTestCase):
         self.assertNotEqual(before["definitions"]["privacy"], after["definitions"]["privacy"])
         self.assertEqual(before["definitions"]["risk-classifier"], after["definitions"]["risk-classifier"])
 
+    def test_the_same_lines_added_at_another_place_with_identical_context_change_the_fingerprint(self):
+        # Regression: with hunk line numbers stripped, both placements hashed the same.
+        self.repo.git("switch", "-q", "main")
+        self.repo.write("twin.txt", "same\n" * 40)
+        base = self.repo.commit("repeated block")
+        fingerprints = []
+        for after_line in (10, 30):
+            self.repo.git("switch", "-q", "-C", f"at-{after_line}", base)
+            lines = ["same\n"] * 40
+            lines.insert(after_line, "check_permission()\n")
+            self.repo.write("twin.txt", "".join(lines))
+            fingerprints.append(self.repo.fingerprint(base, self.repo.commit(f"added at {after_line}"))["fingerprint"])
+        self.assertNotEqual(*fingerprints)
+
+    def test_main_shifting_lines_in_a_file_the_pr_changes_means_a_new_review(self):
+        new_base = self.advance_main("app.txt", "line 1\n", "line 0\nline 1\n")
+        self.repo.git("rebase", "-q", "main")
+        self.assertNotEqual(self.repo.fingerprint(self.base, self.head)["fingerprint"],
+                            self.repo.fingerprint(new_base, self.repo.git("rev-parse", "HEAD"))["fingerprint"])
+
+    def test_a_gitmodules_ignore_setting_cannot_hide_a_gitlink_change(self):
+        self.repo.git("switch", "-q", "main")
+        self.repo.write(".gitmodules", '[submodule "sub"]\n\tpath = sub\n\turl = ./sub\n\tignore = all\n')
+        self.repo.git("add", ".gitmodules")
+        base = self.commit_gitlink("1", "submodule ignored by .gitmodules")
+        fingerprints = []
+        for target in ("2", "3"):
+            self.repo.git("switch", "-q", "-C", f"sub-{target}", base)
+            head = self.commit_gitlink(target, f"gitlink {target}")
+            fingerprints.append(self.repo.fingerprint(base, head)["fingerprint"])
+        self.assertNotEqual(*fingerprints)
+
+    def commit_gitlink(self, digit: str, message: str) -> str:
+        # Plumbing only: with `ignore = all` porcelain commands would not see the gitlink change either.
+        self.repo.git("update-index", "--add", "--cacheinfo", f"160000,{digit * 40},sub")
+        self.repo.git("commit", "-q", "--allow-empty", "-m", message)
+        return self.repo.git("rev-parse", "HEAD")
+
+    def test_the_checked_out_gitattributes_do_not_change_the_fingerprint(self):
+        # `select` has the PR's merge commit checked out, `record` has main: both must hash the same diff.
+        self.repo.write(".gitattributes", "app.txt -diff\n")
+        head = self.repo.commit("PR marks app.txt as binary")
+        on_pr = self.repo.fingerprint(self.base, head)["fingerprint"]
+        self.repo.git("switch", "-q", "main")
+        self.assertEqual(on_pr, self.repo.fingerprint(self.base, head)["fingerprint"])
+
     def test_git_config_of_the_runner_does_not_change_the_fingerprint(self):
         before = self.repo.fingerprint(self.base, self.head)["fingerprint"]
         for key, value in [("diff.noprefix", "true"), ("diff.algorithm", "histogram"), ("diff.renames", "false")]:
@@ -169,29 +217,30 @@ class FingerprintTest(RepoTestCase):
 
 
 class NormaliseDiffTest(unittest.TestCase):
-    def test_drops_line_numbers_and_blob_ids_but_keeps_content_and_modes(self):
+    def test_drops_only_blob_ids_and_keeps_hunk_positions_content_and_modes(self):
         diff = (b"diff --git a/x b/x\nindex 1234567..89abcde 100644\n--- a/x\n+++ b/x\n"
-                b"@@ -10,3 +12,4 @@ fun main()\n ctx\n-old\n+new\n+@@ -1 +1 @@\n index 1..2\n")
+                b"@@ -10,3 +12,4 @@ fun main()\n ctx\n-old\n+new\n+index 1..2\n index 1..2\n")
         self.assertEqual(
             b"diff --git a/x b/x\nindex 100644\n--- a/x\n+++ b/x\n"
-            b"@@ @@ fun main()\n ctx\n-old\n+new\n+@@ -1 +1 @@\n index 1..2\n",
+            b"@@ -10,3 +12,4 @@ fun main()\n ctx\n-old\n+new\n+index 1..2\n index 1..2\n",
             lens_reuse.normalise_diff(diff))
 
 
 def trusted_run(**overrides) -> dict:
-    run = {"path": ".github/workflows/merge-gate.yml", "event": "workflow_run", "head_branch": "main",
+    run = {"path": ".github/workflows/lens-record.yml", "event": "workflow_run", "head_branch": "main",
            "repository": {"full_name": REPO}, "head_repository": {"full_name": REPO}}
     run.update(overrides)
     return run
 
 
 class TrustedRunTest(unittest.TestCase):
-    def test_accepts_mains_merge_gate_workflow(self):
+    def test_accepts_mains_lens_record_workflow(self):
         self.assertTrue(lens_reuse.is_trusted_record_run(trusted_run(), REPO, "main"))
 
     def test_rejects_runs_a_pr_can_control(self):
         for overrides in [{"event": "pull_request"}, {"event": "push"}, {"event": "workflow_dispatch"},
-                          {"path": ".github/workflows/lenses.yml"}, {"head_branch": "agent/1-x"},
+                          {"path": ".github/workflows/lenses.yml"}, {"path": ".github/workflows/merge-gate.yml"},
+                          {"head_branch": "agent/1-x"},
                           {"head_repository": {"full_name": "someone/jofi"}},
                           {"repository": {"full_name": "someone/jofi"}}, {"repository": None}]:
             with self.subTest(overrides=overrides):
@@ -314,7 +363,7 @@ class CommandLineTest(RepoTestCase):
         self.assertEqual(0, done.returncode, done.stderr)
         (tmp / "lenses" / "lens-privacy").mkdir(parents=True)
         (tmp / "lenses" / "lens-privacy" / "lens-result.json").write_text(json.dumps(PASSED), encoding="utf-8")
-        self.repo.git("switch", "-q", "main")  # merge-gate.yml checks out main
+        self.repo.git("switch", "-q", "main")  # lens-record.yml checks out main
         done = self.run_cli("record", "--claim", str(tmp / "fp.json"), "--lens-dir", str(tmp / "lenses"),
                             "--pr", "7", "--head-sha", self.head, "--base-ref", "main", "--run-id", "42",
                             "--out", str(tmp / "record.json"))

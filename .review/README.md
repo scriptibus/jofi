@@ -153,35 +153,51 @@ What it guarantees, and what it doesn't:
 
 ## Reusing lens results
 
-Lenses cost quota, so a lens runs again only when what it reviews changed. A rebase, an "update branch"
-merge or a title/body edit replays the earlier result instead (`lens_reuse.py`, tests in `tests/test_lens_reuse.py`).
+Lenses cost quota, so a lens runs again only when what it reviews changed. A title/body edit, an "update
+branch" merge or a rebase over main commits that don't touch the PR's files replays the earlier result instead
+(`lens_reuse.py`, tests in `tests/test_lens_reuse.py`).
 
 **Fingerprint.** `lens_reuse.py fingerprint` hashes:
 
-- the PR's diff `git diff <base>...<head>` (from the merge base, with fixed diff options so no git config or
-  `.gitattributes` driver changes it), with hunk line numbers and blob ids removed. Context lines stay, so a
-  change that lands in different surroundings (main edited the lines around it) is reviewed again;
+- the PR's diff `git diff <base>...<head>` from the merge base, with only the pre-image blob ids (`index`
+  lines) removed. Hunk headers stay with their line numbers, and so do context lines, function headings and
+  file modes. The diff options are fixed (`--no-ext-diff`, `--no-textconv`, `--ignore-submodules=none`, Myers,
+  3 lines of context, fixed prefixes and quoting), so no git config, no external driver and no `.gitmodules`
+  `ignore =` setting changes it, and `.gitattributes` is always read from the base commit (`--attr-source`),
+  never from whatever is checked out;
 - the base branch name, so retargeting a PR reruns everything;
-- the blob ids of `prompt.md`, `findings.schema.json`, `select-lenses.py` and `lenses.yml` on the base commit.
+- the blob ids of `prompt.md`, `findings.schema.json`, `select-lenses.py`, `lens_reuse.py` and `lenses.yml`
+  on the base commit, so a change to the review setup or to these reuse rules invalidates every record.
 
 Each recorded result is also bound to the blob id of its own lens file, so sharpening one lens reruns only
 that lens.
+
+**What an equal fingerprint guarantees:** the PR changes the same files in the same way (same added, removed
+and context lines at the same line numbers, same modes, same gitlink targets, rename and binary changes
+included), against the same base branch, reviewed by the same lens definitions and review setup. It does
+**not** guarantee that the rest of the repository is the same: after a rebase over main commits that touch
+other files, a lens that also read files outside the diff would now see main's newer versions of them. A
+rebase over main commits that change or shift lines in a file the PR changes gives a new fingerprint and
+a new review.
 
 **Flow.**
 
 1. `lenses.yml`, job `select`: computes the fingerprint (base = first parent of the merge commit the lenses
    see) and uploads it as the artifact `review-fingerprint`. It looks for an artifact named
-   `lens-reuse-<pr>-<fingerprint>` and accepts it only from a run of `.github/workflows/merge-gate.yml` on the
+   `lens-reuse-<pr>-<fingerprint>` and accepts it only from a run of `.github/workflows/lens-record.yml` on the
    `workflow_run` event on `main` in this repository (`lens_reuse.py trusted-run`). `lens_reuse.py plan`
    attaches every valid recorded result to its lens in the matrix.
 2. Job `lens`: a lens with a recorded result skips checkout, context and the Claude step. *Evaluate findings*
    replays the recorded output exactly like a fresh one, so blocking findings fail the job again, the step
    summary shows the findings and the run they came from, and the result is uploaded again for the gate.
-3. `merge-gate.yml`, job `record` (main's definition): downloads `review-fingerprint` and the `lens-*`
-   results of the finished run as untrusted data, fetches the head commit from the payload (objects only,
-   nothing checked out or run) and runs `lens_reuse.py record`, main's copy. It takes the claimed base only if
-   it is a commit on `main`, **recomputes the fingerprint itself**, keeps only well-formed results of lenses
-   that exist on that base, and uploads them as `lens-reuse-<pr>-<fingerprint>` (30 days).
+3. `lens-record.yml` (`workflow_run` on a completed `lenses` run, always main's definition): downloads
+   `review-fingerprint` and the `lens-*` results of the finished run as untrusted data, fetches the head
+   commit from the payload (objects only, nothing checked out or run) and runs `lens_reuse.py record`, main's
+   copy. It takes the claimed base only if it is a commit on `main`, **recomputes the fingerprint itself**,
+   keeps only well-formed results of lenses that exist on that base, and uploads them as
+   `lens-reuse-<pr>-<fingerprint>` (30 days). It is a workflow of its own with its own concurrency group
+   (per lenses run), so it never delays or replaces a pending `merge-gate.yml` run (that workflow's group
+   allows one pending run per commit, and a `requested` run there disarms auto-merge).
 
 **Rules.**
 
@@ -196,16 +212,17 @@ that lens.
   run is still in progress cancels that run (concurrency), so its unfinished lenses run again.
 - Drafts run no lenses and record nothing.
 
-**Why this is safe.** Records live only in artifacts of main's `merge-gate.yml`, which no PR can change or
+**Why this is safe.** Records live only in artifacts of main's `lens-record.yml`, which no PR can change or
 upload to (a PR's own workflows run on `pull_request` or `push`, and `trusted-run` rejects those). The
 fingerprint is computed there from the head commit in GitHub's payload, never read from the PR's run, so a
 run can't file results under the fingerprint of a diff it pushes later. The lens results themselves come
 from the PR's run and are therefore only as trustworthy as that run: for a PR that doesn't touch
 `.github/` or `.review/` that is main's `lenses.yml`; a PR that does can fake its own results anyway, and a
 record made from its run matches only the very same diff, which the gate sends to `needs-human` as a
-protected path. What reuse gives up: a lens that also read files outside the diff doesn't see main's newer
-versions of them after a rebase, and PR description edits don't trigger a new review. Push a change or
-re-run the lenses for a fresh review.
+protected path. Since hunk positions, gitlinks and attributes are all part of the hash, a force-push can
+only replay a result onto a diff that is identical to the reviewed one. What reuse gives up: a lens that also
+read files outside the diff doesn't see main's newer versions of them after a rebase (see above), and PR
+description edits don't trigger a new review. Push a change or re-run the lenses for a fresh review.
 
 ## Running a lens locally
 

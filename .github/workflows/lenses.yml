@@ -4,7 +4,8 @@
 # Review lenses (proposal §4.7, ADR 0021). Each triggered lens runs as its own job with a fresh context
 # on Lucas's Claude subscription token. To save quota they skip draft PRs.
 # A lens whose result is recorded for the same diff fingerprint is replayed instead of calling Claude again
-# (.review/lens_reuse.py, README "Reusing lens results"), so rebases and title edits cost no quota.
+# (.review/lens_reuse.py, README "Reusing lens results"), so title edits, "update branch" and
+# rebases that leave the diff identical cost no quota. Records come only from main's lens-record.yml.
 # After the lenses, the `gate` job (§4.4, ADR 0023, .review/README.md) computes from CI data alone whether
 # the PR may auto-merge. This workflow has no write access: merge-gate.yml applies the decision.
 name: lenses
@@ -32,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read # find and download the reuse record written by merge-gate.yml
+      actions: read # find and download the reuse record written by lens-record.yml
     outputs:
       lenses: ${{ steps.plan.outputs.lenses }}
     steps:
@@ -60,7 +61,7 @@ jobs:
             --base-ref "$BASE_REF" --out "$RUNNER_TEMP/fingerprint/fingerprint.json")
           echo "fingerprint=$fp" >> "$GITHUB_OUTPUT"
           echo "Diff fingerprint: \`$fp\`" >> "$GITHUB_STEP_SUMMARY"
-      # merge-gate.yml recomputes the fingerprint from this run's base commit and records the lens results.
+      # lens-record.yml recomputes the fingerprint from this run's base commit and records the lens results.
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: review-fingerprint
@@ -83,17 +84,17 @@ jobs:
           name="lens-reuse-$PR-$FINGERPRINT"
           dir="$RUNNER_TEMP/reuse"
           mkdir -p "$dir"
-          # Any workflow can upload an artifact with this name; only one from main's merge-gate.yml counts.
+          # Any workflow can upload an artifact with this name; only one from main's lens-record.yml counts.
           for run_id in $(gh api "repos/$REPO/actions/artifacts?name=$name&per_page=20" \
               --jq '.artifacts | sort_by(.created_at) | reverse | .[] | select(.expired | not) | .workflow_run.id'); do
             gh api "repos/$REPO/actions/runs/$run_id" > "$dir/run.json"
             if python3 .review/lens_reuse.py trusted-run --run "$dir/run.json" --repository "$REPO" \
                 --default-branch "$DEFAULT_BRANCH" \
               && gh run download "$run_id" --repo "$REPO" --name "$name" --dir "$dir/record"; then
-              echo "Reusing lens results recorded by merge-gate run $run_id." | tee -a "$GITHUB_STEP_SUMMARY"
+              echo "Reusing lens results recorded by lens-record run $run_id." | tee -a "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-            echo "::warning::Ignoring $name from run $run_id: not a usable record from main's merge-gate.yml."
+            echo "::warning::Ignoring $name from run $run_id: not a usable record from main's lens-record.yml."
             rm -rf "$dir/record"
           done
           echo "No recorded lens results for this fingerprint: every selected lens runs."

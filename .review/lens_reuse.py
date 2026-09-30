@@ -4,15 +4,15 @@
 """Reuse lens results while a PR's diff is unchanged (ADR 0021, .review/README.md "Reusing lens results").
 
 A rebase, an "update branch" merge or a title edit doesn't change what the lenses review, so it shouldn't
-cost another Claude call. A *fingerprint* identifies what a lens saw: the PR's effective diff (normalised so
-line numbers and blob ids don't matter), the base branch name and main's review setup. Each lens result is
-also bound to the blob id of that lens's definition.
+cost another Claude call. A *fingerprint* identifies what a lens saw: the PR's effective diff (with hunk
+positions, only blob ids removed), the base branch name and main's review setup. Each lens result is also
+bound to the blob id of that lens's definition.
 
 - `fingerprint` (lenses.yml, job `select`): computes the fingerprint of this run.
-- `trusted-run` (lenses.yml): checks that a record comes from main's merge-gate.yml, never from a PR's run.
+- `trusted-run` (lenses.yml): checks that a record comes from main's lens-record.yml, never from a PR's run.
 - `plan` (lenses.yml): marks every selected lens whose result is recorded for this fingerprint as reused.
-- `record` (merge-gate.yml, main's definition and main's copy of this file): recomputes the fingerprint itself
-  and stores the lens results of a finished run. Everything taken from that run is untrusted data.
+- `record` (lens-record.yml, main's definition and main's copy of this file): recomputes the fingerprint
+  itself and stores the lens results of a finished run. Everything taken from that run is untrusted data.
 
 Every check fails closed: anything missing, malformed or different means the lens runs again.
 """
@@ -27,31 +27,39 @@ import sys
 from pathlib import Path
 
 VERSION = 1
-RECORD_WORKFLOW_PATH = ".github/workflows/merge-gate.yml"
+RECORD_WORKFLOW_PATH = ".github/workflows/lens-record.yml"
 RECORD_EVENT = "workflow_run"
 LENS_DIR = ".review/lenses"
-# The shared review setup on the base commit. A change to any of these invalidates every recorded result.
+# The shared review setup on the base commit. A change to any of these (including the reuse rules in this
+# file) invalidates every recorded result.
 SHARED_DEFINITIONS = (
     ".review/prompt.md",
     ".review/findings.schema.json",
     ".review/select-lenses.py",
+    ".review/lens_reuse.py",
     ".github/workflows/lenses.yml",
 )
 SHA_PATTERN = re.compile(r"[0-9a-f]{40}\Z")
 FINGERPRINT_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
 LENS_NAME_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{0,62}\Z")
 BASE_REF_PATTERN = re.compile(r"[A-Za-z0-9._/-]{1,255}\Z")
-HUNK_HEADER = re.compile(r"@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@")
 INDEX_LINE = re.compile(r"index [0-9a-f]+\.\.[0-9a-f]+(?P<mode> [0-7]{6})?\Z")
 MAX_RESULT_BYTES = 64 * 1024
 MAX_RECORD_BYTES = 1024 * 1024
 MAX_CLAIM_BYTES = 4 * 1024
-# Fixed options, so that no git config (user, repo or .gitattributes driver) changes the diff we hash.
-DIFF_ARGS = (
+# Fixed options, so that no git config, no `.gitmodules` `ignore =` setting (a PR could hide a gitlink change
+# with it) and no external driver changes the diff we hash. `.gitattributes` is read from the base commit
+# (`--attr-source`, see diff_args), so `select` (merge commit checked out) and `record` (main checked out)
+# hash the same thing, whatever the PR puts in its own `.gitattributes`.
+DIFF_OPTIONS = (
     "-c", "core.quotePath=true", "-c", "diff.noprefix=false", "diff", "--no-color", "--no-ext-diff",
-    "--no-textconv", "--binary", "--find-renames", "--diff-algorithm=myers", "--unified=3",
-    "--src-prefix=a/", "--dst-prefix=b/",
+    "--no-textconv", "--ignore-submodules=none", "--binary", "--find-renames", "--diff-algorithm=myers",
+    "--unified=3", "--src-prefix=a/", "--dst-prefix=b/",
 )
+
+
+def diff_args(base_sha: str, head_sha: str) -> tuple[str, ...]:
+    return (f"--attr-source={base_sha}", *DIFF_OPTIONS, f"{base_sha}...{head_sha}")
 
 
 def git(repo: Path, *args: str) -> bytes:
@@ -63,20 +71,18 @@ def git_ok(repo: Path, *args: str) -> bool:
 
 
 def normalise_diff(diff: bytes) -> bytes:
-    """Drop what a rebase or a merge from the base changes although the PR's change is the same.
+    """Drop the pre-image blob ids, which change whenever main changes a file the PR also touches.
 
-    Hunk line numbers and pre-image blob ids move whenever the base changes elsewhere in a file. Context lines,
-    the hunk's function heading and file modes stay, so a change that lands in different surroundings is new.
+    Everything else stays, hunk headers with their line numbers included: without them the same added lines
+    at two places with identical context would hash the same. So a rebase over main commits that shift lines
+    in a file the PR changes means a new review; rebases over changes to other files don't.
     Only header lines are rewritten: content lines always start with ' ', '+' or '-'.
     """
     lines = []
     for line in diff.split(b"\n"):
         text = line.decode("utf-8", errors="surrogateescape")
-        hunk = HUNK_HEADER.match(text)
         index = INDEX_LINE.match(text)
-        if hunk:
-            text = "@@ @@" + text[hunk.end():]
-        elif index:
+        if index:
             text = "index" + (index.group("mode") or "")
         lines.append(text.encode("utf-8", errors="surrogateescape"))
     return b"\n".join(lines)
@@ -114,7 +120,7 @@ def fingerprint(repo: Path, base_sha: str, head_sha: str, base_ref: str) -> dict
     for path in SHARED_DEFINITIONS:
         digest.update(f"{path} {blob_id(repo, base_sha, path)}\n".encode())
     digest.update(b"diff\n")
-    digest.update(normalise_diff(git(repo, *DIFF_ARGS, f"{base_sha}...{head_sha}")))
+    digest.update(normalise_diff(git(repo, *diff_args(base_sha, head_sha))))
     return {
         "version": VERSION,
         "base_sha": base_sha,
@@ -126,7 +132,7 @@ def fingerprint(repo: Path, base_sha: str, head_sha: str, base_ref: str) -> dict
 
 
 def is_trusted_record_run(run: dict, repository: str, default_branch: str) -> bool:
-    """A record counts only if main's merge-gate.yml wrote it. A PR's own workflows run on other events."""
+    """A record counts only if main's lens-record.yml wrote it. A PR's own workflows run on other events."""
     return (
         isinstance(run, dict)
         and run.get("path") == RECORD_WORKFLOW_PATH
@@ -271,7 +277,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     command.add_argument("--head", required=True)
     command.add_argument("--base-ref", required=True)
     command.add_argument("--out", type=Path, required=True)
-    command = commands.add_parser("trusted-run", help="exit 0 if the run JSON is main's merge-gate.yml")
+    command = commands.add_parser("trusted-run", help="exit 0 if the run JSON is main's lens-record.yml")
     command.add_argument("--run", type=Path, required=True)
     command.add_argument("--repository", required=True)
     command.add_argument("--default-branch", required=True)
