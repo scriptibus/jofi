@@ -22,7 +22,7 @@ import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.embedding.EmbeddingRequest as SpringEmbeddingRequest
 
 /**
- * [AiProviderPort] with Spring AI (ADR-0011, ADR-0032, ADR-0039): sends each request to exactly
+ * [AiProviderPort] with Spring AI (ADR-0011, ADR-0032, ADR-0040): sends each request to exactly
  * the given provider and model, with the key read through [secrets]. No routing, filtering or
  * metering (the gateway, #20, does that). Every failure is an [AiResult]; no exception and no
  * Spring AI or SDK type leaves this class. Logs name the provider kind, the model and the result

@@ -8,6 +8,7 @@ import io.github.scriptibus.jofi.fixture.adapter.persistence.JooqInPersistenceAd
 import io.github.scriptibus.jofi.fixture.adapter.web.AiProviderPortInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.ImageIoInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JdkHttpClientInWebAdapterFixture
+import io.github.scriptibus.jofi.fixture.adapter.web.JobRunrInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.JooqInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.OpenAiClientInWebAdapterFixture
 import io.github.scriptibus.jofi.fixture.adapter.web.SdkFromEnvFixture
@@ -19,10 +20,16 @@ import io.github.scriptibus.jofi.setup.adapter.ai.ImpostorAiAdapterFixture
 import io.github.scriptibus.jofi.setup.adapter.ai.ModelCatalogAdapter
 import io.github.scriptibus.jofi.setup.adapter.ai.ProviderModels
 import io.github.scriptibus.jofi.setup.application.port.AiProviderPort
+import io.github.scriptibus.jofi.shared.adapter.jobs.BackgroundJobLambdaFixture
+import io.github.scriptibus.jofi.shared.adapter.jobs.JobSchedulerLambdaFixture
+import io.github.scriptibus.jofi.shared.adapter.jobs.JobStore
+import io.github.scriptibus.jofi.shared.adapter.jobs.JofiJobRequestHandler
+import io.github.scriptibus.jofi.shared.adapter.jobs.RecurringAnnotationFixture
 import io.github.scriptibus.jofi.shared.adapter.net.GuardedHttpClients
 import io.github.scriptibus.jofi.shared.adapter.net.ImpostorNetAdapterFixture
 import io.github.scriptibus.jofi.shared.adapter.net.OutboundHttpAdapter
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables
+import io.github.scriptibus.jofi.system.adapter.jobs.SessionCleanupJobAdapter
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -73,6 +80,35 @@ class AdapterRulesFixtureTest {
         val classes = ClassFileImporter().importClasses(fixture)
 
         AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.evaluate(classes).hasViolation() shouldBe true
+    }
+
+    @Test
+    fun `JobRunr outside the jobs adapter is rejected, inside it is allowed`() {
+        val outside = ClassFileImporter().importClasses(JobRunrInWebAdapterFixture::class.java)
+        val inside =
+            ClassFileImporter().importClasses(
+                JofiJobRequestHandler::class.java,
+                JobStore::class.java,
+                SessionCleanupJobAdapter::class.java,
+            )
+
+        AdapterRules.onlyTheJobsAdapterUsesJobRunr.evaluate(outside).hasViolation() shouldBe true
+        AdapterRules.onlyTheJobsAdapterUsesJobRunr.evaluate(inside).hasViolation() shouldBe false
+        AdapterRules.noJobRunrLambdasOrAnnotations.evaluate(inside).hasViolation() shouldBe false
+    }
+
+    @ParameterizedTest(name = "{0} is rejected")
+    @ValueSource(
+        classes = [
+            JobSchedulerLambdaFixture::class,
+            BackgroundJobLambdaFixture::class,
+            RecurringAnnotationFixture::class,
+        ],
+    )
+    fun `JobRunr lambda and annotation jobs are rejected, also in the jobs adapter`(fixture: Class<*>) {
+        val classes = ClassFileImporter().importClasses(fixture)
+
+        AdapterRules.noJobRunrLambdasOrAnnotations.evaluate(classes).hasViolation() shouldBe true
     }
 
     @Test

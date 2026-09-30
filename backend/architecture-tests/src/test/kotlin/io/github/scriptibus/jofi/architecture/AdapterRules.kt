@@ -56,6 +56,53 @@ object AdapterRules {
             .belongToAnyOf(AiProviderPort::class.java)
             .because("callers use the task-based LlmPort/EmbeddingPort behind the AI gateway")
 
+    /** The job store adapter and its wiring: the only places JobRunr types may appear (ADR-0038). */
+    const val JOBS_ADAPTER = "$BASE.shared.adapter.jobs"
+    private const val SHARED_CONFIG = "$BASE.shared.config"
+
+    /**
+     * JobRunr stays behind `JobSchedulerPort`, `JobLogPort` and `JobHandlerPort`: only `shared.adapter.jobs`
+     * (and the bean wiring in `shared.config`) may use `org.jobrunr` types, like provider types in adapters/ai.
+     */
+    val onlyTheJobsAdapterUsesJobRunr: ArchRule =
+        noClasses()
+            .that()
+            .resideOutsideOfPackages("$JOBS_ADAPTER..", "$SHARED_CONFIG..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("org.jobrunr..")
+            .because("JobRunr stays behind the job ports (ADR-0038)")
+
+    /**
+     * Every job is a `JofiJobRequest` run by `JofiJobRequestHandler`; the job store allowlist rejects
+     * anything else. JobRunr's lambda jobs, `@Job`/`@Recurring`/`@AsyncJob` and the `JobScheduler` /
+     * `BackgroundJob` APIs would write jobs the allowlist quarantines, so nothing may use them.
+     */
+    val noJobRunrLambdasOrAnnotations: ArchRule =
+        noClasses()
+            .should()
+            .dependOnClassesThat(isJobRunrLambdaOrAnnotationApi())
+            .because("every job is a JofiJobRequest; the job store rejects lambda and annotated jobs (ADR-0038)")
+
+    private val JOBRUNR_BANNED =
+        setOf(
+            "org.jobrunr.scheduling.JobScheduler",
+            "org.jobrunr.scheduling.BackgroundJob",
+            "org.jobrunr.scheduling.BackgroundJobRequest",
+            "org.jobrunr.jobs.lambdas.JobLambda",
+            "org.jobrunr.jobs.lambdas.IocJobLambda",
+            "org.jobrunr.jobs.lambdas.JobLambdaFromStream",
+            "org.jobrunr.jobs.lambdas.IocJobLambdaFromStream",
+            "org.jobrunr.jobs.annotations.Job",
+            "org.jobrunr.jobs.annotations.Recurring",
+            "org.jobrunr.jobs.annotations.AsyncJob",
+        )
+
+    private fun isJobRunrLambdaOrAnnotationApi(): DescribedPredicate<JavaClass> =
+        DescribedPredicate.describe(
+            "JobRunr's lambda, annotation or JobScheduler job APIs",
+        ) { it.name in JOBRUNR_BANNED }
+
     /** The SSRF guard (threat model T1, ADR-0034). */
     const val NET_ADAPTER = "$BASE.shared.adapter.net"
 
@@ -68,7 +115,7 @@ object AdapterRules {
      * merely declares the package in another module is not exempt. The `ClientHttpRequestFactory`
      * interface stays usable; its implementations (which would create unguarded clients) are not.
      *
-     * One narrow exemption (ADR-0039): the AI provider adapter (`setup.adapter.ai`, module
+     * One narrow exemption (ADR-0040): the AI provider adapter (`setup.adapter.ai`, module
      * `adapters/ai`) may use the named vendor SDK types in [AI_ADAPTER_SDK_TYPES] to build SDK
      * clients over the guarded transport that `adapters/net` provides. None of them is a
      * transport, and Spring AI's own SDK client builders stay banned everywhere. ArchUnit only sees
@@ -82,14 +129,14 @@ object AdapterRules {
             .andShould(never(callMethodWhere(readsAUrl())))
             .because("adapters/net is the only outbound HTTP client (SSRF guard, threat model T1)")
 
-    /** The AI provider adapter (ADR-0039). */
+    /** The AI provider adapter (ADR-0040). */
     const val AI_ADAPTER = "$BASE.setup.adapter.ai"
 
     /** Where the Gradle module `adapters/ai` puts its compiled classes (class dirs and jar). */
     private const val AI_MODULE_OUTPUT = "/adapters/ai/build/"
 
     /**
-     * The vendor SDK types `setup.adapter.ai` may use (ADR-0039): the clients, built from client
+     * The vendor SDK types `setup.adapter.ai` may use (ADR-0040): the clients, built from client
      * options that carry Jofi's guarded transport; the transport interface as a type (only
      * `adapters/net` implements it); the error types mapped to sealed results; and the model
      * listing. Adding a type needs review.
@@ -136,7 +183,7 @@ object AdapterRules {
             "com.openai..",
             "com.anthropic..",
             "com.google.genai..",
-            // Spring AI's own SDK client builders create unguarded OkHttp clients (ADR-0039).
+            // Spring AI's own SDK client builders create unguarded OkHttp clients (ADR-0040).
             "org.springframework.ai.openai.setup..",
             "org.springframework.ai.openai.http..",
             "org.springframework.ai.anthropic.http..",
@@ -220,7 +267,7 @@ object AdapterRules {
     /**
      * The vendor SDKs' `fromEnv()` reads keys, base URLs, custom headers and log levels from
      * environment variables and system properties (`OPENAI_BASE_URL`, `ANTHROPIC_CUSTOM_HEADERS`, ...).
-     * Jofi's providers come only from the user's configuration, so nothing may call it (ADR-0039).
+     * Jofi's providers come only from the user's configuration, so nothing may call it (ADR-0040).
      */
     val noAiSdkReadsTheEnvironment: ArchRule =
         noClasses()

@@ -14,6 +14,7 @@ dependencies {
     testImplementation(project(":adapters:persistence"))
     testImplementation(project(":adapters:net"))
     testImplementation(project(":adapters:crypto"))
+    testImplementation(project(":adapters:jobs"))
     testImplementation(project(":adapters:ai"))
     testImplementation(project(":bootstrap"))
 
@@ -22,6 +23,8 @@ dependencies {
     testImplementation(libs.spring.modulith.core)
     testImplementation(libs.archunit)
     testImplementation(libs.konsist)
+    // Known-bad fixtures for the JobRunr rules (ADR-0038).
+    testImplementation(libs.jobrunr) { exclude(group = "org.jobrunr", module = "jobrunr-bom") }
     // Fixtures for the AI adapter's SDK exemption (AdapterRulesFixtureTest).
     testImplementation(libs.openai.java.core)
 }

@@ -10,7 +10,7 @@ import java.net.URI
 /**
  * Where each provider's API lives. Cloud providers have fixed endpoints (a provider config carries
  * no base URL for them); an OpenAI-compatible endpoint uses its configured base URL. Gemini and
- * Mistral are reached through their OpenAI-compatible APIs with the OpenAI client (ADR-0039).
+ * Mistral are reached through their OpenAI-compatible APIs with the OpenAI client (ADR-0040).
  * Tests replace the cloud endpoints with WireMock.
  */
 class ProviderEndpoints(

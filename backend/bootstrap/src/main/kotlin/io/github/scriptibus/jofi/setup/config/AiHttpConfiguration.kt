@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The HTTP transport of the AI provider adapter (ADR-0034, ADR-0039): the SSRF guard with the base
+ * The HTTP transport of the AI provider adapter (ADR-0034, ADR-0040): the SSRF guard with the base
  * URLs of the configured AI providers as its allowlist, so a local Ollama may be private while every
  * other internal destination stays blocked. The allowlist is read on each new connection; if the
  * provider store is missing or fails, it is empty (fail closed). The vendor SDK clients built in

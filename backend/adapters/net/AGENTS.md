@@ -20,7 +20,7 @@ reviewed by Lucas. Package: `io.github.scriptibus.jofi.shared.adapter.net`.
   host:port destinations. Posting and page fetches get `NONE`; only the AI transport
   (`GuardedAiTransport`, wired in `bootstrap` `setup.config.AiHttpConfiguration`) gets the configured
   provider base URLs.
-- `GuardedAiTransport` (ADR-0039) is the transport of the AI vendor SDKs: no redirects, SDK telemetry
+- `GuardedAiTransport` (ADR-0040) is the transport of the AI vendor SDKs: no redirects, SDK telemetry
   headers dropped, one overall deadline per exchange, 20 connections per provider and a 10 s wait
   for a pooled connection. Closing an unfinished response aborts it instead of draining it.
   `OpenAiSdkHttpClient` and `AnthropicSdkHttpClient` implement the SDKs' `HttpClient` interfaces over

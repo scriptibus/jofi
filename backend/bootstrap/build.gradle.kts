@@ -13,11 +13,14 @@ dependencies {
     implementation(project(":adapters:persistence"))
     implementation(project(":adapters:net"))
     implementation(project(":adapters:crypto"))
+    implementation(project(":adapters:jobs"))
     implementation(project(":adapters:ai"))
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.session.jdbc)
     implementation(libs.spring.boot.starter.actuator)
+    // JobRunr autoconfiguration: JobRequestScheduler everywhere, the background job server in `worker`.
+    implementation(libs.jobrunr.spring.boot.starter) { exclude(group = "org.jobrunr", module = "jobrunr-bom") }
     implementation(libs.jackson.module.kotlin)
     // Module metadata annotations only (`shared.ModuleMetadata`); no Modulith runtime.
     implementation(platform(libs.spring.modulith.bom))

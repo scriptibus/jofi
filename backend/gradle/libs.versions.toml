@@ -29,7 +29,9 @@ wiremock = "3.13.2"
 # Secret encryption (adapters/crypto, ADR-0017) and the argon2id implementation behind Spring Security's encoder.
 tink = "1.23.0"
 bouncycastle = "1.86"
-# AI providers (adapters/ai, ADR-0039). Spring AI 2.0.1 is the latest stable release for Boot 4.
+# Background jobs (adapters/jobs, ADR-0010). JobRunr OSS, LGPL-3.0-or-later; no Pro features.
+jobrunr = "8.8.2"
+# AI providers (adapters/ai, ADR-0040). Spring AI 2.0.1 is the latest stable release for Boot 4.
 spring-ai = "2.0.1"
 # The vendor SDK cores (no transport of their own) at the versions Spring AI 2.0.1 is built and
 # tested against; its BOM does not manage them. adapters/net implements their HttpClient interface.
@@ -86,13 +88,18 @@ spring-security-crypto = { module = "org.springframework.security:spring-securit
 tink = { module = "com.google.crypto.tink:tink", version.ref = "tink" }
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 
+# Background jobs (adapters/jobs, bootstrap). The starter brings the autoconfiguration; Jackson 3 from the Boot BOM.
+jobrunr = { module = "org.jobrunr:jobrunr", version.ref = "jobrunr" }
+jobrunr-spring-boot-starter = { module = "org.jobrunr:jobrunr-spring-boot-4-starter", version.ref = "jobrunr" }
+jackson3-databind = { module = "tools.jackson.core:jackson-databind" }
+
 # API contract (adapters/web tests): generates the committed OpenAPI spec, see adapters/web/AGENTS.md.
 springdoc-openapi-webmvc-api = { module = "org.springdoc:springdoc-openapi-starter-webmvc-api", version.ref = "springdoc" }
 # springdoc (via swagger-core) still reads models with Jackson 2; this module makes it honour Kotlin nullability.
 jackson2-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
 # Outbound HTTP (adapters/net). The Apache HttpClient 5 version comes from the Boot BOM.
 httpclient5 = { module = "org.apache.httpcomponents.client5:httpclient5" }
-# AI providers (adapters/ai): Spring AI model modules only, no starters or auto-configuration (ADR-0039).
+# AI providers (adapters/ai): Spring AI model modules only, no starters or auto-configuration (ADR-0040).
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
 spring-ai-openai = { module = "org.springframework.ai:spring-ai-openai" }
 spring-ai-anthropic = { module = "org.springframework.ai:spring-ai-anthropic" }

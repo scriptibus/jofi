@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: issue #18 (M0-4), threat model T1, docs/spec/04-tech-stack-proposal.md §4.1, §4.6; builds on
-  ADR-0011 and ADR-0032; the AI client part is refined by ADR-0039
+  ADR-0011 and ADR-0032; the AI client part is refined by ADR-0040
 
 ## Context
 
@@ -71,21 +71,21 @@ nothing to the problem.
   unlocks never-reachable classes, so an allowlisted name still cannot reach the metadata service.
   Fetches of user- or posting-supplied URLs get `DestinationAllowlist.NONE` (wired in
   `shared.config.OutboundHttpConfiguration`).
-- **AI client.** `bootstrap` wires the AI transport (`GuardedAiTransport`, ADR-0039: the same guarded
+- **AI client.** `bootstrap` wires the AI transport (`GuardedAiTransport`, ADR-0040: the same guarded
   HttpClient, no redirects, 10 s connect / 5 min read timeout, idle pooled connections evicted after
   30 s so a removed provider's connection closes soon) in `setup.config.AiHttpConfiguration`. Its
   allowlist is the set of base URLs of the configured AI providers (`ProviderConfigPort`), read on
   each new connection so a changed configuration applies immediately (for new connections; an open
   pooled connection lives until it idles out); if the store is absent or fails, the allowlist is
   empty (fail closed). AI response sizes are **not** capped: completions stream and the destination
-  is one the user configured. (Until ADR-0039 this was a `ClientHttpRequestFactory` bean,
+  is one the user configured. (Until ADR-0040 this was a `ClientHttpRequestFactory` bean,
   `aiHttpRequestFactory`.)
-- **Requirements for the AI adapter (#19)**, as implemented by ADR-0039: no provider client builds
+- **Requirements for the AI adapter (#19)**, as implemented by ADR-0040: no provider client builds
   its own HTTP client. Spring AI's OkHttp customizers cannot set a `Dns` or redirects, so instead of
   an OkHttp binding the vendor SDK cores get Jofi's own implementation of their `HttpClient`
   interface over the guarded transport (`OpenAiSdkHttpClient`, `AnthropicSdkHttpClient`); OkHttp is
   not on the classpath. No AI client uses a `RestClient` or `WebClient`. The exemption
-  `setup.adapter.ai` needs from the architecture rule is a named list of SDK types (ADR-0039).
+  `setup.adapter.ai` needs from the architecture rule is a named list of SDK types (ADR-0040).
   Docs: https://docs.spring.io/spring-ai/reference/2.0/ and the Spring AI 2.0.1 sources.
 
 ## What the architecture rule cannot see
@@ -98,7 +98,10 @@ ArchUnit checks our own compiled classes. It does not see:
   the rules above.
 - Libraries that fetch on their own: XML parsers resolving external entities or schemas, Tika
   fetching remote resources, image or PDF libraries loading linked content, JGit remotes. Each such
-  library needs its network features switched off where it is introduced.
+  library needs its network features switched off where it is introduced. Example: JobRunr's
+  `CarbonIntensityApiClient` calls `api.jobrunr.io` over `HttpURLConnection` when carbon-aware job
+  processing is on; Jofi switches it off explicitly (`jobrunr.background-job-server.carbon-aware-job-processing.enabled:
+  false`, ADR-0038), and `CronSchedule` cannot express a carbon-aware schedule.
 - JVM-wide settings: `socksProxyHost` may still apply to HttpClient's plain sockets; the JVM's
   system properties are deployment configuration, not user input.
 

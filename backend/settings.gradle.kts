@@ -41,6 +41,7 @@ include(
     "adapters:persistence",
     "adapters:net",
     "adapters:crypto",
+    "adapters:jobs",
     "adapters:ai",
     "bootstrap",
     "architecture-tests",

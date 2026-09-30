@@ -15,7 +15,7 @@ import java.net.URI
 import java.util.concurrent.CompletableFuture
 
 /**
- * The Anthropic SDK's transport for one AI call (ADR-0039): the same shape as
+ * The Anthropic SDK's transport for one AI call (ADR-0040): the same shape as
  * [OpenAiSdkHttpClient]; the SDKs share a generator but no types. Closing it aborts whatever the
  * call still has open. This matters most here: the Anthropic SDK wraps the request future in its
  * logging layer, so cancelling a stream before its headers arrive never reaches the transport.

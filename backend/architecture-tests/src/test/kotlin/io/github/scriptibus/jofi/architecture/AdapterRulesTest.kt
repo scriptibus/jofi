@@ -65,6 +65,12 @@ class AdapterRulesTest {
     }
 
     @Test
+    fun `only the jobs adapter uses JobRunr, and never its lambda or annotation jobs`() {
+        AdapterRules.onlyTheJobsAdapterUsesJobRunr.check(classes)
+        AdapterRules.noJobRunrLambdasOrAnnotations.check(classes)
+    }
+
+    @Test
     fun `only adapters net makes outbound HTTP calls`() {
         AdapterRules.onlyTheNetAdapterMakesOutboundHttpCalls.check(classes)
     }
