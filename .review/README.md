@@ -137,8 +137,9 @@ What it guarantees, and what it doesn't:
   `gate`) are extra layers.
 - **Required checks still apply.** Auto-merge only merges once every required check is green (ruleset on
   `main`). A `needs-human` decision fails neither `result` nor `merge-gate`, so Lucas can still merge by hand.
-- **Cost:** `edited` also reruns the lenses on title or body edits. Skipping them there would leave a
-  skipped `result`, which GitHub counts as passed, and so an edit could hide an earlier lens failure.
+- **Cost:** `edited` (title or body edits) still starts a full lenses run, because a skipped `result` counts
+  as passed and could hide an earlier lens failure. The lenses in it replay their recorded results instead of
+  calling Claude (see "Reusing lens results"), so the run costs runner minutes, not quota.
 - **Safe degradation.** If CI can't enable auto-merge (token or repository setting), the PR gets
   `needs-human` and a comment instead, and any earlier auto-merge is disabled.
 - **Not covered:** anyone with write access can still merge or arm auto-merge by hand, and a PR's own
@@ -149,6 +150,60 @@ What it guarantees, and what it doesn't:
 - A merge done by `GITHUB_TOKEN` does not trigger the `push` workflows on `main` (GitHub prevents
   recursive runs), so `main` is next checked by the following push or the scheduled runs; #48 fixes this.
 - Fork PRs are never armed, and their runs carry no PR in the payload, so the gate leaves them alone.
+
+## Reusing lens results
+
+Lenses cost quota, so a lens runs again only when what it reviews changed. A rebase, an "update branch"
+merge or a title/body edit replays the earlier result instead (`lens_reuse.py`, tests in `tests/test_lens_reuse.py`).
+
+**Fingerprint.** `lens_reuse.py fingerprint` hashes:
+
+- the PR's diff `git diff <base>...<head>` (from the merge base, with fixed diff options so no git config or
+  `.gitattributes` driver changes it), with hunk line numbers and blob ids removed. Context lines stay, so a
+  change that lands in different surroundings (main edited the lines around it) is reviewed again;
+- the base branch name, so retargeting a PR reruns everything;
+- the blob ids of `prompt.md`, `findings.schema.json`, `select-lenses.py` and `lenses.yml` on the base commit.
+
+Each recorded result is also bound to the blob id of its own lens file, so sharpening one lens reruns only
+that lens.
+
+**Flow.**
+
+1. `lenses.yml`, job `select`: computes the fingerprint (base = first parent of the merge commit the lenses
+   see) and uploads it as the artifact `review-fingerprint`. It looks for an artifact named
+   `lens-reuse-<pr>-<fingerprint>` and accepts it only from a run of `.github/workflows/merge-gate.yml` on the
+   `workflow_run` event on `main` in this repository (`lens_reuse.py trusted-run`). `lens_reuse.py plan`
+   attaches every valid recorded result to its lens in the matrix.
+2. Job `lens`: a lens with a recorded result skips checkout, context and the Claude step. *Evaluate findings*
+   replays the recorded output exactly like a fresh one, so blocking findings fail the job again, the step
+   summary shows the findings and the run they came from, and the result is uploaded again for the gate.
+3. `merge-gate.yml`, job `record` (main's definition): downloads `review-fingerprint` and the `lens-*`
+   results of the finished run as untrusted data, fetches the head commit from the payload (objects only,
+   nothing checked out or run) and runs `lens_reuse.py record`, main's copy. It takes the claimed base only if
+   it is a commit on `main`, **recomputes the fingerprint itself**, keeps only well-formed results of lenses
+   that exist on that base, and uploads them as `lens-reuse-<pr>-<fingerprint>` (30 days).
+
+**Rules.**
+
+- Results are reused per lens and whatever they found: a lens that failed with blocking findings fails
+  again. A lens that produced no result is never recorded, so it runs again on the next event.
+- Nothing about the required checks changes: every event still gives a full run with `lens (…)`, `gate` and
+  `result` for the head commit, and `merge-gate.yml` still decides and sets `merge-gate` for it.
+- A manual re-run (*Re-run jobs*, `run_attempt > 1`) never reuses: it is the way to retry a lens.
+- `edited` without a base change keeps the fingerprint and replays; a base change reruns. An edit while a
+  run is still in progress cancels that run (concurrency), so its unfinished lenses run again.
+- Drafts run no lenses and record nothing.
+
+**Why this is safe.** Records live only in artifacts of main's `merge-gate.yml`, which no PR can change or
+upload to (a PR's own workflows run on `pull_request` or `push`, and `trusted-run` rejects those). The
+fingerprint is computed there from the head commit in GitHub's payload, never read from the PR's run, so a
+run can't file results under the fingerprint of a diff it pushes later. The lens results themselves come
+from the PR's run and are therefore only as trustworthy as that run: for a PR that doesn't touch
+`.github/` or `.review/` that is main's `lenses.yml`; a PR that does can fake its own results anyway, and a
+record made from its run matches only the very same diff, which the gate sends to `needs-human` as a
+protected path. What reuse gives up: a lens that also read files outside the diff doesn't see main's newer
+versions of them after a rebase, and PR description edits don't trigger a new review. Push a change or
+re-run the lenses for a fresh review.
 
 ## Running a lens locally
 

@@ -3,6 +3,8 @@
 #
 # Review lenses (proposal §4.7, ADR 0021). Each triggered lens runs as its own job with a fresh context
 # on Lucas's Claude subscription token. To save quota they skip draft PRs.
+# A lens whose result is recorded for the same diff fingerprint is replayed instead of calling Claude again
+# (.review/lens_reuse.py, README "Reusing lens results"), so rebases and title edits cost no quota.
 # After the lenses, the `gate` job (§4.4, ADR 0023, .review/README.md) computes from CI data alone whether
 # the PR may auto-merge. This workflow has no write access: merge-gate.yml applies the decision.
 name: lenses
@@ -10,8 +12,8 @@ name: lenses
 on:
   pull_request:
     # `edited` so that retargeting a PR disarms auto-merge and gets a fresh decision (merge-gate.yml).
-    # It also reruns the lenses on title/body edits: a skipped `result` would count as passed, so a
-    # cheaper "only on base change" filter would let an edit hide an earlier lens failure.
+    # Title/body edits still run the workflow (a skipped `result` would count as passed and could hide an
+    # earlier failure), but the diff fingerprint is unchanged, so every recorded lens result is replayed.
     types: [opened, ready_for_review, synchronize, reopened, edited]
 
 permissions: {}
@@ -30,8 +32,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read # find and download the reuse record written by merge-gate.yml
     outputs:
-      lenses: ${{ steps.select.outputs.lenses }}
+      lenses: ${{ steps.plan.outputs.lenses }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,6 +46,68 @@ jobs:
         run: |
           mapfile -t changed < <(git diff --name-only "$BASE_SHA"...HEAD)
           echo "lenses=$(python3 .review/select-lenses.py "${changed[@]}")" >> "$GITHUB_OUTPUT"
+      - name: Fingerprint the diff
+        id: fingerprint
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          # HEAD is the merge commit the lenses review; its first parent is the base they see.
+          [ "$(git rev-parse HEAD^2)" = "$HEAD_SHA" ] || { echo "::error::HEAD is not the merge of $HEAD_SHA"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/fingerprint"
+          fp=$(python3 .review/lens_reuse.py fingerprint --base "$(git rev-parse HEAD^1)" --head "$HEAD_SHA" \
+            --base-ref "$BASE_REF" --out "$RUNNER_TEMP/fingerprint/fingerprint.json")
+          echo "fingerprint=$fp" >> "$GITHUB_OUTPUT"
+          echo "Diff fingerprint: \`$fp\`" >> "$GITHUB_STEP_SUMMARY"
+      # merge-gate.yml recomputes the fingerprint from this run's base commit and records the lens results.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-fingerprint
+          path: ${{ runner.temp }}/fingerprint/fingerprint.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
+      - name: Find a trusted record for this fingerprint
+        # A manual re-run is an explicit retry, so it never reuses. A failed lookup only means no reuse.
+        if: github.run_attempt == 1
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          FINGERPRINT: ${{ steps.fingerprint.outputs.fingerprint }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          name="lens-reuse-$PR-$FINGERPRINT"
+          dir="$RUNNER_TEMP/reuse"
+          mkdir -p "$dir"
+          # Any workflow can upload an artifact with this name; only one from main's merge-gate.yml counts.
+          for run_id in $(gh api "repos/$REPO/actions/artifacts?name=$name&per_page=20" \
+              --jq '.artifacts | sort_by(.created_at) | reverse | .[] | select(.expired | not) | .workflow_run.id'); do
+            gh api "repos/$REPO/actions/runs/$run_id" > "$dir/run.json"
+            if python3 .review/lens_reuse.py trusted-run --run "$dir/run.json" --repository "$REPO" \
+                --default-branch "$DEFAULT_BRANCH" \
+              && gh run download "$run_id" --repo "$REPO" --name "$name" --dir "$dir/record"; then
+              echo "Reusing lens results recorded by merge-gate run $run_id." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::warning::Ignoring $name from run $run_id: not a usable record from main's merge-gate.yml."
+            rm -rf "$dir/record"
+          done
+          echo "No recorded lens results for this fingerprint: every selected lens runs."
+      - name: Plan
+        id: plan
+        env:
+          SELECTED: ${{ steps.select.outputs.lenses }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          matrix=$(python3 .review/lens_reuse.py plan --selected "$SELECTED" --pr "$PR" \
+            --fingerprint "$RUNNER_TEMP/fingerprint/fingerprint.json" --record "$RUNNER_TEMP/reuse/record/record.json")
+          echo "lenses=$matrix" >> "$GITHUB_OUTPUT"
+          jq -r '.[] | "- \(.name): \(if .reused_result then "reused" else "runs" end)"' <<<"$matrix" >> "$GITHUB_STEP_SUMMARY"
 
   lens:
     needs: select
@@ -60,11 +125,14 @@ jobs:
         lens: ${{ fromJSON(needs.select.outputs.lenses) }}
     name: lens (${{ matrix.lens.name }})
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # A reused lens skips everything up to the evaluation, which replays the recorded result.
+      - if: ${{ !matrix.lens.reused_result }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
       - name: Collect PR context
+        if: ${{ !matrix.lens.reused_result }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -93,6 +161,7 @@ jobs:
         id: context
       - name: Run lens
         id: lens
+        if: ${{ !matrix.lens.reused_result }}
         uses: anthropics/claude-code-action@fd1c128679612beff4ca259c78021c506e8aa7a7 # v1.0.237
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -103,10 +172,15 @@ jobs:
             --json-schema '${{ steps.context.outputs.schema }}'
       - name: Evaluate findings
         env:
-          RESULT: ${{ steps.lens.outputs.structured_output }}
+          RESULT: ${{ matrix.lens.reused_result || steps.lens.outputs.structured_output }}
+          REUSED_RUN: ${{ matrix.lens.reused_run }}
           BLOCKING: ${{ toJSON(matrix.lens.blocking) }}
           TITLE: ${{ matrix.lens.title }}
         run: |
+          if [ -n "$REUSED_RUN" ]; then
+            echo "Same diff as lenses run $REUSED_RUN: replaying its result instead of calling Claude." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
           if [ -z "$RESULT" ] || ! jq -e 'has("findings")' <<<"$RESULT" >/dev/null; then
             # The action skips itself when this workflow differs from main (e.g. a PR that edits lenses.yml),
             # or the model returned no structured output. Either way the lens did not review: never pass silently.
@@ -128,7 +202,7 @@ jobs:
       - name: Save result for the merge gate
         if: always()
         env:
-          RESULT: ${{ steps.lens.outputs.structured_output }}
+          RESULT: ${{ matrix.lens.reused_result || steps.lens.outputs.structured_output }}
         run: printf '%s' "$RESULT" > "$RUNNER_TEMP/lens-result.json"
       - if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
