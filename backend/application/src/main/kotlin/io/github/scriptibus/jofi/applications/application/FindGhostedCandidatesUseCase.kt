@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.applications.application
 import io.github.scriptibus.jofi.applications.application.port.ApplicationActivityRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.ApplicationSettingsRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import java.time.Duration
 import java.time.Instant
@@ -21,7 +22,7 @@ class FindGhostedCandidatesUseCase(
     override fun execute(at: Instant): FindGhostedCandidatesPort.Candidates {
         val current = settings.find() as? ApplicationStoreResult.Success ?: return unavailable
         val cutoff = at.minus(Duration.ofDays(DAYS_PER_WEEK * current.value.values.ghostedAfterWeeks))
-        return when (val silent = activity.silentSince(cutoff)) {
+        return when (val silent = activity.silentSince(cutoff, GHOSTED_STATUSES)) {
             is ApplicationStoreResult.Success -> FindGhostedCandidatesPort.Candidates.Found(silent.value)
             else -> unavailable
         }
@@ -29,6 +30,9 @@ class FindGhostedCandidatesUseCase(
 
     private companion object {
         const val DAYS_PER_WEEK = 7L
+
+        /** Waiting for an answer after applying (spec §6.2). */
+        val GHOSTED_STATUSES = setOf(ApplicationStatus.APPLIED, ApplicationStatus.INTERVIEWING)
         val unavailable = FindGhostedCandidatesPort.Candidates.Unavailable
     }
 }

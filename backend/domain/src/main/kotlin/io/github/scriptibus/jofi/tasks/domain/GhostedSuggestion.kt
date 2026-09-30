@@ -51,19 +51,25 @@ object GhostedSuggestion {
     fun details(
         application: UUID,
         title: String,
-    ): TaskDetails {
-        val room = TaskDetails.MAX_TITLE_LENGTH - TITLE_PREFIX.length
-        val shortened = if (title.length <= room) title else title.take(room).dropLastWhile { it.isHighSurrogate() }
-        return TaskDetails(
-            title = TITLE_PREFIX + shortened.trimEnd(),
-            timing = TaskTiming.Bucket.SOMEDAY,
-            link = ApplicationRef(application),
-        )
-    }
+    ): TaskDetails =
+        TaskDetails(suggestionTitle(TITLE_PREFIX, title), TaskTiming.Bucket.SOMEDAY, ApplicationRef(application))
 }
 
-/** Outcome of one Ghosted suggestion run: how many suggestions it made and how many obsolete ones it dismissed. */
-data class GhostedSuggestionRun(
+/** Outcome of one suggestion run: how many suggestions it made and how many obsolete ones it dismissed. */
+data class SuggestionRun(
     val suggested: Int,
     val dismissed: Int,
 )
+
+/**
+ * [prefix] and the [title] of what a suggestion is about; a long title is shortened to fit, never between the halves
+ * of a surrogate pair, and never ends in a space.
+ */
+internal fun suggestionTitle(
+    prefix: String,
+    title: String,
+): String {
+    val room = TaskDetails.MAX_TITLE_LENGTH - prefix.length
+    val shortened = if (title.length <= room) title else title.take(room).dropLastWhile { it.isHighSurrogate() }
+    return prefix + shortened.trimEnd()
+}

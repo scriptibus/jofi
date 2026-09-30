@@ -211,6 +211,47 @@ class BackgroundJobsTest {
         assertOneGhostedSuggestionAndNoStatusChange(database)
     }
 
+    @Test
+    fun `the task suggestions are scheduled by app, and repeated runs in the worker suggest one follow-up`() {
+        val database = freshDatabase()
+        val app = start(database, worker = false)
+        count(database, "SELECT count(*) FROM jobrunr_recurring_jobs WHERE id = 'task-suggestions'") shouldBe 1
+        val company = UUID.randomUUID()
+        sql(
+            database,
+            "INSERT INTO company (id, name, created_at, updated_at) VALUES ('$company', 'ACME', now(), now())",
+        )
+        insertApplication(database, company, "00000000-0000-0000-0000-0000000000b1", appliedWeeksAgo = 3)
+        insertApplication(database, company, "00000000-0000-0000-0000-0000000000b2", appliedWeeksAgo = 1)
+        start(database, worker = true)
+        val jobs = app.getBean(JobSchedulerPort::class.java)
+        val log = app.getBean(ListJobsUseCase::class.java)
+
+        repeat(2) { run ->
+            jobs.enqueue(JobRequest(JobType("task-suggestions")))
+            waitUntil({ allJobs(log) }) {
+                finished(log).count { it.name == "task-suggestions" && it.status == JobStatus.SUCCEEDED } == run + 1
+            }
+        }
+
+        assertOneFollowUp(database)
+    }
+
+    private fun assertOneFollowUp(database: String) {
+        count(
+            database,
+            "SELECT count(*) FROM task WHERE state = 'SUGGESTED' AND suggestion_rule = 'follow-up' " +
+                "AND application_id = '00000000-0000-0000-0000-0000000000b1'",
+        ) shouldBe 1
+        count(database, "SELECT count(*) FROM task") shouldBe 1
+        count(
+            database,
+            "SELECT count(*) FROM changelog_entry WHERE actor_kind = 'SYSTEM' AND actor_name = 'follow-up' " +
+                "AND entity_type = 'task'",
+        ) shouldBe 1
+        count(database, "SELECT count(*) FROM changelog_entry WHERE entity_type = 'application'") shouldBe 0
+    }
+
     private fun assertOneGhostedSuggestionAndNoStatusChange(database: String) {
         count(
             database,
