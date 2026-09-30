@@ -25,6 +25,9 @@ async function createTask(page: Page, prefix: string, timing: Record<string, str
   return (await response.json()) as Task;
 }
 
+/** The page's announcement of what just happened. */
+const said = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
+
 /** A group's section, whatever its count: "Today (3)". */
 const group = (page: Page, name: string) =>
   page.getByRole("region", { name: new RegExp(`^${name} \\(\\d+\\)$`) });
@@ -39,7 +42,7 @@ test("quick add a task for today: it shows in Today, the overdue one is marked",
   await choose(page, "When", "Today");
   await quick.getByRole("button", { name: "Add task" }).click();
 
-  await expect(page.getByRole("status")).toContainText(`“${title}” added.`);
+  await expect(said(page, `“${title}” added.`)).toBeVisible();
   await expect(group(page, "Today").getByRole("checkbox", { name: title })).toBeVisible();
   await expect(quick.getByLabel("Task (required)")).toHaveValue("");
 
@@ -97,17 +100,17 @@ test("complete a task and undo it; a completed task leaves the list", async ({ p
   await expect(box).not.toBeChecked();
   await page.getByText(task.title, { exact: true }).click();
   await expect(box).toBeChecked();
-  await expect(page.getByRole("status")).toContainText(`“${task.title}” is done.`);
+  await expect(said(page, `“${task.title}” is done.`)).toBeVisible();
   await snapshot(page, "task-done");
 
   await page.getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByRole("status")).toContainText(`“${task.title}” is open again.`);
+  await expect(said(page, `“${task.title}” is open again.`)).toBeVisible();
   await expect(box).not.toBeChecked();
   await page.reload();
   await expect(box).not.toBeChecked();
 
   await page.getByText(task.title, { exact: true }).click();
-  await expect(page.getByRole("status")).toContainText(`“${task.title}” is done.`);
+  await expect(said(page, `“${task.title}” is done.`)).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { level: 1, name: "Tasks" })).toBeVisible();
   await expect(box).toHaveCount(0);
@@ -148,7 +151,7 @@ test("delete a task only after confirming", async ({ page }) => {
 
   await page.getByRole("button", { name: `Delete task: ${task.title}` }).click();
   await dialog.getByRole("button", { name: "Delete task" }).click();
-  await expect(page.getByRole("status")).toContainText(`“${task.title}” deleted.`);
+  await expect(said(page, `“${task.title}” deleted.`)).toBeVisible();
   await expect(page.getByRole("checkbox", { name: task.title })).toHaveCount(0);
   expect((await request.get(`/api/tasks/${task.id}`)).status()).toBe(404);
 });
