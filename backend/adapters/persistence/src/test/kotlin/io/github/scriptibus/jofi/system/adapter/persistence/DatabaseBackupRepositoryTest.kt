@@ -278,65 +278,13 @@ class DatabaseBackupRepositoryTest {
             byteArrayOf(9, 8),
             AT,
         )
-        seedCompanies()
+        BackupDomainSeeds(dsl, AT).seedCompanies(COMPANY)
         dsl.execute(
             "insert into spring_session values ('11111111-1111-1111-1111-111111111111', " +
                 "'22222222-2222-2222-2222-222222222222', 1, 1, 60, 9999999999999, 'owner')",
         )
         BackupTables.exported.forEach { table ->
             check(dsl.fetchCount(table) > 0) { "Seed ${table.name}: every exported table must be proven to round-trip" }
-        }
-    }
-
-    private fun seedCompanies() {
-        dsl.execute(
-            "insert into company (id, name, website, size, locations, research_notes, preference, " +
-                "preference_reason, version, created_at, updated_at) values (?, 'ACME, \"Inc.\"', " +
-                "'https://acme.example', 'SMALL', '{\"Berlin, Mitte\",Köln}', 'Notes\nwith lines', 'FAVOURITE', " +
-                "'Nice', 3, ?::timestamptz, ?::timestamptz)",
-            COMPANY,
-            AT,
-            AT,
-        )
-        seedContacts()
-    }
-
-    // A quoted email local part, CR/LF in notes, a non-ASCII phone number, several channels, NULL labels.
-    private fun seedContacts() {
-        val contact = UUID.fromString("00000000-0000-0000-0000-0000000000c1")
-        dsl.execute(
-            "insert into contact (id, company_id, name, role, relationship_notes, version, created_at, updated_at) " +
-                "values (?, ?, 'Jördis \"JJ\" Müller-Lüdenscheidt', 'Head of, well, \"people\"', " +
-                "'Met at the meetup,\r\nsaid \"call me\";\nfollow up in Q4', 2, ?::timestamptz, ?::timestamptz)",
-            contact,
-            COMPANY,
-            AT,
-            AT,
-        )
-        dsl.execute(
-            "insert into contact (id, company_id, name, version, created_at, updated_at) " +
-                "values (?, null, 'Without company', 0, ?::timestamptz, ?::timestamptz)",
-            UUID.fromString("00000000-0000-0000-0000-0000000000c2"),
-            AT,
-            AT,
-        )
-        seedChannels(contact)
-    }
-
-    private fun seedChannels(contact: UUID) {
-        listOf(
-            Triple("EMAIL", "\"jj, müller\"@acme.example", "work"),
-            Triple("PHONE", "+49 (0) 30 – 123 456 ☎", null),
-            Triple("WEB", "https://acme.example/team?who=jj", "profile, public"),
-        ).forEachIndexed { position, (kind, value, label) ->
-            dsl.execute(
-                "insert into contact_channel (contact_id, position, kind, value, label) values (?, ?, ?, ?, ?)",
-                contact,
-                position.toShort(),
-                kind,
-                value,
-                label,
-            )
         }
     }
 
@@ -423,8 +371,8 @@ class DatabaseBackupRepositoryTest {
         const val AT = "2026-09-30 10:00:00.123456+00"
         const val OLDER_SCHEMA = "20260930064000"
 
-        /** Tables the schema before the company table (#130) did not have yet. */
-        val LATER_TABLES = setOf("company", "contact", "contact_channel")
+        /** Tables the schema before the company table (#130) did not have yet (and the applications tables, #76). */
+        val LATER_TABLES = setOf("company", "contact", "contact_channel", "application", "application_contact")
         val COMPANY: UUID = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
         const val CHANGELOG_INSERT =
             "insert into changelog_entry (entity_type, entity_id, actor_kind, actor_name, occurred_at, description, " +

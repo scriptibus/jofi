@@ -61,7 +61,7 @@ Gradle enforces the module direction (a wrong import does not compile). Tests en
 Contexts: `applications`, `companies`, `knowledge`, `documents`, `scanners`, `chat`, `training`,
 `tasks`, `setup`, plus the `shared` kernel. Today `system` (proves the wiring), `setup` (AI
 providers, per-task models, capabilities, costs, budget), `companies` (contracts: company and contact
-models, ports, tables, API shape) and `shared` exist.
+models, ports, tables, API shape), `applications` (contract: the application aggregate) and `shared` exist.
 The only class allowed directly in the base package is the application class; the only class
 allowed directly in a context package is its Spring Modulith `ModuleMetadata`.
 
@@ -70,7 +70,8 @@ A context spans Gradle modules (e.g. `system.domain` lives in `domain/`, `system
 are internal, so other contexts may not reach into them. `shared` is the exception: an **open**
 module (`bootstrap/.../shared/ModuleMetadata.kt`, ADR-0032) whose domain types and ports every
 context may use. Cross-context APIs of other contexts are exposed deliberately through Modulith
-named interfaces when the first one is needed.
+named interfaces when the first one is needed. Until then a context refers to another context's
+aggregates by id only, with its own reference type (`applications.domain.CompanyRef`, ADR-0041).
 
 ## Shared kernel ports (ADR-0032)
 
