@@ -72,7 +72,7 @@ export function BoardColumn<T extends { id: string }>({
         dragAndDropHooks={dragAndDropHooks}
         renderEmptyState={() => <p className="p-2 text-muted">{emptyText}</p>}
         className={
-          "flex min-h-32 grow flex-col gap-2 rounded border border-line bg-sunken p-2 outline-none " +
+          "flex min-h-32 grow flex-col gap-2 rounded border border-line bg-sunken p-2 " +
           "data-focus-visible:outline-2 data-focus-visible:outline-accent " +
           "data-drop-target:outline-2 data-drop-target:outline-offset-2 data-drop-target:outline-accent"
         }
@@ -82,7 +82,7 @@ export function BoardColumn<T extends { id: string }>({
             id={item.id}
             textValue={textValue(item)}
             className={
-              "cursor-grab rounded border border-line bg-surface p-3 text-fg shadow-card outline-none " +
+              "cursor-grab rounded border border-line bg-surface p-3 text-fg shadow-card " +
               "data-dragging:opacity-50 " +
               "data-focus-visible:outline-2 data-focus-visible:outline-offset-2 data-focus-visible:outline-accent"
             }
