@@ -29,12 +29,28 @@ const target: PlaywrightTestConfig = stackUrl
   ? {
       use: { baseURL: stackUrl },
       projects: [
-        { name: "seed", testDir: "./tests/stack", testMatch: /seed\.setup\.ts/ },
+        // A fresh instance's first visit, through the UI (first run with the setup token).
+        {
+          name: "first-run",
+          testDir: "./tests/stack",
+          testMatch: /first-run\.setup\.ts/,
+          use: { ...devices["Desktop Chrome"], locale: "de-DE" },
+        },
+        { name: "seed", testDir: "./tests/stack", testMatch: /seed\.setup\.ts/, dependencies: ["first-run"] },
         ...browsers.map((project) => ({
           ...project,
           dependencies: ["seed"],
           use: { ...project.use, storageState: E2E_STORAGE_STATE },
         })),
+        // Wrong passwords and password changes: they share the one-client login backoff with every
+        // other test and end the seeded session, so they run last, alone (tests/auth/auth.spec.ts).
+        {
+          name: "auth",
+          testDir: "./tests/auth",
+          fullyParallel: false,
+          dependencies: browsers.map((project) => project.name ?? ""),
+          use: { ...devices["Desktop Chrome"], colorScheme: "light" },
+        },
       ],
     }
   : {
