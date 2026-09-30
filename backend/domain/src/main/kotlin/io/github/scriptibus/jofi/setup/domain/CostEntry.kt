@@ -9,14 +9,21 @@ import java.time.Instant
 
 /**
  * What one AI call cost (spec §3.2 cost tracking): which [task] ran on which [provider] and
- * [model], the tokens it used and the cost estimated from the price table. Cost entries are an
- * append-only meter; summaries per task, provider and month are computed from them.
+ * [model], the tokens it used and the cost estimated from the price table, in the accounting
+ * currency (USD, ADR-0032). [providerKind] is a snapshot, so the history stays readable after the
+ * provider config is deleted. Cost entries are an append-only meter; summaries per task, provider
+ * and month are computed from them.
  */
 data class CostEntry(
     val task: AiTask,
     val provider: ProviderId,
+    val providerKind: ProviderKind,
     val model: ModelName,
     val usage: TokenUsage,
     val estimatedCost: Money,
     val occurredAt: Instant,
-)
+) {
+    init {
+        require(estimatedCost.isAccountingCurrency) { "Costs are recorded in ${Money.ACCOUNTING_CURRENCY}" }
+    }
+}

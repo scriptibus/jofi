@@ -16,12 +16,22 @@ value class ModelName(
 }
 
 /**
- * Which [model] of which [provider] runs [task] (spec §3.2 per-task model selection), together
- * with what that model can do. At most one assignment exists per task.
+ * Which [model] of which [provider] runs [task] (spec §3.2 per-task model selection). At most one
+ * assignment exists per task. What the model can do is a [ModelCapabilityProfile] of the provider
+ * and model, not part of the assignment.
  */
 data class ModelAssignment(
     val task: AiTask,
     val provider: ProviderId,
     val model: ModelName,
-    val capabilities: ModelCapabilities,
+)
+
+/**
+ * The provider and model an AI call goes to, resolved once per call from the task's assignment by
+ * the AI gateway and handed to `AiProviderPort` (ADR-0032). The provider config carries a secret
+ * id; the provider adapter reads the key itself through `SecretStorePort`.
+ */
+data class ResolvedModel(
+    val provider: ProviderConfig,
+    val model: ModelName,
 )

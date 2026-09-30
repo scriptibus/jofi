@@ -8,8 +8,9 @@ import io.github.scriptibus.jofi.shared.domain.ai.EmbeddingRequest
 import io.github.scriptibus.jofi.shared.domain.ai.EmbeddingResponse
 
 /**
- * Text embeddings for semantic search (ADR-0011). Same routing, filter and metering rules as
- * [LlmPort]. Implementations never throw and return one embedding per text, in request order.
+ * Text embeddings for semantic search, addressed by task (ADR-0011, ADR-0032). Implemented by the
+ * same AI gateway as [LlmPort], with the same routing, filter and metering. Implementations never
+ * throw and return one embedding per text, in request order.
  */
 interface EmbeddingPort {
     fun embed(request: EmbeddingRequest): AiResult<EmbeddingResponse>

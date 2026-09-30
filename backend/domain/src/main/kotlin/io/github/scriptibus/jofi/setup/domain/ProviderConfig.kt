@@ -47,10 +47,18 @@ data class ProviderConfig(
             if (kind.needsBaseUri) "$kind needs a base URL" else "$kind has a fixed endpoint and takes no base URL"
         }
         require(baseUri == null || isHttpUrl(baseUri)) { "A base URL must be an absolute http(s) URL" }
+        // Credentials belong in the secret store: a key in the URL would be stored, listed and
+        // exported in clear text (ADR-0017, threat model T4).
+        require(baseUri == null || isFreeOfCredentials(baseUri)) {
+            "A base URL must not contain user info, a query or a fragment"
+        }
     }
 
     private companion object {
         fun isHttpUrl(uri: URI): Boolean =
             uri.isAbsolute && uri.scheme.lowercase() in setOf("http", "https") && !uri.host.isNullOrBlank()
+
+        fun isFreeOfCredentials(uri: URI): Boolean =
+            uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null
     }
 }

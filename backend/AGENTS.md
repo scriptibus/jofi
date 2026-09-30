@@ -39,7 +39,8 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
 - `adapters/<kind>`: framework code (web, persistence, later ai, net, ...); depends on `application`.
-  Adapters never depend on each other.
+  Adapters never depend on each other (one exemption: persistence adapters of every context use
+  the generated jOOQ code in `shared.adapter.persistence.jooq`, ADR-0032).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
   adapters that belong nowhere else (e.g. build info).
 - `architecture-tests`: ArchUnit, Konsist and Spring Modulith rules over all production code.
@@ -75,13 +76,19 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | Port | For | Adapter |
 |---|---|---|
 | `ChangelogPort` | the audit trail of every mutation | `adapters/persistence` |
-| `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | `adapters/ai` (#19), behind the gateway (#20) |
+| `LlmPort`, `EmbeddingPort` | AI calls; every request carries its `AiTask` | the AI gateway (`setup.adapter.ai`, module `adapters/ai`, #20) |
 | `OutboundHttpPort` | every outbound HTTP fetch (SSRF guard, threat model T1) | `adapters/net` (#18) |
 | `JobSchedulerPort` | background jobs (ids-only arguments) | `adapters/jobs` (#17) |
 | `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | Tink, #16 |
 
 Kernel types never depend on a context. `AiTask` lives in `shared.domain.ai` for that reason; the
 `setup` context owns what it configures around it.
+
+AI calls: callers use only `LlmPort`/`EmbeddingPort`. The gateway behind them resolves the task's
+model once per call, checks capabilities, applies the "never send to AI" filter and the budget,
+meters the cost, and calls `AiProviderPort` (`setup.application.port`), which Spring AI implements
+in `setup.adapter.ai` (#19). Nothing outside `setup.adapter.ai` may use `AiProviderPort`
+(architecture test). Costs and the budget are in USD only.
 
 ## Rules (all fail `check`)
 

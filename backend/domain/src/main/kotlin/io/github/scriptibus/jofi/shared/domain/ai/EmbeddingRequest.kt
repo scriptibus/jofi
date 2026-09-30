@@ -13,6 +13,10 @@ data class EmbeddingRequest(
         require(texts.isNotEmpty()) { "An embedding request needs at least one text" }
         require(texts.none { it.isBlank() }) { "Texts to embed must not be blank" }
     }
+
+    /** Sizes only: the texts hold personal data (threat model T4). */
+    override fun toString(): String =
+        "EmbeddingRequest(task=$task, texts=${texts.size}, chars=${texts.sumOf { it.length }})"
 }
 
 /** One vector per input text, in request order, plus the tokens the call consumed. */

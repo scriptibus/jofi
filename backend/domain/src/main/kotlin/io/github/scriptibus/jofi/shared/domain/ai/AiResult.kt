@@ -44,6 +44,12 @@ sealed interface AiResult<out T> {
     /** The provider could not be reached, timed out or failed on its side. Retrying may help. */
     data object Unavailable : AiResult<Nothing>
 
+    /**
+     * The caller cancelled the call, or the stream consumer failed and the adapter stopped the
+     * stream. Tokens already used are metered by the gateway.
+     */
+    data object Cancelled : AiResult<Nothing>
+
     /** The provider refused the request for another reason; [statusCode] when it answered over HTTP. */
     data class Rejected(
         val statusCode: Int?,

@@ -52,23 +52,53 @@ class EmbeddingRequestTest {
                 AiResult.RateLimited(Duration.ofSeconds(30)),
                 AiResult.ContextTooLong,
                 AiResult.Unavailable,
+                AiResult.Cancelled,
                 AiResult.Rejected(400),
             )
 
         results.map(::describe) shouldBe
-            listOf("ok", "CHAT", "CHAT", "SCANNER_PRE_SCORING", "auth", "PT30S", "context", "unavailable", "400")
+            listOf(
+                "ok",
+                "CHAT",
+                "CHAT",
+                "SCANNER_PRE_SCORING",
+                "AuthenticationFailed",
+                "PT30S",
+                "ContextTooLong",
+                "Unavailable",
+                "Cancelled",
+                "400",
+            )
     }
 
     private fun describe(result: AiResult<String>): String =
         when (result) {
-            is AiResult.Success -> result.value
-            is AiResult.NotConfigured -> result.task.name
-            is AiResult.CapabilityMissing -> result.task.name
-            is AiResult.BudgetExceeded -> result.task.name
-            AiResult.AuthenticationFailed -> "auth"
-            is AiResult.RateLimited -> result.retryAfter.toString()
-            AiResult.ContextTooLong -> "context"
-            AiResult.Unavailable -> "unavailable"
-            is AiResult.Rejected -> result.statusCode.toString()
+            is AiResult.Success -> {
+                result.value
+            }
+
+            is AiResult.NotConfigured -> {
+                result.task.name
+            }
+
+            is AiResult.CapabilityMissing -> {
+                result.task.name
+            }
+
+            is AiResult.BudgetExceeded -> {
+                result.task.name
+            }
+
+            is AiResult.RateLimited -> {
+                result.retryAfter.toString()
+            }
+
+            AiResult.AuthenticationFailed, AiResult.ContextTooLong, AiResult.Unavailable, AiResult.Cancelled -> {
+                result.toString()
+            }
+
+            is AiResult.Rejected -> {
+                result.statusCode.toString()
+            }
         }
 }

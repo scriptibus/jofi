@@ -15,6 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.EnumSource
 import org.junit.jupiter.params.provider.MethodSource
+import java.time.Instant
 import java.util.UUID
 
 class CapabilityCheckTest {
@@ -30,29 +31,27 @@ class CapabilityCheckTest {
     @ParameterizedTest
     @EnumSource(AiTask::class)
     fun `a model that meets every requirement gets no warning`(task: AiTask) {
-        CapabilityCheck.warningsFor(assignment(task, EVERYTHING)).shouldBeEmpty()
+        CapabilityCheck.warningsFor(task, EVERYTHING).shouldBeEmpty()
     }
 
     @ParameterizedTest
     @EnumSource(AiTask::class)
-    fun `a model without capabilities gets one warning per requirement`(task: AiTask) {
-        CapabilityCheck
-            .warningsFor(
-                assignment(task, ModelCapabilities.NONE),
-            ).map { it.missing } shouldContainExactlyInAnyOrder
+    fun `a model with unknown capabilities gets one warning per requirement`(task: AiTask) {
+        CapabilityCheck.warningsFor(task, ModelCapabilities.NONE).map { it.missing } shouldContainExactlyInAnyOrder
             CapabilityCheck.requiredFor(task)
     }
 
     @Test
     fun `a small local model assigned to chat warns about tool use and context size`() {
-        val smallModel = ModelCapabilities(setOf(Capability.Streaming, Capability.ContextSize(BASIC_CONTEXT_TOKENS)))
+        val smallModel =
+            profile(ModelCapabilities(setOf(Capability.Streaming, Capability.ContextSize(BASIC_CONTEXT_TOKENS))))
 
-        CapabilityCheck.warningsFor(assignment(AiTask.CHAT, smallModel)) shouldContainExactlyInAnyOrder
+        smallModel.warningsFor(AiTask.CHAT) shouldContainExactlyInAnyOrder
             listOf(
                 CapabilityWarning(AiTask.CHAT, Capability.ToolUse),
                 CapabilityWarning(AiTask.CHAT, Capability.ContextSize(LONG_CONTEXT_TOKENS)),
             )
-        CapabilityCheck.warningsFor(assignment(AiTask.CLASSIFICATION, smallModel)).shouldBeEmpty()
+        smallModel.warningsFor(AiTask.CLASSIFICATION).shouldBeEmpty()
     }
 
     @Test
@@ -78,7 +77,24 @@ class CapabilityCheckTest {
     }
 
     @Test
-    fun `a model name must not be blank`() {
+    fun `every feature capability has exactly one storage name, the context size has none`() {
+        val features =
+            setOf(
+                Capability.ToolUse,
+                Capability.Streaming,
+                Capability.SpeechToText,
+                Capability.TextToSpeech,
+                Capability.Embedding,
+            )
+
+        CapabilityName.entries.map { it.capability }.toSet() shouldBe features
+        features.forEach { CapabilityName.of(it)?.capability shouldBe it }
+        CapabilityName.of(Capability.ContextSize(LONG_CONTEXT_TOKENS)) shouldBe null
+    }
+
+    @Test
+    fun `an assignment names task, provider and model only`() {
+        ModelAssignment(AiTask.CHAT, PROVIDER, ModelName("claude-haiku")).model shouldBe ModelName("claude-haiku")
         ModelName("claude-haiku").value shouldBe "claude-haiku"
         shouldThrow<IllegalArgumentException> { ModelName(" ") }
     }
@@ -99,10 +115,14 @@ class CapabilityCheckTest {
                 ),
             )
 
-        private fun assignment(
-            task: AiTask,
-            capabilities: ModelCapabilities,
-        ) = ModelAssignment(task, PROVIDER, ModelName("some-model"), capabilities)
+        private fun profile(capabilities: ModelCapabilities) =
+            ModelCapabilityProfile(
+                PROVIDER,
+                ModelName("llama3.1:8b"),
+                capabilities,
+                CapabilitySource.DETECTED,
+                Instant.parse("2026-09-30T08:00:00Z"),
+            )
 
         @JvmStatic
         fun requirementsPerTask(): List<Arguments> =

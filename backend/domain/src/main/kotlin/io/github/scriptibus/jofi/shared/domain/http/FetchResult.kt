@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.shared.domain.http
 
 import java.net.URI
+import java.time.Duration
 
 /**
  * Outcome of an outbound fetch. Every expected failure is a variant, never an exception. Only
@@ -38,9 +39,10 @@ sealed interface FetchResult {
         val contentType: String?,
     ) : FetchResult
 
-    /** The server answered with a non-2xx status after redirects. */
+    /** The server answered with a non-2xx status after redirects; [retryAfter] when it sent `Retry-After`. */
     data class HttpError(
         val statusCode: Int,
+        val retryAfter: Duration? = null,
     ) : FetchResult
 
     /** DNS resolution or the connection failed. */

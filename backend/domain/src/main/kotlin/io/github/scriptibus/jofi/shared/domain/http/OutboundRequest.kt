@@ -23,14 +23,27 @@ data class OutboundRequest(
     init {
         require(uri.isAbsolute) { "An outbound request needs an absolute URI" }
         require(headers.keys.all { HEADER_NAME.matches(it) }) { "Header names must be HTTP tokens" }
+        // CR, LF and NUL would let a value smuggle extra headers or requests (header injection).
+        require(headers.values.none { value -> value.any { it in FORBIDDEN_IN_VALUES } }) {
+            "Header values must not contain CR, LF or NUL"
+        }
         require(acceptedContentTypes.none { it.isBlank() || ';' in it }) {
             "Accepted content types are bare media types"
         }
     }
 
+    /**
+     * Method, target host and header names only: header values can be credentials and the path or
+     * query of a posting URL can identify the user (threat model T4).
+     */
+    override fun toString(): String =
+        "OutboundRequest(method=$method, scheme=${uri.scheme}, host=${uri.host}, " +
+            "headers=${headers.keys}, acceptedContentTypes=$acceptedContentTypes, limits=$limits)"
+
     private companion object {
         /** RFC 9110 `token`. */
         val HEADER_NAME = Regex("[!#$%&'*+.^_`|~0-9A-Za-z-]+")
+        val FORBIDDEN_IN_VALUES = setOf('\r', '\n', '\u0000')
     }
 }
 

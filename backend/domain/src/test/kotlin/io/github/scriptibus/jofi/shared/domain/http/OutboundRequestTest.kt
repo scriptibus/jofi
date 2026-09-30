@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.shared.domain.http
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import java.net.URI
@@ -31,6 +32,35 @@ class OutboundRequestTest {
     fun `accepts any absolute URI, so the guard can answer Blocked for bad schemes`() {
         OutboundRequest(URI("file:///etc/passwd")).uri.scheme shouldBe "file"
         shouldThrow<IllegalArgumentException> { OutboundRequest(URI("/relative/path")) }
+    }
+
+    @Test
+    fun `header values must not contain CR, LF or NUL`() {
+        listOf("de\r\nX-Injected: 1", "de\nX", "de\rX", "de\u0000").forEach { value ->
+            shouldThrow<IllegalArgumentException> {
+                OutboundRequest(
+                    posting,
+                    headers = mapOf("Accept-Language" to value),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `prints method, host and header names, never header values or the path`() {
+        val request =
+            OutboundRequest(
+                URI("https://jobs.example.org/profile/max-mustermann?token=abc"),
+                headers = mapOf("Authorization" to "Bearer xxxx"),
+            )
+
+        val printed = request.toString()
+
+        printed shouldContain "jobs.example.org"
+        printed shouldContain "Authorization"
+        printed shouldNotContain "xxxx"
+        printed shouldNotContain "mustermann"
+        printed shouldNotContain "token=abc"
     }
 
     @Test
@@ -93,6 +123,7 @@ class OutboundRequestTest {
                 FetchResult.TooManyRedirects(5),
                 FetchResult.ContentTypeNotAccepted("application/pdf"),
                 FetchResult.HttpError(404),
+                FetchResult.HttpError(503, Duration.ofSeconds(120)),
                 FetchResult.Unreachable,
             )
 
@@ -106,6 +137,7 @@ class OutboundRequestTest {
                 "5",
                 "application/pdf",
                 "404",
+                "503 PT2M",
                 "unreachable",
             )
     }
@@ -118,7 +150,7 @@ class OutboundRequestTest {
             is FetchResult.TooLarge -> result.limitBytes.toString()
             is FetchResult.TooManyRedirects -> result.limit.toString()
             is FetchResult.ContentTypeNotAccepted -> result.contentType.toString()
-            is FetchResult.HttpError -> result.statusCode.toString()
+            is FetchResult.HttpError -> listOfNotNull(result.statusCode, result.retryAfter).joinToString(" ")
             FetchResult.Unreachable -> "unreachable"
         }
 }

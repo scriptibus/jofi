@@ -46,9 +46,15 @@ object CapabilityCheck {
     /** The capabilities [task] needs. */
     fun requiredFor(task: AiTask): Set<Capability> = requirements.getValue(task)
 
-    /** One warning per required capability the assigned model does not meet; empty when it fits. */
-    fun warningsFor(assignment: ModelAssignment): List<CapabilityWarning> =
-        requiredFor(assignment.task)
-            .filterNot(assignment.capabilities::meets)
-            .map { CapabilityWarning(assignment.task, it) }
+    /**
+     * One warning per capability [task] needs that a model with [capabilities] does not meet; empty
+     * when it fits. A model whose capabilities are unknown is checked as [ModelCapabilities.NONE].
+     */
+    fun warningsFor(
+        task: AiTask,
+        capabilities: ModelCapabilities,
+    ): List<CapabilityWarning> =
+        requiredFor(task)
+            .filterNot(capabilities::meets)
+            .map { CapabilityWarning(task, it) }
 }

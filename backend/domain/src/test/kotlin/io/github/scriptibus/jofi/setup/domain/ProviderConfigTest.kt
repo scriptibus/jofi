@@ -45,6 +45,22 @@ class ProviderConfigTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "https://user:xxxx@proxy.example.org/v1",
+            "https://token@proxy.example.org/v1",
+            "https://proxy.example.org/v1?key=xxxx",
+            "https://proxy.example.org/v1?",
+            "https://proxy.example.org/v1#key=xxxx",
+        ],
+    )
+    fun `a base URL carries no credentials, query or fragment`(invalid: String) {
+        shouldThrow<IllegalArgumentException> {
+            ProviderConfig(id, "Proxy", ProviderKind.OPENAI_COMPATIBLE, apiKey = key, baseUri = URI(invalid))
+        }
+    }
+
     @Test
     fun `a provider needs a display name`() {
         shouldThrow<IllegalArgumentException> { ProviderConfig(id, " ", ProviderKind.ANTHROPIC, key) }

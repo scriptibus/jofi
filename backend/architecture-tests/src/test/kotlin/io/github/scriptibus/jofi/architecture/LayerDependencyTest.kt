@@ -66,12 +66,7 @@ class LayerDependencyTest {
 
     @Test
     fun `adapters do not depend on other adapters`() {
-        slices()
-            .matching("$BASE.(*).adapter.(*)..")
-            .should()
-            .notDependOnEachOther()
-            .because("adapters talk to each other only through use cases and ports")
-            .check(classes)
+        AdapterRules.adaptersAreIndependent.check(classes)
     }
 
     @Test

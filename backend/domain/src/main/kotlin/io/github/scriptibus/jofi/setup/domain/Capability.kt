@@ -3,6 +3,9 @@
 
 package io.github.scriptibus.jofi.setup.domain
 
+import io.github.scriptibus.jofi.shared.domain.ai.AiTask
+import java.time.Instant
+
 /** Something a model can do that a task may depend on (spec §3.2 capability checks). */
 sealed interface Capability {
     /** Reliable tool (function) calling. */
@@ -48,4 +51,48 @@ data class ModelCapabilities(
     companion object {
         val NONE = ModelCapabilities(emptySet())
     }
+}
+
+/**
+ * Stable storage names of the feature capabilities (the `ai_model_capability.capabilities` array).
+ * The context size is stored in its own column, so it has no name here. Renaming needs a migration.
+ */
+enum class CapabilityName(
+    val capability: Capability,
+) {
+    TOOL_USE(Capability.ToolUse),
+    STREAMING(Capability.Streaming),
+    SPEECH_TO_TEXT(Capability.SpeechToText),
+    TEXT_TO_SPEECH(Capability.TextToSpeech),
+    EMBEDDING(Capability.Embedding),
+    ;
+
+    companion object {
+        /** The storage name of [capability], or null for [Capability.ContextSize]. */
+        fun of(capability: Capability): CapabilityName? = entries.firstOrNull { it.capability == capability }
+    }
+}
+
+/** Where a model's capabilities came from. */
+enum class CapabilitySource {
+    /** Entered or corrected by the user. */
+    USER,
+
+    /** Taken from the AI adapter's capability table or the provider's model listing (#19). */
+    DETECTED,
+}
+
+/**
+ * What [model] of [provider] can do. Capabilities belong to the provider and model, not to a task
+ * assignment: several tasks can share one model, and re-assigning a task does not lose them.
+ */
+data class ModelCapabilityProfile(
+    val provider: ProviderId,
+    val model: ModelName,
+    val capabilities: ModelCapabilities,
+    val source: CapabilitySource,
+    val updatedAt: Instant,
+) {
+    /** The warnings for running [task] on this model, see [CapabilityCheck]. */
+    fun warningsFor(task: AiTask): List<CapabilityWarning> = CapabilityCheck.warningsFor(task, capabilities)
 }

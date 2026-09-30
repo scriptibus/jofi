@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.shared.domain.ai
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.EnumSource
@@ -89,6 +90,31 @@ class LlmRequestTest {
         LlmResponse("", listOf(call), FinishReason.TOOL_CALLS, TokenUsage.NONE).toolCalls shouldBe listOf(call)
         shouldThrow<IllegalArgumentException> { LlmResponse("", emptyList(), FinishReason.TOOL_CALLS, TokenUsage.NONE) }
         LlmResponse("Done", emptyList(), FinishReason.STOP, TokenUsage(10, 2)).usage.totalTokens shouldBe 12
+    }
+
+    @Test
+    fun `requests, messages, tool calls and responses print roles and sizes, never content`() {
+        val secret = "Max Mustermann, born 1990"
+        val call = ToolCall("call-1", "search_applications", """{"q":"$secret"}""")
+        val request =
+            LlmRequest(
+                AiTask.CHAT,
+                listOf(
+                    LlmMessage.System("You help $secret"),
+                    LlmMessage.User(secret),
+                    LlmMessage.Assistant(secret, listOf(call)),
+                    LlmMessage.ToolResult("call-1", secret),
+                ),
+                tools = listOf(searchTool),
+            )
+        val response = LlmResponse(secret, listOf(call), FinishReason.TOOL_CALLS, TokenUsage(3, 4))
+
+        listOf(request.toString(), response.toString(), call.toString()).forEach { it shouldNotContain "Mustermann" }
+        request.toString() shouldContain "User(chars=${secret.length})"
+        request.toString() shouldContain "search_applications"
+        response.toString() shouldContain "TOOL_CALLS"
+        EmbeddingRequest(listOf(secret)).toString() shouldNotContain "Mustermann"
+        EmbeddingRequest(listOf(secret)).toString() shouldContain "texts=1"
     }
 
     @Test

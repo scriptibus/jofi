@@ -38,6 +38,18 @@ data class Money(
     companion object {
         private const val MICROS_SCALE = 6
 
+        /**
+         * The single accounting currency of AI costs and the budget (ADR-0032): all supported
+         * providers price in US dollars, so costs are never converted. The UI may show conversions.
+         */
+        val ACCOUNTING_CURRENCY: Currency = Currency.getInstance("USD")
+
         fun zero(currency: Currency): Money = Money(0, currency)
+
+        /** [micros] millionths of a US dollar. */
+        fun usd(micros: Long): Money = Money(micros, ACCOUNTING_CURRENCY)
     }
+
+    /** True when this amount is in [ACCOUNTING_CURRENCY]. */
+    val isAccountingCurrency: Boolean get() = currency == ACCOUNTING_CURRENCY
 }

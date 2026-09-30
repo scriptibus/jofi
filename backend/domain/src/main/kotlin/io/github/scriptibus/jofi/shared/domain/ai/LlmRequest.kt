@@ -21,6 +21,10 @@ data class LlmRequest(
         require(tools.map { it.name }.toSet().size == tools.size) { "Tool names must be unique" }
         require(maxOutputTokens == null || maxOutputTokens > 0) { "The output limit must be positive" }
     }
+
+    /** Roles and sizes only: the messages hold personal data (threat model T4). */
+    override fun toString(): String =
+        "LlmRequest(task=$task, messages=$messages, tools=${tools.map { it.name }}, maxOutputTokens=$maxOutputTokens)"
 }
 
 /** The model's final answer: text, requested tool calls, why it stopped and what it cost. */
@@ -35,6 +39,10 @@ data class LlmResponse(
             "A response that stopped for tool calls must contain them"
         }
     }
+
+    /** Sizes only: the answer can quote personal data (threat model T4). */
+    override fun toString(): String =
+        "LlmResponse(chars=${text.length}, toolCalls=$toolCalls, finishReason=$finishReason, usage=$usage)"
 }
 
 /** Why the model stopped generating. */

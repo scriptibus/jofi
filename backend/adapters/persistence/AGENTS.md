@@ -62,10 +62,15 @@ The generator lives in the `codegen` source set and has its own locked classpath
 
 - `secret`: Tink AES-GCM ciphertext per `SecretId` (#16 implements `SecretStorePort`). Never store
   or log a key in clear text anywhere else; provider configs reference a secret id.
-- `ai_provider_config`, `ai_model_assignment` (one row per `AiTask`), `ai_cost_entry` (append-only
-  meter, integer micros + ISO currency, no FK to the provider so history survives its deletion),
-  `ai_monthly_budget` (single row). Check constraints mirror the `setup` domain invariants and the
-  enum names; `SetupSchemaTest` proves them. Repositories come with the use cases (#23, #24).
+- `ai_provider_config` (base URL without credentials, query or fragment; one secret per provider),
+  `ai_model_capability` (per provider + model, deleted with the provider), `ai_model_assignment`
+  (one row per `AiTask`: provider + model only), `ai_cost_entry` (append-only by trigger, integer
+  micros in USD, provider kind snapshot, no FK to the provider so history survives its deletion),
+  `ai_monthly_budget` (single row, USD). Check constraints mirror the `setup` domain invariants and
+  enum names; `SetupSchemaTest` proves them. Repositories come with the use cases (#19, #23, #24).
+- Other contexts' repositories live in `<context>.adapter.persistence` and may use the generated
+  jOOQ code in `shared.adapter.persistence.jooq` (the one exemption from adapter independence,
+  ADR-0032).
 
 ## Tests
 
