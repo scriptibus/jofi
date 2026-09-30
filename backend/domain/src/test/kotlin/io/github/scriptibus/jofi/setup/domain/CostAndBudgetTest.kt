@@ -93,6 +93,7 @@ class CostAndBudgetTest {
                 SetupStoreResult.Success(1),
                 SetupStoreResult.NotFound,
                 SetupStoreResult.InUse,
+                SetupStoreResult.NotConfirmed,
                 SetupStoreResult.StorageFailure("save"),
             )
 
@@ -102,11 +103,12 @@ class CostAndBudgetTest {
                     is SetupStoreResult.Success -> "ok ${it.value}"
                     SetupStoreResult.NotFound -> "not found"
                     SetupStoreResult.InUse -> "in use"
+                    SetupStoreResult.NotConfirmed -> "not confirmed"
                     is SetupStoreResult.StorageFailure -> it.operation
                 }
             }
 
-        described shouldBe listOf("ok 1", "not found", "in use", "save")
+        described shouldBe listOf("ok 1", "not found", "in use", "not confirmed", "save")
     }
 
     private fun cost(estimated: Money) =

@@ -6,9 +6,10 @@ package io.github.scriptibus.jofi.setup.application.port
 import io.github.scriptibus.jofi.setup.domain.ProviderConfig
 import io.github.scriptibus.jofi.setup.domain.ProviderId
 import io.github.scriptibus.jofi.setup.domain.SetupStoreResult
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 
 /**
- * Stores AI provider configs (table `ai_provider_config`; implemented with the use cases in #23).
+ * Stores AI provider configs (table `ai_provider_config`).
  * The use case that calls [save] or [delete] also appends a changelog entry with the acting actor.
  * Implementations never throw.
  */
@@ -20,6 +21,13 @@ interface ProviderConfigPort {
     /** Inserts or replaces the config with the same id. */
     fun save(config: ProviderConfig): SetupStoreResult<Unit>
 
-    /** [SetupStoreResult.InUse] while a task is still assigned to the provider. */
-    fun delete(id: ProviderId): SetupStoreResult<Unit>
+    /**
+     * Removes the provider and its model capabilities, only with a [proof] covering
+     * [ProviderId.DELETE_OPERATION] for [id] (else [SetupStoreResult.NotConfirmed], ADR-0039).
+     * [SetupStoreResult.InUse] while a task is still assigned to the provider.
+     */
+    fun delete(
+        id: ProviderId,
+        proof: ConfirmationResult.Confirmed,
+    ): SetupStoreResult<Unit>
 }

@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.setup.domain
 
+import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
 
 /** A provider's model identifier, e.g. `claude-sonnet-4-5` or `llama3.1:8b`. */
@@ -24,7 +25,15 @@ data class ModelAssignment(
     val task: AiTask,
     val provider: ProviderId,
     val model: ModelName,
-)
+) {
+    companion object {
+        /** The changelog entity type of task assignments, one entity per task; never rename it. */
+        const val ENTITY_TYPE = "ai_model_assignment"
+
+        /** How changelog entries refer to the assignment of [task]. */
+        fun entityRef(task: AiTask): EntityRef = EntityRef(ENTITY_TYPE, task.name)
+    }
+}
 
 /**
  * The provider and model an AI call goes to, resolved once per call from the task's assignment by

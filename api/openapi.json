@@ -533,6 +533,478 @@
         "tags" : [ "company-controller" ]
       }
     },
+    "/api/setup/assignments" : {
+      "get" : {
+        "operationId" : "listTaskAssignments",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/TaskAssignmentResponse"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "task-assignment-controller" ]
+      }
+    },
+    "/api/setup/assignments/{task}" : {
+      "put" : {
+        "operationId" : "assignTaskModel",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "task",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "SCANNER_PRE_SCORING", "CLASSIFICATION", "LANGUAGE_TONE_DETECTION", "EXTRACTION", "KNOWLEDGE_INTERVIEW", "DOCUMENT_GENERATION", "INTERVIEW_TRAINING", "CHAT", "EMBEDDING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH" ]
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AssignTaskModelRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskAssignmentResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "task-assignment-controller" ]
+      }
+    },
+    "/api/setup/providers" : {
+      "get" : {
+        "operationId" : "listProviders",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ProviderResponse"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-provider-controller" ]
+      },
+      "post" : {
+        "operationId" : "createProvider",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CreateProviderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProviderResponse"
+                }
+              }
+            },
+            "description" : "Created"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-provider-controller" ]
+      }
+    },
+    "/api/setup/providers/{id}" : {
+      "delete" : {
+        "operationId" : "deleteProvider",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }, {
+          "in" : "header",
+          "name" : "Jofi-Confirmation",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "428" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ConfirmationRequiredProblem"
+                }
+              }
+            },
+            "description" : "Nothing ran yet: confirm, then repeat with the token (ADR-0039)"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-provider-controller" ]
+      },
+      "put" : {
+        "operationId" : "updateProvider",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateProviderRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProviderResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-provider-controller" ]
+      }
+    },
+    "/api/setup/providers/{id}/models" : {
+      "get" : {
+        "operationId" : "listProviderModels",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ModelResponse"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-provider-controller" ]
+      },
+      "put" : {
+        "operationId" : "correctModelCapabilities",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/CorrectModelCapabilitiesRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ModelResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-provider-controller" ]
+      }
+    },
+    "/api/setup/providers/{id}/models/refresh" : {
+      "post" : {
+        "operationId" : "refreshProviderModels",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "type" : "array",
+                  "items" : {
+                    "$ref" : "#/components/schemas/ModelResponse"
+                  }
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "404" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Nothing with this id"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "ai-provider-controller" ]
+      }
+    },
     "/api/system/info" : {
       "get" : {
         "operationId" : "getSystemInfo",
@@ -619,6 +1091,19 @@
   },
   "components" : {
     "schemas" : {
+      "AssignTaskModelRequest" : {
+        "required" : [ "model", "providerId" ],
+        "type" : "object",
+        "properties" : {
+          "model" : {
+            "type" : "string"
+          },
+          "providerId" : {
+            "type" : "string",
+            "format" : "uuid"
+          }
+        }
+      },
       "AuthSessionResponse" : {
         "required" : [ "authenticated", "setUp", "setupTokenRequired" ],
         "type" : "object",
@@ -631,6 +1116,24 @@
           },
           "setupTokenRequired" : {
             "type" : "boolean"
+          }
+        }
+      },
+      "CapabilityNeedsResponse" : {
+        "required" : [ "features" ],
+        "type" : "object",
+        "properties" : {
+          "features" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "TOOL_USE", "STREAMING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH", "EMBEDDING" ]
+            }
+          },
+          "minContextWindowTokens" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
           }
         }
       },
@@ -862,6 +1365,48 @@
         } ],
         "description" : "428 answer of a destructive or outward-facing operation: nothing ran yet. Repeat the request with confirmationToken in the Jofi-Confirmation header once the user confirmed."
       },
+      "CorrectModelCapabilitiesRequest" : {
+        "required" : [ "features", "model" ],
+        "type" : "object",
+        "properties" : {
+          "contextWindowTokens" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "features" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "TOOL_USE", "STREAMING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH", "EMBEDDING" ]
+            }
+          },
+          "model" : {
+            "type" : "string"
+          }
+        }
+      },
+      "CreateProviderRequest" : {
+        "required" : [ "displayName", "kind" ],
+        "type" : "object",
+        "properties" : {
+          "apiKey" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "baseUrl" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          }
+        }
+      },
       "FirstRunRequest" : {
         "required" : [ "password" ],
         "type" : "object",
@@ -941,6 +1486,35 @@
           }
         }
       },
+      "ModelResponse" : {
+        "required" : [ "features", "model", "origin", "updatedAt" ],
+        "type" : "object",
+        "properties" : {
+          "contextWindowTokens" : {
+            "type" : "integer",
+            "format" : "int32",
+            "nullable" : true
+          },
+          "features" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "enum" : [ "TOOL_USE", "STREAMING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH", "EMBEDDING" ]
+            }
+          },
+          "model" : {
+            "type" : "string"
+          },
+          "origin" : {
+            "type" : "string",
+            "enum" : [ "DETECTED", "USER" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "ProblemDetail" : {
         "type" : "object",
         "additionalProperties" : true,
@@ -971,6 +1545,30 @@
           }
         }
       },
+      "ProviderResponse" : {
+        "required" : [ "apiKeySet", "displayName", "id", "kind" ],
+        "type" : "object",
+        "properties" : {
+          "apiKeySet" : {
+            "type" : "boolean"
+          },
+          "baseUrl" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "kind" : {
+            "type" : "string",
+            "enum" : [ "ANTHROPIC", "OPENAI", "GEMINI", "MISTRAL", "OPENAI_COMPATIBLE" ]
+          }
+        }
+      },
       "SystemInfoResponse" : {
         "required" : [ "name", "version" ],
         "type" : "object",
@@ -980,6 +1578,31 @@
           },
           "version" : {
             "type" : "string"
+          }
+        }
+      },
+      "TaskAssignmentResponse" : {
+        "required" : [ "missing", "needs", "task" ],
+        "type" : "object",
+        "properties" : {
+          "missing" : {
+            "$ref" : "#/components/schemas/CapabilityNeedsResponse"
+          },
+          "model" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "needs" : {
+            "$ref" : "#/components/schemas/CapabilityNeedsResponse"
+          },
+          "providerId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "nullable" : true
+          },
+          "task" : {
+            "type" : "string",
+            "enum" : [ "SCANNER_PRE_SCORING", "CLASSIFICATION", "LANGUAGE_TONE_DETECTION", "EXTRACTION", "KNOWLEDGE_INTERVIEW", "DOCUMENT_GENERATION", "INTERVIEW_TRAINING", "CHAT", "EMBEDDING", "SPEECH_TO_TEXT", "TEXT_TO_SPEECH" ]
           }
         }
       },
@@ -993,6 +1616,23 @@
           },
           "details" : {
             "$ref" : "#/components/schemas/CompanyDetailsRequest"
+          }
+        }
+      },
+      "UpdateProviderRequest" : {
+        "required" : [ "displayName" ],
+        "type" : "object",
+        "properties" : {
+          "apiKey" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "baseUrl" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "displayName" : {
+            "type" : "string"
           }
         }
       },

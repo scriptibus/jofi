@@ -15,6 +15,9 @@ sealed interface SetupStoreResult<out T> {
     /** The row cannot be removed while others reference it (e.g. a provider with assigned tasks). */
     data object InUse : SetupStoreResult<Nothing>
 
+    /** The confirmation proof does not cover this removal; nothing was removed (ADR-0039). */
+    data object NotConfirmed : SetupStoreResult<Nothing>
+
     /** The store could not complete [operation]. Carries no row data, so it is safe to log. */
     data class StorageFailure(
         val operation: String,
