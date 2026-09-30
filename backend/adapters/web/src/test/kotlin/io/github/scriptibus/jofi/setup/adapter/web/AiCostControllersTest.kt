@@ -247,6 +247,23 @@ class AiCostControllersTest(
     }
 
     @Test
+    fun `a body without capMicros is refused and never clears the cap`() {
+        listOf("{}", "{\"cap\":null}").forEach { request ->
+            val result =
+                mvc
+                    .put()
+                    .uri("/api/setup/budget")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(request)
+                    .exchange()
+            violation(result) shouldBe ("capMicros" to "REQUIRED")
+        }
+        verify(exactly = 0) { ports.budgets.clear() }
+        verify(exactly = 0) { ports.budgets.save(any()) }
+        verify(exactly = 0) { ports.changelog.append(any()) }
+    }
+
+    @Test
     fun `a negative, zero or absurd cap is a validation problem and changes nothing`() {
         listOf("-1", "0", "1000000000001").forEach { cap ->
             val result =
@@ -266,6 +283,7 @@ class AiCostControllersTest(
                 .content("""{"capMicros":1e40}""")
                 .exchange()
         tooBig.response.status shouldBe 400
+        tooBig.response.contentType shouldBe MediaType.APPLICATION_PROBLEM_JSON_VALUE
         verify(exactly = 0) { ports.budgets.save(any()) }
         verify(exactly = 0) { ports.changelog.append(any()) }
     }

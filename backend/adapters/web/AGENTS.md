@@ -106,7 +106,9 @@ current month carries `budget`, since the cap has no history. `GET /api/setup/co
 default 12): one entry per month up to the current one, oldest first, empty months as zero.
 `MonthlyBudgetController`: `GET /api/setup/budget` (cap, spent, remaining, `state`, `pausedTasks`, `pausedUntil`
 = next UTC month) and `PUT /api/setup/budget` with `capMicros` (1 micro to 1,000,000 USD) or `null` to remove
-the cap. The cap is changed with `PUT`, not `DELETE`: removing it destroys nothing, so it needs no
+the cap. `capMicros` is required (required + nullable in the contract): a body without it is `400 invalid-input`
+(`capMicros` `REQUIRED`, mapped from the Kotlin module's missing-parameter error), so a truncated request never
+lifts the cap. The cap is changed with `PUT`, not `DELETE`: removing it destroys nothing, so it needs no
 confirmation, but it is a user-only setup mutation (`SetupRules`) with a changelog entry. Amounts are integer
 USD micros everywhere.
 

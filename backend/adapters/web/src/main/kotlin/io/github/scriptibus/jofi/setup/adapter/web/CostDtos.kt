@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.setup.adapter.web
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.github.scriptibus.jofi.setup.domain.BudgetStatus
 import io.github.scriptibus.jofi.setup.domain.BudgetUsage
 import io.github.scriptibus.jofi.setup.domain.CostSummary
@@ -143,7 +144,12 @@ data class MonthlyCostResponse(
     }
 }
 
-/** The new cap in micros of a US dollar (e.g. `25000000` for 25 USD), or null to remove the cap. */
+/**
+ * The new cap in micros of a US dollar (e.g. `25000000` for 25 USD), or an explicit null to remove the
+ * cap. The field is required: a body without it is refused, so a truncated or empty request never
+ * lifts the cap by accident.
+ */
 data class SetMonthlyBudgetRequest(
+    @param:JsonProperty(required = true)
     val capMicros: Long?,
 )
