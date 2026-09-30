@@ -16,8 +16,9 @@ import { SetupWizard } from "./ai/SetupWizard";
 import { parseSetupStep, type SetupStep, shouldOpenSetupGuide } from "./ai/setupGuide";
 import { ApplicationDetailPage } from "./applications/ApplicationDetailPage";
 import { ApplicationsPage } from "./applications/ApplicationsPage";
-import { parseApplicationsSearch } from "./applications/applicationsSearch";
+import { parseApplicationsSearch, parseNewApplicationSearch } from "./applications/applicationsSearch";
 import { EditApplicationPage } from "./applications/EditApplicationPage";
+import { NewApplicationPage } from "./applications/NewApplicationPage";
 import { parseApplicationSearch } from "./applications/tabs";
 import { FirstRunPage } from "./auth/FirstRunPage";
 import { LoginPage, type LoginReason } from "./auth/LoginPage";
@@ -139,13 +140,20 @@ const dashboardRoute = createRoute({
     </PlaceholderPage>
   ),
 });
-// Applications (spec §6.3): the list with its filters, order and page in the URL; the detail page with
-// its tabs (`?tab=`) and the edit page.
+// Applications (spec §6.3): the list with its filters, order and page in the URL; create (`?company=`
+// preselects); the detail page with its tabs (`?tab=`) and the edit page.
 const applicationsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "applications",
   validateSearch: parseApplicationsSearch,
   component: ApplicationsPage,
+});
+
+const newApplicationRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "applications/new",
+  validateSearch: parseNewApplicationSearch,
+  component: NewApplicationPage,
 });
 
 const applicationRoute = createRoute({
@@ -255,6 +263,7 @@ export const routeTree = rootRoute.addChildren([
   appRoute.addChildren([
     dashboardRoute,
     applicationsRoute,
+    newApplicationRoute,
     applicationRoute,
     editApplicationRoute,
     companiesRoute,

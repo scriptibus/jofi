@@ -49,4 +49,13 @@ describe("EmptyState", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Nothing here yet" })).toBeVisible();
     expect(screen.getByText("Add your first application.")).toBeVisible();
   });
+
+  it("offers its action below the explanation", () => {
+    render(
+      <EmptyState title="Nothing here yet" action={<button type="button">Add one</button>}>
+        Add your first application.
+      </EmptyState>,
+    );
+    expect(screen.getByRole("button", { name: "Add one" })).toBeVisible();
+  });
 });
