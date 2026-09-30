@@ -61,7 +61,7 @@ export function BoardColumn<T extends { id: string }>({
     },
   });
   return (
-    <div className="flex w-72 shrink-0 snap-start flex-col gap-2">
+    <div className="flex w-64 shrink-0 snap-start flex-col gap-2">
       <h3 className="flex items-baseline justify-between gap-2 font-display text-h3">
         <span id={headingId}>{title}</span>
         <span className="font-data text-body text-muted">{count}</span>

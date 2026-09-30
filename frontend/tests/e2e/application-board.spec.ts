@@ -100,6 +100,8 @@ test("drag a card to another column with the mouse", async ({ page }) => {
 
   // A mouse drags the whole card (the handle is the keyboard's way in); grab it by its padding.
   const source = column(page, "Applied").getByRole("row").filter({ hasText: title });
+  // The board scrolls sideways: bring the target column (and, next to it, the card) into view first.
+  await column(page, "Interviewing").scrollIntoViewIfNeeded();
   const from = await source.boundingBox();
   const to = await column(page, "Interviewing").boundingBox();
   if (!from || !to) throw new Error("card or column not laid out");
