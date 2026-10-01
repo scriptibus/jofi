@@ -142,6 +142,11 @@ async function recognisesKnownLinks(page: Page, text: Texts) {
 }
 
 async function receivesShares(page: Page, text: Texts) {
+  const sent: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/applications/imports"))
+      sent.push(`${request.method()} ${request.url()}`);
+  });
   const shared = new URLSearchParams({ title: "Platform Engineer", text: "Look at this", url: SEEDED_LINK });
   await page.goto(`/share?${shared.toString()}`);
 
@@ -150,11 +155,18 @@ async function receivesShares(page: Page, text: Texts) {
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel(text.urlLabel)).toHaveValue(SEEDED_LINK);
   await expect(page).toHaveURL(/\/share$/);
+  // Focus is inside the dialog but not on the field or the button, so a stray Enter confirms nothing.
+  await expect(dialog.getByLabel(text.urlLabel)).not.toBeFocused();
+  await expect(dialog.getByRole("button", { name: text.submit, exact: true })).not.toBeFocused();
+  await expect(dialog).toBeFocused();
   await expectNoA11yViolations(page);
   await snapshot(page, "share-dialog");
+  // Nothing was sent to the import endpoints before the user pressed Import.
+  expect(sent).toEqual([]);
 
   await dialog.getByRole("button", { name: text.submit, exact: true }).click();
   await expect(dialog.getByText(text.already)).toBeVisible();
+  expect(sent).toHaveLength(1);
 
   // Closed, the page still shows what was shared and can reopen the dialog.
   await dialog.getByRole("button", { name: text.close }).click();

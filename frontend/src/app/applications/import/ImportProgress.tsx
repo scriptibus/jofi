@@ -38,7 +38,7 @@ export function ImportProgress({ flow, onClose }: ImportProgressProps) {
 
 function Pending({ onClose }: { onClose: () => void }) {
   return (
-    <Status key="pending" label={m.import_title()}>
+    <Status key="pending" label={m.import_pending_title()}>
       <Alert tone="info" title={m.import_pending_title()}>
         <p>{m.import_pending_hint()}</p>
       </Alert>
@@ -54,7 +54,7 @@ function Pending({ onClose }: { onClose: () => void }) {
 /** The import was accepted, but reading its status failed: it may well be running. */
 function StatusUnknown({ flow, onClose }: ImportProgressProps) {
   return (
-    <Status key="status-failed" label={m.import_title()}>
+    <Status key="status-failed" label={m.import_status_failed()}>
       <Alert tone="error" title={m.import_status_failed()}>
         <p>{m.import_status_failed_hint()}</p>
       </Alert>
@@ -78,7 +78,7 @@ interface ResultProps extends ImportProgressProps {
 function Done({ current, flow, onClose }: ResultProps) {
   const title = flow.alreadyImported ? m.import_already_title() : m.import_done_title();
   return (
-    <Status key="done" label={m.import_title()}>
+    <Status key="done" label={title}>
       <Alert tone="success" title={title}>
         <p>{flow.alreadyImported ? m.import_already_hint() : m.import_done_hint()}</p>
         {current.applicationId ? (
@@ -105,7 +105,7 @@ function Done({ current, flow, onClose }: ResultProps) {
 
 function Failed({ current, flow, onClose }: ResultProps) {
   return (
-    <Status key="failed" label={m.import_title()}>
+    <Status key="failed" label={m.import_failed_title()}>
       <Alert tone="error" title={m.import_failed_title()}>
         <p>{failureMessage(current.failure)}</p>
         {needsAiSetup(current.failure) ? (

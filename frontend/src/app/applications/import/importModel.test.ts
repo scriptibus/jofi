@@ -5,12 +5,15 @@ import { describe, expect, it } from "vitest";
 import { ApiProblemError } from "../../../api/fetcher";
 import { PostingImportResponseFailure } from "../../../api/generated/jofi";
 import {
+  cleanShared,
   describeStartError,
   draftFromShare,
   failureMessage,
   isRetryable,
   needsAiSetup,
   offersPasting,
+  PREVIEW_LIMIT,
+  previewOf,
   startErrorMessage,
   violationMessage,
   wasAlreadyImported,
@@ -51,6 +54,16 @@ describe("describeStartError", () => {
     });
   });
 
+  it("tells the cap on concurrent imports from the login throttle, although both are a 429", () => {
+    const busy = applicationProblem(429, "import-busy");
+
+    expect(describeStartError(busy)).toEqual({ kind: "busy" });
+    expect(startErrorMessage({ kind: "busy" })).toBe(
+      "Other imports are running right now. Try again in a moment.",
+    );
+    expect(startErrorMessage(describeStartError(busy))).not.toContain("Too many failed attempts");
+  });
+
   it("describes anything else generically, an unreadable violation list included", () => {
     expect(describeStartError(new TypeError("offline"))).toMatchObject({
       kind: "other",
@@ -74,6 +87,7 @@ describe("violationMessage", () => {
     ["url", "TIMEOUT", "too long to answer"],
     ["url", "TOO_LARGE", "too large"],
     ["url", "NOT_HTML", "does not lead to a web page"],
+    ["url", "REFUSED", "refused the request"],
     ["url", "LOGIN_REQUIRED", "behind a login"],
     ["url", "NO_TEXT", "no readable text"],
     ["text", "REQUIRED", "Paste the text"],
@@ -172,6 +186,26 @@ describe("draftFromShare", () => {
     });
   });
 
+  it("keeps the shared text when it takes a link, so pasting instead has it", () => {
+    const draft = draftFromShare({
+      title: "Dev",
+      text: "Senior Kotlin Developer, Berlin. Apply at https://corp.example/apply",
+    });
+
+    expect(draft).toMatchObject({ source: "url", url: "https://corp.example/apply" });
+    expect(draft.text).toBe("Dev\n\nSenior Kotlin Developer, Berlin. Apply at https://corp.example/apply");
+  });
+
+  it.each([
+    ["https://en.wikipedia.org/wiki/Job_(role)", "https://en.wikipedia.org/wiki/Job_(role)"],
+    ["(see https://jobs.example/42)", "https://jobs.example/42"],
+    ["see https://jobs.example/a_(b)).", "https://jobs.example/a_(b)"],
+    ["https://jobs.example/x]", "https://jobs.example/x"],
+    ["https://jobs.example/x?q=(1", "https://jobs.example/x?q=(1"],
+  ])("cuts only a closing bracket without its opening partner from %s", (text, link) => {
+    expect(draftFromShare({ text }).url).toBe(link);
+  });
+
   it("imports title and text as text when there is no link", () => {
     expect(draftFromShare({ title: "Kotlin Developer", text: "ACME GmbH, Berlin" })).toMatchObject({
       source: "text",
@@ -188,5 +222,28 @@ describe("draftFromShare", () => {
     const draft = draftFromShare({ url, title: "Job" });
     expect(draft.source).toBe("text");
     expect(draft.url).toBe("");
+  });
+});
+
+describe("cleanShared", () => {
+  it("removes control and direction-changing characters, and keeps emoji joiners", () => {
+    expect(cleanShared("https://evil.example/\u202Egnp.elpmaxe\u200B\u0000", false)).toBe(
+      "https://evil.example/gnp.elpmaxe",
+    );
+    expect(cleanShared("ht\ttps://a.example/\r\nx", false)).toBe("https://a.example/x");
+    expect(cleanShared("line 1\r\nline\u2066 2\u2069\n\u0007x", true)).toBe("line 1\nline 2\nx");
+    expect(cleanShared("\u{1F468}\u200D\u{1F4BB}", true)).toBe("\u{1F468}\u200D\u{1F4BB}");
+  });
+});
+
+describe("previewOf", () => {
+  it("shows a short text whole and cuts a long one, never inside a surrogate pair", () => {
+    expect(previewOf("short")).toEqual({ shown: "short", truncated: false });
+    const long = `${"a".repeat(PREVIEW_LIMIT - 1)}\u{1F600}rest`;
+
+    const { shown, truncated } = previewOf(long);
+
+    expect(truncated).toBe(true);
+    expect(shown).toBe("a".repeat(PREVIEW_LIMIT - 1));
   });
 });

@@ -23,6 +23,7 @@ import io.github.scriptibus.jofi.shared.domain.http.FetchedResource
 import io.github.scriptibus.jofi.shared.domain.http.OutboundRequest
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import java.net.URI
+import java.time.Duration
 
 /**
  * Fetches a job posting through [OutboundHttpPort] (the SSRF guard) and extracts its main text (spec §8.1, #97), after
@@ -35,13 +36,16 @@ import java.net.URI
 class FetchPostingTextUseCase(
     private val ai: CheckAiTaskAssignedPort,
     private val http: OutboundHttpPort,
+    timeout: Duration = FetchLimits.DEFAULT_TIMEOUT,
 ) : FetchPostingTextPort {
+    private val limits = FetchLimits(maxBodyBytes = POSTING_MAX_BODY_BYTES, timeout = timeout)
+
     override fun execute(address: WebAddress): ApplicationResult<DescriptionText> =
         ai.extractionAssigned().then { fetch(address) }
 
     private fun fetch(address: WebAddress): ApplicationResult<DescriptionText> {
         val uri = address.toUriOrNull() ?: return invalid(ApplicationProblem.INVALID_URL)
-        val request = OutboundRequest(uri, acceptedContentTypes = HTML_CONTENT_TYPES, limits = POSTING_LIMITS)
+        val request = OutboundRequest(uri, acceptedContentTypes = HTML_CONTENT_TYPES, limits = limits)
         return when (val result = http.fetch(request)) {
             is FetchResult.Success -> describe(result.resource, uri)
             else -> invalid(result.problem())
@@ -67,7 +71,11 @@ class FetchPostingTextUseCase(
         }
 
     private fun httpErrorProblem(statusCode: Int): ApplicationProblem =
-        if (statusCode in LOGIN_STATUS_CODES) ApplicationProblem.LOGIN_REQUIRED else ApplicationProblem.UNREACHABLE
+        when (statusCode) {
+            UNAUTHORIZED -> ApplicationProblem.LOGIN_REQUIRED
+            FORBIDDEN -> ApplicationProblem.REFUSED
+            else -> ApplicationProblem.UNREACHABLE
+        }
 
     private fun describe(
         resource: FetchedResource,
@@ -126,7 +134,8 @@ class FetchPostingTextUseCase(
         ApplicationResult.Invalid(listOf(ApplicationViolation(ApplicationField.SOURCE_URL, problem)))
 
     private companion object {
-        val LOGIN_STATUS_CODES = setOf(401, 403)
+        const val UNAUTHORIZED = 401
+        const val FORBIDDEN = 403
         val HTML_CONTENT_TYPES = setOf("text/html", "application/xhtml+xml")
         const val BYTE_ORDER_MARK = "\uFEFF"
         val LOGIN_SEGMENTS = setOf("login", "log-in", "signin", "sign-in", "sso", "authwall")
@@ -137,6 +146,5 @@ class FetchPostingTextUseCase(
          * guard's 5 MB default keeps one fetch's memory and parsing work small.
          */
         const val POSTING_MAX_BODY_BYTES = 1L * 1024 * 1024
-        val POSTING_LIMITS = FetchLimits(maxBodyBytes = POSTING_MAX_BODY_BYTES)
     }
 }

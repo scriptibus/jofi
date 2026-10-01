@@ -129,8 +129,11 @@ enum class ApplicationProblem {
     /** The link does not lead to an HTML page (a PDF, an image, JSON). */
     NOT_HTML,
 
-    /** The posting is behind a login: the server refused access (401, 403) or redirected to a login page. */
+    /** The posting is behind a login: the server answered 401 or redirected to a login page. */
     LOGIN_REQUIRED,
+
+    /** The server refused the request (403): a login, a bot protection or a block; the user can paste the text. */
+    REFUSED,
 
     /** The page has no readable text, e.g. because a script builds it in the browser. */
     NO_TEXT,

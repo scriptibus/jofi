@@ -93,7 +93,7 @@ describe("Import dialog: a link", () => {
     const { user } = start({ pendingPolls: 5 });
     const dialog = await importLink(user);
 
-    const status = await within(dialog).findByRole("region", { name: "Import a job posting" });
+    const status = await within(dialog).findByRole("region", { name: "Reading the posting…" });
     expect(status).toHaveFocus();
   });
 
@@ -135,6 +135,7 @@ describe("Import dialog: a link", () => {
     ["TIMEOUT", /took too long to answer/],
     ["TOO_LARGE", /too large to read/],
     ["NOT_HTML", /does not lead to a web page/],
+    ["REFUSED", /refused the request/],
     ["LOGIN_REQUIRED", /behind a login/],
     ["NO_TEXT", /no readable text/],
   ])("explains %s and offers the text instead", async (code, message) => {
@@ -235,6 +236,92 @@ describe("Import dialog: problems that are not about the input", () => {
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("being imported right now");
     expect(within(dialog).getByRole("button", { name: "Import" })).toBeEnabled();
+  });
+});
+
+describe("Import dialog: the cap on concurrent imports", () => {
+  it("says other imports are running, keeps the form, and lets the user try again", async () => {
+    const { state, user } = start({ startConflict: "import-busy" });
+    const dialog = await importLink(user);
+
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert).toHaveTextContent("Other imports are running right now. Try again in a moment.");
+    expect(alert).not.toHaveTextContent("Too many failed attempts");
+    expect(within(dialog).getByLabelText("Link to the posting")).toHaveValue(LINK);
+
+    state.startConflict = null;
+    await user.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    expect(await within(dialog).findByText("Posting imported")).toBeVisible();
+  });
+});
+
+describe("Import dialog: polling stops", () => {
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+  it("when the import is done, with the dialog open", async () => {
+    const { state, user } = start();
+    const dialog = await importLink(user);
+    await within(dialog).findByText("Posting imported");
+    const reads = state.reads.length;
+
+    await settled();
+
+    expect(state.reads).toHaveLength(reads);
+  });
+
+  it("when the dialog is closed on a result", async () => {
+    const { state, user } = start();
+    const dialog = await importLink(user);
+    await within(dialog).findByText("Posting imported");
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const reads = state.reads.length;
+
+    await settled();
+
+    expect(state.reads).toHaveLength(reads);
+  });
+
+  it("after it followed an import to its end in the background, whose application the list then picks up", async () => {
+    const { app, state, user } = start({ pendingPolls: 3 });
+    const refresh = vi.spyOn(app.queryClient, "invalidateQueries");
+    const dialog = await importLink(user);
+    await within(dialog).findByText("Reading the posting…");
+
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await waitFor(() =>
+      expect(
+        refresh.mock.calls.some(([filters]) =>
+          JSON.stringify(filters?.queryKey).includes("/api/applications"),
+        ),
+      ).toBe(true),
+    );
+    const reads = state.reads.length;
+    await settled();
+    expect(state.reads).toHaveLength(reads);
+  });
+
+  it("without any refresh when the background import failed", async () => {
+    const { app, state, user } = start({
+      pendingPolls: 2,
+      outcome: { status: "FAILED", failure: "NOT_A_POSTING" },
+    });
+    const dialog = await importLink(user);
+    await within(dialog).findByText("Reading the posting…");
+    const refresh = vi.spyOn(app.queryClient, "invalidateQueries");
+
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(state.reads.length).toBeGreaterThan(2));
+    await settled();
+    const reads = state.reads.length;
+    await settled();
+
+    expect(state.reads).toHaveLength(reads);
+    expect(refresh).not.toHaveBeenCalled();
   });
 });
 

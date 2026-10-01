@@ -152,7 +152,7 @@ failure reason, the created application; never the text) and `POST /{importId}/r
 `import-not-retryable` unless failed or stalled). `POST /url` (#97; 202 for a new or still-pending import, 200 with the
 existing application when the normalised link was imported before; 400 with an `originalUrl` violation
 `INVALID_URL` / `NOT_ALLOWED` / `UNREACHABLE` / `TIMEOUT` /
-`TOO_LARGE` / `NOT_HTML` / `LOGIN_REQUIRED` / `NO_TEXT`; 409 `ai-not-configured`): it translates and calls `StartUrlImportPort`.
+`TOO_LARGE` / `NOT_HTML` / `LOGIN_REQUIRED` / `REFUSED` / `NO_TEXT`; 409 `ai-not-configured`): it translates and calls `StartUrlImportPort`.
 
 ## Documented problem responses (ADR-0041)
 

@@ -81,7 +81,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.get as wireMockGet
  * destination (and two names for a shortener and for LinkedIn, resolved to loopback) [HttpTestConfig] allowlists for
  * this test only; production posting fetches get no allowlist at all. Also the concurrent double submits (F6).
  */
-@SpringBootTest
+@SpringBootTest(properties = ["jofi.import.fetch-timeout=PT1S"])
 @ExtendWith(OutputCaptureExtension::class)
 @AutoConfigureMockMvc
 @Import(PostgresTestConfiguration::class, PostingUrlImportFlowTest.HttpTestConfig::class)
@@ -334,7 +334,7 @@ class PostingUrlImportFlowTest(
     }
 
     @Test
-    fun `a server that does not answer within the fetch timeout is refused as a timeout`() {
+    fun `a server that does not answer within the configured fetch timeout is refused as a timeout`() {
         val browser = owner()
         FAKE_POSTING.stubFor(
             wireMockGet(urlEqualTo("/slow")).willReturn(aResponse().withStatus(200).withFixedDelay(SLOW_MILLIS)),
@@ -423,7 +423,7 @@ class PostingUrlImportFlowTest(
     }
 
     internal companion object {
-        const val SLOW_MILLIS = 21_000
+        const val SLOW_MILLIS = 3_000
         const val SHORTENER_HOST = "short.example"
         const val DISALLOWED_HOST = "www.linkedin.com"
         const val PASSWORD = "correct horse battery staple"

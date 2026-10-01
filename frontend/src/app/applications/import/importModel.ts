@@ -35,6 +35,7 @@ export type ImportStartError =
   | { kind: "violation"; violation: ImportViolation }
   | { kind: "ai-not-configured" }
   | { kind: "in-progress" }
+  | { kind: "busy" }
   | { kind: "other"; failure: ErrorDescription };
 
 /** The backend names the link field `originalUrl` (it is the source's URL) and the text field `description`. */
@@ -44,6 +45,8 @@ const FIELD_SOURCES: Readonly<Record<string, ImportSource>> = { originalUrl: "ur
 export function describeStartError(error: unknown): ImportStartError {
   if (isProblem(error, `${APPLICATION_PROBLEMS}ai-not-configured`)) return { kind: "ai-not-configured" };
   if (isProblem(error, `${APPLICATION_PROBLEMS}import-in-progress`)) return { kind: "in-progress" };
+  // Before anything generic: a 429 here is the cap on concurrent imports, not the login throttle (`describeError`).
+  if (isProblem(error, `${APPLICATION_PROBLEMS}import-busy`)) return { kind: "busy" };
   const violation = violationOf(error);
   return violation ? { kind: "violation", violation } : { kind: "other", failure: describeError(error) };
 }
@@ -67,6 +70,7 @@ const URL_MESSAGES: Readonly<Record<string, () => string>> = {
   TIMEOUT: m.import_url_timeout,
   TOO_LARGE: m.import_url_too_large,
   NOT_HTML: m.import_url_not_html,
+  REFUSED: m.import_url_refused,
   LOGIN_REQUIRED: m.import_url_login_required,
   NO_TEXT: m.import_url_no_text,
 };
@@ -92,6 +96,8 @@ export function startErrorMessage(error: ImportStartError): string {
       return m.import_error_ai_not_configured();
     case "in-progress":
       return m.import_error_in_progress();
+    case "busy":
+      return m.import_error_busy();
     case "other":
       return error.failure.message;
   }
@@ -164,7 +170,53 @@ export interface SharedContent {
 }
 
 const HTTP_URL = /https?:\/\/[^\s<>"']+/i;
-const TRAILING_PUNCTUATION = /[.,;:!?)\]}]+$/;
+const TRAILING_PUNCTUATION = /[.,;:!?]+$/;
+const CLOSING_TO_OPENING: Readonly<Record<string, string>> = { ")": "(", "]": "[", "}": "{" };
+// Control characters, and the invisible ones that reorder or hide text (bidi marks and overrides, zero-width space,
+// word joiner, byte order mark). Zero-width joiners stay: emoji need them.
+const INVISIBLE = /[\p{Cc}\u061C\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/gu;
+
+/** What is shown and sent of a shared part: no control or direction-changing characters (line breaks if wanted). */
+export function cleanShared(value: string, multiline: boolean): string {
+  const lines = multiline ? value.replace(/\r\n?/g, "\n").replace(/\t/g, " ").split("\n") : [value];
+  return lines.map((line) => line.replace(INVISIBLE, "")).join("\n");
+}
+
+/** How much of a shared text the share page prints; the dialog's field holds all of it. */
+export const PREVIEW_LIMIT = 2000;
+
+/** The start of [text] for the page's preview, cut at [PREVIEW_LIMIT] characters (never inside a surrogate pair). */
+export function previewOf(text: string): { shown: string; truncated: boolean } {
+  if (text.length <= PREVIEW_LIMIT) return { shown: text, truncated: false };
+  const cut = text.slice(0, PREVIEW_LIMIT);
+  const last = cut.charCodeAt(cut.length - 1);
+  return { shown: last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut, truncated: true };
+}
+
+/** Removes closing brackets that have no opening partner in the link (a sentence's `)`); balanced ones stay. */
+function withoutUnbalancedClosers(link: string): string {
+  let end = link.length;
+  while (end > 0) {
+    const closer = link.charAt(end - 1);
+    const opening = CLOSING_TO_OPENING[closer];
+    if (opening === undefined) break;
+    const body = link.slice(0, end - 1);
+    if (body.split(opening).length > body.split(closer).length) break;
+    end -= 1;
+  }
+  return link.slice(0, end);
+}
+
+function linkIn(text: string | undefined): string | undefined {
+  const found = text?.match(HTTP_URL)?.[0];
+  if (found === undefined) return undefined;
+  let link = found;
+  for (let previous = ""; previous !== link; ) {
+    previous = link;
+    link = withoutUnbalancedClosers(link.replace(TRAILING_PUNCTUATION, ""));
+  }
+  return link;
+}
 
 function httpUrl(candidate: string | undefined): string | undefined {
   if (!candidate) return undefined;
@@ -183,8 +235,8 @@ function httpUrl(candidate: string | undefined): string | undefined {
  * to import. Nothing is fetched or sent here: the user sees the dialog and confirms first.
  */
 export function draftFromShare(shared: SharedContent): ImportDraft {
-  const inText = shared.text?.match(HTTP_URL)?.[0].replace(TRAILING_PUNCTUATION, "");
-  const link = httpUrl(shared.url) ?? httpUrl(inText);
-  if (link) return { ...EMPTY_DRAFT, source: "url", url: link };
-  return { ...EMPTY_DRAFT, source: "text", text: [shared.title, shared.text].filter(Boolean).join("\n\n") };
+  const link = httpUrl(shared.url) ?? httpUrl(linkIn(shared.text));
+  // The text stays in the draft even when a link is taken: "Paste the text instead" (a refused LinkedIn link) needs it.
+  const text = [shared.title, shared.text].filter(Boolean).join("\n\n");
+  return link ? { ...EMPTY_DRAFT, source: "url", url: link, text } : { ...EMPTY_DRAFT, source: "text", text };
 }

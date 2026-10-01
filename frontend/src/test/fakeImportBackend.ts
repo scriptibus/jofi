@@ -20,8 +20,8 @@ export interface FakeImportState {
   refusedLinks: Record<string, string>;
   /** The text import answers this violation (`REQUIRED`, `TOO_LONG`, ...) with 400. */
   textViolation: string | null;
-  /** Answer every start with 409 `ai-not-configured` / `import-in-progress`. */
-  startConflict: "ai-not-configured" | "import-in-progress" | null;
+  /** Answer every start with 409 `ai-not-configured` / `import-in-progress`, or 429 `import-busy` (the cap on concurrent fetches, no `Retry-After`). */
+  startConflict: "ai-not-configured" | "import-in-progress" | "import-busy" | null;
   /** How many reads of a new import answer PENDING before it ends as `outcome`. */
   pendingPolls: number;
   /** How a new import ends once it is no longer pending. */
@@ -112,7 +112,8 @@ export function fakeImportBackend(initial: Partial<FakeImportState> = {}) {
     http.post(`${origin()}/api/applications/imports/text`, async ({ request }) => {
       await state.startGate;
       const body = (await request.json()) as { description: string };
-      if (state.startConflict) return problem(409, state.startConflict);
+      if (state.startConflict)
+        return problem(state.startConflict === "import-busy" ? 429 : 409, state.startConflict);
       if (state.textViolation) return invalid("description", state.textViolation);
       state.started.push({ kind: "text", body });
       return HttpResponse.json(pending(state.outcome).response, { status: 202 });
@@ -120,7 +121,8 @@ export function fakeImportBackend(initial: Partial<FakeImportState> = {}) {
     http.post(`${origin()}/api/applications/imports/url`, async ({ request }) => {
       await state.startGate;
       const body = (await request.json()) as { url: string };
-      if (state.startConflict) return problem(409, state.startConflict);
+      if (state.startConflict)
+        return problem(state.startConflict === "import-busy" ? 429 : 409, state.startConflict);
       const refused = state.refusedLinks[body.url];
       if (refused) return invalid("originalUrl", refused);
       state.started.push({ kind: "url", body });

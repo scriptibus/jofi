@@ -243,7 +243,8 @@ class PostingImportControllerTest(
             FetchResult.Timeout to "TIMEOUT",
             FetchResult.TooLarge(1_048_576) to "TOO_LARGE",
             FetchResult.ContentTypeNotAccepted("application/pdf") to "NOT_HTML",
-            FetchResult.HttpError(403) to "LOGIN_REQUIRED",
+            FetchResult.HttpError(401) to "LOGIN_REQUIRED",
+            FetchResult.HttpError(403) to "REFUSED",
         ).forEach { (fetched, code) ->
             every { ports.http.fetch(any()) } returns fetched
             json(mvc.post().uri("/api/applications/imports/url"), """{"url":"${postingUrl.value}"}""")

@@ -20,27 +20,54 @@ export interface ImportPostingDialogProps {
   onClose: () => void;
   /** What the form starts with, e.g. what another app shared. The user still confirms before anything is sent. */
   initial?: ImportDraft;
+  /**
+   * Focus the field on opening (the default: the user pressed "Import posting" and starts typing). A dialog that
+   * opens by itself, like the share target's, sets this to false: focus lands on the dialog, so a stray Enter
+   * cannot confirm an import the user has not looked at.
+   */
+  autoFocusField?: boolean;
 }
 
 /**
  * Import a job posting from a link or its pasted text (spec §8.1): the form, then the import's status (running,
  * done with its application, or failed with what to do). Nothing is sent before the user presses "Import".
  */
-export function ImportPostingDialog({ isOpen, onClose, initial = EMPTY_DRAFT }: ImportPostingDialogProps) {
+export function ImportPostingDialog({
+  isOpen,
+  onClose,
+  initial = EMPTY_DRAFT,
+  autoFocusField = true,
+}: ImportPostingDialogProps) {
   return (
     <Dialog isOpen={isOpen} title={m.import_title()} onClose={onClose}>
       {/* Mounted per opening, so each opening starts from `initial` with no import of an earlier one. */}
-      {isOpen ? <ImportContent initial={initial} onClose={onClose} /> : null}
+      {isOpen ? <ImportContent initial={initial} onClose={onClose} autoFocusField={autoFocusField} /> : null}
     </Dialog>
   );
 }
 
-function ImportContent({ initial, onClose }: { initial: ImportDraft; onClose: () => void }) {
+function ImportContent({
+  initial,
+  onClose,
+  autoFocusField,
+}: {
+  initial: ImportDraft;
+  onClose: () => void;
+  autoFocusField: boolean;
+}) {
   const flow = usePostingImport();
   const [draft, setDraft] = useState(initial);
   if (flow.current !== undefined || flow.statusFailed)
     return <ImportProgress flow={flow} onClose={onClose} />;
-  return <ImportForm flow={flow} draft={draft} onDraft={setDraft} onClose={onClose} />;
+  return (
+    <ImportForm
+      flow={flow}
+      draft={draft}
+      onDraft={setDraft}
+      onClose={onClose}
+      autoFocusField={autoFocusField}
+    />
+  );
 }
 
 interface ImportFormProps {
@@ -48,9 +75,10 @@ interface ImportFormProps {
   draft: ImportDraft;
   onDraft: (draft: ImportDraft) => void;
   onClose: () => void;
+  autoFocusField: boolean;
 }
 
-function ImportForm({ flow, draft, onDraft, onClose }: ImportFormProps) {
+function ImportForm({ flow, draft, onDraft, onClose, autoFocusField }: ImportFormProps) {
   const { startError } = flow;
   const edit = (change: Partial<ImportDraft>) => {
     flow.dismissError();
@@ -87,7 +115,7 @@ function ImportForm({ flow, draft, onDraft, onClose }: ImportFormProps) {
           inputMode="url"
           autoComplete="off"
           spellCheck="false"
-          autoFocus
+          autoFocus={autoFocusField}
         />
       ) : (
         <TextArea
@@ -100,7 +128,7 @@ function ImportForm({ flow, draft, onDraft, onClose }: ImportFormProps) {
           isInvalid={invalid === "text"}
           isRequired
           rows={8}
-          autoFocus
+          autoFocus={autoFocusField}
         />
       )}
       <div className="flex flex-wrap justify-end gap-3">

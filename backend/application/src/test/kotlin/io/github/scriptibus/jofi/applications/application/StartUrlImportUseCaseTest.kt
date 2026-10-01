@@ -198,7 +198,7 @@ class StartUrlImportUseCaseTest {
             FetchResult.HttpError(404) to ApplicationProblem.UNREACHABLE,
             FetchResult.HttpError(503) to ApplicationProblem.UNREACHABLE,
             FetchResult.HttpError(401) to ApplicationProblem.LOGIN_REQUIRED,
-            FetchResult.HttpError(403) to ApplicationProblem.LOGIN_REQUIRED,
+            FetchResult.HttpError(403) to ApplicationProblem.REFUSED,
             FetchResult.Timeout to ApplicationProblem.TIMEOUT,
             FetchResult.TooLarge(1_048_576) to ApplicationProblem.TOO_LARGE,
             FetchResult.ContentTypeNotAccepted("application/pdf") to ApplicationProblem.NOT_HTML,

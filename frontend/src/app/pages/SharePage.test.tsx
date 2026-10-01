@@ -25,12 +25,13 @@ afterAll(() => server.close());
 const GOOD_PASSWORD = "correct horse battery staple";
 
 function start(path: string, authenticated = true) {
+  const entries = [path];
   const auth = fakeAuthBackend({ authenticated });
   const imports = fakeImportBackend({ pendingPolls: 0 });
   server.use(...imports.handlers, ...auth.handlers);
-  const app = createApp(createMemoryHistory({ initialEntries: [path] }));
+  const app = createApp(createMemoryHistory({ initialEntries: entries }));
   render(<App app={app} />);
-  return { ...imports, router: app.router, user: userEvent.setup() };
+  return { ...imports, router: app.router, entries, user: userEvent.setup() };
 }
 
 const shared = (params: Record<string, string>) => `/share?${new URLSearchParams(params).toString()}`;
@@ -119,6 +120,58 @@ describe("share target", () => {
     expect(within(dialog).getByLabelText("Link to the posting")).toHaveValue("https://jobs.example/42");
   });
 
+  it("keeps the shared text when a link is taken, so a refused link can be replaced by the text", async () => {
+    const { state, user } = start(
+      shared({ text: "Senior Kotlin Developer at ACME. Apply at https://www.linkedin.com/jobs/view/1" }),
+    );
+    state.refusedLinks["https://www.linkedin.com/jobs/view/1"] = "NOT_ALLOWED";
+
+    const dialog = await screen.findByRole("dialog", { name: "Import a job posting" });
+    await user.click(within(dialog).getByRole("button", { name: "Import" }));
+    await user.click(await within(dialog).findByRole("button", { name: "Paste the text instead" }));
+
+    expect(within(dialog).getByLabelText("Text of the posting")).toHaveValue(
+      "Senior Kotlin Developer at ACME. Apply at https://www.linkedin.com/jobs/view/1",
+    );
+  });
+
+  it("puts focus on the dialog, not on a field, so a stray Enter imports nothing", async () => {
+    const { state, user } = start(shared({ url: "https://jobs.example/42" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Import a job posting" });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(within(dialog).getByLabelText("Link to the posting")).not.toHaveFocus();
+    expect(within(dialog).getByRole("button", { name: "Import" })).not.toHaveFocus();
+
+    await user.keyboard("{Enter}");
+
+    expect(state.started).toEqual([]);
+  });
+
+  it("shows and sends the shared link without control or direction-changing characters", async () => {
+    const { state, user } = start(shared({ url: "https://jobs.example/\u202Egnp.42\u200B\u0000" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Import a job posting" });
+    expect(within(dialog).getByLabelText("Link to the posting")).toHaveValue("https://jobs.example/gnp.42");
+    await user.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    await within(dialog).findByText("Posting imported");
+    expect(state.started).toEqual([{ kind: "url", body: { url: "https://jobs.example/gnp.42" } }]);
+  });
+
+  it("prints only the start of a very long shared text, while the dialog holds all of it", async () => {
+    const long = `${"word ".repeat(1000)}THE END`;
+    const { user } = start(shared({ text: long }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Import a job posting" });
+    expect(within(dialog).getByLabelText("Text of the posting")).toHaveValue(long);
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    expect(screen.queryByText(/THE END/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Only the start of the text is shown here/)).toBeVisible();
+  });
+
   it("opens no dialog when nothing was shared", async () => {
     start("/share");
 
@@ -130,7 +183,10 @@ describe("share target", () => {
   });
 
   it("asks a logged-out user to log in first, then brings them back to the shared content", async () => {
-    const { state, router, user } = start(shared({ url: "https://jobs.example/42" }), false);
+    const { state, router, entries, user } = start(
+      shared({ text: "SECRET salary", url: "https://jobs.example/42" }),
+      false,
+    );
 
     expect(await screen.findByRole("heading", { level: 1, name: "Welcome back" })).toBeVisible();
     expect(state.started).toEqual([]);
@@ -142,5 +198,8 @@ describe("share target", () => {
     expect(within(dialog).getByLabelText("Link to the posting")).toHaveValue("https://jobs.example/42");
     expect(state.started).toEqual([]);
     await waitFor(() => expect(router.state.location.href).toBe("/share"));
+    // The login entry that carried the content was replaced, and the strip replaced the share entry: no entry is left.
+    expect(JSON.stringify(entries)).not.toContain("SECRET");
+    expect(entries).toEqual(["/share"]);
   });
 });

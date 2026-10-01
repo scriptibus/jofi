@@ -4,11 +4,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import {
-  getGetPipelineOverviewQueryKey,
   getGetPostingImportQueryKey,
-  getListRecentActivityQueryKey,
-  getSearchApplicationsQueryKey,
-  getSearchCompaniesQueryKey,
   type PostingImportResponse,
   useGetPostingImport,
   useRetryPostingImport,
@@ -22,6 +18,7 @@ import {
   POLL_INTERVAL_MS,
   wasAlreadyImported,
 } from "./importModel";
+import { refreshAfterImport, watchImport } from "./importWatch";
 
 const LOCAL = { mutation: { meta: { errorHandledLocally: true } } };
 
@@ -121,19 +118,24 @@ export function usePostingImport(): PostingImportFlow {
   };
 }
 
-/** A new application (and maybe a new company) exists once an import succeeded: the lists ask again, once. */
+/**
+ * Once an import succeeded the lists ask again (once). If the dialog goes away while the import still runs, a
+ * background watch takes over (`watchImport`), so the list picks the application up without the dialog.
+ */
 function useRefreshListsWhenDone(current: PostingImportResponse | undefined) {
   const queryClient = useQueryClient();
   const refreshed = useRef<string | null>(null);
+  const latest = useRef(current);
+  latest.current = current;
   useEffect(() => {
     if (current?.status !== "SUCCEEDED" || refreshed.current === current.id) return;
     refreshed.current = current.id;
-    for (const queryKey of [
-      getSearchApplicationsQueryKey(),
-      getSearchCompaniesQueryKey(),
-      getGetPipelineOverviewQueryKey(),
-      getListRecentActivityQueryKey(),
-    ])
-      void queryClient.invalidateQueries({ queryKey });
+    refreshAfterImport(queryClient);
   }, [current, queryClient]);
+  useEffect(
+    () => () => {
+      if (latest.current?.status === "PENDING") watchImport(queryClient, latest.current.id);
+    },
+    [queryClient],
+  );
 }
