@@ -23,21 +23,13 @@ object PostingHtmlText {
 
     private fun decodeEntities(text: String): String {
         val named = NAMED_ENTITIES.entries.fold(text) { decoded, (name, value) -> decoded.replace("&$name;", value) }
-        val hex =
-            HEX_ENTITY.replace(named) {
-                it.groupValues[1]
-                    .toInt(HEX_RADIX)
-                    .toChar()
-                    .toString()
-            }
-        return NUMERIC_ENTITY.replace(hex) { match ->
-            match.groupValues[1]
-                .toIntOrNull()
-                ?.toChar()
-                ?.toString()
-                ?: match.value
-        }
+        val hex = HEX_ENTITY.replace(named) { codePointText(it.groupValues[1].toIntOrNull(HEX_RADIX)) ?: it.value }
+        return NUMERIC_ENTITY.replace(hex) { codePointText(it.groupValues[1].toIntOrNull()) ?: it.value }
     }
+
+    /** The text of one code point, or null when the number is not a valid one (an untrusted page can say anything). */
+    private fun codePointText(codePoint: Int?): String? =
+        codePoint?.takeIf(Character::isValidCodePoint)?.let { String(Character.toChars(it)) }
 
     private fun collapse(text: String): String {
         val trimmedLines = text.lineSequence().joinToString("\n") { it.trim() }

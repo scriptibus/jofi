@@ -37,4 +37,9 @@ class NormalizedForImportTest {
 
         first.normalizedForImport() shouldBe second.normalizedForImport()
     }
+
+    @Test
+    fun `a host java net URI cannot parse as a server name has no normalised form`() {
+        WebAddress("https://my_team.example/job").normalizedForImport() shouldBe null
+    }
 }

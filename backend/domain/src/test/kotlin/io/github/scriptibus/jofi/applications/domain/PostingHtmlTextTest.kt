@@ -34,6 +34,13 @@ class PostingHtmlTextTest {
     }
 
     @Test
+    fun `invalid numeric entities stay as they are and supplementary code points decode whole`() {
+        val html = "<p>&#xFFFFFFFFFF; &#99999999999; &#x110000; &#x1F600;</p>"
+
+        PostingHtmlText.extract(html) shouldBe "&#xFFFFFFFFFF; &#99999999999; &#x110000; \uD83D\uDE00"
+    }
+
+    @Test
     fun `excess blank lines and trailing whitespace collapse`() {
         val html = "<p>Title</p>\n\n\n\n<p>  padded line  </p>"
 

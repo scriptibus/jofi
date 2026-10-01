@@ -24,15 +24,17 @@ object DisallowedPostingHosts {
  * [this] with its well-known tracking query parameters stripped, its scheme, host and remaining parameter order
  * canonicalised, its default port and fragment dropped (#97): so a link shared twice with different tracking
  * parameters is recognised as the same posting. The stored link becomes this normalised form, not what the user
- * pasted.
+ * pasted. Null when the host is not a valid server name (for example one with an underscore), which `java.net.URI`
+ * cannot parse as an authority.
  */
-fun WebAddress.normalizedForImport(): WebAddress {
+fun WebAddress.normalizedForImport(): WebAddress? {
     val uri = toUri()
+    val host = uri.host ?: return null
     val scheme = uri.scheme.lowercase()
     val defaultPort = if (scheme == "https") HTTPS_PORT else HTTP_PORT
     val portSuffix = if (uri.port == -1 || uri.port == defaultPort) "" else ":${uri.port}"
     val query = keptQuery(uri.rawQuery)?.let { "?$it" }.orEmpty()
-    val normalized = "$scheme://${uri.host.lowercase()}$portSuffix${uri.rawPath.orEmpty()}$query"
+    val normalized = "$scheme://${host.lowercase()}$portSuffix${uri.rawPath.orEmpty()}$query"
     return checkNotNull(WebAddress.parse(normalized)) { "Normalizing $this must still yield a web address" }
 }
 
