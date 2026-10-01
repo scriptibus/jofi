@@ -13,6 +13,7 @@ import io.github.scriptibus.jofi.applications.domain.ImportStatus
 import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.POSTING_IMPORT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.PostingImportRecord
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import org.jooq.DSLContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -74,6 +75,32 @@ class PostingImportRepository(
             }
         }
 
+    override fun findPendingByText(text: DescriptionText): ApplicationStoreResult<PostingImport?> =
+        storeCall("find pending import by text") {
+            ApplicationStoreResult.Success(
+                dsl
+                    .selectFrom(POSTING_IMPORT)
+                    .where(POSTING_IMPORT.STATUS.eq(ImportStatus.PENDING.name))
+                    .and(POSTING_IMPORT.DESCRIPTION.eq(text.value))
+                    .orderBy(POSTING_IMPORT.CREATED_AT.desc())
+                    .limit(1)
+                    .fetchOne(::toDomain),
+            )
+        }
+
+    override fun findPendingBySourceUrl(sourceUrl: WebAddress): ApplicationStoreResult<PostingImport?> =
+        storeCall("find pending import by link") {
+            ApplicationStoreResult.Success(
+                dsl
+                    .selectFrom(POSTING_IMPORT)
+                    .where(POSTING_IMPORT.STATUS.eq(ImportStatus.PENDING.name))
+                    .and(POSTING_IMPORT.SOURCE_URL.eq(sourceUrl.value))
+                    .orderBy(POSTING_IMPORT.CREATED_AT.desc())
+                    .limit(1)
+                    .fetchOne(::toDomain),
+            )
+        }
+
     private fun toRecord(postingImport: PostingImport): PostingImportRecord =
         PostingImportRecord().apply {
             id = postingImport.id.value
@@ -84,6 +111,7 @@ class PostingImportRepository(
             attempt = postingImport.attempt
             createdAt = postingImport.createdAt.atOffset(ZoneOffset.UTC)
             updatedAt = postingImport.updatedAt.atOffset(ZoneOffset.UTC)
+            sourceUrl = postingImport.sourceUrl?.value
         }
 
     private fun toDomain(record: PostingImportRecord): PostingImport =
@@ -96,6 +124,7 @@ class PostingImportRepository(
             record.attempt,
             record.createdAt.toInstant(),
             record.updatedAt.toInstant(),
+            record.sourceUrl?.let(::WebAddress),
         )
 
     /** No exception crosses the port; messages can carry the pasted text, so only the exception type is logged. */

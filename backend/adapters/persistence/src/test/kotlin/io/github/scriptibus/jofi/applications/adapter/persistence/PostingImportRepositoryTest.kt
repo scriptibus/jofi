@@ -13,6 +13,7 @@ import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.POSTING_IMPORT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.PostingImportRecord
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.BeforeEach
@@ -54,6 +55,36 @@ class PostingImportRepositoryTest {
 
         repository.findById(pending.id) shouldBe ApplicationStoreResult.Success(done)
         dsl.fetchValue(POSTING_IMPORT.DESCRIPTION) shouldBe null
+    }
+
+    @Test
+    fun `a URL import keeps its link through every step, including success, for the double-submit lookup`() {
+        val url = WebAddress("https://jobs.example/42")
+        val pending = PostingImport.start(ImportId(UUID.randomUUID()), DescriptionText("Kotlin"), AT, url)
+        repository.add(pending) shouldBe ApplicationStoreResult.Success(Unit)
+
+        repository.findPendingBySourceUrl(url) shouldBe ApplicationStoreResult.Success(pending)
+        repository.findPendingBySourceUrl(WebAddress("https://jobs.example/99")) shouldBe
+            ApplicationStoreResult.Success(null)
+
+        val done = pending.succeeded(ApplicationId(UUID.randomUUID()), AT.plusSeconds(1))
+        repository.update(pending, done) shouldBe ApplicationStoreResult.Success(Unit)
+        repository.findById(pending.id) shouldBe ApplicationStoreResult.Success(done)
+        done.sourceUrl shouldBe url
+        // Succeeded, so no longer the answer to a double-submit lookup.
+        repository.findPendingBySourceUrl(url) shouldBe ApplicationStoreResult.Success(null)
+    }
+
+    @Test
+    fun `a pending import with exactly this text answers a double-submit lookup, a different one does not`() {
+        val text = DescriptionText("Kotlin Developer at ACME")
+        val pending = started(text.value)
+
+        repository.findPendingByText(text) shouldBe ApplicationStoreResult.Success(pending)
+        repository.findPendingByText(DescriptionText("Other text")) shouldBe ApplicationStoreResult.Success(null)
+
+        repository.update(pending, pending.failed(ImportFailure.AI_UNAVAILABLE, AT.plusSeconds(1)))
+        repository.findPendingByText(text) shouldBe ApplicationStoreResult.Success(null)
     }
 
     @Test
@@ -112,6 +143,9 @@ class PostingImportRepositoryTest {
         }
         rejects("posting_import_attempt_valid") { insert { attempt = 0 } }
         rejects("posting_import_updated_after_created") { insert { updatedAt = createdAt.minusSeconds(1) } }
+        rejects("posting_import_source_url_valid") { insert { sourceUrl = "ftp://jobs.example" } }
+        rejects("posting_import_source_url_valid") { insert { sourceUrl = "https://user:pw@jobs.example" } }
+        rejects("posting_import_source_url_valid") { insert { sourceUrl = "https://jobs.example/" + "x".repeat(2048) } }
     }
 
     @Test
@@ -121,6 +155,10 @@ class PostingImportRepositoryTest {
 
         repository.findById(pending.id) shouldBe ApplicationStoreResult.StorageFailure("find import")
         repository.add(pending) shouldBe ApplicationStoreResult.StorageFailure("add import")
+        repository.findPendingByText(pending.text ?: error("no text")) shouldBe
+            ApplicationStoreResult.StorageFailure("find pending import by text")
+        repository.findPendingBySourceUrl(WebAddress("https://jobs.example")) shouldBe
+            ApplicationStoreResult.StorageFailure("find pending import by link")
     }
 
     private fun insert(change: PostingImportRecord.() -> Unit) {
@@ -148,6 +186,7 @@ class PostingImportRepositoryTest {
                 "posting_import_failure_matches_status",
                 "posting_import_failure_valid",
                 "posting_import_pk",
+                "posting_import_source_url_valid",
                 "posting_import_status_valid",
                 "posting_import_updated_after_created",
             )

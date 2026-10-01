@@ -308,6 +308,64 @@
         "tags" : [ "posting-import-controller" ]
       }
     },
+    "/api/applications/imports/url" : {
+      "post" : {
+        "operationId" : "startUrlImport",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/StartUrlImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostingImportResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "409" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Conflicts with the current state; the problem `type` says how"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "posting-import-controller" ]
+      }
+    },
     "/api/applications/imports/{importId}" : {
       "get" : {
         "operationId" : "getPostingImport",
@@ -6622,6 +6680,15 @@
         "type" : "object",
         "properties" : {
           "description" : {
+            "type" : "string"
+          }
+        }
+      },
+      "StartUrlImportRequest" : {
+        "required" : [ "url" ],
+        "type" : "object",
+        "properties" : {
+          "url" : {
             "type" : "string"
           }
         }

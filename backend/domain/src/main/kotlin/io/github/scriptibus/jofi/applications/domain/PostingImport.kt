@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.domain
 
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.job.JobType
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -58,12 +59,13 @@ enum class ImportFailure {
 }
 
 /**
- * A job posting the user pasted, on its way to a `DISCOVERED` application (spec §8.1, #96). The [text] is untrusted
- * data, never instructions. A worker job extracts the fields with AI and creates the [application] with a
- * `MANUAL_CHAT` source whose first description snapshot is the [text]. The text is kept while the import is pending
- * or failed, so a failed import can be retried ([retried]), and dropped when it succeeds: from then on the application
- * holds it, and deleting the application leaves no copy behind. [attempt] counts the runs asked for (the first and
- * every retry), so a stale job run cannot overwrite a newer one. [toString] leaves out the text.
+ * A job posting pasted or fetched from a [sourceUrl], on its way to a `DISCOVERED` application (spec §8.1, #96,
+ * #97). The [text] is untrusted data, never instructions. A worker job extracts the fields with AI and creates the
+ * [application] with a source (`MANUAL_CHAT` for pasted text, `URL` for [sourceUrl]) whose first description
+ * snapshot is the [text]. The text is kept while the import is pending or failed, so a failed import can be
+ * retried ([retried]), and dropped when it succeeds: from then on the application holds it, and deleting the
+ * application leaves no copy behind. [attempt] counts the runs asked for (the first and every retry), so a stale
+ * job run cannot overwrite a newer one. [toString] leaves out the text and the link.
  */
 data class PostingImport(
     val id: ImportId,
@@ -74,6 +76,7 @@ data class PostingImport(
     val attempt: Int,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val sourceUrl: WebAddress? = null,
 ) {
     init {
         require((status == ImportStatus.SUCCEEDED) == (application != null)) {
@@ -124,8 +127,13 @@ data class PostingImport(
             null
         }
 
-    /** Where the application's job was found: pasted text, discovered when the import started. */
-    fun toSourceInput(): SourceInput = SourceInput(SourceKind.MANUAL_CHAT, null, createdAt, text?.value)
+    /** Where the application's job was found: the link fetched, or pasted text, discovered when the import started. */
+    fun toSourceInput(): SourceInput =
+        if (sourceUrl != null) {
+            SourceInput(SourceKind.URL, sourceUrl.value, createdAt, text?.value)
+        } else {
+            SourceInput(SourceKind.MANUAL_CHAT, null, createdAt, text?.value)
+        }
 
     override fun toString(): String =
         "PostingImport(id=${id.value}, status=$status, failure=$failure, attempt=$attempt)"
@@ -144,13 +152,41 @@ data class PostingImport(
          */
         val STALLED_AFTER: Duration = Duration.ofMinutes(30)
 
-        /** A new import of [text], pending its first attempt, started [at]. */
+        /** A new import of [text], pending its first attempt, started [at]; fetched from [sourceUrl] for #97. */
         fun start(
             id: ImportId,
             text: DescriptionText,
             at: Instant,
-        ): PostingImport = PostingImport(id, text, ImportStatus.PENDING, null, null, 1, at, at)
+            sourceUrl: WebAddress? = null,
+        ): PostingImport = PostingImport(id, text, ImportStatus.PENDING, null, null, 1, at, at, sourceUrl)
+
+        /**
+         * An import that found [sourceUrl] already imported as [application] (#97): recorded, with its own
+         * changelog entry, so the attempt is not silent, even though nothing was fetched.
+         */
+        fun alreadyImported(
+            id: ImportId,
+            application: ApplicationId,
+            sourceUrl: WebAddress,
+            at: Instant,
+        ): PostingImport = PostingImport(id, null, ImportStatus.SUCCEEDED, null, application, 1, at, at, sourceUrl)
     }
+}
+
+/**
+ * Outcome of starting a URL import (#97): a new pending [import], or one recorded at once because [sourceUrl] was
+ * already imported successfully, or already pending (double submit, #187 finding F6).
+ */
+sealed interface UrlImportOutcome {
+    val import: PostingImport
+
+    data class Started(
+        override val import: PostingImport,
+    ) : UrlImportOutcome
+
+    data class AlreadyImported(
+        override val import: PostingImport,
+    ) : UrlImportOutcome
 }
 
 /**

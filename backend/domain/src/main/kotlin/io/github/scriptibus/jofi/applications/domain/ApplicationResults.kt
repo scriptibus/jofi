@@ -114,6 +114,12 @@ enum class ApplicationProblem {
     /** Not an absolute http(s) URL with a host and without user info. */
     INVALID_URL,
 
+    /** A link to a site Jofi never scrapes (#97, spec §8.1: no LinkedIn, StepStone or Indeed); paste the text. */
+    NOT_ALLOWED,
+
+    /** The link could not be fetched (blocked, timed out, too large, the wrong content type, or no readable text). */
+    UNREACHABLE,
+
     /** Not a time zone Java knows: an IANA id such as `Europe/Berlin`, or an offset such as `+02:00`. */
     INVALID_TIME_ZONE,
 

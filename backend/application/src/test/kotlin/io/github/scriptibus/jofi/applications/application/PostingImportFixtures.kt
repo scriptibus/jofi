@@ -15,21 +15,28 @@ import io.github.scriptibus.jofi.applications.domain.DescriptionSnapshot
 import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.ImportFailure
 import io.github.scriptibus.jofi.applications.domain.ImportId
+import io.github.scriptibus.jofi.applications.domain.ImportStatus
 import io.github.scriptibus.jofi.applications.domain.PostingExtraction
 import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.companies.application.port.api.MatchCompanyPort
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
+import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
+import io.github.scriptibus.jofi.shared.domain.http.FetchResult
+import io.github.scriptibus.jofi.shared.domain.http.FetchedResource
+import io.github.scriptibus.jofi.shared.domain.http.OutboundRequest
+import io.github.scriptibus.jofi.shared.domain.http.ResponseBody
 import io.github.scriptibus.jofi.shared.domain.job.CronSchedule
 import io.github.scriptibus.jofi.shared.domain.job.JobId
 import io.github.scriptibus.jofi.shared.domain.job.JobRequest
 import io.github.scriptibus.jofi.shared.domain.job.JobResult
 import io.github.scriptibus.jofi.shared.domain.job.RecurringJobId
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
+import java.net.URI
 import java.util.UUID
 
 /**
@@ -92,7 +99,11 @@ class PostingImportFixtures {
                 error("Not used by these use cases")
 
             override fun findByOriginalUrl(url: WebAddress): ApplicationStoreResult<List<ApplicationSource>> =
-                error("Not used by these use cases")
+                ApplicationStoreResult.Success(
+                    base.applications.values
+                        .flatMap { it.sources }
+                        .filter { it.originalUrl == url },
+                )
         }
 
     val importPort =
@@ -129,6 +140,38 @@ class PostingImportFixtures {
                         ApplicationStoreResult.Success(Unit)
                     }
                 }
+            }
+
+            override fun findPendingByText(text: DescriptionText): ApplicationStoreResult<PostingImport?> =
+                ApplicationStoreResult.Success(
+                    imports.values.find { it.status == ImportStatus.PENDING && it.text == text },
+                )
+
+            override fun findPendingBySourceUrl(sourceUrl: WebAddress): ApplicationStoreResult<PostingImport?> =
+                ApplicationStoreResult.Success(
+                    imports.values.find { it.status == ImportStatus.PENDING && it.sourceUrl == sourceUrl },
+                )
+        }
+
+    /** What the fake [OutboundHttpPort] answers a fetch with; a minimal HTML posting by default. */
+    var fetched: FetchResult =
+        FetchResult.Success(
+            FetchedResource(
+                URI.create("https://jobs.example/posting"),
+                200,
+                "text/html",
+                ResponseBody(
+                    "<html><body><h1>Senior Kotlin Engineer</h1><p>ACME Robotics</p></body></html>".toByteArray(),
+                ),
+            ),
+        )
+    val fetchRequests = mutableListOf<OutboundRequest>()
+
+    val http =
+        object : OutboundHttpPort {
+            override fun fetch(request: OutboundRequest): FetchResult {
+                fetchRequests += request
+                return fetched
             }
         }
 

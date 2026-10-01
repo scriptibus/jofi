@@ -6,19 +6,30 @@ package io.github.scriptibus.jofi.applications.adapter.web
 import io.github.scriptibus.jofi.applications.application.GetPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.RetryPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.StartPostingImportUseCase
+import io.github.scriptibus.jofi.applications.application.StartUrlImportUseCase
+import io.github.scriptibus.jofi.applications.application.port.ApplicationSourceRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.PostingImportRepositoryPort
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.ImportFailure
 import io.github.scriptibus.jofi.applications.domain.ImportId
 import io.github.scriptibus.jofi.applications.domain.PostingImport
+import io.github.scriptibus.jofi.applications.domain.SourceId
+import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
+import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
+import io.github.scriptibus.jofi.shared.domain.http.BlockReason
+import io.github.scriptibus.jofi.shared.domain.http.FetchResult
+import io.github.scriptibus.jofi.shared.domain.http.FetchedResource
+import io.github.scriptibus.jofi.shared.domain.http.ResponseBody
 import io.github.scriptibus.jofi.shared.domain.job.JobId
 import io.github.scriptibus.jofi.shared.domain.job.JobResult
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
@@ -33,6 +44,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.assertj.MockMvcTester
+import java.net.URI
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -52,8 +64,10 @@ class PostingImportControllerTest(
     class ImportPorts {
         val applications = ApplicationControllerTest.Ports()
         val imports = mockk<PostingImportRepositoryPort>()
+        val sources = mockk<ApplicationSourceRepositoryPort>()
         val ai = mockk<CheckAiTaskAssignedPort>()
         val jobs = mockk<JobSchedulerPort>()
+        val http = mockk<OutboundHttpPort>()
     }
 
     @TestConfiguration
@@ -68,6 +82,19 @@ class PostingImportControllerTest(
             StartPostingImportUseCase(
                 ports.imports,
                 ports.ai,
+                ports.jobs,
+                ports.applications.changelog,
+                ports.applications.transactions,
+                clock,
+            )
+
+        @Bean
+        fun startUrl(ports: ImportPorts) =
+            StartUrlImportUseCase(
+                ports.imports,
+                ports.sources,
+                ports.ai,
+                ports.http,
                 ports.jobs,
                 ports.applications.changelog,
                 ports.applications.transactions,
@@ -98,16 +125,32 @@ class PostingImportControllerTest(
         )
     private val failed = pending.failed(ImportFailure.AI_UNAVAILABLE, at.plusSeconds(5))
     private val application = ApplicationId(UUID.fromString("00000000-0000-0000-0000-0000000000a1"))
+    private val postingUrl = WebAddress("https://jobs.example/posting")
 
     @BeforeEach
     fun reset() {
-        clearMocks(ports.imports, ports.ai, ports.jobs, ports.applications.changelog)
+        clearMocks(ports.imports, ports.sources, ports.ai, ports.jobs, ports.http, ports.applications.changelog)
         every { ports.ai.execute(AiTask.EXTRACTION) } returns CheckAiTaskAssignedPort.Assignment.Assigned
         every { ports.imports.add(any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.imports.update(any(), any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.imports.findById(any()) } returns ApplicationStoreResult.NotFound
+        // mockk needs a real value (not a matcher) to probe a method with a validating value-class parameter, so
+        // these cover exactly the text and link the tests below submit.
+        every { ports.imports.findPendingByText(DescriptionText("Kotlin Developer at ACME")) } returns
+            ApplicationStoreResult.Success(null)
+        every { ports.imports.findPendingBySourceUrl(postingUrl) } returns ApplicationStoreResult.Success(null)
+        every { ports.sources.findByOriginalUrl(postingUrl) } returns ApplicationStoreResult.Success(emptyList())
         every { ports.jobs.enqueue(any()) } returns JobResult.Success(JobId(UUID.randomUUID()))
         every { ports.applications.changelog.append(any()) } returns ChangelogResult.Success(Unit)
+        every { ports.http.fetch(any()) } returns
+            FetchResult.Success(
+                FetchedResource(
+                    URI.create("https://jobs.example/posting"),
+                    200,
+                    "text/html",
+                    ResponseBody("<h1>Senior Kotlin Developer</h1>".toByteArray()),
+                ),
+            )
     }
 
     @Test
@@ -119,6 +162,61 @@ class PostingImportControllerTest(
             .isLenientlyEqualTo("""{"status":"PENDING","failure":null,"applicationId":null,"attempt":1}""")
         verify { ports.imports.add(match { it.text?.value == "Kotlin Developer at ACME" }) }
         verify { ports.jobs.enqueue(any()) }
+    }
+
+    @Test
+    fun `starting a URL import fetches it and answers the pending import at once, queuing its job`() {
+        json(mvc.post().uri("/api/applications/imports/url"), """{"url":"https://jobs.example/posting"}""")
+            .assertThat()
+            .hasStatus(202)
+            .bodyJson()
+            .isLenientlyEqualTo("""{"status":"PENDING","failure":null,"applicationId":null,"attempt":1}""")
+        verify { ports.http.fetch(any()) }
+        verify { ports.imports.add(match { it.text?.value == "Senior Kotlin Developer" }) }
+    }
+
+    @Test
+    fun `a URL already imported answers 200 with the existing application, fetching nothing`() {
+        val application = ApplicationId(UUID.randomUUID())
+        val source = ApplicationSource(SourceId(UUID.randomUUID()), application, SourceKind.URL, postingUrl, at)
+        every { ports.sources.findByOriginalUrl(postingUrl) } returns ApplicationStoreResult.Success(listOf(source))
+
+        json(mvc.post().uri("/api/applications/imports/url"), """{"url":"${postingUrl.value}"}""")
+            .assertThat()
+            .hasStatusOk()
+            .bodyJson()
+            .isLenientlyEqualTo("""{"status":"SUCCEEDED","failure":null,"applicationId":"${application.value}"}""")
+        verify(exactly = 0) { ports.http.fetch(any()) }
+    }
+
+    @Test
+    fun `a disallowed, invalid or unreachable URL is a 400, fetching nothing for the first two`() {
+        json(mvc.post().uri("/api/applications/imports/url"), """{"url":"https://www.linkedin.com/jobs/view/1"}""")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """{"type":"${ApplicationProblems.INVALID}",""" +
+                    """"violations":[{"field":"originalUrl","problem":"NOT_ALLOWED"}]}""",
+            )
+        json(mvc.post().uri("/api/applications/imports/url"), """{"url":"not a url"}""")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """{"type":"${ApplicationProblems.INVALID}",""" +
+                    """"violations":[{"field":"originalUrl","problem":"INVALID_URL"}]}""",
+            )
+        every { ports.http.fetch(any()) } returns FetchResult.Blocked(BlockReason.ADDRESS_NOT_ALLOWED)
+        json(mvc.post().uri("/api/applications/imports/url"), """{"url":"${postingUrl.value}"}""")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """{"type":"${ApplicationProblems.INVALID}",""" +
+                    """"violations":[{"field":"originalUrl","problem":"UNREACHABLE"}]}""",
+            )
+        verify(exactly = 0) { ports.imports.add(any()) }
     }
 
     @Test
