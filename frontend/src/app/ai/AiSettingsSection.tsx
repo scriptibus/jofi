@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { m } from "../../paraglide/messages.js";
 import { Button } from "../../ui";
 import { BudgetForm } from "./BudgetForm";
+import { CostsCard } from "./CostsCard";
 import { ModelPrices } from "./ModelPrices";
 import { ProviderList } from "./ProviderList";
 import { TaskAssignments } from "./TaskAssignments";
@@ -38,6 +39,9 @@ export function AiSettingsSection({ className }: { className: string }) {
       <Card id="ai-prices-heading" title={m.ai_prices_heading()} className={className}>
         <ModelPrices />
       </Card>
+      <Card id="ai-costs-heading" title={m.ai_costs_heading()} className={className}>
+        <CostsCard />
+      </Card>
     </>
   );
 }
@@ -51,7 +55,8 @@ interface CardProps {
 
 function Card({ id, title, className, children }: CardProps) {
   return (
-    <section aria-labelledby={id} className={className}>
+    // min-w-0: a grid item otherwise grows to its widest table and makes the whole page scroll sideways on a phone.
+    <section aria-labelledby={id} className={`${className} min-w-0`}>
       <h2 id={id} className="text-h2">
         {title}
       </h2>

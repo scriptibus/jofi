@@ -112,7 +112,9 @@ Nothing here ships in the image; `../scripts/e2e-isolation-test.sh` proves it in
   other project, one at a time; each ends with a successful check (which resets the backoff) and a
   changed password is changed back. The AI setup's mutations (adding and deleting providers, task models,
   the budget cap; `tests/ai/`, project `ai-setup`) run after the browser projects and before `auth`, one at
-  a time, and put the seeded setup back after each test; browser projects only look at it. Backup export
+  a time, and put the seeded setup back after each test; browser projects only look at it. The costs
+  spec (`ai-costs.spec.ts`, project `ai-costs`) is its own project after `ai-setup`, because two files in
+  one project would run in parallel workers; the model prices spec (`ai-prices.spec.ts`, project `ai-prices`) follows it the same way. Backup export
   and restore (`tests/backup/`, project `backup`) run after `auth`, alone: they enter passwords, hold the one backup lock, and a restore ends every session.
 - **SQL steps** for data without an API yet: `tests/stack/seed/db/NNNN-<name>.sql`, applied in name order,
   each in one transaction, by the `seed` service after Flyway ran. Use fixed ids and
@@ -160,12 +162,13 @@ src/
                   notices.ts, preferences.tsx, auth/ (login, first run, password change),
                   shell/ (layout, navigation, logout, notices), pages/ (placeholders, settings, share),
                   backup/ (Settings > Backup: export, upload, confirmed restore; ADR-0042),
-                  ai/ (first-run setup guide at /setup and Settings > AI: providers, task models, budget),
+                  ai/ (first-run setup guide at /setup and Settings > AI: providers, task models, budget, costs, prices of own models),
                   companies/ (list with fuzzy search and flag filter, detail, create/edit, flag, delete), contacts/,
                   dashboard/ (start page: one widget per figure, each loading and failing on its own; ADR-0054)
   ui/             our component library (Alert, AppLink, BoardColumn (drag and drop), Button, ConfirmDialog,
                   DateTimeField (wall-clock date and time, no zone), Dialog, DonkeyLogo, EmptyState, ExternalLink,
-                  FilePicker, Markdown, MenuButton, NavItem/TextLink, NumberField, SegmentedControl, Select, ShareBar, Tabs,
+                  FilePicker, Markdown, MenuButton, NavItem/TextLink, NumberField, ProgressBar (value against a cap),
+                  SegmentedControl, Select, ShareBar (decorative count share, e.g. the funnel), Tabs,
                   TextArea, TextField, Form, icons, appearance)
   pwa/            manifest.ts: web app manifest + theme-color from tokens.css (used by vite.config.ts)
   styles/         tokens.css (the only raw values) + app.css (Tailwind, fonts, base)
@@ -180,7 +183,7 @@ project.inlang/   Paraglide/inlang settings (plugin loaded from node_modules, no
 public/           appearance-boot.js (applies theme/accent before first paint), favicon, icons/ (PWA)
 tests/e2e/        Playwright specs for the browser projects (run against the full stack by `pnpm e2e`)
 tests/auth/       password flows (wrong passwords, backoff, logout, password change): project `auth`
-tests/ai/         AI setup changes (providers, task models, budget, delete): project `ai-setup`, before `auth`
+tests/ai/         AI setup changes (providers, task models, budget, delete): projects `ai-setup`, then `ai-costs` (AI costs), then `ai-prices` (model prices), before `auth`
 tests/backup/     backup export, upload and restore: project `backup`, after `auth`
 tests/stack/      the e2e stack: fake-ai/, seed/, first-run.setup.ts, seed.setup.ts, wiremock/, edge/
 scripts/          license check, generate-pwa-icons.ts

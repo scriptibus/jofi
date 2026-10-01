@@ -47,8 +47,29 @@ const target: PlaywrightTestConfig = stackUrl
         {
           name: "ai-setup",
           testDir: "./tests/ai",
+          testMatch: /ai-setup\.spec\.ts/,
           fullyParallel: false,
           dependencies: browsers.map((project) => project.name ?? ""),
+          use: { ...devices["Desktop Chrome"], colorScheme: "light", storageState: E2E_STORAGE_STATE },
+        },
+        // Files of one project would run in parallel workers, so the costs spec gets a project of its own,
+        // after `ai-setup`: it reads the setup and spends on it, and must never meet the setup's changes.
+        {
+          name: "ai-costs",
+          testDir: "./tests/ai",
+          testMatch: /ai-costs\.spec\.ts/,
+          fullyParallel: false,
+          dependencies: ["ai-setup"],
+          use: { ...devices["Desktop Chrome"], colorScheme: "light", storageState: E2E_STORAGE_STATE },
+        },
+        // Model prices change what the seeded model's calls cost, so they run after the costs spec, alone,
+        // and remove what they set (tests/ai/ai-prices.spec.ts).
+        {
+          name: "ai-prices",
+          testDir: "./tests/ai",
+          testMatch: /ai-prices\.spec\.ts/,
+          fullyParallel: false,
+          dependencies: ["ai-costs"],
           use: { ...devices["Desktop Chrome"], colorScheme: "light", storageState: E2E_STORAGE_STATE },
         },
         // Wrong passwords and password changes: they share the one-client login backoff with every
@@ -57,7 +78,7 @@ const target: PlaywrightTestConfig = stackUrl
           name: "auth",
           testDir: "./tests/auth",
           fullyParallel: false,
-          dependencies: ["ai-setup"],
+          dependencies: ["ai-prices"],
           use: { ...devices["Desktop Chrome"], colorScheme: "light" },
         },
         // Backup export and restore: wrong passwords, the one backup lock, and a restore that ends every

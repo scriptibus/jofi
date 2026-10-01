@@ -464,6 +464,58 @@
   "ai_price_saved": "Preis von {model} gespeichert.",
   "ai_price_removed": "Preis von {model} entfernt. Seine nächsten Aufrufe haben keinen Preis.",
   "ai_error_price_not_allowed": "Nur Modelle eines OpenAI-kompatiblen Anbieters nehmen einen Preis an; die anderen Anbieter haben Listenpreise.",
+  "ai_costs_heading": "KI-Kosten",
+  "ai_costs_intro": "Was die KI-Aufrufe kosten, nach Aufgabe, Anbieter und Modell. Jofi schätzt jeden Betrag mit einer Preistabelle; Aufrufe eines Modells ohne Preis werden gezählt, aber nicht bewertet.",
+  "ai_costs_month_label": "Monat",
+  "ai_costs_loading": "Kosten werden geladen …",
+  "ai_costs_load_failed": "Die Kosten konnten nicht geladen werden.",
+  "ai_costs_history_failed": "Der Monatsverlauf konnte nicht geladen werden.",
+  "ai_costs_budget_label": "Ausgaben gegenüber der Monatsobergrenze",
+  "ai_costs_budget_text": "{spent} von {cap} ({percent})",
+  "ai_costs_spent": "Ausgegeben im {month}: {spent}",
+  "ai_costs_no_cap": "Es ist keine Monatsobergrenze gesetzt.",
+  "ai_costs_cap": "Monatsobergrenze: {cap}",
+  "ai_costs_unknown": "Kein Preis",
+  "ai_costs_unpriced": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} Aufruf ohne Preis",
+        "countPlural=other": "{shown} Aufrufe ohne Preis"
+      }
+    }
+  ],
+  "ai_costs_totals": [
+    {
+      "declarations": [
+        "input count",
+        "input shown",
+        "input tokensIn",
+        "input tokensOut",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} Aufruf mit {tokensIn} Eingabe- und {tokensOut} Ausgabe-Tokens",
+        "countPlural=other": "{shown} Aufrufe mit {tokensIn} Eingabe- und {tokensOut} Ausgabe-Tokens"
+      }
+    }
+  ],
+  "ai_costs_empty": "Noch keine KI-Aufrufe im {month}.",
+  "ai_costs_by_task": "Kosten nach Aufgabe",
+  "ai_costs_by_provider": "Kosten nach Anbieter",
+  "ai_costs_by_model": "Kosten nach Modell",
+  "ai_costs_history": "Letzte 12 Monate",
+  "ai_costs_history_label": "KI-Kosten pro Monat",
+  "ai_costs_col_task": "Aufgabe",
+  "ai_costs_col_provider": "Anbieter",
+  "ai_costs_col_model": "Modell",
+  "ai_costs_col_month": "Monat",
+  "ai_costs_col_calls": "Aufrufe",
+  "ai_costs_col_input": "Eingabe-Tokens",
+  "ai_costs_col_output": "Ausgabe-Tokens",
+  "ai_costs_col_cost": "Kosten",
   "wizard_heading": "KI einrichten",
   "wizard_progress": "Schritt {step} von {total}",
   "wizard_steps_label": "Einrichtungsschritte",
