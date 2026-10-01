@@ -17,9 +17,9 @@ import io.github.scriptibus.jofi.shared.domain.Actor
 import java.time.Clock
 
 /**
- * Retries a failed posting import with its kept text (#96): pending again as its next attempt, with a changelog entry,
- * committed before the job is queued. Two retries at once store only one (the attempt is checked on write); the other
- * is a `VersionConflict`.
+ * Retries a failed or stalled posting import with its kept text (#96): pending again as its next attempt, with a
+ * changelog entry, committed before the job is queued. Two retries at once store only one (the attempt is checked on
+ * write); the other is a `VersionConflict`.
  */
 class RetryPostingImportUseCase(
     private val imports: PostingImportRepositoryPort,

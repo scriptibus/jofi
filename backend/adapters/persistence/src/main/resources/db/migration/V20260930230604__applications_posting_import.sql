@@ -20,7 +20,7 @@ CREATE TABLE posting_import (
         CHECK (status IN ('PENDING', 'SUCCEEDED', 'FAILED')),
     failure        text        CONSTRAINT posting_import_failure_valid CHECK (failure IN (
         'AI_NOT_CONFIGURED', 'AI_AUTHENTICATION_FAILED', 'AI_UNAVAILABLE', 'AI_REJECTED', 'UNREADABLE_ANSWER',
-        'NOT_A_POSTING', 'NOT_QUEUED')),
+        'NOT_A_POSTING', 'NOT_QUEUED', 'NOT_COMPLETED')),
     application_id uuid,
     attempt        integer     NOT NULL CONSTRAINT posting_import_attempt_valid CHECK (attempt >= 1),
     created_at     timestamptz NOT NULL,

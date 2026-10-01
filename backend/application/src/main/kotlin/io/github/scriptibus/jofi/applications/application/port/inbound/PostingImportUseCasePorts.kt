@@ -47,7 +47,9 @@ interface GetPostingImportPort {
 }
 
 /**
- * Queues a failed import again with its kept text, as the next attempt: `ImportNotRetryable` unless it failed,
+ * Queues a failed import again with its kept text, as the next attempt; also one pending for at least
+ * `PostingImport.STALLED_AFTER`, whose job is gone (a restored backup) or keeps failing. `ImportNotRetryable` for
+ * anything else,
  * `AiNotConfigured` while no model is assigned to the extraction task.
  */
 interface RetryPostingImportPort {

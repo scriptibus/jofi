@@ -6091,7 +6091,7 @@
           "failure" : {
             "type" : "string",
             "nullable" : true,
-            "enum" : [ "AI_NOT_CONFIGURED", "AI_AUTHENTICATION_FAILED", "AI_UNAVAILABLE", "AI_REJECTED", "UNREADABLE_ANSWER", "NOT_A_POSTING", "NOT_QUEUED" ]
+            "enum" : [ "AI_NOT_CONFIGURED", "AI_AUTHENTICATION_FAILED", "AI_UNAVAILABLE", "AI_REJECTED", "UNREADABLE_ANSWER", "NOT_A_POSTING", "NOT_QUEUED", "NOT_COMPLETED" ]
           },
           "id" : {
             "type" : "string",

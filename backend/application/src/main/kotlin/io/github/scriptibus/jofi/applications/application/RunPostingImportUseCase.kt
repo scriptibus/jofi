@@ -24,11 +24,13 @@ import java.time.Clock
 
 /**
  * Runs a pending posting import (#96, the worker job). The model's answer is as untrusted as the posting: it only ever
- * fills the fields of a new `DISCOVERED` application ([ExtractedPosting.toInput] validates them), never a status, a
+ * fills the fields of a new `DISCOVERED` application ([ExtractedPosting.checked] validates them), never a status, a
  * tool call or anything else. Steps: extraction; the company matched or created by name ([MatchCompanyPort], its own
  * transaction: a company created for an import that then fails stays and is matched again by the next attempt); then
  * one transaction with the application ([AddDiscoveredApplicationPort]) and the import marked done, which stores
- * only if the import is still at this attempt. Failures of the extraction or the answer mark the import failed.
+ * only if the import is still at this attempt. Failures of the extraction or the answer mark the import failed, and so
+ * does anything a retry cannot fix; storage failures are retried by the job until the import has stalled
+ * ([PostingImport.STALLED_AFTER]), then it is marked failed (`NOT_COMPLETED`) as well.
  */
 class RunPostingImportUseCase(
     private val imports: PostingImportRepositoryPort,
@@ -61,12 +63,28 @@ class RunPostingImportUseCase(
         posting: ExtractedPosting,
         actor: Actor,
     ): ApplicationResult<PostingImport> {
-        val match = posting.company?.let { companies.execute(it, actor) }
-        val input = match?.id?.let { posting.toInput(CompanyRef(it)) }
-        return when {
-            match == MatchCompanyPort.Match.Unavailable -> ApplicationResult.StorageFailure("company")
-            input == null -> fail(current, ImportFailure.NOT_A_POSTING, actor)
-            else -> store(current, input, actor)
+        // Checked before any company is matched, so an answer that is no posting creates no company either.
+        val checked = posting.checked() ?: return fail(current, ImportFailure.NOT_A_POSTING, actor)
+        return when (val match = companies.execute(checked.company, actor)) {
+            is MatchCompanyPort.Match.Found -> {
+                store(current, checked.toInput(CompanyRef(match.id)), actor)
+            }
+
+            is MatchCompanyPort.Match.Created -> {
+                store(current, checked.toInput(CompanyRef(match.id)), actor)
+            }
+
+            MatchCompanyPort.Match.InvalidName -> {
+                fail(current, ImportFailure.NOT_A_POSTING, actor)
+            }
+
+            MatchCompanyPort.Match.Unavailable -> {
+                retryOrGiveUp(
+                    current,
+                    ApplicationResult.StorageFailure("company"),
+                    actor,
+                )
+            }
         }
     }
 
@@ -81,9 +99,29 @@ class RunPostingImportUseCase(
                     imports.transition(changelog, current, current.succeeded(application.id, clock.storedNow()), actor)
                 }
             }
-        // The company was deleted meanwhile, or the input broke a rule `toInput` does not know: no application.
-        return if (created is ApplicationResult.Invalid) fail(current, ImportFailure.NOT_A_POSTING, actor) else created
+        return when (created) {
+            is ApplicationResult.Success, ApplicationResult.VersionConflict, ApplicationResult.ImportNotFound -> created
+
+            // The company was deleted meanwhile, or the input broke a rule `checked` does not know: no application.
+            is ApplicationResult.Invalid -> fail(current, ImportFailure.NOT_A_POSTING, actor)
+
+            is ApplicationResult.StorageFailure -> retryOrGiveUp(current, created, actor)
+
+            // Nothing a retry could change: the import must not stay pending (and keep its text) forever.
+            else -> fail(current, ImportFailure.NOT_COMPLETED, actor)
+        }
     }
+
+    /**
+     * A storage failure the job retries, until the import has [PostingImport.stalled]: then the run gives up and marks
+     * it failed, so the user sees it and can retry; if even that cannot be stored, the job tries again later.
+     */
+    private fun retryOrGiveUp(
+        current: PostingImport,
+        failure: ApplicationResult.StorageFailure,
+        actor: Actor,
+    ): ApplicationResult<PostingImport> =
+        if (current.stalled(clock.storedNow())) fail(current, ImportFailure.NOT_COMPLETED, actor) else failure
 
     private fun fail(
         current: PostingImport,

@@ -100,6 +100,7 @@ enum class PostingImportFailure {
     UNREADABLE_ANSWER,
     NOT_A_POSTING,
     NOT_QUEUED,
+    NOT_COMPLETED,
 }
 
 /** The constant of [T] with this constant's name (API enum to domain enum and back). */

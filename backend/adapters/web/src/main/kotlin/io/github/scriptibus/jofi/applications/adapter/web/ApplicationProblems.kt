@@ -118,7 +118,8 @@ object ApplicationProblems {
     private val CONFLICT_PROBLEMS: Map<ApplicationResult.Failure, Pair<String, String>> =
         mapOf(
             ApplicationResult.VersionConflict to (VERSION_CONFLICT to "It changed meanwhile; reload it and retry"),
-            ApplicationResult.ImportNotRetryable to (IMPORT_NOT_RETRYABLE to "Only a failed import can be retried"),
+            ApplicationResult.ImportNotRetryable to
+                (IMPORT_NOT_RETRYABLE to "Only a failed or stalled import can be retried"),
             ApplicationResult.AiNotConfigured to
                 (
                     AI_NOT_CONFIGURED to

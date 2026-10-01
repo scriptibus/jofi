@@ -172,7 +172,7 @@ sealed interface ApplicationResult<out T> {
     /** No posting import with the requested id. */
     data object ImportNotFound : Failure
 
-    /** Only a failed posting import can be retried; this one is pending or done. */
+    /** Only a failed or stalled posting import can be retried; this one is done, or pending and not stalled. */
     data object ImportNotRetryable : Failure
 
     /** No AI model is assigned to the task the operation needs; the user sets one up first (spec §3.2). */

@@ -49,6 +49,18 @@ class PostingImportTest {
     }
 
     @Test
+    fun `a pending import stalls after the timeout and can then be retried, a fresh one cannot`() {
+        val stalledAt = AT.plus(PostingImport.STALLED_AFTER)
+
+        started.stalled(stalledAt.minusSeconds(1)) shouldBe false
+        started.retried(stalledAt.minusSeconds(1)) shouldBe null
+        started.stalled(stalledAt) shouldBe true
+        started.retried(stalledAt) shouldBe started.copy(attempt = 2, updatedAt = stalledAt)
+        started.failed(ImportFailure.AI_UNAVAILABLE, AT).stalled(stalledAt) shouldBe false
+        started.succeeded(application, AT).retried(stalledAt) shouldBe null
+    }
+
+    @Test
     fun `the invariants tie the application, the failure and the text to the status`() {
         shouldThrow<IllegalArgumentException> { started.copy(application = application) }
         shouldThrow<IllegalArgumentException> { started.copy(failure = ImportFailure.NOT_QUEUED) }
@@ -85,7 +97,7 @@ class PostingImportTest {
                     ),
             )
 
-        val details = (read.toInput(company)?.validate() as ApplicationValidation.Valid).value
+        val details = (read.checked()?.toInput(company)?.validate() as ApplicationValidation.Valid).value
 
         details.title shouldBe "Kotlin Developer"
         details.company shouldBe company
@@ -108,16 +120,18 @@ class PostingImportTest {
                 seniority = Seniority.LEAD,
             )
 
-        val input = read.toInput(company) ?: error("no input")
+        val input = read.checked()?.toInput(company) ?: error("no input")
 
         input.location shouldBe null
         input.remoteShare shouldBe null
         input.languageAndTone shouldBe null
         input.payBand shouldBe null
         input.seniority shouldBe Seniority.LEAD
-        read.copy(title = null).toInput(company) shouldBe null
-        read.copy(title = " ").toInput(company) shouldBe null
-        read.copy(title = "x".repeat(ApplicationDetails.MAX_TITLE_LENGTH + 1)).toInput(company) shouldBe null
+        read.copy(title = null).checked() shouldBe null
+        read.copy(title = " ").checked() shouldBe null
+        read.copy(company = null).checked() shouldBe null
+        read.copy(company = "  ").checked() shouldBe null
+        read.copy(title = "x".repeat(ApplicationDetails.MAX_TITLE_LENGTH + 1)).checked() shouldBe null
         read.toString() shouldNotContain "Kotlin"
     }
 

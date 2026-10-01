@@ -11,6 +11,7 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationProblem
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
+import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
 import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.ExtractedPosting
@@ -227,6 +228,10 @@ class PostingImportUseCasesTest {
         ran(started().id).failure shouldBe ImportFailure.NOT_A_POSTING
         fixtures.extraction = PostingExtraction.Extracted(READ.copy(company = null))
         ran(started().id).failure shouldBe ImportFailure.NOT_A_POSTING
+        fixtures.extraction = PostingExtraction.Extracted(READ.copy(title = null, company = "Injected Corp"))
+        ran(started().id).failure shouldBe ImportFailure.NOT_A_POSTING
+        // No company is looked up, let alone created, for an answer that is no posting.
+        fixtures.matched.shouldBeEmpty()
         fixtures.extraction = PostingExtraction.Extracted(READ)
         fixtures.match = MatchCompanyPort.Match.InvalidName
         ran(started().id).failure shouldBe ImportFailure.NOT_A_POSTING
@@ -236,6 +241,50 @@ class PostingImportUseCasesTest {
         ran(started().id).failure shouldBe ImportFailure.NOT_A_POSTING
 
         base.applications.shouldBeEmpty()
+    }
+
+    @Test
+    fun `a storage failure of a stalled import, or an outcome no retry can change, marks it failed`() {
+        fixtures.extraction = PostingExtraction.Extracted(READ)
+        val old = NOW.minus(PostingImport.STALLED_AFTER)
+        val stalled = PostingImport.start(ImportId(UUID.randomUUID()), DescriptionText(POSTING), old)
+        fixtures.imports[stalled.id] = stalled
+        fixtures.match = MatchCompanyPort.Match.Unavailable
+
+        ran(stalled.id).failure shouldBe ImportFailure.NOT_COMPLETED
+
+        fixtures.match = MatchCompanyPort.Match.Found(ACME.value)
+        fixtures.sourceOutcome = ApplicationStoreResult.NotFound
+        val failed = ran(started().id)
+        failed.failure shouldBe ImportFailure.NOT_COMPLETED
+        failed.text shouldBe DescriptionText(POSTING)
+        base.applications.shouldBeEmpty()
+    }
+
+    @Test
+    fun `a stalled pending import can be retried, a fresh one cannot`() {
+        val stalled =
+            PostingImport.start(
+                ImportId(UUID.randomUUID()),
+                DescriptionText(POSTING),
+                NOW.minus(PostingImport.STALLED_AFTER),
+            )
+        val fresh = started()
+        fixtures.imports[stalled.id] = stalled
+        fixtures.queued.clear()
+
+        retry.execute(fresh.id, Actor.User) shouldBe ApplicationResult.ImportNotRetryable
+        val pending =
+            retry
+                .execute(
+                    stalled.id,
+                    Actor.User,
+                ).shouldBeInstanceOf<ApplicationResult.Success<PostingImport>>()
+                .value
+
+        pending.attempt shouldBe 2
+        pending.status shouldBe ImportStatus.PENDING
+        fixtures.queued.single().arguments shouldBe mapOf("import" to stalled.id.value.toString())
     }
 
     @Test

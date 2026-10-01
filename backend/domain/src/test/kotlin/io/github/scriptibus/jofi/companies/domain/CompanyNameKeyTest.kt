@@ -30,6 +30,22 @@ class CompanyNameKeyTest {
     }
 
     @Test
+    fun `only the last legal form goes, and name words that look like one stay`() {
+        CompanyNameKey.of("Fast EV GmbH") shouldNotBe CompanyNameKey.of("Fast GmbH")
+        CompanyNameKey.of("ACME Co") shouldNotBe CompanyNameKey.of("ACME")
+        CompanyNameKey.of("Trading Company") shouldNotBe CompanyNameKey.of("Trading")
+        CompanyNameKey.of("Müller & Co. KG").value shouldBe "müller"
+        CompanyNameKey.of("Holding AG GmbH").value shouldBe "holdingag"
+        CompanyNameKey.of("Kunstverein e.V.").value shouldBe "kunstverein"
+    }
+
+    @Test
+    fun `the folded name compares full names exactly, ignoring only case and spacing`() {
+        CompanyNameKey.folded("  Foo   GmbH ") shouldBe CompanyNameKey.folded("foo gmbh")
+        CompanyNameKey.folded("Foo AG") shouldNotBe CompanyNameKey.folded("Foo GmbH")
+    }
+
+    @Test
     fun `the search text is the name's words without the legal form`() {
         CompanyNameKey.searchText(" ACME-Robotics GmbH & Co. KG") shouldBe "acme robotics"
         CompanyNameKey.searchText("...") shouldBe ""

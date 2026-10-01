@@ -48,6 +48,9 @@ class PostingImportFixtures {
     var failingQueue = false
     var failingImports = false
 
+    /** What adding a source answers instead of storing it, e.g. an outcome no use case expects. */
+    var sourceOutcome: ApplicationStoreResult<Unit>? = null
+
     /** A version another run stored between this use case's read and its write. */
     var concurrentAttempt: Int? = null
 
@@ -58,6 +61,7 @@ class PostingImportFixtures {
                 discovery: DescriptionSnapshot?,
             ): ApplicationStoreResult<Unit> {
                 val application = base.applications[source.application]
+                sourceOutcome?.let { return it }
                 return when {
                     application == null -> {
                         ApplicationStoreResult.NotFound

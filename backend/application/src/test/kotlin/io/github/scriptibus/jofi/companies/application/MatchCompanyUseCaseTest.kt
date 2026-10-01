@@ -36,6 +36,16 @@ class MatchCompanyUseCaseTest {
     }
 
     @Test
+    fun `among companies sharing a key the exact name wins, and without one the match is ambiguous`() {
+        val ag = fixtures.company("Foo AG")
+        val gmbh = fixtures.company("Foo GmbH")
+
+        match.execute("Foo GmbH", Actor.Ai) shouldBe Match.Found(gmbh.id.value)
+        match.execute("foo  ag", Actor.Ai) shouldBe Match.Found(ag.id.value)
+        match.execute("Foo SE", Actor.Ai).shouldBeInstanceOf<Match.Created>()
+    }
+
+    @Test
     fun `a merely similar name creates a new company as the actor, which the next import then finds`() {
         fixtures.company("ACME Robotics GmbH")
 

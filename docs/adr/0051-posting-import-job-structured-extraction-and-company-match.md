@@ -31,12 +31,20 @@ companies context without reaching into it.
   writes its outcome only if the stored status and attempt are still the ones it read, so a late or duplicate run
   changes nothing. AI failures are an outcome of the run (the import is `FAILED`, the job is done); only storage
   failures make the job retry.
+- **No import stays pending forever.** An import pending for `PostingImport.STALLED_AFTER` (**30 minutes**; a run
+  takes seconds, JobRunr's first retries come within minutes) has stalled: its job is gone (a restored backup has no
+  job queue) or keeps failing. A run of a stalled import that hits a storage failure marks it `FAILED`
+  (`NOT_COMPLETED`) instead of retrying; a run that ends in anything a retry cannot change does so at once; and the
+  user may retry a stalled import like a failed one (the attempt counter keeps a still-running old job from storing).
+  So a restored `PENDING` row is never stuck: after the timeout it can be retried.
 - **Structured extraction.** `LlmRequest` gets an optional `outputSchema` (JSON Schema text, Jofi's own constant,
   never user data), passed to Spring AI 2.0.1's `StructuredOutputChatOptions.outputSchema` (OpenAI and compatible
   endpoints: `response_format` `json_schema`; Anthropic: `output_config.format`). The extraction request has no tools,
   a system message that declares the posting data, and the posting alone in the user message between start and end
   lines carrying a random marker per call. Docs:
   https://docs.spring.io/spring-ai/docs/2.0.0/api/org/springframework/ai/model/tool/StructuredOutputChatOptions.Builder.html.
+- **Failure reasons say whether a retry helps.** Refusals that would repeat (the provider's, a "never send to AI"
+  item, the budget cap) are `AI_REJECTED`; `AI_UNAVAILABLE` is only for what may pass later.
 - **The answer is untrusted.** A cut-off answer, a tool call or anything but one JSON object is `UNREADABLE_ANSWER`.
   Of the object only the schema's fields are read, each only with its expected type; anything else (a `status`, a tool
   name) is ignored. The fields then go through `ApplicationInput.validate()`: an optional field that breaks a rule is
@@ -44,8 +52,11 @@ companies context without reaching into it.
   application with one `MANUAL_CHAT` source; nothing else is reachable from the answer.
 - **Company match.** The companies context gets an `api` named interface with `MatchCompanyPort`: a fuzzy search of the
   company list for the name without its legal form narrows the candidates, and only a candidate with the same
-  `CompanyNameKey` (letters and digits after NFKC, ignoring case and trailing legal forms) counts; otherwise a company
-  with that name is created through `CreateCompanyPort`. Deliberately strict: a wrong match files the job under another
+  `CompanyNameKey` (letters and digits after NFKC, ignoring case and the one trailing legal form; "GmbH & Co. KG" is
+  one form, and "Co", "Company" or "EV" alone are never stripped) counts. Among those, an exact full-name match (NFC,
+  case folded) wins; otherwise only a single candidate with that key matches, and several ("Foo AG" and "Foo GmbH"
+  for "Foo SE") are ambiguous. Without a match a company with that name is created through `CreateCompanyPort`, and
+  only after the rest of the answer passed the checks, so an answer that is no posting creates no company. Deliberately strict: a wrong match files the job under another
   company, a missed one only adds a company the user can see. Creation is not destructive, so it needs no confirmation.
 - **Actors.** Starting and retrying are the user's (`USER`). Everything the run creates, including a new company, is
   recorded as `AI`: the values come from the model's reading.

@@ -180,7 +180,8 @@ class PostingImportControllerTest(
             .hasStatus(202)
             .bodyJson()
             .isLenientlyEqualTo("""{"status":"PENDING","failure":null,"attempt":2}""")
-        every { ports.imports.findById(pending.id) } returns ApplicationStoreResult.Success(pending)
+        every { ports.imports.findById(pending.id) } returns
+            ApplicationStoreResult.Success(pending.succeeded(application, at))
         mvc
             .post()
             .uri("/api/applications/imports/${pending.id.value}/retry")

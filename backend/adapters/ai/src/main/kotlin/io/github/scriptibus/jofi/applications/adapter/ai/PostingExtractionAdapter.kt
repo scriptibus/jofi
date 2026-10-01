@@ -58,10 +58,22 @@ class PostingExtractionAdapter(
 
     private fun failureOf(result: AiResult<LlmResponse>): ImportFailure =
         when (result) {
-            is AiResult.NotConfigured, is AiResult.CapabilityMissing -> ImportFailure.AI_NOT_CONFIGURED
-            AiResult.AuthenticationFailed -> ImportFailure.AI_AUTHENTICATION_FAILED
-            is AiResult.Rejected, AiResult.ContextTooLong -> ImportFailure.AI_REJECTED
-            else -> ImportFailure.AI_UNAVAILABLE
+            is AiResult.NotConfigured, is AiResult.CapabilityMissing -> {
+                ImportFailure.AI_NOT_CONFIGURED
+            }
+
+            AiResult.AuthenticationFailed -> {
+                ImportFailure.AI_AUTHENTICATION_FAILED
+            }
+
+            // The same request would be refused again: retrying does not help (a flagged item stays flagged).
+            is AiResult.Rejected, AiResult.ContextTooLong, is AiResult.Withheld, is AiResult.BudgetExceeded -> {
+                ImportFailure.AI_REJECTED
+            }
+
+            else -> {
+                ImportFailure.AI_UNAVAILABLE
+            }
         }
 
     private fun instructions(marker: String): String =

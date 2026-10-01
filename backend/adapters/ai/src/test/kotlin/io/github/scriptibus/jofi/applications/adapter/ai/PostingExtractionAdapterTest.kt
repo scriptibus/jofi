@@ -208,6 +208,8 @@ class PostingExtractionAdapterTest {
                 Arguments.of(AiResult.AuthenticationFailed, ImportFailure.AI_AUTHENTICATION_FAILED),
                 Arguments.of(AiResult.Rejected(400), ImportFailure.AI_REJECTED),
                 Arguments.of(AiResult.ContextTooLong, ImportFailure.AI_REJECTED),
+                Arguments.of(AiResult.Withheld(AiTask.EXTRACTION), ImportFailure.AI_REJECTED),
+                Arguments.of(AiResult.BudgetExceeded(AiTask.EXTRACTION), ImportFailure.AI_REJECTED),
                 Arguments.of(AiResult.Unavailable, ImportFailure.AI_UNAVAILABLE),
                 Arguments.of(AiResult.RateLimited(null), ImportFailure.AI_UNAVAILABLE),
                 Arguments.of(AiResult.PrivacyFilterFailed(AiTask.EXTRACTION), ImportFailure.AI_UNAVAILABLE),

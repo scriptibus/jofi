@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.domain
 
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.job.JobType
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -37,7 +38,10 @@ enum class ImportFailure {
     /** The provider could not be reached, throttled the call or failed on its side; retrying later may help. */
     AI_UNAVAILABLE,
 
-    /** The provider or the model refused the request (e.g. no structured output, the posting is too long for it). */
+    /**
+     * The request was refused and the same request would be refused again: by the provider or the model (no
+     * structured output, the posting is too long for it), by the "never send to AI" filter, or by the budget cap.
+     */
     AI_REJECTED,
 
     /** The model's answer was cut off or is no JSON object of the requested shape. */
@@ -48,6 +52,9 @@ enum class ImportFailure {
 
     /** The import could not be queued for the worker. */
     NOT_QUEUED,
+
+    /** The worker could not finish the import (a store kept failing, or something unexpected went wrong). */
+    NOT_COMPLETED,
 }
 
 /**
@@ -103,9 +110,15 @@ data class PostingImport(
         return copy(status = ImportStatus.FAILED, failure = reason, updatedAt = maxOf(at, updatedAt))
     }
 
-    /** A failed import pending again as its next attempt, asked for at [at]; `null` unless it failed. */
+    /**
+     * Whether this import has been pending for at least [STALLED_AFTER] at [at]: its job is gone (a restored backup
+     * has no job queue) or keeps failing, so it may be retried or given up.
+     */
+    fun stalled(at: Instant): Boolean = status == ImportStatus.PENDING && !updatedAt.plus(STALLED_AFTER).isAfter(at)
+
+    /** A failed or [stalled] import pending again as its next attempt, asked for at [at]; `null` otherwise. */
     fun retried(at: Instant): PostingImport? =
-        if (status == ImportStatus.FAILED) {
+        if (status == ImportStatus.FAILED || stalled(at)) {
             copy(status = ImportStatus.PENDING, failure = null, attempt = attempt + 1, updatedAt = maxOf(at, updatedAt))
         } else {
             null
@@ -123,6 +136,13 @@ data class PostingImport(
 
         /** The job argument that names the import (ids only, ADR-0038). */
         const val JOB_ARGUMENT = "import"
+
+        /**
+         * How long an import may stay pending before it counts as stalled (ADR-0051). A run takes seconds; JobRunr's
+         * first retries after a failure come within minutes. Long enough not to race a live run, short enough that
+         * the user is not left waiting when the job is gone.
+         */
+        val STALLED_AFTER: Duration = Duration.ofMinutes(30)
 
         /** A new import of [text], pending its first attempt, started [at]. */
         fun start(
@@ -149,11 +169,18 @@ data class ExtractedPosting(
     val payBand: PayBandInput? = null,
 ) {
     /**
-     * The application input for [company], checked with [ApplicationInput.validate]. An optional field that breaks a
-     * rule is left out (the model's reading is only a suggestion the user can correct); `null` if the title is
-     * missing or broken, which leaving out cannot fix.
+     * This reading checked with [ApplicationInput.validate] before any company is looked up or created: an optional
+     * field that breaks a rule is left out (the model's reading is only a suggestion the user can correct); `null` if
+     * the company name is missing or blank, or the title is missing or broken, which leaving out cannot fix. Whether
+     * the company exists is not part of the check.
      */
-    fun toInput(company: CompanyRef): ApplicationInput? {
+    fun checked(): CheckedPosting? {
+        val name = company?.trim()?.takeIf(String::isNotEmpty)
+        val input = toInput(UNCHECKED_COMPANY)
+        return if (name != null && input != null) CheckedPosting(name, input) else null
+    }
+
+    private fun toInput(company: CompanyRef): ApplicationInput? {
         val input =
             ApplicationInput(
                 title = title.orEmpty(),
@@ -197,6 +224,9 @@ data class ExtractedPosting(
     }
 
     private companion object {
+        /** Stands in for the company while checking: `validate` never looks at whether it exists. */
+        val UNCHECKED_COMPANY = CompanyRef(UUID(0, 0))
+
         val PAY_FIELDS =
             setOf(
                 ApplicationField.PAY_MIN,
@@ -206,6 +236,19 @@ data class ExtractedPosting(
                 ApplicationField.PAY_ESTIMATE_CONFIDENCE,
             )
     }
+}
+
+/**
+ * A reading that passed [ExtractedPosting.checked]: the [company] name to match and the valid input, which only needs
+ * the matched company. [toString] leaves out both.
+ */
+class CheckedPosting internal constructor(
+    val company: String,
+    private val input: ApplicationInput,
+) {
+    fun toInput(company: CompanyRef): ApplicationInput = input.copy(company = company)
+
+    override fun toString(): String = "CheckedPosting"
 }
 
 /** Outcome of reading a posting with AI: the fields, or why there are none. */

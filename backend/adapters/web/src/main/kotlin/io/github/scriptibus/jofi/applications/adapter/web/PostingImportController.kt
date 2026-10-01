@@ -47,7 +47,7 @@ class PostingImportController(
         @PathVariable importId: UUID,
     ): PostingImportResponse = PostingImportResponse.from(get.execute(ImportId(importId)).orThrow())
 
-    /** Queues a failed import again with the text it kept. */
+    /** Queues a failed import, or one pending for 30 minutes or more, again with the text it kept. */
     @PostMapping("/{importId}/retry")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @ProblemResponses(ProblemKind.NOT_FOUND, ProblemKind.CONFLICT)
