@@ -13,6 +13,23 @@ describe("Table", () => {
     { id: "actions", label: "Actions", hideLabel: true },
   ] as const;
 
+  it("scrolls inside a named, keyboard-focusable region, so a wide table never needs the mouse", async () => {
+    const user = userEvent.setup();
+    render(
+      <Table label="Jobs" columns={columns}>
+        <tr>
+          <TableCell>Backend</TableCell>
+          <TableCell>Monday</TableCell>
+          <TableCell>–</TableCell>
+        </tr>
+      </Table>,
+    );
+    const region = screen.getByRole("region", { name: "Jobs" });
+    expect(within(region).getByRole("table", { name: "Jobs" })).toBeVisible();
+    await user.tab();
+    expect(region).toHaveFocus();
+  });
+
   it("is a captioned table whose sorted column carries aria-sort, with sort buttons in the headings", async () => {
     const onSort = vi.fn();
     const user = userEvent.setup();

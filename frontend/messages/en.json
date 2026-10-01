@@ -372,6 +372,57 @@
   "ai_budget_spent_no_cap": "Spent this month: {spent}. No cap set.",
   "ai_budget_reached_title": "Budget reached",
   "ai_budget_reached": "Non-essential AI jobs are paused until {until}. Raise or remove the cap to resume them now.",
+  "ai_costs_heading": "AI costs",
+  "ai_costs_intro": "What the AI calls cost, by task, provider and model. Jofi estimates each cost from a price table; calls to a model without a price are counted but not costed.",
+  "ai_costs_month_label": "Month",
+  "ai_costs_loading": "Loading the costs…",
+  "ai_costs_load_failed": "The costs could not be loaded.",
+  "ai_costs_history_failed": "The monthly history could not be loaded.",
+  "ai_costs_budget_label": "Spent against the monthly cap",
+  "ai_costs_budget_text": "{spent} of {cap} ({percent})",
+  "ai_costs_spent": "Spent in {month}: {spent}",
+  "ai_costs_no_cap": "No monthly cap is set.",
+  "ai_costs_unknown": "No price",
+  "ai_costs_unpriced": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} call without a price",
+        "countPlural=other": "{shown} calls without a price"
+      }
+    }
+  ],
+  "ai_costs_totals": [
+    {
+      "declarations": [
+        "input count",
+        "input shown",
+        "input tokensIn",
+        "input tokensOut",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} call with {tokensIn} input and {tokensOut} output tokens",
+        "countPlural=other": "{shown} calls with {tokensIn} input and {tokensOut} output tokens"
+      }
+    }
+  ],
+  "ai_costs_empty": "No AI calls yet in {month}.",
+  "ai_costs_by_task": "Costs by task",
+  "ai_costs_by_provider": "Costs by provider",
+  "ai_costs_by_model": "Costs by model",
+  "ai_costs_history": "Last 12 months",
+  "ai_costs_history_label": "AI costs per month",
+  "ai_costs_col_task": "Task",
+  "ai_costs_col_provider": "Provider",
+  "ai_costs_col_model": "Model",
+  "ai_costs_col_month": "Month",
+  "ai_costs_col_calls": "Calls",
+  "ai_costs_col_input": "Input tokens",
+  "ai_costs_col_output": "Output tokens",
+  "ai_costs_col_cost": "Cost",
   "wizard_heading": "Set up AI",
   "wizard_progress": "Step {step} of {total}",
   "wizard_steps_label": "Setup steps",

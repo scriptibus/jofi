@@ -9,6 +9,8 @@
 import { HttpResponse, http } from "msw";
 import type {
   CapabilityNeedsResponse,
+  CostSummaryResponse,
+  CostTotalsResponse,
   ModelResponse,
   ProviderPrivacyEntryResponse,
   ProviderPrivacyResponse,
@@ -98,6 +100,44 @@ export function privacyInfo(
   };
 }
 
+/** One month's costs as `GET /api/setup/costs` breaks them down (the budget and the month are added by the fake). */
+export type Breakdown = Pick<CostSummaryResponse, "byTask" | "byProviderKind" | "byModel" | "total">;
+
+export const NO_CALLS: CostTotalsResponse = {
+  calls: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+  knownCostMicros: 0,
+  unknownCostCalls: 0,
+};
+
+/** Totals of a cost line; `unknown` calls have no price and are not part of `knownCostMicros`. */
+export function totals(
+  calls: number,
+  knownCostMicros: number,
+  unknown = 0,
+  tokens: [number, number] = [calls * 100, calls * 20],
+): CostTotalsResponse {
+  return {
+    calls,
+    inputTokens: tokens[0],
+    outputTokens: tokens[1],
+    knownCostMicros,
+    unknownCostCalls: unknown,
+  };
+}
+
+const FIRST_YEAR = 2000;
+const MONTHS_A_YEAR = 12;
+const MONTH_FORMAT = /^(\d{4})-(0[1-9]|1[0-2])$/;
+
+/** `month` moved by `delta` months (`2026-01`, -1 -> `2025-12`). */
+export function shiftMonth(month: string, delta: number): string {
+  const [year = 0, number = 0] = month.split("-").map(Number);
+  const index = year * MONTHS_A_YEAR + (number - 1) + delta;
+  return `${Math.floor(index / MONTHS_A_YEAR)}-${String((index % MONTHS_A_YEAR) + 1).padStart(2, "0")}`;
+}
+
 export interface FakeSetupState {
   /** The privacy info; null answers 404, so the UI falls back to what is certain. */
   privacy: ProviderPrivacyResponse | null;
@@ -118,6 +158,14 @@ export interface FakeSetupState {
   deleteCalls: ("first" | "confirmed")[];
   /** Budget bodies received, to check `capMicros` is always sent. */
   budgetBodies: unknown[];
+  /** The month the server calls current (UTC). */
+  currentMonth: string;
+  /** Costs per month (`YYYY-MM`); a month without an entry has no calls. */
+  costs: Record<string, Breakdown>;
+  /** Cost requests seen, as `summary:<month or ->` and `history:<months>`. */
+  costCalls: string[];
+  /** The summary or the history answers this status (a 500 for the retry path). */
+  costsFail?: { summary?: number; history?: number };
 }
 
 function missing(needs: CapabilityNeedsResponse, found: ModelResponse | undefined): CapabilityNeedsResponse {
@@ -144,6 +192,9 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
     spentMicros: 0,
     deleteCalls: [],
     budgetBodies: [],
+    currentMonth: "2026-09",
+    costs: {},
+    costCalls: [],
     ...initial,
   };
   let next = 1;
@@ -179,7 +230,42 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
       state.capMicros !== null && state.spentMicros >= state.capMicros ? "2026-10-01T00:00:00Z" : null,
   });
 
+  const emptyMonth: Breakdown = { byTask: [], byProviderKind: [], byModel: [], total: NO_CALLS };
+
+  const summary = (url: URL) => {
+    const requested = url.searchParams.get("month");
+    state.costCalls.push(`summary:${requested ?? "-"}`);
+    if (state.costsFail?.summary) return problem(state.costsFail.summary, "about:blank");
+    const month = requested ?? state.currentMonth;
+    const year = Number(month.slice(0, 4));
+    if (!MONTH_FORMAT.test(month) || month > state.currentMonth || year < FIRST_YEAR)
+      return invalid([
+        { field: "month", problem: month > state.currentMonth ? "OUT_OF_RANGE" : "INVALID_FORMAT" },
+      ]);
+    const isCurrent = month === state.currentMonth;
+    return json({
+      month,
+      currency: "USD",
+      ...(state.costs[month] ?? emptyMonth),
+      ...(isCurrent ? { budget: { ...budget(), month } } : {}),
+    });
+  };
+
+  const history = (url: URL) => {
+    const count = Number(url.searchParams.get("months") ?? 12);
+    state.costCalls.push(`history:${count}`);
+    if (state.costsFail?.history) return problem(state.costsFail.history, "about:blank");
+    return json(
+      Array.from({ length: count }, (_, index) => {
+        const month = shiftMonth(state.currentMonth, index + 1 - count);
+        return { month, totals: state.costs[month]?.total ?? NO_CALLS };
+      }),
+    );
+  };
+
   const handlers = [
+    http.get(`${origin()}/api/setup/costs/history`, ({ request }) => history(new URL(request.url))),
+    http.get(`${origin()}/api/setup/costs`, ({ request }) => summary(new URL(request.url))),
     http.get(`${origin()}/api/setup/providers/privacy`, () =>
       state.privacy ? json(state.privacy) : problem(404, "about:blank"),
     ),

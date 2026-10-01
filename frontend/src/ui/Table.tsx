@@ -40,7 +40,14 @@ export interface TableProps<K extends string> {
  */
 export function Table<K extends string>({ label, columns, sort, onSort, children }: TableProps<K>) {
   return (
-    <div className="overflow-x-auto rounded border border-line bg-surface shadow-card">
+    // Focusable and named: a keyboard user must be able to scroll a table that is wider than its card (axe
+    // `scrollable-region-focusable`).
+    <section
+      aria-label={label}
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: the scroll container itself needs the focus for keyboard scrolling
+      tabIndex={0}
+      className="overflow-x-auto rounded border border-line bg-surface shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
       <table className="w-full border-collapse text-left text-body">
         <caption className="sr-only">{label}</caption>
         <thead className="bg-sunken">
@@ -57,7 +64,7 @@ export function Table<K extends string>({ label, columns, sort, onSort, children
         </thead>
         <tbody>{children}</tbody>
       </table>
-    </div>
+    </section>
   );
 }
 
