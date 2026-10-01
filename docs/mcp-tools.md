@@ -84,7 +84,9 @@ client's answer; a client that answers by itself deletes (see ADR-0039, "MCP and
   wait at a time and at most `jofi.mcp.max-pending-confirmations` (default 4) in all, because a waiting call
   holds a server thread; further calls answer `confirmation-pending` at once and issue no token. The MCP SDK
   does not tell the server when a session closes, so a slot is freed when the wait ends, not earlier. A client
-  that gives up on the call before the timeout still gets the delete if the user accepts later.
+  that gives up on the call before the timeout still gets the delete if the user accepts later (the user did
+  confirm). After a failed or timed-out delete call, re-read the entity (`get_application`, ...) before retrying
+  or telling the user that nothing happened.
 - A client that does not declare form elicitation (or has no session) cannot confirm: nothing is issued or deleted.
 - If what the delete affects changed while the user was deciding, the token no longer matches and the tool
   answers `confirmation-invalid`; nothing is deleted. Call the tool again to start over.

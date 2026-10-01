@@ -137,13 +137,20 @@ token or decides to send it back. Decided in #117:
   scope or UI confirmation for deletes.
 - The elicitation text is built by the server from the structured effect, in English; the stored name is
   neutralised and on a line of its own, labelled as stored text, because titles and names may come from
-  postings. The text passes the result filter (ADR-0053) and fails closed. The structured effect itself is not
-  yet carried to the client (an option for #122: the elicitation request's `_meta`).
+  postings. The text passes the result filter (ADR-0053) and fails closed. **Exception, decided by Lucas on
+  2026-10-01:** this text is English prose from the server, an explicit exception to "structured effects, never
+  prose" above; it stays for now. #122 (the chat relay) carries the structured effect alongside the text so the UI
+  can render it in the user's language.
 - The call waits up to `jofi.mcp.confirmation-timeout` (4.5 minutes) for the answer, so a person has time to read;
   a waiting call holds a thread, so one confirmation per MCP session and `jofi.mcp.max-pending-confirmations`
   (default 4) in all may wait; the slot is taken before the first step, so a refused call issues no token. The SDK
   does not report closed sessions, so a slot frees when the wait ends. A cap per requester in the confirmation store
   itself is #214. The stored name is filtered as stored, before it is neutralised or cut.
+- Decided by Lucas on 2026-10-01: a client without form elicitation cannot delete over MCP (no token-returning
+  fallback; spec §9.1 is corrected). If a client gives up on the tool call before the timeout but the user accepts
+  later within it, the delete still happens: the user did confirm, and the model saw a failed call. A client should
+  re-read the entity before retrying a failed or timed-out delete call. The store cap (#214) and a write budget
+  (#217) come before external clients (#125).
 
 ## Consequences
 
