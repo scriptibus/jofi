@@ -172,6 +172,17 @@ class McpToolSpecificationsTest {
     }
 
     @Test
+    fun `stored text is screened as stored, so flagged values with quotes and brackets are withheld`() {
+        val value = "O'Brien & \"Söhne\" #1 [intern]"
+        val flagged = AiVisibilityResult.Known(NeverSendRules(emptyMap(), setOf(FlaggedValue(value))))
+        val confirmer = specifications(flagged).confirmerFor(elicitingExchange { })
+
+        confirmer.screen("Team $value") shouldBe "Team [withheld]"
+        specifications(AiVisibilityResult.Unavailable("down")).confirmerFor(elicitingExchange { }).screen("x") shouldBe
+            null
+    }
+
+    @Test
     fun `a call without an authenticated caller runs nothing`() {
         val result = specifications().call(echo, McpTransportContext.EMPTY, mapOf("text" to "hi"))
 

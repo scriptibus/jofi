@@ -3,20 +3,19 @@
 
 package io.github.scriptibus.jofi.shared.adapter.mcp
 
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.modelcontextprotocol.server.McpSyncServerExchange
 import io.modelcontextprotocol.spec.McpSchema
 import org.junit.jupiter.api.Test
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeoutException
 
 /** How the client's answer, silence and failures become [HumanAnswer]s; only a real yes confirms. */
 class ElicitingConfirmerTest {
-    private val pending: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    private val slots = ConfirmationSlots(2)
     private val exchange = mockk<McpSyncServerExchange>()
 
     private fun confirmer(
@@ -30,7 +29,7 @@ class ElicitingConfirmerTest {
     ): ElicitingConfirmer {
         every { exchange.sessionId() } returns session
         every { exchange.clientCapabilities } returns capabilities
-        return ElicitingConfirmer(exchange, pending, filter)
+        return ElicitingConfirmer(exchange, slots, filter)
     }
 
     private fun answers(
@@ -77,25 +76,20 @@ class ElicitingConfirmerTest {
 
         every { exchange.createElicitation(any()) } throws IllegalStateException("connection closed")
         confirmer.ask("q") shouldBe HumanAnswer.UNAVAILABLE
-        pending.shouldBeEmpty()
     }
 
     @Test
     fun `a client without form elicitation is unsupported and is never asked`() {
-        val none = confirmer(capabilities = McpSchema.ClientCapabilities.builder().build())
-        none.availability shouldBe Availability.UNSUPPORTED
-        none.ask("q") shouldBe HumanAnswer.UNAVAILABLE
-
-        val urlOnly =
-            confirmer(
-                capabilities =
-                    McpSchema.ClientCapabilities
-                        .builder()
-                        .elicitation(false, true)
-                        .build(),
-            )
-        urlOnly.availability shouldBe Availability.UNSUPPORTED
-        urlOnly.ask("q") shouldBe HumanAnswer.UNAVAILABLE
+        confirmer(capabilities = McpSchema.ClientCapabilities.builder().build()).reserve() shouldBe
+            Reservation.Unsupported
+        confirmer(
+            capabilities =
+                McpSchema.ClientCapabilities
+                    .builder()
+                    .elicitation(false, true)
+                    .build(),
+        ).reserve() shouldBe Reservation.Unsupported
+        confirmer(session = null).reserve() shouldBe Reservation.Unsupported
 
         val formOnly =
             confirmer(
@@ -105,9 +99,7 @@ class ElicitingConfirmerTest {
                         .elicitation(true, false)
                         .build(),
             )
-        formOnly.availability shouldBe Availability.READY
-
-        confirmer(session = null).availability shouldBe Availability.UNSUPPORTED
+        formOnly.reserve().shouldBeInstanceOf<Reservation.Granted>()
         verify(exactly = 0) { exchange.createElicitation(any()) }
     }
 
@@ -120,21 +112,30 @@ class ElicitingConfirmerTest {
     }
 
     @Test
-    fun `one confirmation per session may wait, and the slot is free again afterwards`() {
+    fun `one confirmation per session may wait, and the slot is free again once the lease is closed`() {
         val confirmer = confirmer()
-        var duringAsk: Availability? = null
-        var second: HumanAnswer? = null
-        every { exchange.createElicitation(any()) } answers {
-            duringAsk = confirmer.availability
-            second = confirmer.ask("another")
-            McpSchema.ElicitResult(McpSchema.ElicitResult.Action.DECLINE, null)
-        }
 
-        confirmer.ask("first") shouldBe HumanAnswer.DECLINED
+        val first = confirmer.reserve().shouldBeInstanceOf<Reservation.Granted>()
+        confirmer.reserve() shouldBe Reservation.Busy
+        first.close()
 
-        duringAsk shouldBe Availability.BUSY
-        second shouldBe HumanAnswer.BUSY
-        confirmer.availability shouldBe Availability.READY
-        pending.shouldBeEmpty()
+        confirmer.reserve().shouldBeInstanceOf<Reservation.Granted>().close()
+    }
+
+    @Test
+    fun `stored text is screened by the same filter`() {
+        confirmer(filter = { it.replace("secret", "[withheld]") }).screen("a secret name") shouldBe "a [withheld] name"
+        confirmer(filter = { null }).screen("x") shouldBe null
+    }
+
+    @Test
+    fun `a cause chain that loops does not hang the walk`() {
+        val confirmer = confirmer()
+        val a = RuntimeException("a")
+        val b = RuntimeException("b", a)
+        a.initCause(b)
+        every { exchange.createElicitation(any()) } throws a
+
+        confirmer.ask("q") shouldBe HumanAnswer.UNAVAILABLE
     }
 }

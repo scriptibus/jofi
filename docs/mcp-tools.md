@@ -71,15 +71,20 @@ client's answer; a client that answers by itself deletes (see ADR-0039, "MCP and
 - A delete tool first runs the use case without a token. That mutates nothing and yields a single-use token (5
   minutes) bound to the caller, the MCP session, the operation, the target and the effect the server derived.
 - The server then asks the client through MCP elicitation (form mode) to confirm. The text is the server's, in
-  English: what is deleted, what is only unlinked, and the stored name on a line of its own, neutralised (one line,
-  no control, bidi or Markdown characters, at most 80 characters) and labelled as stored text. It passes the
+  English: what is deleted, what is only unlinked, and the stored name on a line of its own, neutralised (one line;
+  no control, bidi, invisible or quote characters; `* ~ [ ] < > # |` and backticks removed; at most two combining
+  marks per character; at most 80 characters; `(empty)` if nothing is left) and labelled as stored text.
+  Underscores, character entities and URLs are not changed, so a client that renders Markdown may format them. It passes the
   "never send to AI" filter first; if the filter fails nothing is asked. A checkbox carries the answer; only an
   `accept` with the box checked (a real boolean) runs the delete, by repeating the call with the token inside the
   server.
 - The model never receives the token. Its result says only `deleted` or `declined`.
 - The tool call waits for the answer for up to 4.5 minutes (`jofi.mcp.confirmation-timeout`, below the token's 5);
   the MCP SDK's 10 second default for server requests is raised accordingly. One confirmation per MCP session may
-  wait at a time, because a waiting call holds a server thread.
+  wait at a time and at most `jofi.mcp.max-pending-confirmations` (default 4) in all, because a waiting call
+  holds a server thread; further calls answer `confirmation-pending` at once and issue no token. The MCP SDK
+  does not tell the server when a session closes, so a slot is freed when the wait ends, not earlier. A client
+  that gives up on the call before the timeout still gets the delete if the user accepts later.
 - A client that does not declare form elicitation (or has no session) cannot confirm: nothing is issued or deleted.
 - If what the delete affects changed while the user was deciding, the token no longer matches and the tool
   answers `confirmation-invalid`; nothing is deleted. Call the tool again to start over.
@@ -93,7 +98,7 @@ Additional error codes (nothing was deleted unless a result says `deleted`):
 |---|---|
 | `confirmation-unavailable` | the client cannot ask its user (no form elicitation, no session), the text was refused by the filter, or asking failed |
 | `confirmation-timeout` | the user did not answer in time; call again to ask again |
-| `confirmation-pending` | another confirmation of the same session still waits for its answer |
+| `confirmation-pending` | this session, or the server as a whole, already has the allowed number of confirmations waiting |
 | `confirmation-invalid` | the confirmation no longer matches (the effect changed meanwhile) |
 | `has-applications` | a company that still has applications |
 

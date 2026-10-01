@@ -140,8 +140,10 @@ token or decides to send it back. Decided in #117:
   postings. The text passes the result filter (ADR-0053) and fails closed. The structured effect itself is not
   yet carried to the client (an option for #122: the elicitation request's `_meta`).
 - The call waits up to `jofi.mcp.confirmation-timeout` (4.5 minutes) for the answer, so a person has time to read;
-  one confirmation per MCP session may wait at a time (a waiting call holds a thread). A cap per requester in the
-  confirmation store itself is #214.
+  a waiting call holds a thread, so one confirmation per MCP session and `jofi.mcp.max-pending-confirmations`
+  (default 4) in all may wait; the slot is taken before the first step, so a refused call issues no token. The SDK
+  does not report closed sessions, so a slot frees when the wait ends. A cap per requester in the confirmation store
+  itself is #214. The stored name is filtered as stored, before it is neutralised or cut.
 
 ## Consequences
 

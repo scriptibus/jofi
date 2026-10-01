@@ -17,22 +17,25 @@ enum class HumanAnswer {
     /** The client did not answer within the confirmation timeout. */
     TIMED_OUT,
 
-    /** This session already waits for an answer to another confirmation. */
-    BUSY,
-
     /** Asking failed (the filter, the transport or the client): nothing may run. */
     UNAVAILABLE,
 }
 
-/** Whether a confirmation can be asked now; checked before the first step so no unusable token is issued. */
-enum class Availability {
-    READY,
+/** The right to wait for one confirmation, taken before the first step so no unusable token is issued. */
+sealed interface Reservation {
+    /** The client cannot be asked (no form elicitation, no session): nothing may run. */
+    data object Unsupported : Reservation
 
-    /** The client does not declare form elicitation, or there is no MCP session to ask in. */
-    UNSUPPORTED,
+    /** This session, or the server as a whole, already has the allowed number of confirmations waiting. */
+    data object Busy : Reservation
 
-    /** An earlier confirmation of the same session is still waiting for its answer. */
-    BUSY,
+    /** Held while the tool call runs; [close] gives the slot back. */
+    class Granted(
+        private val release: () -> Unit,
+    ) : Reservation,
+        AutoCloseable {
+        override fun close() = release()
+    }
 }
 
 /**
@@ -41,7 +44,10 @@ enum class Availability {
  * default is unsupported; only an implementation that really can ask says otherwise.
  */
 interface HumanConfirmer {
-    val availability: Availability get() = Availability.UNSUPPORTED
+    fun reserve(): Reservation = Reservation.Unsupported
+
+    /** Passes stored text through the "never send to AI" filter; null means it failed, so nothing is asked. */
+    fun screen(stored: String): String? = null
 
     fun ask(message: String): HumanAnswer
 
@@ -55,7 +61,9 @@ interface HumanConfirmer {
         /** A confirmer that is always ready and answers with [answer]; for tests of tools and helpers. */
         fun answering(answer: (String) -> HumanAnswer): HumanConfirmer =
             object : HumanConfirmer {
-                override val availability = Availability.READY
+                override fun reserve(): Reservation = Reservation.Granted {}
+
+                override fun screen(stored: String): String = stored
 
                 override fun ask(message: String) = answer(message)
             }
@@ -65,36 +73,34 @@ interface HumanConfirmer {
 /**
  * MCP elicitation (form mode) on the exchange of the running tool call: the client shows the message and one
  * checkbox and reports the answer. The server cannot prove that a person answered, only that the client did.
- * The message first passes [filter] (the "never send to AI" filter, ADR-0053; null means it failed, so nothing
- * is asked). One confirmation per MCP session may wait at a time ([pending]): the tool call blocks a thread
- * while it waits. A client without form elicitation, a transport error or a refused message is
- * [HumanAnswer.UNAVAILABLE], a missing answer [HumanAnswer.TIMED_OUT]; only an explicit "accept" with the box
- * checked (a real boolean) is [HumanAnswer.CONFIRMED].
+ * Stored text and the whole message pass [filter] (the "never send to AI" filter, ADR-0053; null means it
+ * failed, so nothing is asked). Waiting calls hold a thread, so [slots] allows one per MCP session and a few
+ * for the whole server; the slot is taken in [reserve], before any token exists. A client without form
+ * elicitation, a transport error or a refused message is [HumanAnswer.UNAVAILABLE], a missing answer
+ * [HumanAnswer.TIMED_OUT]; only an explicit "accept" with the box checked (a real boolean) is
+ * [HumanAnswer.CONFIRMED].
  */
 class ElicitingConfirmer(
     private val exchange: McpSyncServerExchange,
-    private val pending: MutableSet<String>,
+    private val slots: ConfirmationSlots,
     private val filter: (String) -> String?,
 ) : HumanConfirmer {
-    override val availability: Availability
-        get() =
-            when {
-                exchange.sessionId() == null || !supportsForms() -> Availability.UNSUPPORTED
-                exchange.sessionId() in pending -> Availability.BUSY
-                else -> Availability.READY
-            }
+    override fun reserve(): Reservation {
+        val session = exchange.sessionId()
+        return when {
+            session == null || !supportsForms() -> Reservation.Unsupported
+            else -> slots.tryReserve(session)?.let { Reservation.Granted(it::close) } ?: Reservation.Busy
+        }
+    }
+
+    override fun screen(stored: String): String? = filter(stored)
 
     @Suppress("TooGenericExceptionCaught") // The SDK throws unchecked transport and protocol errors.
     override fun ask(message: String): HumanAnswer {
-        val session = exchange.sessionId()
         val text = filter(message)
         return when {
-            session == null || text == null || !supportsForms() -> {
+            text == null || !supportsForms() -> {
                 HumanAnswer.UNAVAILABLE
-            }
-
-            !pending.add(session) -> {
-                HumanAnswer.BUSY
             }
 
             else -> {
@@ -102,8 +108,6 @@ class ElicitingConfirmer(
                     answerOf(exchange.createElicitation(McpSchema.ElicitFormRequest.builder(text, SCHEMA).build()))
                 } catch (failure: Exception) {
                     failed(failure)
-                } finally {
-                    pending.remove(session)
                 }
             }
         }
@@ -111,7 +115,12 @@ class ElicitingConfirmer(
 
     private fun failed(failure: Exception): HumanAnswer {
         var cause: Throwable = failure
-        while (cause.cause != null && cause.cause !== cause) cause = cause.cause as Throwable
+        var depth = 0
+        while (cause.cause != null && cause.cause !== cause &&
+            depth++ < MAX_CAUSE_DEPTH
+        ) {
+            cause = cause.cause as Throwable
+        }
         // Class names only: messages may carry stored text.
         log.warn("MCP confirmation not answered: {}", cause.javaClass.name)
         return if (cause is TimeoutException) HumanAnswer.TIMED_OUT else HumanAnswer.UNAVAILABLE
@@ -132,6 +141,7 @@ class ElicitingConfirmer(
 
     private companion object {
         const val FIELD = "confirm"
+        const val MAX_CAUSE_DEPTH = 10
         val log: Logger = LoggerFactory.getLogger(ElicitingConfirmer::class.java)
         val SCHEMA: Map<String, Any> =
             mapOf(

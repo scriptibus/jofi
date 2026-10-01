@@ -14,9 +14,13 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
  */
 object ConfirmationMessage {
     private const val MAX_NAME = 80
+    private const val MAX_MARKS = 2
+
+    /** Letters and symbols that draw nothing (Hangul fillers, Braille blank), so a name of them would look empty. */
+    private val INVISIBLE = setOf(0x3164, 0x115F, 0x1160, 0xFFA0, 0x2800)
     private const val ELLIPSIS = "…"
 
-    /** Characters that could close the quoted line or format it, dropped from the name. */
+    /** Characters that could add markup or quotes to the name line, dropped from it. */
     private val FORMATTING = "\"'`*~[]<>#|\\«»“”‘’".toSet()
 
     fun of(effect: ConfirmationEffect): String {
@@ -33,23 +37,46 @@ object ConfirmationMessage {
         ).joinToString("\n")
     }
 
-    /** One line without control, format or bidi characters, quotes or Markdown, cut to a short length. */
+    /**
+     * One line without control, format or bidi characters, invisible filler letters, quotes or markup characters,
+     * with at most [MAX_MARKS] combining marks on a character, cut to a short length. Underscores, character
+     * entities and URLs stay: a client that renders Markdown may format them.
+     */
     fun displayName(name: String): String {
         val cleaned = StringBuilder()
         var gap = false
+        var marks = 0
         for (point in name.codePoints().toArray().filterNot(::isDropped)) {
-            if (isGap(point)) {
-                gap = cleaned.isNotEmpty()
-            } else {
-                if (gap) cleaned.append(' ')
-                gap = false
-                cleaned.appendCodePoint(point)
+            when {
+                isGap(point) -> {
+                    gap = cleaned.isNotEmpty()
+                    marks = 0
+                }
+
+                isMark(point) -> {
+                    if (cleaned.isNotEmpty() && !gap && marks++ < MAX_MARKS) cleaned.appendCodePoint(point)
+                }
+
+                else -> {
+                    if (gap) cleaned.append(' ')
+                    gap = false
+                    marks = 0
+                    cleaned.appendCodePoint(point)
+                }
             }
         }
         val text = cleaned.toString()
         val shown = if (text.codePointCount(0, text.length) > MAX_NAME) shorten(text) else text
         return shown.ifEmpty { "(empty)" }
     }
+
+    private fun isMark(point: Int): Boolean =
+        Character.getType(point) in
+            setOf(
+                Character.NON_SPACING_MARK.toInt(),
+                Character.ENCLOSING_MARK.toInt(),
+                Character.COMBINING_SPACING_MARK.toInt(),
+            )
 
     private fun shorten(text: String): String = text.substring(0, text.offsetByCodePoints(0, MAX_NAME)) + ELLIPSIS
 
@@ -64,7 +91,8 @@ object ConfirmationMessage {
             )
 
     private fun isDropped(point: Int): Boolean =
-        Character.getType(point) in DROPPED_TYPES || (point <= Char.MAX_VALUE.code && point.toChar() in FORMATTING)
+        point in INVISIBLE || Character.getType(point) in DROPPED_TYPES ||
+            (point <= Char.MAX_VALUE.code && point.toChar() in FORMATTING)
 
     private fun parts(
         effect: ConfirmationEffect,

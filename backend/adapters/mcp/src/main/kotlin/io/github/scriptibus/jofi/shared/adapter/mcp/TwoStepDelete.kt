@@ -36,7 +36,22 @@ object TwoStepDelete {
         unconfirmed: (R) -> ConfirmationResult.Unconfirmed?,
         finish: (R) -> ToolAnswer,
     ): ToolAnswer {
-        refusal(call)?.let { return it }
+        if (call.session == ToolCall.NO_SESSION) return UNAVAILABLE
+        // The slot is taken before the use case runs, so a call that may not wait never issues a token.
+        return when (val slot = call.human.reserve()) {
+            Reservation.Unsupported -> UNAVAILABLE
+            Reservation.Busy -> PENDING
+            is Reservation.Granted -> slot.use { steps(call, id, execute, unconfirmed, finish) }
+        }
+    }
+
+    private fun <R> steps(
+        call: ToolCall,
+        id: UUID,
+        execute: (ConfirmationRequester, ConfirmationToken?) -> R,
+        unconfirmed: (R) -> ConfirmationResult.Unconfirmed?,
+        finish: (R) -> ToolAnswer,
+    ): ToolAnswer {
         val requester = ConfirmationRequester(call.caller, call.session)
         val first = execute(requester, null)
         return when (val gate = unconfirmed(first)) {
@@ -57,42 +72,23 @@ object TwoStepDelete {
         }
     }
 
-    /** Before the first step: with nobody to ask, no token is issued at all. */
-    private fun refusal(call: ToolCall): ToolAnswer.Error? =
-        when {
-            call.session == ToolCall.NO_SESSION -> UNAVAILABLE
-            call.human.availability == Availability.UNSUPPORTED -> UNAVAILABLE
-            call.human.availability == Availability.BUSY -> PENDING
-            else -> null
-        }
-
     private fun askThenRepeat(
         call: ToolCall,
         id: UUID,
         required: ConfirmationResult.Required,
         repeat: (ConfirmationToken) -> ToolAnswer,
-    ): ToolAnswer =
-        when (call.human.ask(ConfirmationMessage.of(required.action.effect))) {
-            HumanAnswer.UNAVAILABLE -> {
-                UNAVAILABLE
-            }
-
-            HumanAnswer.TIMED_OUT -> {
-                TIMED_OUT
-            }
-
-            HumanAnswer.BUSY -> {
-                PENDING
-            }
-
-            HumanAnswer.DECLINED -> {
-                ToolAnswer.Result(DeleteOutcome(DeleteOutcome.DECLINED, required.action.effect.kind, id))
-            }
-
-            HumanAnswer.CONFIRMED -> {
-                repeat(required.token)
-            }
+    ): ToolAnswer {
+        val effect = required.action.effect
+        // The filter sees the stored name as stored, before it is neutralised or cut.
+        val name = call.human.screen(effect.name) ?: return UNAVAILABLE
+        val message = ConfirmationMessage.of(ConfirmationEffect(effect.kind, name, effect.counts))
+        return when (call.human.ask(message)) {
+            HumanAnswer.UNAVAILABLE -> UNAVAILABLE
+            HumanAnswer.TIMED_OUT -> TIMED_OUT
+            HumanAnswer.DECLINED -> ToolAnswer.Result(DeleteOutcome(DeleteOutcome.DECLINED, effect.kind, id))
+            HumanAnswer.CONFIRMED -> repeat(required.token)
         }
+    }
 
     private fun deleted(
         answer: ToolAnswer,
@@ -117,7 +113,8 @@ object TwoStepDelete {
     private val PENDING =
         ToolAnswer.Error(
             "confirmation-pending",
-            "Nothing was deleted: another confirmation in this session still waits for the user's answer.",
+            "Nothing was deleted: enough other confirmations still wait for the user's answer " +
+                "(one per session, a few in all). Try again later.",
         )
     private val INVALID =
         ToolAnswer.Error(

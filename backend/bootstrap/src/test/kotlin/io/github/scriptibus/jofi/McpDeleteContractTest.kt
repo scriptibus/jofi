@@ -55,10 +55,11 @@ import java.util.concurrent.TimeUnit
  * yes (MCP elicitation) deletes, with the AI as actor in the changelog; a no, a change of the effect between the
  * steps, a missing target or a company with applications delete nothing. The model never sees the token.
  */
+@Suppress("LargeClass") // One class holds the fixtures and the SDK client helper that every delete test shares.
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
     // Longer than the MCP SDK's 10 s default for server-to-client requests, which a person must not be held to.
-    properties = ["jofi.mcp.confirmation-timeout=PT30S"],
+    properties = ["jofi.mcp.confirmation-timeout=PT30S", "jofi.mcp.max-pending-confirmations=2"],
 )
 @Import(PostgresTestConfiguration::class, McpDeleteContractTest.TokenSpy::class)
 class McpDeleteContractTest(
@@ -353,6 +354,86 @@ class McpDeleteContractTest(
             }
     }
 
+    @Test
+    fun `two concurrent deletes in one session issue one token, the loser none`() {
+        val all = targets()
+        val a = all.first { it.tool == "delete_task" }
+        val b = all.first { it.tool == "delete_contact" }
+        val loserAnswered = CountDownLatch(1)
+        owner
+            .mcpClient(answer = {
+                loserAnswered.await(TIMEOUT_SECONDS, TimeUnit.SECONDS) shouldBe true
+                accept()
+            })
+            .use { client ->
+                client.initialize()
+                val issuedBefore = issuedTokens.size
+
+                val calls =
+                    listOf(
+                        a,
+                        b,
+                    ).map { t -> CompletableFuture.supplyAsync { client.callTool(request(t.tool, t.arguments)) } }
+                val refused =
+                    CompletableFuture
+                        .anyOf(
+                            *calls.toTypedArray(),
+                        ).get(TIMEOUT_SECONDS, TimeUnit.SECONDS) as McpSchema.CallToolResult
+                loserAnswered.countDown()
+
+                text(refused) shouldContain "\"code\":\"confirmation-pending\""
+                val answers = calls.map { text(it.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)) }
+                answers.count { it.contains("\"status\":\"deleted\"") } shouldBe 1
+                issuedTokens.size shouldBe issuedBefore + 1
+            }
+    }
+
+    @Suppress("LongMethod") // One scenario with three live sessions; splitting it would hide the sequence.
+    @Test
+    fun `with the server-wide cap reached a further session is refused at once and read tools stay fast`() {
+        val all = targets()
+        val release = CountDownLatch(1)
+        val waiting = CountDownLatch(2)
+        val wait: (String) -> McpSchema.ElicitResult = {
+            waiting.countDown()
+            release.await(TIMEOUT_SECONDS, TimeUnit.SECONDS) shouldBe true
+            accept()
+        }
+        val clients =
+            listOf(
+                owner.mcpClient(answer = wait),
+                owner.mcpClient(answer = wait),
+                owner.mcpClient(answer = { error("no") }),
+            )
+        try {
+            clients.forEach { it.initialize() }
+            val issuedBefore = issuedTokens.size
+            val pending =
+                listOf("delete_task", "delete_contact").mapIndexed { i, tool ->
+                    val t = all.first { it.tool == tool }
+                    CompletableFuture.supplyAsync { clients[i].callTool(request(t.tool, t.arguments)) }
+                }
+            waiting.await(TIMEOUT_SECONDS, TimeUnit.SECONDS) shouldBe true
+
+            val company = all.first { it.tool == "delete_company" }
+            val started = System.nanoTime()
+            val refused = clients[2].callTool(request(company.tool, company.arguments))
+            val read = clients[2].callTool(request("search_applications", emptyMap()))
+            val millis = Duration.ofNanos(System.nanoTime() - started).toMillis()
+
+            text(refused) shouldContain "\"code\":\"confirmation-pending\""
+            read.isError shouldBe false
+            (millis < FAST_MILLIS) shouldBe true
+            company.exists() shouldBe true
+            issuedTokens.size shouldBe issuedBefore + 2
+            release.countDown()
+            pending.forEach { text(it.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)) shouldContain "\"status\":\"deleted\"" }
+        } finally {
+            release.countDown()
+            clients.forEach { it.close() }
+        }
+    }
+
     private fun noTokenIn(text: String) = issuedTokens.forEach { text shouldNotContain it }
 
     /** Records every confirmation token the store issues, so tests can prove none ever reaches the client. */
@@ -468,6 +549,7 @@ class McpDeleteContractTest(
         const val CSRF_HEADER = "X-XSRF-TOKEN"
         const val TIMEOUT_SECONDS = 40L
         const val SLOWER_THAN_THE_SDK_DEFAULT_SECONDS = 11L
+        const val FAST_MILLIS = 3000L
         val issuedTokens: MutableList<String> = CopyOnWriteArrayList()
         const val INTERVIEW =
             """{"type":"PHONE_SCREEN","localStart":"2026-10-12T09:00","timeZone":"Europe/Berlin","participantIds":[]}"""

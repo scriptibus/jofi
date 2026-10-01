@@ -12,7 +12,6 @@ import io.modelcontextprotocol.server.McpSyncServerExchange
 import io.modelcontextprotocol.spec.McpSchema
 import org.slf4j.LoggerFactory
 import tools.jackson.databind.json.JsonMapper
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Turns [McpTool]s into MCP SDK tool specifications and runs every call the same way (ADR-0053): the caller
@@ -24,10 +23,8 @@ class McpToolSpecifications(
     private val results: JsonMapper,
     private val protocol: McpJsonMapper,
     private val filter: FilterToolResultUseCase,
+    private val slots: ConfirmationSlots = ConfirmationSlots(ConfirmationSlots.DEFAULT_LIMIT),
 ) {
-    /** The sessions that wait for an answer to a confirmation: at most one each, as a waiting call holds a thread. */
-    private val pendingConfirmations: MutableSet<String> = ConcurrentHashMap.newKeySet()
-
     fun of(tool: McpTool): McpServerFeatures.SyncToolSpecification =
         McpServerFeatures.SyncToolSpecification
             .builder()
@@ -43,8 +40,7 @@ class McpToolSpecifications(
             }.build()
 
     /** Asks through [exchange]; what it asks passes the "never send to AI" filter first, or nothing is asked. */
-    internal fun confirmerFor(exchange: McpSyncServerExchange) =
-        ElicitingConfirmer(exchange, pendingConfirmations, ::filteredText)
+    internal fun confirmerFor(exchange: McpSyncServerExchange) = ElicitingConfirmer(exchange, slots, ::filteredText)
 
     @Suppress("TooGenericExceptionCaught") // Any failure of the filter means: ask nothing.
     private fun filteredText(text: String): String? =

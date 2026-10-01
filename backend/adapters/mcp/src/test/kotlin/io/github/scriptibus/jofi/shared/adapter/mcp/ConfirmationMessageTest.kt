@@ -124,4 +124,19 @@ class ConfirmationMessageTest {
                 "contact.tasks",
             )
     }
+
+    @Test
+    fun `a name of invisible characters shows a placeholder`() {
+        ConfirmationMessage.displayName("\u3164\u115F\u1160\uFFA0\u2800 \u200B") shouldBe "(empty)"
+        message("\u3164").lines().last() shouldBe "    (empty)"
+    }
+
+    @Test
+    fun `a flood of combining marks is cut to two per character and none stand alone`() {
+        val flood = "e" + "\u0301".repeat(80) + "x" + "\u0300".repeat(5)
+
+        ConfirmationMessage.displayName(flood) shouldBe "e\u0301\u0301x\u0300\u0300"
+        ConfirmationMessage.displayName("\u0301\u0301 a") shouldBe "a"
+        ConfirmationMessage.displayName("a \u0301b") shouldBe "a b"
+    }
 }

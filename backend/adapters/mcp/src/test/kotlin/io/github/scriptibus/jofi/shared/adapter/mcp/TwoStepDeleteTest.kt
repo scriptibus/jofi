@@ -100,17 +100,16 @@ class TwoStepDeleteTest {
     }
 
     @Test
-    fun `a missing answer is a timeout, and a busy session is pending, both without deleting`() {
+    fun `a missing answer is a timeout without deleting`() {
         run(HumanAnswer.TIMED_OUT).shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-timeout"
-        run(HumanAnswer.BUSY).shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-pending"
-        calls.map { it.second } shouldBe listOf(null, null)
+        calls.map { it.second } shouldBe listOf(null)
     }
 
     @Test
-    fun `a session that is already waiting is refused before a token is issued`() {
+    fun `a session or server at its limit is refused before a token is issued`() {
         val busy =
             object : HumanConfirmer {
-                override val availability = Availability.BUSY
+                override fun reserve() = Reservation.Busy
 
                 override fun ask(message: String) = error("must not ask")
             }
@@ -119,6 +118,93 @@ class TwoStepDeleteTest {
         val answer = TwoStepDelete.run(call, id, { _, _ -> error("must not run") }, { null }, { error("no") })
 
         answer.shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-pending"
+    }
+
+    @Test
+    fun `the slot is held for the whole run and given back afterwards, also when the run fails`() {
+        var released = 0
+        val confirmer =
+            object : HumanConfirmer {
+                override fun reserve() = Reservation.Granted { released++ }
+
+                override fun screen(stored: String) = stored
+
+                override fun ask(message: String): HumanAnswer {
+                    released shouldBe 0
+                    return HumanAnswer.DECLINED
+                }
+            }
+        val call = ToolCall(ToolArguments(emptyMap()), Actor.Ai, "mcp-session", confirmer)
+
+        TwoStepDelete.run(call, id, { _, _ -> required }, { it as? ConfirmationResult.Unconfirmed }, { error("no") })
+        released shouldBe 1
+        runCatching { TwoStepDelete.run(call, id, { _, _ -> error("store down") }, { null }, { error("no") }) }
+        released shouldBe 2
+    }
+
+    private val hostileName = "O'Brien & \"Söhne\" #1 [intern]"
+
+    private fun gateFor(name: String) =
+        ConfirmationResult.Required(
+            token,
+            Instant.parse("2026-10-01T10:05:00Z"),
+            ConfirmableAction(
+                "applications.delete",
+                listOf(id.toString()),
+                ConfirmationEffect("application", name, emptyMap()),
+            ),
+        )
+
+    private fun runWith(
+        human: HumanConfirmer,
+        gate: ConfirmationResult.Required,
+    ) = TwoStepDelete.run(
+        ToolCall(ToolArguments(emptyMap()), Actor.Ai, "s", human),
+        id,
+        { _, _ -> gate },
+        { it as? ConfirmationResult.Unconfirmed },
+        { error("no") },
+    )
+
+    @Test
+    fun `the privacy filter sees the stored name as stored, before it is neutralised`() {
+        val seen = mutableListOf<String>()
+        val flagging =
+            object : HumanConfirmer {
+                override fun reserve() = Reservation.Granted {}
+
+                override fun screen(stored: String): String {
+                    seen += stored
+                    return stored.replace(hostileName, "[withheld]")
+                }
+
+                override fun ask(message: String): HumanAnswer {
+                    asked += message
+                    return HumanAnswer.DECLINED
+                }
+            }
+
+        runWith(flagging, gateFor(hostileName))
+
+        seen shouldBe listOf(hostileName)
+        asked.single() shouldContain "    withheld"
+        asked.single() shouldNotContain "Brien"
+    }
+
+    @Test
+    fun `a stored name the privacy filter cannot screen is not asked`() {
+        val refusing =
+            object : HumanConfirmer {
+                override fun reserve() = Reservation.Granted {}
+
+                override fun screen(stored: String): String? = null
+
+                override fun ask(message: String) = error("must not ask")
+            }
+
+        val answer = runWith(refusing, gateFor(hostileName))
+
+        answer.shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-unavailable"
     }
 
     @Test
