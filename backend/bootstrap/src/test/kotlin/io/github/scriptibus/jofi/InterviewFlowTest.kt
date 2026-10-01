@@ -16,6 +16,7 @@ import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
@@ -42,7 +43,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * Interviews and calls behind the real filter chain and database (#91, ADR-0048): log a phone screen with two
  * participants at the agreed Berlin time, reschedule it, add notes and the outcome afterwards, and delete it with
  * the confirmation; each step in the interview's changelog with the user as actor and without notes or participants,
- * and the application's version untouched. No session is 401, no CSRF token 403.
+ * and the application's version untouched. The upcoming list spans applications (#92), interviews are on the
+ * application's timeline, and a deleted contact leaves the participants with an entry on the interview's changelog.
+ * No session is 401, no CSRF token 403.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -202,6 +205,81 @@ class InterviewFlowTest(
             it shouldNotContain "on-call"
         }
     }
+
+    @Test
+    fun `upcoming interviews span applications, show on the timeline and lose a deleted contact`() {
+        val browser = owner()
+        val company = browser.created("/api/companies", """{"name":"ACME GmbH"}""")["id"].asString()
+        val backend = application(browser, company, "Backend Engineer")
+        val platform = application(browser, company, "Platform Engineer")
+        val erika = browser.created("/api/contacts", """{"name":"Erika Mustermann"}""")["id"].asString()
+        val later = logged(browser, backend, "2099-03-01T10:00", listOf(erika))
+        val sooner = logged(browser, platform, "2099-02-01T09:00")
+        logged(browser, backend, "2020-01-06T10:00", listOf(erika))
+        logged(browser, platform, "2099-01-01T09:00", more = ""","outcome":"CANCELLED"""")
+
+        val upcoming = browser.get("/api/interviews/upcoming").ok()["interviews"].items()
+        upcoming.map { it["interview"]["id"].asString() to it["applicationTitle"].asString() } shouldContainExactly
+            listOf(sooner to "Platform Engineer", later to "Backend Engineer")
+        val timeline = browser.get("/api/applications/$backend/timeline").ok()["entries"].items()
+        val interviews = timeline.filter { it["kind"].asString() == "INTERVIEW" }
+        interviews.map { it["interview"]["localStart"].asString() } shouldBe
+            listOf("2099-03-01T10:00:00", "2020-01-06T10:00:00")
+
+        deleteContact(browser, erika)
+        val participants = browser.get("/api/applications/$backend/interviews/$later").ok()["participantIds"]
+        participants.items().shouldBeEmpty()
+        participantRemovals(later) shouldContainExactly listOf("USER" to erika)
+        val anonymous = Browser(mvc, "192.0.2.${addresses.incrementAndGet()}").open()
+        anonymous.get("/api/interviews/upcoming").response.status shouldBe 401
+    }
+
+    /** Logs an interview at [localStart] Berlin time and answers its id. */
+    private fun logged(
+        browser: Browser,
+        application: String,
+        localStart: String,
+        participants: List<String> = emptyList(),
+        more: String = "",
+    ): String =
+        browser
+            .created(
+                "/api/applications/$application/interviews",
+                details(localStart, participants, more),
+            )["id"]
+            .asString()
+
+    private fun application(
+        browser: Browser,
+        company: String,
+        title: String,
+    ): String = browser.created("/api/applications", """{"title":"$title","companyId":"$company"}""")["id"].asString()
+
+    private fun deleteContact(
+        browser: Browser,
+        contact: String,
+    ) {
+        val first = browser.delete("/api/contacts/$contact")
+        first.response.status shouldBe 428
+        val token = first.body()["confirmationToken"].asString()
+        browser.delete("/api/contacts/$contact", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
+    }
+
+    /** The interview's changelog entries for a removed participant: the actor and the contact id it names. */
+    private fun participantRemovals(interview: String): List<Pair<String, String>> =
+        dsl
+            .select(CHANGELOG_ENTRY.ACTOR_KIND, CHANGELOG_ENTRY.FIELD_CHANGES)
+            .from(CHANGELOG_ENTRY)
+            .where(CHANGELOG_ENTRY.ENTITY_TYPE.eq("interview"))
+            .and(CHANGELOG_ENTRY.ENTITY_ID.eq(interview))
+            .and(CHANGELOG_ENTRY.DESCRIPTION.eq("Removed a deleted contact from the participants"))
+            .fetch()
+            .map { row ->
+                val change = json.readTree(row.value2().data())[0]
+                change["field"].asString() shouldBe "participants"
+                change["after"]?.takeUnless { it.isNull } shouldBe null
+                row.value1() to change["before"].asString()
+            }
 
     @Test
     fun `without a session the interview calls are 401, without the CSRF token the writes are 403`() {

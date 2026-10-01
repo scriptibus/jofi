@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.applications.adapter.web
 import io.github.scriptibus.jofi.applications.application.DeleteInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.GetInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.ListInterviewsUseCase
+import io.github.scriptibus.jofi.applications.application.ListUpcomingInterviewsUseCase
 import io.github.scriptibus.jofi.applications.application.LogInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
@@ -21,6 +22,7 @@ import io.github.scriptibus.jofi.applications.domain.InterviewDetails
 import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.InterviewTime
 import io.github.scriptibus.jofi.applications.domain.InterviewType
+import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
@@ -53,11 +55,13 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 
 /**
  * The interview endpoints over the real use cases (#91) with mocked repositories: mapping (the agreed wall-clock time
- * and zone in, the instant too out), problem details and the two-step delete; the upcoming list stays `501` until #92.
+ * and zone in, the instant too out), problem details, the two-step delete and the upcoming list across applications
+ * (#92).
  * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(InterviewController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
@@ -115,6 +119,9 @@ class InterviewControllerTest(
 
         @Bean
         fun list(ports: Ports) = ListInterviewsUseCase(ports.applications, ports.interviews)
+
+        @Bean
+        fun upcoming(ports: Ports) = ListUpcomingInterviewsUseCase(ports.interviews, Clock.fixed(NOW, ZoneOffset.UTC))
 
         @Bean
         fun delete(ports: Ports) =
@@ -285,12 +292,26 @@ class InterviewControllerTest(
     }
 
     @Test
-    fun `the upcoming list is not implemented yet`() {
+    fun `the upcoming list answers the interviews still to come from now on, with their application's title`() {
+        every { ports.interviews.upcoming(NOW, Interview.MAX_UPCOMING) } returns
+            ApplicationStoreResult.Success(listOf(UpcomingInterview(stored, "Backend Engineer")))
+
         mvc
             .get()
             .uri("/api/interviews/upcoming")
             .assertThat()
-            .hasStatus(501)
+            .hasStatusOk()
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """
+                {"interviews":[{"applicationTitle":"Backend Engineer",
+                  "interview":{"id":"${stored.id.value}","applicationId":"${application.id.value}","type":"TECHNICAL",
+                   "startsAt":"2026-10-05T08:00:00Z","localStart":"2026-10-05T10:00:00","timeZone":"Europe/Berlin"}}]}
+                """.trimIndent(),
+            )
+
+        every { ports.interviews.upcoming(any(), any()) } returns ApplicationStoreResult.StorageFailure("upcoming")
+        problem(mvc.get().uri("/api/interviews/upcoming"), 503, ApplicationProblems.UNAVAILABLE)
     }
 
     @Test
@@ -334,5 +355,9 @@ class InterviewControllerTest(
 
     private fun badRequest(request: MockMvcTester.MockMvcRequestBuilder) {
         request.assertThat().hasStatus(400).hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+    }
+
+    private companion object {
+        val NOW: Instant = Instant.parse("2026-10-01T12:00:00Z")
     }
 }

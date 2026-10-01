@@ -136,7 +136,7 @@ class ApplicationContactsFlowTest(
     ) {
         val first = browser.delete("/api/contacts/$contact")
         first.response.status shouldBe 428
-        first.body()["effect"]["counts"].toString() shouldBe """{"applications":1}"""
+        first.body()["effect"]["counts"].toString() shouldBe """{"applications":1,"interviews":0}"""
         val token = first.body()["confirmationToken"].asString()
         browser.delete("/api/contacts/$contact", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
     }
