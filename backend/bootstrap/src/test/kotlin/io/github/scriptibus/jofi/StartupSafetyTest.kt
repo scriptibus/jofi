@@ -63,6 +63,16 @@ class StartupSafetyTest {
     }
 
     @Test
+    fun `a fetch cap of zero or above the maximum stops the app with a clear message`() {
+        listOf("0", "-1", "51").forEach { cap ->
+            val message =
+                failure { start(freshDatabase(), dataDirectory, "--jofi.import.max-concurrent-fetches=$cap").close() }
+
+            message shouldContain "jofi.import.max-concurrent-fetches must be positive and at most 50, but is $cap"
+        }
+    }
+
+    @Test
     fun `a missing keyset stops the app until the loss is accepted`() {
         val database = freshDatabase()
         start(database).close()

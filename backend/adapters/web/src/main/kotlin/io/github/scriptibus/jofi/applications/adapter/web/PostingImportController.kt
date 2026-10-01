@@ -28,7 +28,8 @@ import java.util.UUID
  * Importing a job posting from pasted text or a URL (spec §8.1, #96, #97): starting answers at once with a pending
  * import that a worker job turns into a `DISCOVERED` application; the client polls it. A URL already imported
  * answers at once (200) with the existing application; a new or still-pending import answers 202. Each call maps
- * its use case's failure with [ApplicationProblems.of]; `409 ai-not-configured` tells the user to set up AI first.
+ * its use case's failure with [ApplicationProblems.of]; `409 ai-not-configured` tells the user to set up AI first;
+ * `429 import-busy` says too many pages are being fetched at once (#224), so try again shortly.
  */
 @RestController
 @RequestMapping("/api/applications/imports")
@@ -55,7 +56,7 @@ class PostingImportController(
     @PostMapping("/url")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @AlsoAnswers(HttpStatus.OK, "The link was imported before; the import carries its application")
-    @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.CONFLICT)
+    @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.CONFLICT, ProblemKind.TOO_MANY_REQUESTS)
     fun startUrlImport(
         @RequestBody request: StartUrlImportRequest,
     ): ResponseEntity<PostingImportResponse> {

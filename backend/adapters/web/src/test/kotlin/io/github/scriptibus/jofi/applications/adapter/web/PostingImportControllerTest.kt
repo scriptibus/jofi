@@ -21,6 +21,7 @@ import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
+import io.github.scriptibus.jofi.shared.application.port.ConcurrencyLimitPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
@@ -98,7 +99,16 @@ class PostingImportControllerTest(
                 ResolveUrlImportUseCase(
                     ports.imports,
                     ports.sources,
-                    FetchPostingTextUseCase(ports.ai, ports.http),
+                    FetchPostingTextUseCase(
+                        ports.ai,
+                        ports.http,
+                        object : ConcurrencyLimitPort {
+                            override fun <T> runIfFree(
+                                onFull: () -> T,
+                                work: () -> T,
+                            ): T = work()
+                        },
+                    ),
                     ports.applications.changelog,
                     ports.applications.transactions,
                     clock,

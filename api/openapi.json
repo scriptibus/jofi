@@ -362,6 +362,16 @@
             },
             "description" : "Conflicts with the current state; the problem `type` says how"
           },
+          "429" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "The server is busy with similar requests; try again shortly"
+          },
           "default" : {
             "content" : {
               "application/problem+json" : {
