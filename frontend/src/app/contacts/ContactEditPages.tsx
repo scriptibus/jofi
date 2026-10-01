@@ -12,7 +12,7 @@ import {
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { Alert, Button, RefreshIcon } from "../../ui";
-import { useLinkCreatedContact } from "../applications/applicationContacts";
+import { useLinkCreatedContact } from "../applications/contactLinks";
 import { useFieldErrors } from "../auth/useFieldErrors";
 import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { PageHeader } from "../pages/PlaceholderPage";
