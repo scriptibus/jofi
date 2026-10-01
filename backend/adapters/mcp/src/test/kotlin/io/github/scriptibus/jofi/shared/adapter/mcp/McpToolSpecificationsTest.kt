@@ -49,7 +49,7 @@ class McpToolSpecificationsTest {
 
     /** Its getter throws while Jackson serialises it, with a message that must never reach the client. */
     class Unserialisable {
-        val secret: String get() = throw IllegalStateException("Musterstraße 5 leaked through an exception")
+        val secret: String get() = error("Musterstraße 5 leaked through an exception")
     }
 
     @Test
@@ -57,7 +57,7 @@ class McpToolSpecificationsTest {
         val throwing =
             object : AiVisibilityPort {
                 override fun rulesFor(sources: Set<ContentSource>): AiVisibilityResult =
-                    throw IllegalStateException("Musterstraße 5 leaked through an exception")
+                    error("Musterstraße 5 leaked through an exception")
             }
         val specifications = McpToolSpecifications(json, protocol, FilterToolResultUseCase(throwing))
 
