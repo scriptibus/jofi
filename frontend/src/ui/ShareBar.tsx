@@ -8,7 +8,7 @@ export interface ShareBarProps {
   value: number;
   /** The whole the part is measured against; zero or less draws an empty bar. */
   max: number;
-  /** `bad` for a share that is a problem (a budget used up); the text next to the bar says so too. */
+  /** `bad` for a share that is a problem; the text next to the bar says so too. */
   tone?: ShareBarTone;
   className?: string;
 }
@@ -22,7 +22,8 @@ export function sharePercent(value: number, max: number): number {
 }
 
 /**
- * A simple horizontal bar for a share (a count against the largest, money against a budget). Decorative: the
+ * A simple horizontal bar for a share of counts (a status against the largest, the funnel). A value against a
+ * cap (money against a budget) is a `ProgressBar`, with its own rounding. Decorative: the
  * number always stands next to it as text, so the bar is hidden from assistive technology. It never animates.
  */
 export function ShareBar({ value, max, tone = "accent", className }: ShareBarProps) {

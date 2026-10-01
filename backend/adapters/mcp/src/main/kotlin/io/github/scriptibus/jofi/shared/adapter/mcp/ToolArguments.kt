@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.shared.adapter.mcp
 
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendFilter
 import java.time.Instant
 import java.time.format.DateTimeParseException
 import java.util.UUID
@@ -12,6 +13,7 @@ import java.util.UUID
  * empty collection) for a missing argument and throws [InvalidToolArgument] for one of the wrong shape,
  * which the server answers as an `invalid-arguments` error. Domain validation stays in the domain's `*Input`.
  */
+@Suppress("TooManyFunctions") // One getter per JSON shape a tool argument can have.
 class ToolArguments(
     private val values: Map<String, Any?>,
 ) {
@@ -30,6 +32,22 @@ class ToolArguments(
             }
         }
 
+    fun long(name: String): Long? =
+        values[name]?.let { value ->
+            when (value) {
+                is Int -> value.toLong()
+                is Long -> value
+                else -> invalid(name)
+            }
+        }
+
+    /** A list of JSON objects, each read through its own [ToolArguments]. */
+    fun objects(name: String): List<ToolArguments> =
+        list(name).map { item ->
+            val fields = item as? Map<*, *> ?: invalid(name)
+            ToolArguments(fields.entries.associate { (key, value) -> key.toString() to value })
+        }
+
     fun uuid(name: String): UUID? =
         text(name)?.let { text ->
             try {
@@ -38,6 +56,31 @@ class ToolArguments(
                 invalid(name)
             }
         }
+
+    /**
+     * The first argument that holds the redaction marker of the "never send to AI" filter, or null. Results show
+     * `[withheld]` in place of flagged values, so a replace-all update that sends a result back would store the
+     * marker over the real value; tools refuse such input instead.
+     */
+    fun withheldArgument(): String? = values.entries.firstOrNull { (_, value) -> holdsMarker(value) }?.key
+
+    private fun holdsMarker(value: Any?): Boolean =
+        when (value) {
+            is String -> NeverSendFilter.REDACTION in value
+            is Map<*, *> -> value.values.any(::holdsMarker)
+            is List<*> -> value.any(::holdsMarker)
+            else -> false
+        }
+
+    fun uuids(name: String): Set<UUID> =
+        texts(name)
+            .map { text ->
+                try {
+                    UUID.fromString(text)
+                } catch (_: IllegalArgumentException) {
+                    invalid(name)
+                }
+            }.toSet()
 
     fun instant(name: String): Instant? =
         text(name)?.let { text ->
