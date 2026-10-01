@@ -37,11 +37,9 @@ class ClearModelPriceUseCase(
         asUser(actor) {
             CapabilityInput.modelName(model).toSetupResult().then { name ->
                 openAiCompatibleProvider(providers, id).then {
-                    prices.find(id, name).orNull().then { before ->
-                        if (before == null) {
-                            SetupResult.Success(Unit)
-                        } else {
-                            transactions.whenSuccessful { remove(before, actor) }
+                    transactions.whenSuccessful {
+                        prices.find(id, name).orNull().then { before ->
+                            if (before == null) SetupResult.Success(Unit) else remove(before, actor)
                         }
                     }
                 }

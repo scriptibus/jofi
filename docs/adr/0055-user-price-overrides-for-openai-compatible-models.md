@@ -28,6 +28,9 @@ one, the provider's own price for OpenRouter) and must be able to say so.
   MAX_MICROS_PER_MILLION`): above that it is a typo, and the largest possible call stays far from overflowing
   `Long`. The check constraints equal the domain's limits, never stricter. The cost of a call is
   `micros × tokens`, rounded half up to whole micros once per call, like the price table (`TokenPrice`).
+- **Whole micros only.** The API takes integers: a fraction (a client sending dollars, `0.15`), a string or a
+  number beyond `Long` is `400 invalid-input` with `INVALID_FORMAT` on that field (strict Jackson coercion per
+  field), never rounded, so a paid model cannot silently become "free".
 - **Which models.** Only models of `OPENAI_COMPATIBLE` providers. Cloud providers keep the verified table; an
   attempt to price one is refused (`SetupResult.PriceNotAllowed`, `409 price-not-allowed`). The check is in the
   use cases because a database check cannot see the provider's kind and must not be stricter than the domain

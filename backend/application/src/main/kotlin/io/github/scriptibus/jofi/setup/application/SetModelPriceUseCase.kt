@@ -38,24 +38,28 @@ class SetModelPriceUseCase(
         asUser(actor) {
             input.validate().toSetupResult().then { valid ->
                 openAiCompatibleProvider(providers, id).then {
-                    prices.find(id, valid.model).orNull().then { before ->
-                        val price =
-                            ModelPriceOverride(
-                                id,
-                                valid.model,
-                                valid.inputMicrosPerMillion,
-                                valid.outputMicrosPerMillion,
-                                clock.storedNow(),
-                            )
-                        if (before != null && before.hasPriceOf(price)) {
-                            SetupResult.Success(before)
-                        } else {
-                            transactions.whenSuccessful { store(before, price, actor) }
-                        }
+                    val price =
+                        ModelPriceOverride(
+                            id,
+                            valid.model,
+                            valid.inputMicrosPerMillion,
+                            valid.outputMicrosPerMillion,
+                            clock.storedNow(),
+                        )
+                    // The old price is read in the transaction that replaces it, so the changelog shows what was replaced.
+                    transactions.whenSuccessful {
+                        prices.find(id, valid.model).orNull().then { before -> change(before, price, actor) }
                     }
                 }
             }
         }
+
+    private fun change(
+        before: ModelPriceOverride?,
+        price: ModelPriceOverride,
+        actor: Actor,
+    ): SetupResult<ModelPriceOverride> =
+        if (before != null && before.hasPriceOf(price)) SetupResult.Success(before) else store(before, price, actor)
 
     private fun store(
         before: ModelPriceOverride?,
@@ -63,23 +67,26 @@ class SetModelPriceUseCase(
         actor: Actor,
     ): SetupResult<ModelPriceOverride> {
         val description = "Set the price of model ${price.model.value}"
-        return when {
-            prices.save(price) !is SetupStoreResult.Success -> {
-                SetupResult.StorageFailure("save model price")
+        return when (val saved = prices.save(price)) {
+            is SetupStoreResult.Success -> {
+                val recorded =
+                    changelog.record(
+                        price.provider.toEntityRef(),
+                        actor,
+                        price.updatedAt,
+                        description,
+                        priceChanges(before, price),
+                    )
+                if (recorded) SetupResult.Success(price) else SetupResult.StorageFailure("changelog")
             }
 
-            !changelog.record(
-                price.provider.toEntityRef(),
-                actor,
-                price.updatedAt,
-                description,
-                priceChanges(before, price),
-            ) -> {
-                SetupResult.StorageFailure("changelog")
+            // The provider was deleted after the check above: answer as an unknown provider, not a storage failure.
+            SetupStoreResult.NotFound -> {
+                SetupResult.NotFound
             }
 
             else -> {
-                SetupResult.Success(price)
+                SetupResult.StorageFailure("save model price")
             }
         }
     }

@@ -53,24 +53,29 @@ data class ModelPriceInput(
 ) {
     /** The model and the two prices, or every violation found. */
     fun validate(): SetupValidation<ValidModelPrice> {
-        val name = CapabilityInput.modelName(model)
-        val violations =
-            (name as? SetupValidation.Invalid)?.violations.orEmpty() +
-                listOfNotNull(
-                    priceViolation(SetupField.INPUT_PRICE, inputMicrosPerMillion),
-                    priceViolation(SetupField.OUTPUT_PRICE, outputMicrosPerMillion),
-                )
-        return when {
-            violations.isNotEmpty() -> {
-                SetupValidation.Invalid(violations)
+        val prices =
+            listOfNotNull(
+                priceViolation(SetupField.INPUT_PRICE, inputMicrosPerMillion),
+                priceViolation(SetupField.OUTPUT_PRICE, outputMicrosPerMillion),
+            )
+        return when (val name = CapabilityInput.modelName(model)) {
+            is SetupValidation.Invalid -> {
+                SetupValidation.Invalid(name.violations + prices)
             }
 
-            name is SetupValidation.Valid && inputMicrosPerMillion != null && outputMicrosPerMillion != null -> {
-                SetupValidation.Valid(ValidModelPrice(name.value, inputMicrosPerMillion, outputMicrosPerMillion))
-            }
-
-            else -> {
-                SetupValidation.Invalid(listOf(SetupViolation(SetupField.MODEL, SetupViolationKind.REQUIRED)))
+            is SetupValidation.Valid -> {
+                if (prices.isEmpty()) {
+                    // No price violation means both prices were given.
+                    SetupValidation.Valid(
+                        ValidModelPrice(
+                            name.value,
+                            checkNotNull(inputMicrosPerMillion),
+                            checkNotNull(outputMicrosPerMillion),
+                        ),
+                    )
+                } else {
+                    SetupValidation.Invalid(prices)
+                }
             }
         }
     }
