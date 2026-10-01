@@ -24,6 +24,7 @@ object ApplicationProblems {
     const val INVALID = "urn:jofi:problem:applications:invalid-application"
     const val INVALID_SEARCH = "urn:jofi:problem:applications:invalid-search"
     const val INVALID_TIMELINE_QUERY = "urn:jofi:problem:applications:invalid-timeline-query"
+    const val INVALID_ACTIVITY_QUERY = "urn:jofi:problem:applications:invalid-activity-query"
     const val NOT_FOUND = "urn:jofi:problem:applications:application-not-found"
     const val SOURCE_NOT_FOUND = "urn:jofi:problem:applications:source-not-found"
     const val SNAPSHOT_NOT_FOUND = "urn:jofi:problem:applications:snapshot-not-found"

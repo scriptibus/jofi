@@ -4,11 +4,13 @@
 package io.github.scriptibus.jofi.applications.config
 
 import io.github.scriptibus.jofi.applications.application.DescribeApplicationEventUseCase
+import io.github.scriptibus.jofi.applications.application.FindCountdownFactsUseCase
 import io.github.scriptibus.jofi.applications.application.FindGhostedCandidatesUseCase
 import io.github.scriptibus.jofi.applications.application.FindSuggestionFactsUseCase
 import io.github.scriptibus.jofi.applications.application.GetApplicationSettingsUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationSettingsUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationActivityRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.ApplicationDueDatesRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.ApplicationSettingsRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
@@ -18,7 +20,8 @@ import org.springframework.context.annotation.Configuration
 
 /**
  * The application settings (#85, ADR-0050) and what the tasks context asks for through the named interface `api`: the
- * Ghosted candidates, the facts of its suggestions and the names of this context's events (#95).
+ * Ghosted candidates, the facts of its suggestions and the names of this context's events (#95), and the facts of the
+ * dashboard countdowns (#112).
  */
 @Configuration(proxyBeanMethods = false)
 class ApplicationSettingsConfiguration {
@@ -46,6 +49,12 @@ class ApplicationSettingsConfiguration {
         interviews: InterviewRepositoryPort,
         applications: ApplicationRepositoryPort,
     ): FindSuggestionFactsUseCase = FindSuggestionFactsUseCase(settings, activity, interviews, applications)
+
+    @Bean
+    fun findCountdownFactsUseCase(
+        interviews: InterviewRepositoryPort,
+        dueDates: ApplicationDueDatesRepositoryPort,
+    ): FindCountdownFactsUseCase = FindCountdownFactsUseCase(interviews, dueDates)
 
     @Bean
     fun describeApplicationEventUseCase(): DescribeApplicationEventUseCase = DescribeApplicationEventUseCase()

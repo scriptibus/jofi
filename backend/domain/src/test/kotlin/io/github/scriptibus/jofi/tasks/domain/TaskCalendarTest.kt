@@ -106,6 +106,72 @@ class TaskCalendarTest {
             .forEach { it.tasks shouldBe emptyList() }
     }
 
+    @ParameterizedTest(name = "{2} at {0} in {1} is {3} on the dashboard")
+    @CsvSource(
+        // Wednesday 30 September in Berlin: upcoming runs from now to the end of Tuesday 6 October.
+        "2026-09-30T10:00:00Z, Europe/Berlin, EXACT 2026-09-30T09:59:59Z, OVERDUE",
+        "2026-09-30T10:00:00Z, Europe/Berlin, EXACT 2026-09-30T10:00:00Z, UPCOMING",
+        "2026-09-30T10:00:00Z, Europe/Berlin, EXACT 2026-10-06T21:59:59Z, UPCOMING",
+        "2026-09-30T10:00:00Z, Europe/Berlin, EXACT 2026-10-06T22:00:00Z, NONE",
+        "2026-09-30T10:00:00Z, UTC, EXACT 2026-10-06T22:00:00Z, UPCOMING",
+        "2026-09-30T10:00:00Z, UTC, EXACT 2026-10-07T00:00:00Z, NONE",
+        "2026-09-30T10:00:00Z, Europe/Berlin, DAY 2026-09-29, OVERDUE",
+        "2026-09-30T10:00:00Z, Europe/Berlin, DAY 2026-09-30, UPCOMING",
+        "2026-09-30T10:00:00Z, Europe/Berlin, DAY 2026-10-06, UPCOMING",
+        "2026-09-30T10:00:00Z, Europe/Berlin, DAY 2026-10-07, NONE",
+        // A bucket counts by its last day: this week ends on Sunday, next week on 11 October, this month today.
+        "2026-09-30T10:00:00Z, Europe/Berlin, WEEK 2026-09-21, OVERDUE",
+        "2026-09-30T10:00:00Z, Europe/Berlin, WEEK 2026-09-28, UPCOMING",
+        "2026-09-30T10:00:00Z, Europe/Berlin, WEEK 2026-10-05, NONE",
+        "2026-09-30T10:00:00Z, Europe/Berlin, MONTH 2026-09-01, UPCOMING",
+        "2026-09-30T10:00:00Z, Europe/Berlin, MONTH 2026-10-01, NONE",
+        "2026-09-30T10:00:00Z, Europe/Berlin, SOMEDAY, NONE",
+        "2026-10-24T10:00:00Z, Europe/Berlin, MONTH 2026-10-01, NONE",
+        "2026-10-25T10:00:00Z, Europe/Berlin, MONTH 2026-10-01, UPCOMING",
+        "2026-10-05T10:00:00Z, Europe/Berlin, WEEK 2026-10-05, UPCOMING",
+        // Midnight has passed in Berlin but not in UTC: the seven days start a day later in Berlin.
+        "2026-09-29T22:30:00Z, Europe/Berlin, DAY 2026-09-29, OVERDUE",
+        "2026-09-29T22:30:00Z, UTC, DAY 2026-09-29, UPCOMING",
+        "2026-09-29T22:30:00Z, Europe/Berlin, DAY 2026-10-06, UPCOMING",
+        "2026-09-29T22:30:00Z, UTC, DAY 2026-10-06, NONE",
+    )
+    fun `puts a timing on the dashboard on the viewer's calendar`(
+        now: String,
+        zone: String,
+        timing: String,
+        expected: String,
+    ) {
+        val task = task(timingOf(timing), 0)
+        val dashboard = TaskCalendar(Instant.parse(now), ZoneId.of(zone)).dashboard(listOf(task))
+
+        val place =
+            when (task) {
+                in dashboard.overdue -> "OVERDUE"
+                in dashboard.upcoming -> "UPCOMING"
+                else -> "NONE"
+            }
+        place shouldBe expected
+        (dashboard.overdue + dashboard.upcoming).size shouldBe if (expected == "NONE") 0 else 1
+    }
+
+    @Test
+    fun `lists the dashboard's overdue and upcoming tasks soonest first`() {
+        val berlin = ZoneId.of("Europe/Berlin")
+        val lastWeek = task(timingOf("WEEK 2026-09-21"), 0)
+        val yesterday = task(timingOf("DAY 2026-09-29"), 1)
+        val week = task(timingOf("WEEK 2026-09-28"), 2)
+        val tomorrow = task(timingOf("DAY 2026-10-01"), 3)
+        val soon = task(TaskTiming.Exact(Instant.parse("2026-09-30T12:00:00Z"), berlin), 4)
+        val later = task(timingOf("DAY 2026-10-20"), 5)
+
+        val dashboard =
+            TaskCalendar(Instant.parse("2026-09-30T10:00:00Z"), berlin)
+                .dashboard(listOf(later, week, tomorrow, yesterday, soon, lastWeek))
+
+        dashboard.overdue shouldContainExactly listOf(lastWeek, yesterday)
+        dashboard.upcoming shouldContainExactly listOf(soon, tomorrow, week)
+    }
+
     private fun task(
         timing: TaskTiming,
         createdMinute: Long,

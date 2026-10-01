@@ -21,13 +21,7 @@ object InboundPortRules {
      * removes its entries (a listed port that has an implementor fails, as does one that no longer exists).
      */
     val AWAITING_USE_CASE: Map<String, String> =
-        mapOf(
-            "CreateCountdownPort" to "#112",
-            "UpdateCountdownPort" to "#112",
-            "DeleteCountdownPort" to "#112",
-            "ListCountdownsPort" to "#112",
-            "ListDashboardCountdownsPort" to "#112",
-        )
+        emptyMap()
 
     /** Every broken rule in [scope], as readable messages; empty when all hold. */
     fun violations(

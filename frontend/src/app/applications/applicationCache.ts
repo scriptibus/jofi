@@ -6,16 +6,21 @@ import {
   type ApplicationResponse,
   getGetApplicationQueryKey,
   getGetApplicationStatusHistoryQueryKey,
+  getGetApplicationTimelineQueryKey,
   getGetCompanyQueryKey,
   getListDescriptionSnapshotsQueryKey,
   getSearchApplicationsQueryKey,
   getSearchCompaniesQueryKey,
 } from "../../api/generated/jofi";
 
-/** After a save or a read/unread change: the cache holds the answer, and every list asks again. */
+/**
+ * After a save or a read/unread change: the cache holds the answer, and every list asks again, the
+ * application's timeline too (each of these writes a changelog entry).
+ */
 export function storeSavedApplication(queryClient: QueryClient, application: ApplicationResponse) {
   queryClient.setQueryData(getGetApplicationQueryKey(application.id), application);
   void queryClient.invalidateQueries({ queryKey: getSearchApplicationsQueryKey() });
+  void queryClient.invalidateQueries({ queryKey: getGetApplicationTimelineQueryKey(application.id) });
 }
 
 /**

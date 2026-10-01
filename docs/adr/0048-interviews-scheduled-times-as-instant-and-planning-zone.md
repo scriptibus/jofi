@@ -83,7 +83,7 @@ Under `/api/applications/{id}/interviews`: `GET` (the application's interviews i
 starting now or later, not cancelled, soonest first, at most 100, each with its application's title). An interview
 the application does not have is 404 `interview-not-found`.
 
-### Use cases (amended with #91 and #92)
+### Use cases (amended with #91, #92 and #195)
 
 - Every interview use case reads the application first, so an unknown application is `404 not-found` and an
   interview it does not have `404 interview-not-found`. An update then checks `basedOnVersion`, before the input,
@@ -99,6 +99,10 @@ the application does not have is 404 `interview-not-found`.
 - The upcoming list (`GET /api/interviews/upcoming`, #92) spans all applications: interviews starting at or after
   the current instant that are not `CANCELLED`, soonest first, at most 100, each with its application's title. An
   interview that has begun is no longer upcoming; the start is an instant, so no zone is involved.
+- Only interviews of **open** applications are upcoming (#195): one whose application is in a terminal status
+  (`ApplicationStatus.isTerminal`, ADR-0044) is left out even if it was never marked `CANCELLED`, since a closed
+  application has no interview to prepare for. The same query feeds the dashboard's next interview and the
+  interview preparation suggestions (ADR-0049); reopening the application brings the interview back.
 - A contact delete removes the contact from every interview's participants by the foreign key's cascade. Since the
   cascade leaves no trace to react to afterwards, the companies SPI `LinkedApplicationsPort` also names the
   interviews the contact takes part in, read in the delete's transaction before it deletes: the contact delete's

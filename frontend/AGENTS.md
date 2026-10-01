@@ -163,8 +163,9 @@ src/
                   ai/ (first-run setup guide at /setup and Settings > AI: providers, task models, budget),
                   companies/ (list with fuzzy search and flag filter, detail, create/edit, flag, delete), contacts/
   ui/             our component library (Alert, AppLink, BoardColumn (drag and drop), Button, ConfirmDialog,
-                  Dialog, DonkeyLogo, EmptyState, ExternalLink, FilePicker, Markdown, MenuButton, NavItem/TextLink,
-                  NumberField, SegmentedControl, Select, Tabs, TextArea, TextField, Form, icons, appearance)
+                  DateTimeField (wall-clock date and time, no zone), Dialog, DonkeyLogo, EmptyState, ExternalLink,
+                  FilePicker, Markdown, MenuButton, NavItem/TextLink, NumberField, SegmentedControl, Select, Tabs,
+                  TextArea, TextField, Form, icons, appearance)
   pwa/            manifest.ts: web app manifest + theme-color from tokens.css (used by vite.config.ts)
   styles/         tokens.css (the only raw values) + app.css (Tailwind, fonts, base)
   api/            fetcher.ts (orval mutator, ApiProblemError), confirmation.ts (two-step flow)
