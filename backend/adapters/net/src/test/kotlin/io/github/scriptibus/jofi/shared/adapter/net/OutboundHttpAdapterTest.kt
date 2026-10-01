@@ -310,6 +310,7 @@ class OutboundHttpAdapterTest {
         // reach the internal server; ours connects only to the checked address.
         server.stubFor(get(anyUrl()).willReturn(aResponse().withBody("internal")))
         val answers = ArrayDeque(listOf(EXTERNAL_STAND_IN, LOOPBACK))
+        val standIn = InetAddress.ofLiteral(EXTERNAL_STAND_IN)
         var lookups = 0
         val guard =
             DestinationGuard(
@@ -318,9 +319,7 @@ class OutboundHttpAdapterTest {
                     listOf(InetAddress.ofLiteral(answers.removeFirst()))
                 },
                 classify = { address ->
-                    if (address.hostAddress ==
-                        EXTERNAL_STAND_IN
-                    ) {
+                    if (address == standIn) {
                         AddressClass.PUBLIC
                     } else {
                         AddressClassifier.classify(address)
@@ -345,7 +344,12 @@ class OutboundHttpAdapterTest {
         const val LOOPBACK = "127.0.0.1"
         const val USER_AGENT = "Jofi/test (+https://github.com/scriptibus/jofi)"
 
-        /** Another loopback address the test classifies as public; nothing listens on it. */
-        const val EXTERNAL_STAND_IN = "127.0.0.2"
+        /**
+         * The IPv6 loopback, which the test classifies as public. WireMock listens on 127.0.0.1 only, so
+         * a connect to this address on the same port is refused (or unroutable) at once. Unlike another
+         * 127/8 address such as 127.0.0.2, it exists on Linux and macOS alike: macOS answers 127.0.0.2
+         * with a hanging connect instead of a refusal unless an alias is configured on lo0 (#212).
+         */
+        const val EXTERNAL_STAND_IN = "::1"
     }
 }
