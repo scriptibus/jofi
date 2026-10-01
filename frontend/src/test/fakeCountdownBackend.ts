@@ -42,6 +42,7 @@ export function aDashboardCountdown(
     timeZone: null,
     subjectType: "application",
     subjectId: crypto.randomUUID(),
+    applicationId: null,
     ...overrides,
   };
 }
@@ -74,6 +75,7 @@ function toDashboard(countdown: CountdownResponse): DashboardCountdownResponse {
     timeZone: null,
     subjectType: "countdown",
     subjectId: countdown.id,
+    applicationId: null,
   };
 }
 

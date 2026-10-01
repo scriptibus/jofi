@@ -142,13 +142,15 @@ sealed interface CountdownTarget {
 /**
  * One countdown on the dashboard (#112): its [kind], a [title] to show (the countdown's, or the application's), its
  * [target] and the [subject] it belongs to (a `countdown`, `application` or `interview` entity), so the dashboard can
- * link to it. [toString] shows no title.
+ * link to it. [applicationId] is the application an interview belongs to (the interview itself has no page), so the
+ * dashboard can link to it; other countdowns leave it out. [toString] shows no title.
  */
 data class DashboardCountdown(
     val kind: CountdownKind,
     val title: String,
     val target: CountdownTarget,
     val subject: EntityRef,
+    val applicationId: UUID? = null,
 ) {
     override fun toString(): String = "DashboardCountdown(kind=$kind, target=$target, subject=$subject)"
 

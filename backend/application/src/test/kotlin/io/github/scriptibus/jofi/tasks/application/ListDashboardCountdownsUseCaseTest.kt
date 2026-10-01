@@ -58,6 +58,7 @@ class ListDashboardCountdownsUseCaseTest {
                 "Engineer",
                 CountdownTarget.At(startsAt, tokyo),
                 EntityRef("interview", interview.toString()),
+                applied,
             )
         val deadline = onDay(CountdownKind.APPLICATION_DEADLINE, "Engineer", "2026-10-20", applied)
 

@@ -53,6 +53,37 @@ test("an application's deadline counts down on the dashboard and opens the appli
   await expect(page.getByRole("heading", { level: 1, name: application.title })).toBeVisible();
 });
 
+/** An interview of a new application, starting a minute from now so that it is the next one to come. */
+async function applicationWithInterview(page: Page) {
+  const application = await applicationWithDeadline(page, 30);
+  const { request, headers } = await api(page);
+  const soon = new Date(Date.now() + 60_000).toISOString().slice(0, 16);
+  const response = await request.post(`/api/applications/${application.id}/interviews`, {
+    data: { type: "TECHNICAL", localStart: soon, timeZone: "UTC", participantIds: [] },
+    headers,
+  });
+  expect(response.status()).toBe(201);
+  return application;
+}
+
+// Every browser project runs in parallel on one stack, so the next interview may be another project's: the link
+// must open the interviews tab of whichever application the widget names.
+test("the next interview counts down on the dashboard and opens its application's interviews tab", async ({
+  page,
+}) => {
+  await applicationWithInterview(page);
+  await page.goto("/");
+  const interview = widget(page)
+    .getByRole("listitem")
+    .filter({ has: page.getByText("Next interview", { exact: true }) });
+  await expect(interview).toHaveCount(1);
+  await expectNoA11yViolations(page);
+
+  await interview.getByRole("link").click();
+  await expect(page).toHaveURL(/\/applications\/[^/?]+\?tab=interviews$/);
+  await expect(page.getByRole("heading", { level: 2, name: "Interviews and calls" })).toBeVisible();
+});
+
 test("add a custom countdown and delete it only after confirming", async ({ page }) => {
   const title = uniqueName("End of notice period");
   await page.goto("/");
