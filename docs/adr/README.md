@@ -59,3 +59,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0048](0048-interviews-scheduled-times-as-instant-and-planning-zone.md) | Interviews and calls: an aggregate of their own, scheduled as an instant plus the zone planned in | accepted |
 | [0049](0049-tasks-absolute-due-buckets-single-link-and-suggestion-identity.md) | Tasks: absolute due buckets, one clearable link, suggestions identified by rule and key | accepted |
 | [0050](0050-saved-views-versioned-filter-documents-and-application-settings.md) | Saved views as versioned filter documents read tolerantly; application settings as an optional single row | accepted |
+| [0053](0053-mcp-server-streamable-http-session-auth-and-result-filter.md) | The MCP server: Streamable HTTP, session auth, one use case per tool, filtered results | accepted |

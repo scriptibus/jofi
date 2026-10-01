@@ -17,6 +17,7 @@ dependencies {
     testImplementation(project(":adapters:jobs"))
     testImplementation(project(":adapters:ai"))
     testImplementation(project(":adapters:backup"))
+    testImplementation(project(":adapters:mcp"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))

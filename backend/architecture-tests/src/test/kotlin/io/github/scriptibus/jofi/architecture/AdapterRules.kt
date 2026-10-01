@@ -37,12 +37,16 @@ object AdapterRules {
     /** The web conventions every context's controllers share: problem details, confirmations (ADR-0033/0039). */
     const val SHARED_WEB = "$BASE.shared.adapter.web.."
 
+    /** The MCP server and the tool contract every context's tools implement (ADR-0053). */
+    const val SHARED_MCP = "$BASE.shared.adapter.mcp.."
+
     /**
      * Adapters talk to each other only through use cases and ports. Two narrow exemptions: every
      * context's persistence adapter may use the shared persistence code (the jOOQ code generated for the
      * whole schema into one package, and the kernel's column and error helpers for that schema, #82); and
      * every context's web adapter may use the shared web conventions
-     * (`Confirmations`, `ValidationProblem`, `ProblemResponses`), which ADR-0039 and ADR-0041 require.
+     * (`Confirmations`, `ValidationProblem`, `ProblemResponses`), which ADR-0039 and ADR-0041 require; and every
+     * context's MCP tools implement the shared tool contract and its result types (ADR-0053).
      * Other adapter kinds still may not touch either.
      */
     val adaptersAreIndependent: ArchRule =
@@ -52,6 +56,7 @@ object AdapterRules {
             .notDependOnEachOther()
             .ignoreDependency(resideInAPackage("..adapter.persistence.."), resideInAPackage(SHARED_PERSISTENCE))
             .ignoreDependency(resideInAPackage("..adapter.web.."), resideInAPackage(SHARED_WEB))
+            .ignoreDependency(resideInAPackage("..adapter.mcp.."), resideInAPackage(SHARED_MCP))
             .because("adapters talk to each other only through use cases and ports")
 
     /**

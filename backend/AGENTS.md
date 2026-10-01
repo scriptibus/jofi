@@ -40,10 +40,10 @@ domain  <-  application  <-  adapters/*  <-  bootstrap
 - `domain`: Kotlin stdlib only. Entities, value objects, domain services, domain events.
 - `application`: use cases and ports; depends on `domain` only. No frameworks.
 - `adapters/<kind>`: framework code (web, persistence, net, crypto, jobs, ai, backup, ...); depends on `application`.
-  Adapters never depend on each other (two exemptions: persistence adapters of every context use
+  Adapters never depend on each other (three exemptions: persistence adapters of every context use
   the shared persistence code in `shared.adapter.persistence` (the generated jOOQ code, `ActorColumns`,
   `violatedConstraint()`), ADR-0032; web adapters use the shared web conventions in `shared.adapter.web`,
-  ADR-0041).
+  ADR-0041; MCP adapters implement the shared tool contract in `shared.adapter.mcp`, ADR-0053).
 - `bootstrap`: the Spring Boot app. Wires use cases as beans, holds config and framework-bound
   adapters that belong nowhere else (e.g. build info).
 - `architecture-tests`: ArchUnit, Konsist and Spring Modulith rules over all production code.
@@ -183,6 +183,8 @@ capabilities for the setup checks. Costs and the budget are in USD only; an unkn
     `Jofi-Confirmation` header. Allowlist entries need a reason and a human review.
   - Never put the gate in a controller or MCP tool: it must hold for every caller. Test the
     unconfirmed, confirmed, replay and changed-effect paths.
+- **An MCP tool**: a `*Tool` bean in `adapters/mcp/.../<context>/adapter/mcp/` calling exactly one use case;
+  see `adapters/mcp/AGENTS.md` and `docs/mcp-tools.md` (ADR-0053).
 - **A controller**: `adapters/web/.../<context>/adapter/web/<Name>Controller.kt`; inject use cases
   only, map domain types to DTOs (`*Response`/`*Request`) in the same package. Test with a
   `@WebMvcTest` slice (`org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`, `MockMvcTester`).
@@ -301,3 +303,6 @@ with `jofi.postgresImage`. Build and smoke-test the stack from the repository ro
 - **licensee `allowDependency` for ANTLR** (`antlr4-runtime` 4.13.1, `ST4` 4.3.4, `antlr-runtime`
   3.5.3, via Spring AI's prompt templates): BSD-3-Clause, declared only by URL. Pinned to these
   versions so a new release is checked again.
+- **MCP Java SDK 2.0.1 under Spring AI 2.0.1's transport** (`mcp-spring-webmvc`, built on SDK 2.0.0; ADR-0053):
+  the patch release wins in Gradle. The SDK brings `json-schema-validator` (and with it Jackson 3 YAML and
+  SnakeYAML Engine) for checking tool arguments. Its logging is off in `application.yaml`.

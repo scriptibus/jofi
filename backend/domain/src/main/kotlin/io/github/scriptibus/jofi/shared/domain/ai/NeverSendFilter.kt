@@ -88,6 +88,19 @@ object NeverSendFilter {
         }
     }
 
+    /**
+     * The result of an MCP tool (JSON) as it may leave Jofi (#116): every flagged value is redacted inside
+     * its string values (and numbers), so the JSON stays valid. Tools that return flaggable items (knowledge,
+     * M2) leave flagged ones out before serialising; this is the value scan behind that.
+     */
+    fun applyToToolResult(
+        json: String,
+        rules: NeverSendRules,
+    ): FilterOutcome.Passed<String> {
+        val redacted = JsonStrings.redact(json, ValueRedactor(rules.flaggedValues))
+        return FilterOutcome.Passed(redacted.text, redacted.count)
+    }
+
     private fun partsOf(message: LlmMessage): List<ContentPart> =
         when (message) {
             is LlmMessage.System -> message.parts
