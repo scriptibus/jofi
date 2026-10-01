@@ -30,6 +30,7 @@ export { AppLink, ChipLink, ExternalLink, type ExternalLinkProps, NavItem, TextL
 export { MARKDOWN_SCHEMA, Markdown, type MarkdownProps, safeHref } from "./Markdown";
 export { type MenuAction, MenuButton, type MenuButtonProps, type MenuGroup } from "./Menu";
 export { NumberField, type NumberFieldProps } from "./NumberField";
+export { ProgressBar, type ProgressBarProps } from "./ProgressBar";
 export { RadioList, type RadioListOption, type RadioListProps } from "./RadioList";
 export {
   AccentSwatch,
