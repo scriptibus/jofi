@@ -42,6 +42,19 @@ describe("TextField", () => {
     expect(screen.getByLabelText("Password")).toHaveAccessibleDescription("Wrong password");
   });
 
+  it("gives a date input its range, and no range attributes without one", () => {
+    render(
+      <>
+        <TextField type="date" label="Deadline" min="2000-01-01" max="2099-12-31" />
+        <TextField label="Name" />
+      </>,
+    );
+    expect(screen.getByLabelText("Deadline")).toHaveAttribute("min", "2000-01-01");
+    expect(screen.getByLabelText("Deadline")).toHaveAttribute("max", "2099-12-31");
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("min");
+    expect(screen.getByLabelText("Name")).not.toHaveAttribute("max");
+  });
+
   it("uses the data font for mono fields", () => {
     render(<TextField label="Token" mono />);
     expect(screen.getByLabelText("Token")).toHaveClass("font-data");

@@ -12,6 +12,7 @@ import {
   describeRemaining,
   describeTarget,
   sourceLabels,
+  targetDateProblem,
   targetDay,
 } from "./countdowns";
 
@@ -111,6 +112,17 @@ describe("describeTarget", () => {
 
   it("is empty without a target", () => {
     expect(describeTarget(aDashboardCountdown({ targetDate: null, targetAt: null }), "UTC")).toBe("");
+  });
+});
+
+describe("targetDateProblem", () => {
+  it("accepts the server's range, 2000-01-01 to 2099-12-31, and nothing outside or empty", () => {
+    overwriteGetLocale(() => "en");
+    expect(targetDateProblem("2000-01-01")).toBeNull();
+    expect(targetDateProblem("2099-12-31")).toBeNull();
+    expect(targetDateProblem("1999-12-31")).toBe("Enter a date between 2000 and 2099.");
+    expect(targetDateProblem("2100-01-01")).toBe("Enter a date between 2000 and 2099.");
+    expect(targetDateProblem("")).toBe("Enter a value.");
   });
 });
 

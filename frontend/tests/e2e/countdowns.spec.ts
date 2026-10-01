@@ -61,6 +61,12 @@ test("add a custom countdown and delete it only after confirming", async ({ page
   await expect(form.getByText("Enter a value.")).toHaveCount(2);
 
   await form.getByLabel("Counting down to (required)").fill(title);
+  // A date the server would refuse never leaves the form, and the message is the app's own (exact: no browser text).
+  await form.getByLabel("Date (required)").fill("2100-01-01");
+  await form.getByRole("button", { name: "Add countdown" }).click();
+  await expect(form.getByText("Enter a date between 2000 and 2099.", { exact: true })).toBeVisible();
+  await expect(row(page, title)).toHaveCount(0);
+
   await form.getByLabel("Date (required)").fill(await dayFromToday(page, 10));
   await form.getByRole("button", { name: "Add countdown" }).click();
 

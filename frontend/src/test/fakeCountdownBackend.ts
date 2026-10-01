@@ -54,6 +54,10 @@ export interface FakeCountdownState {
   listZones: string[];
   /** Every accepted `POST` body, in order. */
   creates: CountdownRequest[];
+  /** Every `POST` that arrived, accepted or not. */
+  createCalls: number;
+  /** Target dates the server refuses as `OUT_OF_RANGE`, whatever the client thinks of them. */
+  refusedDates: string[];
   /** Delete calls seen: `first` without token, `confirmed` with it. */
   deleteCalls: ("first" | "confirmed")[];
   /** While true, the dashboard list answers 503 `storage-unavailable`. */
@@ -73,10 +77,10 @@ function toDashboard(countdown: CountdownResponse): DashboardCountdownResponse {
   };
 }
 
-function violations(details: CountdownRequest) {
+function violations(details: CountdownRequest, refusedDates: string[]) {
   const found: { field: string; problem: string }[] = [];
   if (details.title.trim() === "") found.push({ field: "title", problem: "REQUIRED" });
-  if (details.targetDate.startsWith("1999")) found.push({ field: "targetDate", problem: "OUT_OF_RANGE" });
+  if (refusedDates.includes(details.targetDate)) found.push({ field: "targetDate", problem: "OUT_OF_RANGE" });
   return found;
 }
 
@@ -86,6 +90,8 @@ export function fakeCountdownBackend(initial: Partial<FakeCountdownState> = {}) 
     derived: [],
     listZones: [],
     creates: [],
+    createCalls: 0,
+    refusedDates: [],
     deleteCalls: [],
     unavailable: false,
     ...initial,
@@ -100,7 +106,8 @@ export function fakeCountdownBackend(initial: Partial<FakeCountdownState> = {}) 
     http.get(`${origin()}/api/countdowns`, () => HttpResponse.json({ countdowns: state.countdowns })),
     http.post(`${origin()}/api/countdowns`, async ({ request }) => {
       const body = (await request.json()) as CountdownRequest;
-      const found = violations(body);
+      state.createCalls += 1;
+      const found = violations(body, state.refusedDates);
       if (found.length > 0)
         return json({ type: "urn:jofi:problem:tasks:invalid-task", status: 400, violations: found }, 400);
       state.creates.push(body);

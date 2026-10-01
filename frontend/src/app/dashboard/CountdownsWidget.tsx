@@ -15,8 +15,11 @@ import {
   describeCountdownError,
   describeRemaining,
   describeTarget,
+  EARLIEST_TARGET_DATE,
+  LATEST_TARGET_DATE,
   MAX_TITLE_LENGTH,
   sourceLabels,
+  targetDateProblem,
   targetDay,
 } from "./countdowns";
 import { useAddCountdown, useDashboardCountdowns, useDeleteCountdown } from "./useCountdowns";
@@ -216,7 +219,9 @@ function AddCountdown({ onAdded }: { onAdded: (title: string) => void }) {
           label={m.countdown_field_date()}
           value={targetDate}
           onChange={fieldErrors.clearing(FIELD_NAMES.targetDate, setTargetDate)}
-          validate={required}
+          min={EARLIEST_TARGET_DATE}
+          max={LATEST_TARGET_DATE}
+          validate={targetDateProblem}
         />
       </div>
       <Button type="submit" className="self-start" isDisabled={add.isPending}>

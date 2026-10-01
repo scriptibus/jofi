@@ -147,13 +147,38 @@ describe("countdowns widget", () => {
     const form = within(await widget()).getByRole("form", { name: "Add a countdown" });
     await user.click(within(form).getByRole("button", { name: "Add countdown" }));
     expect(await within(form).findAllByText("Enter a value.")).toHaveLength(2);
-    expect(state.creates).toEqual([]);
+    expect(state.createCalls).toBe(0);
 
-    await user.type(within(form).getByLabelText("Counting down to (required)"), "Too early");
-    await user.type(within(form).getByLabelText("Date (required)"), "1999-01-01");
+    // The server has the last word, also on a date the form let through.
+    state.refusedDates = ["2050-01-01"];
+    await user.type(within(form).getByLabelText("Counting down to (required)"), "Refused");
+    await user.type(within(form).getByLabelText("Date (required)"), "2050-01-01");
     await user.click(within(form).getByRole("button", { name: "Add countdown" }));
     expect(await within(form).findByText("Enter a date between 2000 and 2099.")).toBeVisible();
+    expect(state.createCalls).toBe(1);
     expect(state.creates).toEqual([]);
+  });
+
+  it("offers only dates the server accepts (2000–2099) and sends nothing for another", async () => {
+    const { state, user } = start();
+    const form = within(await widget()).getByRole("form", { name: "Add a countdown" });
+    const date = within(form).getByLabelText("Date (required)");
+    expect(date).toHaveAttribute("min", "2000-01-01");
+    expect(date).toHaveAttribute("max", "2099-12-31");
+
+    await user.type(within(form).getByLabelText("Counting down to (required)"), "Too early");
+    for (const outside of ["1999-12-31", "2100-01-01"]) {
+      await user.clear(date);
+      await user.type(date, outside);
+      await user.click(within(form).getByRole("button", { name: "Add countdown" }));
+      expect(await within(form).findByText("Enter a date between 2000 and 2099.")).toBeVisible();
+    }
+    expect(state.createCalls).toBe(0);
+
+    await user.clear(date);
+    await user.type(date, "2099-12-31");
+    await user.click(within(form).getByRole("button", { name: "Add countdown" }));
+    await waitFor(() => expect(state.creates).toEqual([{ title: "Too early", targetDate: "2099-12-31" }]));
   });
 
   it("deletes a custom countdown only after confirming", async () => {
@@ -183,7 +208,7 @@ describe("countdowns widget", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Countdowns" })).toHaveFocus();
   });
 
-  it("says so when the countdown was deleted elsewhere meanwhile", async () => {
+  it("says so when the countdown was deleted elsewhere meanwhile, and drops its stale row", async () => {
     const notice = aCountdown({ title: "End of notice period" });
     const { state, user } = start({ countdowns: [notice] });
     const deleteButton = await within(await widget()).findByRole("button", {
@@ -192,5 +217,9 @@ describe("countdowns widget", () => {
     state.countdowns = [];
     await user.click(deleteButton);
     expect(await screen.findByText("This countdown does not exist (any more).")).toBeVisible();
+    // The list is loaded again: no row left that would only fail again.
+    expect(await within(await widget()).findByText(/^No countdowns yet\./)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Delete countdown: End of notice period" })).toBeNull();
+    expect(state.listZones).toHaveLength(2);
   });
 });

@@ -96,7 +96,11 @@ export function useDeleteCountdown({ onDeleted, onFailure }: DeleteCallbacks) {
       onDeleted(countdown);
       reload();
     },
-    onError: onFailure,
+    // Gone or changed elsewhere meanwhile (404, 412): show what is there now, not a row that fails again.
+    onError: (error) => {
+      reload();
+      onFailure(error);
+    },
   });
   return { mutation, dialog };
 }
