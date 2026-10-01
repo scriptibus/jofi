@@ -4,6 +4,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { type SyntheticEvent, useState } from "react";
 import {
+  getGetCostSummaryQueryKey,
   getGetMonthlyBudgetQueryKey,
   type MonthlyBudgetResponse,
   useGetMonthlyBudget,
@@ -57,6 +58,8 @@ export function BudgetForm() {
       {
         onSuccess: (result) => {
           queryClient.setQueryData(getGetMonthlyBudgetQueryKey(), result);
+          // The Costs card and the dashboard read the cap from the cost summary: all its month variants.
+          void queryClient.invalidateQueries({ queryKey: getGetCostSummaryQueryKey() });
           setCap(null);
           setSaved(
             result.capMicros == null

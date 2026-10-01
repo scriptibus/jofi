@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MultiSelect, Table, TableCell } from "./index";
 
 describe("Table", () => {
@@ -12,6 +12,80 @@ describe("Table", () => {
     { id: "due", label: "Due", sortable: true },
     { id: "actions", label: "Actions", hideLabel: true },
   ] as const;
+
+  describe("scroll region", () => {
+    const observers: (() => void)[] = [];
+
+    beforeEach(() => {
+      observers.length = 0;
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(callback: () => void) {
+            observers.push(callback);
+          }
+          observe() {}
+          disconnect() {}
+        },
+      );
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      // Back to the jsdom default of an element nobody laid out.
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollWidth");
+      Reflect.deleteProperty(HTMLElement.prototype, "clientWidth");
+    });
+
+    const measure = (scrollWidth: number, clientWidth: number) => {
+      Object.defineProperty(HTMLElement.prototype, "scrollWidth", { configurable: true, value: scrollWidth });
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: clientWidth });
+    };
+
+    const renderTable = () =>
+      render(
+        <Table label="Jobs" columns={columns}>
+          <tr>
+            <TableCell>Backend</TableCell>
+            <TableCell>Monday</TableCell>
+            <TableCell>–</TableCell>
+          </tr>
+        </Table>,
+      );
+
+    it("scrolls inside a named, keyboard-focusable region when it is wider than its container", async () => {
+      measure(900, 300);
+      const user = userEvent.setup();
+      renderTable();
+      const region = await screen.findByRole("region", { name: "Jobs" });
+      expect(within(region).getByRole("table", { name: "Jobs" })).toBeVisible();
+      await user.tab();
+      expect(region).toHaveFocus();
+    });
+
+    it("adds neither a tab stop nor a landmark when it fits", () => {
+      measure(300, 300);
+      renderTable();
+      expect(screen.queryByRole("region")).toBeNull();
+      expect(screen.getByRole("table", { name: "Jobs" })).toBeVisible();
+      expect(document.querySelector("[tabindex]")).toBeNull();
+    });
+
+    it("follows the container when it is resized", async () => {
+      measure(300, 300);
+      renderTable();
+      expect(screen.queryByRole("region")).toBeNull();
+      measure(900, 300);
+      act(() => {
+        for (const notify of observers) notify();
+      });
+      expect(await screen.findByRole("region", { name: "Jobs" })).toHaveAttribute("tabindex", "0");
+      measure(300, 300);
+      act(() => {
+        for (const notify of observers) notify();
+      });
+      expect(screen.queryByRole("region")).toBeNull();
+    });
+  });
 
   it("is a captioned table whose sorted column carries aria-sort, with sort buttons in the headings", async () => {
     const onSort = vi.fn();

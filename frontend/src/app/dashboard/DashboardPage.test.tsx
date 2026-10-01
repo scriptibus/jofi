@@ -221,6 +221,9 @@ describe("AI cost", () => {
     expect(await within(cost).findByText("$2.50")).toBeVisible();
     expect(within(cost).getByText("of $10.00, $7.50 left")).toBeVisible();
     expect(within(cost).getByText("Plus calls with unknown cost: 2.")).toBeVisible();
+    const bar = within(cost).getByRole("progressbar", { name: "Spent against the monthly cap" });
+    expect(bar).toHaveAttribute("aria-valuenow", "25");
+    expect(bar).toHaveAttribute("aria-valuetext", "$2.50 of $10.00 (25%)");
     expect(within(cost).queryByRole("note")).toBeNull();
     expect(within(cost).getByRole("link", { name: "AI budget in Settings" })).toHaveAttribute(
       "href",
@@ -234,6 +237,21 @@ describe("AI cost", () => {
     const warning = await within(cost).findByRole("note");
     expect(warning).toHaveTextContent("Budget reached: AI jobs that can wait are paused.");
     expect(warning).toHaveTextContent(/Paused until Nov 1, 2026/);
+  });
+});
+
+describe("AI cost above the cap", () => {
+  it("shows the real percent as text and keeps the bar full", async () => {
+    start({ costs: aCostSummary(25_000_000, 10_000_000) });
+    const bar = await within(await widget("AI cost this month")).findByRole("progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "100");
+    expect(bar).toHaveAttribute("aria-valuetext", "$25.00 of $10.00 (250%)");
+  });
+
+  it("rounds down, so a month just below the cap never reads 100%", async () => {
+    start({ costs: aCostSummary(9_999_999, 10_000_000) });
+    const bar = await within(await widget("AI cost this month")).findByRole("progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "99");
   });
 });
 

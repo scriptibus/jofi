@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import type { ReactNode, TdHTMLAttributes } from "react";
+import { type ReactNode, type TdHTMLAttributes, useEffect, useRef, useState } from "react";
 import { Button } from "react-aria-components";
 import { SortAscendingIcon, SortableIcon, SortDescendingIcon } from "./icons";
 
@@ -39,8 +39,15 @@ export interface TableProps<K extends string> {
  * which direction) is up to `onSort`, so the order can live in the URL and on the server.
  */
 export function Table<K extends string>({ label, columns, sort, onSort, children }: TableProps<K>) {
+  const { ref, scrolls } = useOverflowsHorizontally<HTMLDivElement>();
   return (
-    <div className="overflow-x-auto rounded border border-line bg-surface shadow-card">
+    // Only a table that really scrolls gets a tab stop and a named region, so a keyboard user can scroll it
+    // (axe `scrollable-region-focusable`); one that fits adds neither a stop nor a landmark.
+    <div
+      ref={ref}
+      {...(scrolls ? { role: "region", "aria-label": label, tabIndex: 0 } : {})}
+      className="overflow-x-auto rounded border border-line bg-surface shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+    >
       <table className="w-full border-collapse text-left text-body">
         <caption className="sr-only">{label}</caption>
         <thead className="bg-sunken">
@@ -59,6 +66,24 @@ export function Table<K extends string>({ label, columns, sort, onSort, children
       </table>
     </div>
   );
+}
+
+/** Whether the element's content is wider than the element, re-measured when it or its content resizes. */
+function useOverflowsHorizontally<E extends HTMLElement>() {
+  const ref = useRef<E>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const measure = () => setScrolls(element.scrollWidth > element.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    // The table inside grows with its rows and columns without the container changing size.
+    if (element.firstElementChild) observer.observe(element.firstElementChild);
+    return () => observer.disconnect();
+  }, []);
+  return { ref, scrolls };
 }
 
 interface HeaderCellProps<K extends string> {
