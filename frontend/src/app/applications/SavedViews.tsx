@@ -16,7 +16,7 @@ import { FailureMessage } from "../companies/CompanyLoadFailure";
 import type { ErrorDescription } from "../problems";
 import { useConfirmation } from "../useConfirmation";
 import type { ApplicationsSearch } from "./applicationsSearch";
-import { DELETE_VIEW_OPERATION, describeViewError, openView } from "./savedViews";
+import { DELETE_VIEW_OPERATION, describeViewError, openView } from "./savedViewModel";
 import { ViewNameDialog, type ViewNameMode } from "./ViewNameDialog";
 
 export interface SavedViewsProps {

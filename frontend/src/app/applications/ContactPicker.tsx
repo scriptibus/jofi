@@ -13,7 +13,7 @@ import {
 import { m } from "../../paraglide/messages.js";
 import { AddIcon, Button, Dialog, LinkIcon, TextField, TextLink } from "../../ui";
 import { useDebouncedValue } from "../useDebouncedValue";
-import { pickerChoices } from "./applicationContacts";
+import { pickerChoices } from "./contactLinks";
 
 /** One request's worth of candidates per group; the search narrows them down. */
 const PICKER_SIZE = 50;
