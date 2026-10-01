@@ -101,6 +101,24 @@ describe("company problems", () => {
       "its 3 contacts.",
     );
   });
+
+  it("adds the applications and interviews the contacts are removed from, with plurals", () => {
+    const counts = { contacts: 2, applications: 1, interviews: 3 };
+    expect(describeDelete({ kind: "company", name: "ACME", counts })).toBe(
+      "ACME will be deleted together with its 2 contacts. This cannot be undone. " +
+        "Its contacts are removed from 1 application. " +
+        "Its contacts are removed as participants from 3 interviews.",
+    );
+    expect(
+      describeDelete({
+        kind: "company",
+        name: "ACME",
+        counts: { contacts: 1, applications: 2, interviews: 1 },
+      }),
+    ).toContain(
+      "Its contacts are removed from 2 applications. Its contacts are removed as participants from 1 interview.",
+    );
+  });
 });
 
 describe("companies list search params", () => {

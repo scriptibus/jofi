@@ -64,7 +64,17 @@ class DeleteCompanyUseCaseTest {
 
         required.action.operation shouldBe Company.DELETE_OPERATION
         required.action.targets shouldBe listOf(company.id.value.toString())
-        required.action.effect shouldBe ConfirmationEffect("company", "ACME GmbH", mapOf("contacts" to 2, "tasks" to 0))
+        required.action.effect shouldBe
+            ConfirmationEffect(
+                "company",
+                "ACME GmbH",
+                mapOf(
+                    "contacts" to 2,
+                    "applications" to 0,
+                    "interviews" to 0,
+                    "tasks" to 0,
+                ),
+            )
         fixtures.companies.size shouldBe 1
         fixtures.entries.shouldBeEmpty()
         fixtures.events.shouldBeEmpty()
@@ -106,7 +116,8 @@ class DeleteCompanyUseCaseTest {
         val unrelated = tasksOf(UUID.randomUUID(), 1)
         val client = ConfirmationRequester(Actor.ExternalClient("claude-desktop"), "mcp-1")
 
-        firstStep(company.id, client).action.effect.counts shouldBe mapOf("contacts" to 1, "tasks" to 3)
+        firstStep(company.id, client).action.effect.counts shouldBe
+            mapOf("contacts" to 1, "applications" to 0, "interviews" to 0, "tasks" to 3)
         delete.execute(company.id, client, firstStep(company.id, client).token) shouldBe CompanyResult.Success(Unit)
 
         fixtures.linkedTasks.values.toList() shouldContainExactly listOf(unrelated)
@@ -259,7 +270,8 @@ class DeleteCompanyUseCaseTest {
     fun `without contacts the effect counts zero`() {
         val company = fixtures.company()
 
-        firstStep(company.id).action.effect.counts shouldBe mapOf("contacts" to 0, "tasks" to 0)
+        firstStep(company.id).action.effect.counts shouldBe
+            mapOf("contacts" to 0, "applications" to 0, "interviews" to 0, "tasks" to 0)
         fixtures.contacts.shouldBeEmpty()
     }
 }

@@ -29,14 +29,15 @@ import java.time.Instant
 /**
  * Deletes a company and its contacts in two steps (ADR-0039). Company, contact ids, application count
  * and what the other contexts link to the company and its contacts ([FindCompanyLinksUseCase]) are read in the
- * transaction of the delete, and the confirmation effect (name, number of contacts and of linked
- * tasks) is built from that read, so a rename, a new contact or a new task link between the steps
+ * transaction of the delete, and the confirmation effect (name, number of contacts, of the applications
+ * and interviews they lose and of linked tasks) is built from that read, so a rename, a new contact, a new link or
+ * participation or a new task link between the steps
  * voids the token. A company with applications is refused before a token is issued. Each contact
  * deleted with it gets a changelog entry of its own (ids only) and a `ContactDeleted` event. The cascade also
  * removes the contacts' application links and interview participations, and `ON DELETE SET NULL` clears task
  * links: each affected application, interview and task gets the entry a single contact delete would write
- * (ADR-0048, ADR-0049). The effect does not count applications and interviews: they belong to other companies and
- * only lose a link, and what the read finds at confirmation is what gets recorded.
+ * (ADR-0048, ADR-0049). The effect counts the distinct applications and interviews they lose, as a contact delete
+ * does, so a link added between the steps voids the token.
  */
 class DeleteCompanyUseCase(
     private val companies: CompanyRepositoryPort,
@@ -67,7 +68,13 @@ class DeleteCompanyUseCase(
         requester: ConfirmationRequester,
         token: ConfirmationToken?,
     ): CompanyResult<Unit> {
-        val counts = mapOf(CONTACTS to contacts.size, TASKS to links.taskCount)
+        val counts =
+            mapOf(
+                CONTACTS to contacts.size,
+                APPLICATIONS to links.contactsByApplication.size,
+                INTERVIEWS to links.contactsByInterview.size,
+                TASKS to links.taskCount,
+            )
         val effect = ConfirmationEffect(CompanyId.ENTITY_TYPE, company.details.name, counts)
         val action = ConfirmableAction(Company.DELETE_OPERATION, listOf(company.id.value.toString()), effect)
         return when (val outcome = confirmation.execute(ConfirmationRequest(requester, action, token))) {
@@ -132,6 +139,12 @@ class DeleteCompanyUseCase(
     private companion object {
         /** The effect's count of contacts deleted with the company (ADR-0041); the UI names it. */
         const val CONTACTS = "contacts"
+
+        /** The effect's count of distinct applications the contacts are unlinked from (as the contact delete). */
+        const val APPLICATIONS = "applications"
+
+        /** The effect's count of distinct interviews the contacts are removed from as participants (ADR-0048). */
+        const val INTERVIEWS = "interviews"
 
         /** The effect's count of tasks whose link to the company or one of its contacts is cleared (ADR-0049). */
         const val TASKS = "tasks"

@@ -330,7 +330,7 @@ class CompanyControllerTest(
         val problem = json.readTree(first.response.contentAsString)
         problem["type"].asString() shouldBe Confirmations.REQUIRED
         problem["effect"].toString() shouldBe
-            """{"kind":"company","name":"ACME GmbH","counts":{"contacts":2,"tasks":1}}"""
+            """{"kind":"company","name":"ACME GmbH","counts":{"applications":0,"contacts":2,"interviews":0,"tasks":1}}"""
         verify(exactly = 0) { ports.companies.delete(any(), any()) }
 
         val token = problem["confirmationToken"].asString()

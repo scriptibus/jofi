@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogEntry
 import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.FieldChange
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRejection
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
@@ -88,8 +89,11 @@ class DeleteCompanyCascadeTest {
         fixtures.participations[first] = listOf(interview)
         fixtures.participations[third] = listOf(interview, other)
 
-        delete.execute(company.id, user, firstStep(company).token) shouldBe CompanyResult.Success(Unit)
+        val required = firstStep(company)
+        delete.execute(company.id, user, required.token) shouldBe CompanyResult.Success(Unit)
 
+        required.action.effect.counts shouldBe
+            mapOf("contacts" to 3, "applications" to 2, "interviews" to 2, "tasks" to 0)
         val cascaded = fixtures.entries.drop(4)
         cascaded.map { it.entity } shouldContainExactlyInAnyOrder listOf(shared, onlySecond, interview, other)
         val byEntity = cascaded.associateBy { it.entity }
@@ -104,7 +108,7 @@ class DeleteCompanyCascadeTest {
     }
 
     @Test
-    fun `the entries carry the deleting actor and the stored time, and the effect does not count them`() {
+    fun `the entries carry the deleting actor and the stored time, and the effect counts them`() {
         val company = fixtures.company()
         val contact = contactsOf(company, 1).single()
         fixtures.linkedApplications[contact] = listOf(ref("application"))
@@ -114,7 +118,8 @@ class DeleteCompanyCascadeTest {
         val required = firstStep(company, client)
         delete.execute(company.id, client, required.token) shouldBe CompanyResult.Success(Unit)
 
-        required.action.effect.counts shouldBe mapOf("contacts" to 1, "tasks" to 0)
+        required.action.effect.counts shouldBe
+            mapOf("contacts" to 1, "applications" to 1, "interviews" to 1, "tasks" to 0)
         fixtures.entries.size shouldBe 4
         fixtures.entries.map { it.actor }.toSet() shouldBe setOf(Actor.ExternalClient("claude-desktop"))
         fixtures.entries.map { it.occurredAt }.toSet() shouldBe setOf(NOW)
@@ -132,17 +137,21 @@ class DeleteCompanyCascadeTest {
     }
 
     @Test
-    fun `a link added between the steps is recorded without voiding the token`() {
+    fun `a link or participation added between the steps changes the effect and voids the token`() {
         val company = fixtures.company()
         val contact = contactsOf(company, 1).single()
-        val token = firstStep(company).token
-        val application = ref("application")
-        fixtures.linkedApplications[contact] = listOf(application)
+        val mismatch = CompanyResult.Unconfirmed(ConfirmationResult.Rejected(ConfirmationRejection.MISMATCH))
+        val beforeLink = firstStep(company).token
+        fixtures.linkedApplications[contact] = listOf(ref("application"))
+        delete.execute(company.id, user, beforeLink) shouldBe mismatch
 
-        delete.execute(company.id, user, token) shouldBe CompanyResult.Success(Unit)
+        val beforeParticipation = firstStep(company).token
+        fixtures.participations[contact] = listOf(ref("interview"))
+        delete.execute(company.id, user, beforeParticipation) shouldBe mismatch
 
-        fixtures.entries.map { it.entity } shouldContainExactly
-            listOf(company.id.toEntityRef(), contact.toEntityRef(), application)
+        fixtures.companies.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
+        delete.execute(company.id, user, firstStep(company).token) shouldBe CompanyResult.Success(Unit)
     }
 
     @Test

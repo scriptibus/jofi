@@ -128,7 +128,8 @@ class CompanyDeleteCascadeFlowTest(
     ) {
         val first = browser.delete("/api/companies/$company")
         first.response.status shouldBe 428
-        first.body()["effect"]["counts"].toString() shouldBe """{"contacts":3,"tasks":0}"""
+        first.body()["effect"]["counts"].toString() shouldBe
+            """{"applications":2,"contacts":3,"interviews":2,"tasks":0}"""
         val token = first.body()["confirmationToken"].asString()
         browser.delete("/api/companies/$company", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
     }

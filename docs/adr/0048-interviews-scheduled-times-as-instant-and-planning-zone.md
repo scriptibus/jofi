@@ -116,10 +116,11 @@ the application does not have is 404 `interview-not-found`.
   (`contacts` or `participants`) whose value is the ids of the deleted contacts linked to it, sorted and comma-joined
   like the contact link edit's entry, since a field is unique within an entry and the timeline relies on it (a contact
   on several applications appears on each, an application with several deleted contacts gets a single entry). An unreadable port is a storage failure and nothing is deleted. The company
-  delete's confirmation effect does **not** count applications and interviews: they belong to other companies (a
-  company with applications is refused) and only lose a link, the dialog names what disappears (`contacts`, `tasks`),
-  and since the entries come from the read in the confirming transaction a link added between the steps is recorded
-  without voiding the token.
+  delete's confirmation effect counts them like the contact delete does (`applications`, `interviews`, plus the
+  existing `contacts` and `tasks`): the distinct applications and interviews its contacts are removed from, across all
+  its contacts, so the dialog shows what the delete changes outside the company. The effect is what the token is
+  bound to, so a link or participation added between the two steps voids the token (412), as for a single contact
+  delete.
 
 ## Consequences
 
