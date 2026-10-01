@@ -19,7 +19,7 @@ import type {
   StatusChangeResponse,
   UpdateApplicationRequest,
 } from "../api/generated/jofi";
-import { MAX_CONTACTS } from "../app/applications/applicationContacts";
+import { MAX_CONTACTS } from "../app/applications/contactLinks";
 import { canMoveTo, takesDeclineReason } from "../app/applications/statusMatrix";
 
 const origin = () => window.location.origin;

@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { aSavedView } from "../../test/fakeSavedViewBackend";
 import { daysAgo } from "./applicationsSearch";
-import { filterForRename, openView, toViewFilter, updatedWithin } from "./savedViews";
+import { filterForRename, openView, toViewFilter, updatedWithin } from "./savedViewModel";
 
 const company = "0b6f2c1e-6a51-4c1c-9f4e-2d7b8a3c9e10";
 const savedAt = new Date(2026, 8, 30, 15, 30);
