@@ -22,8 +22,9 @@ class UpdateCompanyTool(
     override val readOnly = false
     override val description =
         "Replace ALL details of a company: a field left out is cleared, so call get_company first, change what " +
-            "you mean to change and send everything back with the `version` you read. A stale version answers " +
-            "version-conflict and changes nothing. The preference is not changed here."
+            "you mean to change and send everything back (the fields of `company` in the answer, `null` for a " +
+            "field that is not set) with the `version` you read. A stale version answers version-conflict and " +
+            "changes nothing. The preference is not changed here."
     override val inputSchema =
         """
         {

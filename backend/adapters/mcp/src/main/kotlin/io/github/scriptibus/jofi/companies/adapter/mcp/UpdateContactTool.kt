@@ -22,8 +22,9 @@ class UpdateContactTool(
     override val readOnly = false
     override val description =
         "Replace ALL details of a contact, channels included: a field or channel left out is removed, so call " +
-            "get_contact first, change what you mean to change and send everything back with the `version` you " +
-            "read. A stale version answers version-conflict and changes nothing."
+            "get_contact first, change what you mean to change and send everything back (the fields of `contact` " +
+            "in the answer, `null` for a field that is not set) with the `version` you read. A stale version " +
+            "answers version-conflict and changes nothing."
     override val inputSchema =
         """
         {

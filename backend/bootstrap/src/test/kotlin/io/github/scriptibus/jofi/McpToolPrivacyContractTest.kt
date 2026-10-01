@@ -43,6 +43,25 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
     }
 
     @Test
+    fun `the application answered by set_application_contacts has flagged values withheld`() {
+        val company = owner.create("/api/companies", """{"name":"ACME GmbH"}""")
+        val body = """{"title":"Kotlin Engineer","companyId":"$company","portalNotes":"Call $FLAGGED_PHONE"}"""
+        val application = owner.create("/api/applications", body)
+        owner.mcpClient().use { client ->
+            client.initialize()
+
+            val answer =
+                client.call(
+                    "set_application_contacts",
+                    mapOf("id" to application, "version" to 0, "contactIds" to emptyList<String>()),
+                )
+
+            answer["portalNotes"].asString() shouldBe "Call [withheld]"
+            answer.toString() shouldNotContain "1234567"
+        }
+    }
+
+    @Test
     fun `an error answer never repeats a flagged value from the arguments`() {
         owner.mcpClient().use { client ->
             client.initialize()

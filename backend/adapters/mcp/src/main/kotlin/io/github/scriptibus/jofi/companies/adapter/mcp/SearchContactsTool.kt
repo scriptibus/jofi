@@ -30,17 +30,17 @@ class SearchContactsTool(
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "text": {"type": "string", "description": "Words of the contact's name, matched fuzzily."},
+            "text": {"type": "string", "maxLength": ${SearchLimits.MAX_TEXT}, "description": "Words of the name."},
             "companyId": {"type": "string", "format": "uuid"},
             "page": {"type": "integer", "minimum": 0, "default": 0},
-            "size": {"type": "integer", "minimum": 1, "maximum": ${ContactSearch.MAX_SIZE}, "default": $DEFAULT_SIZE}
+            ${SearchLimits.SIZE_PROPERTY}
           }
         }
         """.trimIndent()
 
     override fun call(call: ToolCall): ToolAnswer {
         val page = call.arguments.int("page") ?: 0
-        val size = call.arguments.int("size") ?: DEFAULT_SIZE
+        val size = call.arguments.int("size") ?: SearchLimits.DEFAULT_SIZE
         val search =
             ContactSearch.of(
                 call.arguments.text("text"),
@@ -62,12 +62,7 @@ class SearchContactsTool(
         "The search arguments are invalid.",
         listOfNotNull(
             ArgumentProblem("page", "out-of-range").takeIf { page < 0 },
-            ArgumentProblem("size", "out-of-range").takeIf { size !in 1..ContactSearch.MAX_SIZE },
+            ArgumentProblem("size", "out-of-range").takeIf { size !in 1..SearchLimits.MAX_SIZE },
         ),
     )
-
-    private companion object {
-        /** Smaller than the UI's page: every result goes into the model's context. */
-        const val DEFAULT_SIZE = 20
-    }
 }

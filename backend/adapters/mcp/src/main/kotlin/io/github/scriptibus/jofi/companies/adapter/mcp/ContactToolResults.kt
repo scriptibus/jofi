@@ -18,8 +18,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The contact tools' results. A contact is a third party's personal data: name, role and channels may come
- * from postings or emails, so they are [Untrusted]; the user's relationship notes stay plain.
+ * The contact tools' results. A contact is a third party's personal data. Every field a tool can write (name, role,
+ * channels, relationship notes) is [Untrusted]: it may come from postings or emails, or from a prompt-injected model
+ * that stores instructions for later sessions (ADR-0053, amendment of #119). The company link is an id.
  */
 data class ContactWho(
     val name: String,
@@ -62,10 +63,12 @@ data class ChannelResult(
     val label: String?,
 )
 
-data class ContactFacts(
+/** All writable fields, notes included: what `update_contact` takes back. */
+data class ContactDetailFacts(
     val name: String,
     val role: String?,
     val channels: List<ChannelResult>,
+    val relationshipNotes: String?,
 )
 
 /** One contact in full; [version] is what `update_contact` needs to be based on. */
@@ -73,10 +76,9 @@ data class ContactDetailResult(
     val id: UUID,
     val version: Long,
     val companyId: UUID?,
-    val relationshipNotes: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
-    val contact: Untrusted<ContactFacts>,
+    val contact: Untrusted<ContactDetailFacts>,
 ) {
     companion object {
         fun from(contact: Contact): ContactDetailResult {
@@ -85,10 +87,16 @@ data class ContactDetailResult(
                 contact.id.value,
                 contact.version,
                 details.company?.value,
-                details.relationshipNotes,
                 contact.createdAt,
                 contact.updatedAt,
-                Untrusted(ContactFacts(details.name, details.role, details.channels.map(::channelOf))),
+                Untrusted(
+                    ContactDetailFacts(
+                        details.name,
+                        details.role,
+                        details.channels.map(::channelOf),
+                        details.relationshipNotes,
+                    ),
+                ),
             )
         }
 
@@ -120,7 +128,8 @@ internal object ContactToolErrors {
                 ToolAnswer.Error("unavailable", "Contacts cannot be used now.")
             }
 
-            else -> {
+            // No tool of the contacts deletes, so this cannot happen; a new failure breaks this `when`.
+            is ContactResult.Unconfirmed -> {
                 ToolAnswer.Error("failed", "The contact request could not be completed.")
             }
         }

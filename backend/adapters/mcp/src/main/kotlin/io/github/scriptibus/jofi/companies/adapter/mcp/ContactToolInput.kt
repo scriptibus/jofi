@@ -35,10 +35,10 @@ internal object ContactToolInput {
     val PROPERTIES =
         """
         "name": {"type": "string", "description": "The contact's name."},
-        "role": {"type": "string", "description": "For example Recruiter."},
-        "companyId": {"type": "string", "format": "uuid", "description": "The company the contact works for."},
+        "role": {"type": ["string", "null"], "description": "For example Recruiter."},
+        "companyId": {"type": ["string", "null"], "format": "uuid", "description": "The company the contact works for."},
         "channels": {
-          "type": "array",
+          "type": ["array", "null"],
           "description": "Ways to reach the contact.",
           "items": {
             "type": "object",
@@ -47,10 +47,10 @@ internal object ContactToolInput {
             "properties": {
               "kind": {"enum": $KINDS},
               "value": {"type": "string"},
-              "label": {"type": "string", "description": "For example work or mobile."}
+              "label": {"type": ["string", "null"], "description": "For example work or mobile."}
             }
           }
         },
-        "relationshipNotes": {"type": "string", "description": "The user's notes on the relationship, Markdown."}
+        "relationshipNotes": {"type": ["string", "null"], "description": "Notes on the relationship, Markdown."}
         """.trimIndent()
 }

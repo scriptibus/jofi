@@ -20,6 +20,7 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldNotContain
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.McpSyncClient
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport
@@ -94,7 +95,7 @@ open class McpToolContractSupport {
 
     protected fun McpSyncClient.call(
         name: String,
-        arguments: Map<String, Any>,
+        arguments: Map<String, Any?>,
     ): JsonNode {
         val result = callTool(request(name, arguments))
         result.isError shouldBe false
@@ -104,7 +105,7 @@ open class McpToolContractSupport {
     /** A call that fails as a tool error with [code]; the answer is returned for its problems. */
     protected fun McpSyncClient.failure(
         name: String,
-        arguments: Map<String, Any>,
+        arguments: Map<String, Any?>,
         code: String,
     ): JsonNode {
         val result = callTool(request(name, arguments))
@@ -120,9 +121,12 @@ open class McpToolContractSupport {
      */
     protected fun McpSyncClient.refused(
         name: String,
-        arguments: Map<String, Any>,
+        arguments: Map<String, Any?>,
     ) {
-        callTool(request(name, arguments)).isError shouldBe true
+        val result = callTool(request(name, arguments))
+        result.isError shouldBe true
+        // The tool's own errors are JSON with a code; the SDK's schema refusals are plain text.
+        text(result) shouldNotContain "\"code\""
     }
 
     /** The problems of an error answer as `argument:problem`. */
@@ -137,7 +141,7 @@ open class McpToolContractSupport {
 
     private fun request(
         name: String,
-        arguments: Map<String, Any>,
+        arguments: Map<String, Any?>,
     ) = McpSchema.CallToolRequest
         .builder(name)
         .arguments(arguments)

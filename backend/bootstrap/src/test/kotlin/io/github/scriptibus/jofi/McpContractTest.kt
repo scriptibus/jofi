@@ -17,7 +17,6 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.kotest.assertions.throwables.shouldThrowAny
-import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -115,15 +114,28 @@ class McpContractTest(
     }
 
     @Test
-    fun `the client lists the read tools`() {
+    fun `the client lists exactly the tools there are, with the right read-only hint`() {
         Session().open().firstRun().mcpClient().use { client ->
             client.initialize().serverInfo().name() shouldBe "jofi"
 
-            val tools = client.listTools().tools()
+            val tools = client.listTools().tools().associate { it.name() to it.annotations().readOnlyHint() }
 
-            // The tools of the later PRs have their own contract tests; here the two read tools of #116.
-            val reading = tools.filter { it.annotations().readOnlyHint() }.map { it.name() }
-            reading shouldContainAll listOf("search_applications", "get_application")
+            // The only test that pins the whole tool surface: a PR that adds a tool extends this map (#117 adds
+            // the delete tools, #119 the tasks tools), and a write tool marked read only fails it.
+            tools shouldBe
+                mapOf(
+                    "search_applications" to true,
+                    "get_application" to true,
+                    "search_companies" to true,
+                    "get_company" to true,
+                    "search_contacts" to true,
+                    "get_contact" to true,
+                    "create_company" to false,
+                    "update_company" to false,
+                    "create_contact" to false,
+                    "update_contact" to false,
+                    "set_application_contacts" to false,
+                )
         }
     }
 

@@ -16,8 +16,10 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The company tools' results. A company's name, website, industry and locations can come from imported
- * postings and web pages, so they are [Untrusted]; the user's own notes and preference reason stay plain.
+ * The company tools' results. Every field a tool can write (the name, website, industry, size, locations,
+ * careers page and research notes) is [Untrusted]: imports copy them from postings and pages, and a prompt-injected
+ * model can store instructions in them that a later session would otherwise read as the user's own words. Only
+ * fields no tool can write (the preference and its reason) stay plain (ADR-0053, amendment of #119).
  */
 data class CompanyFacts(
     val name: String,
@@ -26,6 +28,17 @@ data class CompanyFacts(
     val size: CompanySize?,
     val locations: List<String>,
     val careersPage: String?,
+)
+
+/** All writable fields, notes included: what `update_company` takes back. */
+data class CompanyDetailFacts(
+    val name: String,
+    val website: String?,
+    val industry: String?,
+    val size: CompanySize?,
+    val locations: List<String>,
+    val careersPage: String?,
+    val researchNotes: String?,
 )
 
 data class CompanySummary(
@@ -67,10 +80,9 @@ data class CompanyDetailResult(
     val applicationCount: Int,
     val preference: PreferenceKind,
     val preferenceReason: String?,
-    val researchNotes: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
-    val company: Untrusted<CompanyFacts>,
+    val company: Untrusted<CompanyDetailFacts>,
 ) {
     companion object {
         fun from(view: CompanyView): CompanyDetailResult {
@@ -81,13 +93,25 @@ data class CompanyDetailResult(
                 view.applicationCount,
                 company.preference.kind,
                 company.preference.reason,
-                company.details.researchNotes,
                 company.createdAt,
                 company.updatedAt,
-                Untrusted(factsOf(view)),
+                Untrusted(detailFactsOf(view)),
             )
         }
     }
+}
+
+private fun detailFactsOf(view: CompanyView): CompanyDetailFacts {
+    val details = view.company.details
+    return CompanyDetailFacts(
+        details.name,
+        details.website?.value,
+        details.industry,
+        details.size,
+        details.locations,
+        details.careersPage?.value,
+        details.researchNotes,
+    )
 }
 
 private fun factsOf(view: CompanyView): CompanyFacts {
@@ -131,7 +155,8 @@ internal object CompanyToolErrors {
                 ToolAnswer.Error("unavailable", "Companies cannot be used now.")
             }
 
-            else -> {
+            // No tool of the companies deletes, so these two cannot happen; a new failure breaks this `when`.
+            CompanyResult.HasApplications, is CompanyResult.Unconfirmed -> {
                 ToolAnswer.Error("failed", "The company request could not be completed.")
             }
         }

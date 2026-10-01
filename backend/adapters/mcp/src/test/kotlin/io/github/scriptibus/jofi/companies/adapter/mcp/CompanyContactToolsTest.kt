@@ -88,7 +88,7 @@ class CompanyContactToolsTest {
         val result = answer.shouldBeInstanceOf<ToolAnswer.Result>().value.shouldBeInstanceOf<CompanyDetailResult>()
         result.version shouldBe 0
         result.company
-            .shouldBeInstanceOf<Untrusted<CompanyFacts>>()
+            .shouldBeInstanceOf<Untrusted<CompanyDetailFacts>>()
             .content.name shouldBe "ACME GmbH"
     }
 
@@ -167,7 +167,7 @@ class CompanyContactToolsTest {
         val companySearch = SearchCompaniesTool(SearchCompaniesUseCase(companies, counts))
         val contactSearch = SearchContactsTool(SearchContactsUseCase(contacts))
 
-        companySearch.call(call("page" to -1, "size" to 201)).shouldBeInstanceOf<ToolAnswer.Error>().problems shouldBe
+        companySearch.call(call("page" to -1, "size" to 51)).shouldBeInstanceOf<ToolAnswer.Error>().problems shouldBe
             listOf(ArgumentProblem("page", "out-of-range"), ArgumentProblem("size", "out-of-range"))
         contactSearch.call(call("size" to 0)).shouldBeInstanceOf<ToolAnswer.Error>().problems shouldBe
             listOf(ArgumentProblem("size", "out-of-range"))
@@ -238,7 +238,7 @@ class CompanyContactToolsTest {
         val answer = GetContactTool(GetContactUseCase(contacts)).call(call("id" to contactId.toString()))
 
         val result = answer.shouldBeInstanceOf<ToolAnswer.Result>().value.shouldBeInstanceOf<ContactDetailResult>()
-        result.contact shouldBe Untrusted(ContactFacts("Erika", "Recruiter", emptyList()))
+        result.contact shouldBe Untrusted(ContactDetailFacts("Erika", "Recruiter", emptyList(), null))
         result.version shouldBe 0
     }
 
