@@ -47,6 +47,7 @@ class ListDashboardCountdownsUseCase(
                     it.title,
                     CountdownTarget.At(it.startsAt, it.zone),
                     EntityRef(FindCountdownFactsPort.INTERVIEW_ENTITY_TYPE, it.interview.toString()),
+                    it.application,
                 )
             }
         return listOfNotNull(interview) +

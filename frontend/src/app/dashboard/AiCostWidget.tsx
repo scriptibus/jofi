@@ -3,9 +3,10 @@
 
 import { type CostSummaryResponse, useGetCostSummary } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
-import { Alert, ShareBar, TextLink } from "../../ui";
+import { Alert, ProgressBar, TextLink } from "../../ui";
+import { budgetPercent } from "../ai/costs";
 import { formatUsd } from "../ai/money";
-import { formatInstant } from "../applications/format";
+import { formatInstant, formatPercent } from "../applications/format";
 import { formatCount } from "./dashboard";
 import { Widget, WidgetContent, widgetQuery } from "./Widget";
 
@@ -52,7 +53,18 @@ function AiCost({ summary }: { summary: CostSummaryResponse }) {
               })}
         </span>
       </p>
-      {cap === null ? null : <ShareBar value={spentMicros} max={cap} tone={reached ? "bad" : "accent"} />}
+      {cap === null ? null : (
+        <ProgressBar
+          label={m.ai_costs_budget_label()}
+          percent={budgetPercent(spentMicros, cap)}
+          valueText={m.ai_costs_budget_text({
+            spent,
+            cap: formatUsd(cap),
+            percent: formatPercent(budgetPercent(spentMicros, cap)),
+          })}
+          tone={reached ? "critical" : "normal"}
+        />
+      )}
       {reached ? (
         <Alert tone="warning" title={m.dashboard_ai_cost_reached()}>
           {budget?.pausedUntil ? (

@@ -22,6 +22,7 @@ import io.github.scriptibus.jofi.applications.domain.Seniority
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.shared.adapter.mcp.ArgumentProblem
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
+import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
 import io.github.scriptibus.jofi.shared.adapter.mcp.Untrusted
 import java.math.BigDecimal
 import java.time.Instant
@@ -176,16 +177,10 @@ internal object ApplicationToolErrors {
         ToolAnswer.Error(
             "invalid-arguments",
             "The search arguments are invalid.",
-            violations.map { ArgumentProblem(argumentName(it.field.name), problemCode(it.problem)) },
+            violations.map {
+                ArgumentProblem(ToolProblems.argumentName(it.field.name), ToolProblems.problemCode(it.problem.name))
+            },
         )
-
-    /** `CREATED_TO` -> `createdTo`, the tool's argument name. */
-    private fun argumentName(field: String): String =
-        field
-            .lowercase()
-            .split('_')
-            .mapIndexed { index, word -> if (index == 0) word else word.replaceFirstChar(Char::uppercaseChar) }
-            .joinToString("")
 
     fun failure(failure: ApplicationResult.Failure): ToolAnswer.Error =
         when (failure) {
@@ -203,6 +198,4 @@ internal object ApplicationToolErrors {
             is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", "The delete cannot run now.")
             else -> ToolAnswer.Error("failed", "The delete could not be completed.")
         }
-
-    private fun problemCode(problem: ApplicationProblem): String = problem.name.lowercase().replace('_', '-')
 }

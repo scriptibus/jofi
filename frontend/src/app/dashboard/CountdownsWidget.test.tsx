@@ -82,7 +82,8 @@ describe("countdowns widget", () => {
     expect(within(third as HTMLElement).queryByRole("button")).toBeNull();
   });
 
-  it("shows the next interview at its time, without a link it could not follow", async () => {
+  it("shows the next interview at its time and links it to its application's interviews tab", async () => {
+    const applicationId = crypto.randomUUID();
     const interview = aDashboardCountdown({
       source: "NEXT_INTERVIEW",
       title: "Backend Engineer",
@@ -91,10 +92,29 @@ describe("countdowns widget", () => {
       localTarget: "2026-10-05T12:00:00",
       timeZone: "UTC",
       subjectType: "interview",
+      applicationId,
     });
     start({ derived: [interview] });
     const [row] = await rows();
     expect(row).toHaveTextContent(/^In 5 daysNext interviewBackend Engineer/);
+    expect(within(row as HTMLElement).getByRole("link", { name: "Backend Engineer" })).toHaveAttribute(
+      "href",
+      `/applications/${applicationId}?tab=interviews`,
+    );
+  });
+
+  it("shows an interview without an application as plain text, as there is nowhere to link to", async () => {
+    const interview = aDashboardCountdown({
+      source: "NEXT_INTERVIEW",
+      title: "Backend Engineer",
+      targetDate: null,
+      targetAt: "2026-10-05T12:00:00Z",
+      timeZone: "UTC",
+      subjectType: "interview",
+      applicationId: null,
+    });
+    start({ derived: [interview] });
+    const [row] = await rows();
     expect(within(row as HTMLElement).queryByRole("link")).toBeNull();
   });
 

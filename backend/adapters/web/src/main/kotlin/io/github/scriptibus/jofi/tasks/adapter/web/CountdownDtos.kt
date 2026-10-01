@@ -67,7 +67,8 @@ data class CountdownListResponse(
 /**
  * One countdown on the dashboard: what it counts down to ([source]), a [title] to show, and either a [targetDate]
  * (count days on the viewer's calendar) or [targetAt] (an instant, shown as [localTarget] in [timeZone], the zone it
- * was planned in). [subjectType] and [subjectId] name what it belongs to (`countdown`, `application`, `interview`).
+ * was planned in). [subjectType] and [subjectId] name what it belongs to (`countdown`, `application`, `interview`);
+ * [applicationId] is the application of an interview, which the dashboard links to, and absent otherwise.
  */
 data class DashboardCountdownResponse(
     val source: CountdownSource,
@@ -78,6 +79,7 @@ data class DashboardCountdownResponse(
     val timeZone: String?,
     val subjectType: String,
     val subjectId: String,
+    val applicationId: UUID?,
 ) {
     override fun toString(): String =
         "DashboardCountdownResponse(source=$source, targetDate=$targetDate, targetAt=$targetAt, subject=$subjectType)"
@@ -96,6 +98,7 @@ data class DashboardCountdownResponse(
                 at?.zone?.id,
                 countdown.subject.type,
                 countdown.subject.id,
+                countdown.applicationId,
             )
         }
     }
