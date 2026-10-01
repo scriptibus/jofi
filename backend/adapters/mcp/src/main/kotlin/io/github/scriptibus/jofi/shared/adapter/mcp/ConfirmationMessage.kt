@@ -142,6 +142,18 @@ object ConfirmationMessage {
             ("application" to "interviews") to Label(DELETED, "interview", "interviews"),
             ("application" to "tasks") to Label(UNLINKED, "task loses its link", "tasks lose their link"),
             ("company" to "contacts") to Label(DELETED, "contact", "contacts"),
+            ("company" to "applications") to
+                Label(
+                    UNLINKED,
+                    "application loses contacts of this company",
+                    "applications lose contacts of this company",
+                ),
+            ("company" to "interviews") to
+                Label(
+                    UNLINKED,
+                    "interview loses participants of this company",
+                    "interviews lose participants of this company",
+                ),
             ("company" to "tasks") to Label(UNLINKED, "task loses its link", "tasks lose their link"),
             ("contact" to "applications") to
                 Label(UNLINKED, "application loses this contact", "applications lose this contact"),

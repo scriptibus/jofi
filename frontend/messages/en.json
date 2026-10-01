@@ -646,6 +646,26 @@
       }
     }
   ],
+  "company_delete_confirm_applications": [
+    {
+      "declarations": ["input applications", "local applicationsPlural = applications: plural"],
+      "selectors": ["applicationsPlural"],
+      "match": {
+        "applicationsPlural=one": "Its contacts are removed from {applications} application.",
+        "applicationsPlural=other": "Its contacts are removed from {applications} applications."
+      }
+    }
+  ],
+  "company_delete_confirm_interviews": [
+    {
+      "declarations": ["input interviews", "local interviewsPlural = interviews: plural"],
+      "selectors": ["interviewsPlural"],
+      "match": {
+        "interviewsPlural=one": "Its contacts are removed as participants from {interviews} interview.",
+        "interviewsPlural=other": "Its contacts are removed as participants from {interviews} interviews."
+      }
+    }
+  ],
   "company_not_found_heading": "Company not found",
   "company_error_not_found": "This company does not exist (any more).",
   "company_error_version_conflict": "This company was changed elsewhere meanwhile. Reload it and try again.",
@@ -1229,5 +1249,39 @@
   "application_timeline_field_unread": "Read or unread",
   "application_timeline_field_other": "Other details",
   "application_timeline_read": "Read",
-  "application_timeline_none": "none"
+  "application_timeline_none": "none",
+  "countdowns_heading": "Countdowns",
+  "countdowns_empty": "No countdowns yet. Your next interview, application deadlines and offer answer dates show up here by themselves. Add your own for anything else, like the end of your notice period.",
+  "countdowns_failed": "The countdowns could not be loaded.",
+  "countdown_source_custom": "Your countdown",
+  "countdown_source_next_interview": "Next interview",
+  "countdown_source_application_deadline": "Application deadline",
+  "countdown_source_offer_answer_deadline": "Offer answer deadline",
+  "countdown_today": "Today",
+  "countdown_tomorrow": "Tomorrow",
+  "countdown_in_days": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "In {count} day",
+        "countPlural=other": "In {count} days"
+      }
+    }
+  ],
+  "countdown_reached": "Reached",
+  "countdown_when_other_zone": "{when} ({local} in {zone})",
+  "countdown_add_heading": "Add a countdown",
+  "countdown_field_title": "Counting down to (required)",
+  "countdown_field_date": "Date (required)",
+  "countdown_add": "Add countdown",
+  "countdown_added_message": "Countdown “{title}” added.",
+  "countdown_delete": "Delete",
+  "countdown_delete_named": "Delete countdown: {title}",
+  "countdown_delete_title": "Delete this countdown?",
+  "countdown_delete_action": "Delete countdown",
+  "countdown_delete_confirm": "The countdown “{title}” will be deleted. This cannot be undone.",
+  "countdown_deleted_message": "Countdown “{title}” deleted.",
+  "countdown_error_not_found": "This countdown does not exist (any more).",
+  "countdown_error_mismatch": "The server asked to confirm something other than deleting this countdown. Nothing was deleted; please try again."
 }

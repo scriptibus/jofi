@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.companies.application
 
 import io.github.scriptibus.jofi.companies.domain.CompanyDetails
+import io.github.scriptibus.jofi.companies.domain.ContactId
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangeSummary
@@ -42,6 +43,45 @@ internal fun ChangelogPort.recordClearedLink(
     val cleared = listOf(FieldChange("link", "${target.type}:${target.id}", null))
     return record(task, actor, at, "Cleared the link to a deleted ${target.type}", cleared)
 }
+
+/**
+ * The entry of an application that [contacts] were linked to when they were deleted (ADR-0041): ids only, one change
+ * as one change with the ids sorted and comma-joined, like the entry of a contact link edit (a field is unique within
+ * an entry, the timeline relies on it). The single contact delete and the company delete's cascade write the same
+ * text and shape.
+ */
+internal fun ChangelogPort.recordUnlinkedContacts(
+    application: EntityRef,
+    contacts: List<ContactId>,
+    actor: Actor,
+    at: Instant,
+): Boolean =
+    record(
+        application,
+        actor,
+        at,
+        "Unlinked a deleted contact",
+        listOf(FieldChange("contacts", sortedIds(contacts), null)),
+    )
+
+/** The ids as one value, sorted so the entry does not depend on read order (a field is unique within an entry). */
+private fun sortedIds(contacts: List<ContactId>): String =
+    contacts.map { it.value.toString() }.sorted().joinToString(",")
+
+/** The entry of an interview that [contacts] took part in when they were deleted (ADR-0048): ids only. */
+internal fun ChangelogPort.recordRemovedParticipants(
+    interview: EntityRef,
+    contacts: List<ContactId>,
+    actor: Actor,
+    at: Instant,
+): Boolean =
+    record(
+        interview,
+        actor,
+        at,
+        "Removed a deleted contact from the participants",
+        listOf(FieldChange("participants", sortedIds(contacts), null)),
+    )
 
 /**
  * What changed between two versions of the details. Research notes are free text that may hold

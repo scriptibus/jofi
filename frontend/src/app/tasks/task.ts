@@ -214,7 +214,8 @@ function dateOnly(isoDate: string, options: Intl.DateTimeFormatOptions, locale: 
   );
 }
 
-function dateTime(instant: Date, zone: string, locale: string): string {
+/** A moment with date and time in `zone`: "Oct 5, 2026, 10:00 AM". */
+export function formatDateTimeIn(instant: Date, zone: string, locale: string): string {
   const options: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" };
   try {
     return new Intl.DateTimeFormat(locale, { ...options, timeZone: zone }).format(instant);
@@ -235,10 +236,10 @@ export function describeTiming(
 ): string {
   if (timing.dueAt) {
     const due = new Date(timing.dueAt);
-    const when = m.task_timing_exact({ when: dateTime(due, viewerZone, locale) });
+    const when = m.task_timing_exact({ when: formatDateTimeIn(due, viewerZone, locale) });
     const zone = timing.timeZone;
     if (!zone || zone === viewerZone) return when;
-    return m.task_timing_other_zone({ when, local: dateTime(due, zone, locale), zone });
+    return m.task_timing_other_zone({ when, local: formatDateTimeIn(due, zone, locale), zone });
   }
   const start = timing.startsOn;
   if (!start || timing.span === "SOMEDAY") return m.task_bucket_someday();

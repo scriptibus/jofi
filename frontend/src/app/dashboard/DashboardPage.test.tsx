@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { fakeAuthBackend } from "../../test/fakeAuthBackend";
+import { aDashboardCountdown, fakeCountdownBackend } from "../../test/fakeCountdownBackend";
 import {
   aCostSummary,
   anActivityEntry,
@@ -23,12 +24,12 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-function start(data: Partial<FakeDashboardState> = {}) {
+function start(data: Partial<FakeDashboardState> = {}, countdowns = fakeCountdownBackend()) {
   // An AI provider exists or the guide was skipped: the dashboard opens instead of the setup guide.
   window.localStorage.setItem("jofi.setup-guide", "dismissed");
   const auth = fakeAuthBackend({ authenticated: true });
   const dashboard = fakeDashboardBackend(data);
-  server.use(...dashboard.handlers, ...auth.handlers);
+  server.use(...dashboard.handlers, ...countdowns.handlers, ...auth.handlers);
   const app = createApp(createMemoryHistory({ initialEntries: ["/"] }));
   render(<App app={app} />);
   return { state: dashboard.state, router: app.router, user: userEvent.setup() };
@@ -63,8 +64,26 @@ describe("a fresh instance", () => {
     const cost = await widget("AI cost this month");
     expect(await within(cost).findByText("$0.00")).toBeVisible();
     expect(within(cost).getByText("No monthly budget set.")).toBeVisible();
+    const countdowns = await widget("Countdowns");
+    expect(await within(countdowns).findByText(/^No countdowns yet\./)).toBeVisible();
+    expect(within(countdowns).getByRole("form", { name: "Add a countdown" })).toBeVisible();
     // No failure anywhere.
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("countdowns", () => {
+  it("come first in the grid, with what the server counts down to", async () => {
+    const deadline = aDashboardCountdown({ title: "Platform Engineer" });
+    start({}, fakeCountdownBackend({ derived: [deadline] }));
+    const countdowns = await widget("Countdowns");
+    expect(await within(countdowns).findByRole("link", { name: "Platform Engineer" })).toHaveAttribute(
+      "href",
+      `/applications/${deadline.subjectId}`,
+    );
+    expect(within(countdowns).getByText("Application deadline")).toBeVisible();
+    const regions = screen.getAllByRole("region").map((region) => region.getAttribute("aria-labelledby"));
+    expect(regions.filter((id) => id?.startsWith("dashboard-"))[0]).toBe("dashboard-countdowns");
   });
 });
 

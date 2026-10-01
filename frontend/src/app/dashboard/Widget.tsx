@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import type { UseQueryResult } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { m } from "../../paraglide/messages.js";
 import { Alert, Button } from "../../ui";
 import { describeError } from "../problems";
@@ -16,6 +16,8 @@ export interface WidgetProps {
   title: string;
   /** What the figures mean, below the heading. */
   description?: string;
+  /** Makes the heading focusable from code: where focus goes when what had it leaves the widget (a deleted row). */
+  headingRef?: Ref<HTMLHeadingElement>;
   /** The way to the matching filtered view, at the bottom. */
   footer?: ReactNode;
   className?: string;
@@ -23,7 +25,7 @@ export interface WidgetProps {
 }
 
 /** One card of the dashboard grid: a region named by its heading. */
-export function Widget({ id, title, description, footer, className, children }: WidgetProps) {
+export function Widget({ id, title, description, headingRef, footer, className, children }: WidgetProps) {
   return (
     <section
       aria-labelledby={id}
@@ -32,7 +34,7 @@ export function Widget({ id, title, description, footer, className, children }: 
         .join(" ")}
     >
       <div className="flex flex-col gap-1">
-        <h2 id={id} className="text-h3">
+        <h2 id={id} className="text-h3" {...(headingRef ? { ref: headingRef, tabIndex: -1 } : {})}>
           {title}
         </h2>
         {description ? <p className="text-muted">{description}</p> : null}
