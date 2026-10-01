@@ -16,6 +16,7 @@ dependencies {
     implementation(project(":adapters:jobs"))
     implementation(project(":adapters:ai"))
     implementation(project(":adapters:backup"))
+    implementation(project(":adapters:mcp"))
     implementation(libs.spring.boot.starter.webmvc)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.session.jdbc)

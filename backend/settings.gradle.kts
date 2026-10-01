@@ -44,6 +44,7 @@ include(
     "adapters:jobs",
     "adapters:ai",
     "adapters:backup",
+    "adapters:mcp",
     "bootstrap",
     "architecture-tests",
 )

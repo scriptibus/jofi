@@ -17,6 +17,7 @@ dependencies {
     testImplementation(project(":adapters:jobs"))
     testImplementation(project(":adapters:ai"))
     testImplementation(project(":adapters:backup"))
+    testImplementation(project(":adapters:mcp"))
     testImplementation(project(":bootstrap"))
 
     testImplementation(platform(libs.spring.boot.bom))
@@ -34,6 +35,9 @@ dependencies {
 }
 
 tasks.withType<Test>().configureEach {
+    // ArchUnit, Konsist and Spring Modulith each load the whole code base (and ArchUnit resolves the libraries
+    // it references, now including the MCP SDK); Gradle's default 512 MiB test heap ran out (#116).
+    maxHeapSize = "1g"
     // Konsist reads sources from disk: re-run whenever any module's Kotlin sources change.
     inputs
         .files(

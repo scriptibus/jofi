@@ -37,6 +37,9 @@ spring-ai = "2.0.1"
 # tested against; its BOM does not manage them. adapters/net implements their HttpClient interface.
 openai-java = "4.49.0"
 anthropic-java = "2.52.0"
+# The MCP server (adapters/mcp, ADR-0053): Spring AI's WebMvc transport (Spring AI 2.0.1) over the official MCP
+# Java SDK. Spring AI 2.0.1 is built on 2.0.0; 2.0.1 is the latest patch release (bounded HTTP reads).
+mcp-sdk = "2.0.1"
 
 # Security overrides (OSV, 2026-09-30): transitive versions with known CVEs, raised to the patched release.
 # Remove each once the managing BOM/plugin ships the fix (the osv-scanner job will tell).
@@ -106,6 +109,11 @@ spring-ai-openai = { module = "org.springframework.ai:spring-ai-openai" }
 spring-ai-anthropic = { module = "org.springframework.ai:spring-ai-anthropic" }
 openai-java-core = { module = "com.openai:openai-java-core", version.ref = "openai-java" }
 anthropic-java-core = { module = "com.anthropic:anthropic-java-core", version.ref = "anthropic-java" }
+# MCP server (adapters/mcp): the transport only, no Spring AI starter or auto-configuration (ADR-0053). Versioned
+# directly: it is an `api` dependency, and the Spring AI BOM stays private to adapters/ai.
+spring-ai-mcp-webmvc = { module = "org.springframework.ai:mcp-spring-webmvc", version.ref = "spring-ai" }
+# The SDK core with Jackson 3 (the app's Jackson); its client runs the MCP contract test (bootstrap tests).
+mcp-sdk = { module = "io.modelcontextprotocol.sdk:mcp", version.ref = "mcp-sdk" }
 # Test-only: LogPrivacyTest (adapters/ai) captures every log event. Version from the Boot BOM.
 logback-classic = { module = "ch.qos.logback:logback-classic" }
 # The standalone (shaded) jar: WireMock 3 embeds Jetty 11, which would clash with the Boot BOM's Jetty 12.

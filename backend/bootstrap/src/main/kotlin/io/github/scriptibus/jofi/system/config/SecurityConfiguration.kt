@@ -3,6 +3,8 @@
 
 package io.github.scriptibus.jofi.system.config
 
+import io.github.scriptibus.jofi.shared.adapter.mcp.JofiMcpServer
+import io.github.scriptibus.jofi.shared.adapter.mcp.McpOriginFilter
 import io.github.scriptibus.jofi.system.adapter.web.SecurityProblemHandler
 import io.github.scriptibus.jofi.system.adapter.web.SessionSecurity
 import io.github.scriptibus.jofi.system.adapter.web.SessionValidityFilter
@@ -15,6 +17,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter
+import org.springframework.security.web.csrf.CsrfFilter
 import org.springframework.security.web.util.matcher.RequestMatcher
 import org.springframework.session.web.http.DefaultCookieSerializer
 import tools.jackson.databind.json.JsonMapper
@@ -45,12 +48,16 @@ class SecurityConfiguration {
         // Not a bean: as one, Spring Boot would also register it outside the security filter chain.
         val sessionValidity = SessionValidityFilter(sessionAccount, sessionMaxAge, clock, problems)
         http
+            // The MCP Origin rule answers 403 before CSRF or the session check answer anything (ADR-0053).
+            .addFilterBefore(McpOriginFilter(), CsrfFilter::class.java)
             .addFilterBefore(sessionValidity, AnonymousAuthenticationFilter::class.java)
             .authorizeHttpRequests { requests ->
                 PUBLIC_API.forEach { (method, path) -> requests.requestMatchers(method, path).permitAll() }
                 requests.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**").permitAll()
                 requests.requestMatchers("/actuator/**").denyAll()
                 requests.requestMatchers("/api/**").authenticated()
+                // The MCP server (ADR-0053): the same session and CSRF rules as the API.
+                requests.requestMatchers(JofiMcpServer.ENDPOINT, "${JofiMcpServer.ENDPOINT}/**").authenticated()
                 requests.anyRequest().permitAll()
             }.csrf { csrf -> csrf.spa().csrfTokenRepository(SessionSecurity.csrfTokenRepository()) }
             .formLogin { it.disable() }

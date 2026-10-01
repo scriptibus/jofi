@@ -129,6 +129,24 @@ class NeverSendFilterTest {
     }
 
     @Test
+    fun `a tool result keeps valid JSON with flagged values withheld, also escaped ones and numbers`() {
+        val json = """{"note":"Lives at Musterstraße 5, 12345 Berlin","phone":491701234567,"title":"Engineer"}"""
+        val numberRules = NeverSendRules(emptyMap(), setOf(FlaggedValue(flaggedText), FlaggedValue("491701234567")))
+
+        val passed = NeverSendFilter.applyToToolResult(json, numberRules)
+
+        passed.redactions shouldBe 2
+        passed.value shouldBe """{"note":"Lives at $REDACTION","phone":"$REDACTION","title":"Engineer"}"""
+    }
+
+    @Test
+    fun `a tool result without flagged values passes unchanged`() {
+        val json = """{"title":"Kotlin \"Backend\" Engineer"}"""
+
+        NeverSendFilter.applyToToolResult(json, NeverSendRules.NONE) shouldBe FilterOutcome.Passed(json, 0)
+    }
+
+    @Test
     fun `rules and parts never print their content`() {
         rules.toString() shouldNotContain "Muster"
         phone.toString() shouldNotContain "170"
