@@ -149,7 +149,7 @@ class StartUrlImportUseCaseTest {
     @Test
     fun `a failed fetch leaves nothing stored, so the next attempt starts clean`() {
         fixtures.fetched = FetchResult.Timeout
-        unreachable()
+        refusedWith(ApplicationProblem.TIMEOUT)
         fixtures.imports.size shouldBe 0
         fixtures.base.entries.size shouldBe 0
 
@@ -190,20 +190,30 @@ class StartUrlImportUseCaseTest {
     }
 
     @Test
-    fun `a blocked, failed or non-html fetch is refused with a hint to paste the text instead`() {
-        fixtures.fetched = FetchResult.Blocked(BlockReason.ADDRESS_NOT_ALLOWED)
-        unreachable()
-        fixtures.fetched = FetchResult.HttpError(404)
-        unreachable()
-        fixtures.fetched = FetchResult.Timeout
-        unreachable()
+    fun `each way a fetch fails has its own code, so the dialog can say why`() {
+        mapOf(
+            FetchResult.Blocked(BlockReason.ADDRESS_NOT_ALLOWED) to ApplicationProblem.UNREACHABLE,
+            FetchResult.Unreachable to ApplicationProblem.UNREACHABLE,
+            FetchResult.TooManyRedirects(5) to ApplicationProblem.UNREACHABLE,
+            FetchResult.HttpError(404) to ApplicationProblem.UNREACHABLE,
+            FetchResult.HttpError(503) to ApplicationProblem.UNREACHABLE,
+            FetchResult.HttpError(401) to ApplicationProblem.LOGIN_REQUIRED,
+            FetchResult.HttpError(403) to ApplicationProblem.LOGIN_REQUIRED,
+            FetchResult.Timeout to ApplicationProblem.TIMEOUT,
+            FetchResult.TooLarge(1_048_576) to ApplicationProblem.TOO_LARGE,
+            FetchResult.ContentTypeNotAccepted("application/pdf") to ApplicationProblem.NOT_HTML,
+        ).forEach { (fetched, problem) ->
+            fixtures.fetched = fetched
+            refusedWith(problem)
+        }
+        fixtures.imports.size shouldBe 0
     }
 
     @Test
-    fun `a page with no readable text is refused the same way, and nothing is stored`() {
+    fun `a page with no readable text is refused as such, and nothing is stored`() {
         fixtures.fetched = html("<html><body><script>x()</script></body></html>")
 
-        unreachable()
+        refusedWith(ApplicationProblem.NO_TEXT)
         fixtures.imports.size shouldBe 0
     }
 
@@ -262,7 +272,7 @@ class StartUrlImportUseCaseTest {
                 ),
             )
 
-        unreachable()
+        refusedWith(ApplicationProblem.LOGIN_REQUIRED)
         fixtures.imports.size shouldBe 0
     }
 
@@ -364,11 +374,9 @@ class StartUrlImportUseCaseTest {
             listOf(ApplicationViolation(ApplicationField.SOURCE_URL, ApplicationProblem.NOT_ALLOWED)),
         )
 
-    private fun unreachable() {
+    private fun refusedWith(problem: ApplicationProblem) {
         start.execute(URL, Actor.User) shouldBe
-            ApplicationResult.Invalid(
-                listOf(ApplicationViolation(ApplicationField.SOURCE_URL, ApplicationProblem.UNREACHABLE)),
-            )
+            ApplicationResult.Invalid(listOf(ApplicationViolation(ApplicationField.SOURCE_URL, problem)))
     }
 
     private fun html(body: String): FetchResult.Success =

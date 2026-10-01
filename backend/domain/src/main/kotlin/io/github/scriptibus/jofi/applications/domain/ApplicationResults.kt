@@ -117,8 +117,23 @@ enum class ApplicationProblem {
     /** A link to a site Jofi never scrapes (#97, spec §8.1: no LinkedIn, StepStone or Indeed); paste the text. */
     NOT_ALLOWED,
 
-    /** The link could not be fetched (blocked, timed out, too large, the wrong content type, or no readable text). */
+    /** The link could not be fetched: blocked or unknown address, no answer, or an error answer other than 401/403. */
     UNREACHABLE,
+
+    /** The server did not answer within the fetch timeout. */
+    TIMEOUT,
+
+    /** The page is larger than the import reads (1 MiB). */
+    TOO_LARGE,
+
+    /** The link does not lead to an HTML page (a PDF, an image, JSON). */
+    NOT_HTML,
+
+    /** The posting is behind a login: the server refused access (401, 403) or redirected to a login page. */
+    LOGIN_REQUIRED,
+
+    /** The page has no readable text, e.g. because a script builds it in the browser. */
+    NO_TEXT,
 
     /** Not a time zone Java knows: an IANA id such as `Europe/Berlin`, or an offset such as `+02:00`. */
     INVALID_TIME_ZONE,

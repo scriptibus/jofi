@@ -48,7 +48,8 @@ class PostingImportController(
 
     /**
      * Starts importing a posting fetched from a URL; a blocked, failed or login-walled fetch answers
-     * `400 invalid-application` (`originalUrl`/`UNREACHABLE` or `NOT_ALLOWED`) so the client can offer pasting the
+     * `400 invalid-application` (`originalUrl`: `NOT_ALLOWED`, `UNREACHABLE`, `TIMEOUT`, `TOO_LARGE`, `NOT_HTML`,
+     * `LOGIN_REQUIRED` or `NO_TEXT`) so the client can offer pasting the
      * text instead. A link already imported answers 200 with the existing application; otherwise 202, as the text
      * import.
      */

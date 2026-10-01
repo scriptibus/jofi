@@ -44,9 +44,30 @@ class FetchPostingTextUseCase(
         val request = OutboundRequest(uri, acceptedContentTypes = HTML_CONTENT_TYPES, limits = POSTING_LIMITS)
         return when (val result = http.fetch(request)) {
             is FetchResult.Success -> describe(result.resource, uri)
-            else -> invalid(ApplicationProblem.UNREACHABLE)
+            else -> invalid(result.problem())
         }
     }
+
+    /** Why a fetch that did not succeed failed, so the user learns whether pasting the text helps. */
+    private fun FetchResult.problem(): ApplicationProblem =
+        when (this) {
+            is FetchResult.Timeout -> ApplicationProblem.TIMEOUT
+
+            is FetchResult.TooLarge -> ApplicationProblem.TOO_LARGE
+
+            is FetchResult.ContentTypeNotAccepted -> ApplicationProblem.NOT_HTML
+
+            is FetchResult.HttpError -> httpErrorProblem(statusCode)
+
+            is FetchResult.Success,
+            is FetchResult.Blocked,
+            is FetchResult.TooManyRedirects,
+            is FetchResult.Unreachable,
+            -> ApplicationProblem.UNREACHABLE
+        }
+
+    private fun httpErrorProblem(statusCode: Int): ApplicationProblem =
+        if (statusCode in LOGIN_STATUS_CODES) ApplicationProblem.LOGIN_REQUIRED else ApplicationProblem.UNREACHABLE
 
     private fun describe(
         resource: FetchedResource,
@@ -58,7 +79,7 @@ class FetchPostingTextUseCase(
             }
 
             resource.redirectedToLogin(requested) -> {
-                invalid(ApplicationProblem.UNREACHABLE)
+                invalid(ApplicationProblem.LOGIN_REQUIRED)
             }
 
             else -> {
@@ -77,13 +98,13 @@ class FetchPostingTextUseCase(
                 ).validate()
         ) {
             is ApplicationValidation.Valid -> ApplicationResult.Success(validated.value)
-            is ApplicationValidation.Invalid -> invalid(ApplicationProblem.UNREACHABLE)
+            is ApplicationValidation.Invalid -> invalid(ApplicationProblem.NO_TEXT)
         }
 
     /**
      * A redirect that ended on a login page the submitted link was not: the posting is behind a login wall, so the
      * user pastes it instead. A link that itself has `login` in its path (`/careers/login/42`) is no wall, and
-     * neither is a page that answers directly; a 401 or 403 never gets here (an HTTP error is `UNREACHABLE`).
+     * neither is a page that answers directly; a 401 or 403 never gets here (it is `LOGIN_REQUIRED` in [problem]).
      */
     private fun FetchedResource.redirectedToLogin(requested: URI): Boolean =
         finalUri.rawPath.orEmpty() != requested.rawPath.orEmpty() &&
@@ -105,6 +126,7 @@ class FetchPostingTextUseCase(
         ApplicationResult.Invalid(listOf(ApplicationViolation(ApplicationField.SOURCE_URL, problem)))
 
     private companion object {
+        val LOGIN_STATUS_CODES = setOf(401, 403)
         val HTML_CONTENT_TYPES = setOf("text/html", "application/xhtml+xml")
         const val BYTE_ORDER_MARK = "\uFEFF"
         val LOGIN_SEGMENTS = setOf("login", "log-in", "signin", "sign-in", "sso", "authwall")
