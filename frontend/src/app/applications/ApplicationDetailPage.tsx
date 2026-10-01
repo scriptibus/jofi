@@ -25,6 +25,7 @@ import { DELETE_OPERATION } from "./application";
 import { forgetDeletedApplication, storeSavedApplication } from "./applicationCache";
 import { describeApplicationError } from "./applicationProblems";
 import { DescriptionTab } from "./DescriptionTab";
+import { InterviewsTab } from "./InterviewsTab";
 import { StatusBadge } from "./StatusBadge";
 import { TimelineTab } from "./TimelineTab";
 import { type ApplicationTab, TABS, tabLabels } from "./tabs";
@@ -138,6 +139,7 @@ function ApplicationDetail({ application }: { application: ApplicationResponse }
 function TabContent({ tab, application }: { tab: ApplicationTab; application: ApplicationResponse }) {
   if (tab === "description") return <DescriptionTab application={application} />;
   if (tab === "contacts") return <ApplicationContacts application={application} />;
+  if (tab === "interviews") return <InterviewsTab application={application} />;
   if (tab === "timeline") return <TimelineTab applicationId={application.id} />;
   return <ApplicationOverview application={application} />;
 }
