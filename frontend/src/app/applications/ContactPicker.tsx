@@ -43,23 +43,51 @@ export function NewContactLink({ application }: { application: ApplicationRespon
   );
 }
 
+/** What the picker is for: its title and the words on each contact's button. */
+export interface PickerTexts {
+  title: string;
+  /** The button's accessible name, e.g. "Link Grace Hopper". */
+  pickNamed: (name: string) => string;
+  /** The button's visible text, e.g. "Link". */
+  pick: string;
+}
+
+const linkTexts = (): PickerTexts => ({
+  title: m.application_contacts_picker_title(),
+  pickNamed: (name) => m.application_contacts_link_named({ name }),
+  pick: m.application_contacts_link_short(),
+});
+
 export interface ContactPickerProps {
   application: ApplicationResponse;
   isOpen: boolean;
   onClose: () => void;
   onPick: (contact: ContactResponse) => void;
+  /** Contacts not to offer; by default the ones linked to the application. */
+  excludeIds?: readonly string[];
+  /** By default the words for linking a contact to the application. */
+  texts?: PickerTexts;
+  /** Offers "create a new contact", which leaves the page (default true). */
+  allowCreate?: boolean;
 }
 
-/** A dialog to find a contact by name and link it: the application's company's contacts first, then all. */
-export function ContactPicker({ application, isOpen, onClose, onPick }: ContactPickerProps) {
+/** A dialog to find a contact by name and pick it: the application's company's contacts first, then all. */
+export function ContactPicker({ isOpen, onClose, texts = linkTexts(), ...props }: ContactPickerProps) {
   return (
-    <Dialog isOpen={isOpen} title={m.application_contacts_picker_title()} onClose={onClose}>
-      {isOpen ? <PickerContent application={application} onClose={onClose} onPick={onPick} /> : null}
+    <Dialog isOpen={isOpen} title={texts.title} onClose={onClose}>
+      {isOpen ? <PickerContent {...props} texts={texts} onClose={onClose} /> : null}
     </Dialog>
   );
 }
 
-function PickerContent({ application, onClose, onPick }: Omit<ContactPickerProps, "isOpen">) {
+function PickerContent({
+  application,
+  onClose,
+  onPick,
+  excludeIds = application.contactIds,
+  texts,
+  allowCreate = true,
+}: Omit<ContactPickerProps, "isOpen" | "texts"> & { texts: PickerTexts }) {
   const [text, setText] = useState("");
   const query = useDebouncedValue(text.trim(), SEARCH_DELAY_MS);
   const params: SearchContactsParams = { size: PICKER_SIZE };
@@ -75,11 +103,11 @@ function PickerContent({ application, onClose, onPick }: Omit<ContactPickerProps
   } else if (atCompany.data === undefined || all.data === undefined) {
     results = <p role="status">{m.loading()}</p>;
   } else {
-    const choices = pickerChoices(atCompany.data.contacts, all.data.contacts, application.contactIds);
+    const choices = pickerChoices(atCompany.data.contacts, all.data.contacts, excludeIds);
     results =
       choices.atCompany.length + choices.others.length === 0 ? (
         <p role="status" className="text-muted">
-          {m.application_contacts_picker_empty()}
+          {allowCreate ? m.application_contacts_picker_empty() : m.application_interview_picker_empty()}
         </p>
       ) : (
         <div className="flex max-h-96 flex-col gap-4 overflow-y-auto">
@@ -91,12 +119,14 @@ function PickerContent({ application, onClose, onPick }: Omit<ContactPickerProps
                 : m.application_contacts_picker_this_company()
             }
             contacts={choices.atCompany}
+            texts={texts}
             onPick={onPick}
           />
           <ChoiceGroup
             id="picker-others"
             title={m.application_contacts_picker_others()}
             contacts={choices.others}
+            texts={texts}
             onPick={onPick}
           />
         </div>
@@ -114,7 +144,7 @@ function PickerContent({ application, onClose, onPick }: Omit<ContactPickerProps
       />
       {results}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <NewContactLink application={application} />
+        {allowCreate ? <NewContactLink application={application} /> : null}
         <Button variant="secondary" onPress={onClose}>
           {m.application_contacts_picker_close()}
         </Button>
@@ -127,10 +157,11 @@ interface ChoiceGroupProps {
   id: string;
   title: string;
   contacts: ContactResponse[];
+  texts: PickerTexts;
   onPick: (contact: ContactResponse) => void;
 }
 
-function ChoiceGroup({ id, title, contacts, onPick }: ChoiceGroupProps) {
+function ChoiceGroup({ id, title, contacts, texts, onPick }: ChoiceGroupProps) {
   if (contacts.length === 0) return null;
   return (
     <section aria-labelledby={id} className="flex flex-col gap-2">
@@ -139,7 +170,7 @@ function ChoiceGroup({ id, title, contacts, onPick }: ChoiceGroupProps) {
       </h3>
       <ul className="flex flex-col divide-y divide-line">
         {contacts.map((contact) => (
-          <Choice key={contact.id} contact={contact} onPick={onPick} />
+          <Choice key={contact.id} contact={contact} texts={texts} onPick={onPick} />
         ))}
       </ul>
     </section>
@@ -148,9 +179,11 @@ function ChoiceGroup({ id, title, contacts, onPick }: ChoiceGroupProps) {
 
 function Choice({
   contact,
+  texts,
   onPick,
 }: {
   contact: ContactResponse;
+  texts: PickerTexts;
   onPick: (contact: ContactResponse) => void;
 }) {
   const facts = useContactFacts(contact);
@@ -160,13 +193,9 @@ function Choice({
         <span className="break-words font-semibold">{contact.name}</span>
         {facts ? <span className="text-muted">{facts}</span> : null}
       </div>
-      <Button
-        variant="secondary"
-        aria-label={m.application_contacts_link_named({ name: contact.name })}
-        onPress={() => onPick(contact)}
-      >
+      <Button variant="secondary" aria-label={texts.pickNamed(contact.name)} onPress={() => onPick(contact)}>
         <LinkIcon className="size-4" aria-hidden="true" />
-        {m.application_contacts_link_short()}
+        {texts.pick}
       </Button>
     </li>
   );

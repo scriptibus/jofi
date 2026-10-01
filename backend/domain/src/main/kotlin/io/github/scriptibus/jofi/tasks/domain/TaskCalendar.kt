@@ -40,6 +40,21 @@ class TaskCalendar(
         return TaskGroupKind.entries.map { TaskGroup(it, byKind[it].orEmpty()) }
     }
 
+    /**
+     * The dashboard's tasks (ADR-0052): the overdue ones, and those due today or on one of the
+     * [TaskDashboard.UPCOMING_DAYS] - 1 days after it (an exact time by its day on the viewer's clocks, a bucket by its
+     * last day), each soonest first. Someday and later tasks are in neither.
+     */
+    fun dashboard(tasks: List<Task>): TaskDashboard {
+        val (overdue, due) =
+            tasks.sortedWith(soonestFirst).partition {
+                kindOf(it.details.timing) ==
+                    TaskGroupKind.OVERDUE
+            }
+        val horizon = today.plusDays(TaskDashboard.UPCOMING_DAYS)
+        return TaskDashboard(overdue, due.filter { lastDay(it.details.timing)?.isBefore(horizon) == true })
+    }
+
     fun kindOf(timing: TaskTiming): TaskGroupKind =
         when (timing) {
             is TaskTiming.Exact -> kindOfExact(timing.dueAt)
@@ -70,10 +85,28 @@ class TaskCalendar(
             else -> TaskGroupKind.LATER
         }
 
+    /** The last day the task is due on, on the viewer's calendar; `null` for someday. */
+    private fun lastDay(timing: TaskTiming): LocalDate? =
+        when (timing) {
+            is TaskTiming.Exact -> LocalDate.ofInstant(timing.dueAt, zone)
+            is TaskTiming.Bucket -> timing.endsBefore?.minusDays(1)
+        }
+
     /** When the task is due at the latest; `null` (last) for someday. */
     private fun deadline(timing: TaskTiming): Instant? =
         when (timing) {
             is TaskTiming.Exact -> timing.dueAt
             is TaskTiming.Bucket -> timing.endsBefore?.atStartOfDay(zone)?.toInstant()
         }
+}
+
+/** The open tasks the dashboard shows: [overdue] and [upcoming] (due within [UPCOMING_DAYS] days from today). */
+data class TaskDashboard(
+    val overdue: List<Task>,
+    val upcoming: List<Task>,
+) {
+    companion object {
+        /** Today and the six days after it: a week ahead whatever the weekday (spec §10.1). */
+        const val UPCOMING_DAYS = 7L
+    }
 }

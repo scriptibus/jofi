@@ -2744,6 +2744,54 @@
         "tags" : [ "countdown-controller" ]
       }
     },
+    "/api/dashboard/activity" : {
+      "get" : {
+        "operationId" : "listRecentActivity",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "limit",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RecentActivityResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "dashboard-controller" ]
+      }
+    },
     "/api/dashboard/countdowns" : {
       "get" : {
         "operationId" : "listDashboardCountdowns",
@@ -2788,6 +2836,80 @@
           }
         },
         "tags" : [ "countdown-controller" ]
+      }
+    },
+    "/api/dashboard/pipeline" : {
+      "get" : {
+        "operationId" : "getPipelineOverview",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PipelineOverviewResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "dashboard-controller" ]
+      }
+    },
+    "/api/dashboard/tasks" : {
+      "get" : {
+        "operationId" : "getTaskDashboard",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "timeZone",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TaskDashboardResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "task-dashboard-controller" ]
       }
     },
     "/api/interviews/upcoming" : {
@@ -4275,6 +4397,57 @@
   },
   "components" : {
     "schemas" : {
+      "ActivityApplicationDto" : {
+        "required" : [ "id", "title" ],
+        "type" : "object",
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        }
+      },
+      "ActivityEntryResponse" : {
+        "required" : [ "actor", "description", "entityId", "entityType", "fields", "id", "occurredAt" ],
+        "type" : "object",
+        "properties" : {
+          "actor" : {
+            "$ref" : "#/components/schemas/ChangeActorDto"
+          },
+          "application" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/ActivityApplicationDto"
+            } ]
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "entityId" : {
+            "type" : "string"
+          },
+          "entityType" : {
+            "type" : "string"
+          },
+          "fields" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string"
+            }
+          },
+          "id" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "occurredAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          }
+        }
+      },
       "AddApplicationSourceRequest" : {
         "required" : [ "kind" ],
         "type" : "object",
@@ -5502,6 +5675,43 @@
           }
         }
       },
+      "FunnelDto" : {
+        "required" : [ "applied", "interviewed", "offered", "responded" ],
+        "type" : "object",
+        "properties" : {
+          "applied" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "interviewRate" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "interviewed" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "offerRate" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          },
+          "offered" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "responded" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "responseRate" : {
+            "type" : "number",
+            "format" : "double",
+            "nullable" : true
+          }
+        }
+      },
       "InterviewListResponse" : {
         "required" : [ "interviews" ],
         "type" : "object",
@@ -5909,6 +6119,25 @@
           }
         }
       },
+      "PipelineOverviewResponse" : {
+        "required" : [ "byStatus", "funnel", "unread" ],
+        "type" : "object",
+        "properties" : {
+          "byStatus" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/StatusCountDto"
+            }
+          },
+          "funnel" : {
+            "$ref" : "#/components/schemas/FunnelDto"
+          },
+          "unread" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
       "PrivacyClaimResponse" : {
         "required" : [ "evidence", "status", "summary" ],
         "type" : "object",
@@ -6068,6 +6297,18 @@
           }
         }
       },
+      "RecentActivityResponse" : {
+        "required" : [ "entries" ],
+        "type" : "object",
+        "properties" : {
+          "entries" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/ActivityEntryResponse"
+            }
+          }
+        }
+      },
       "RecordDescriptionSnapshotRequest" : {
         "required" : [ "description" ],
         "type" : "object",
@@ -6209,6 +6450,20 @@
           }
         }
       },
+      "StatusCountDto" : {
+        "required" : [ "count", "status" ],
+        "type" : "object",
+        "properties" : {
+          "count" : {
+            "type" : "integer",
+            "format" : "int64"
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "DISCOVERED", "SHORTLISTED", "PREPARING", "APPLIED", "INTERVIEWING", "OFFER", "ACCEPTED", "REJECTED", "WITHDRAWN", "DECLINED", "GHOSTED" ]
+          }
+        }
+      },
       "StatusHistoryResponse" : {
         "required" : [ "changes" ],
         "type" : "object",
@@ -6268,6 +6523,24 @@
           },
           "totals" : {
             "$ref" : "#/components/schemas/CostTotalsResponse"
+          }
+        }
+      },
+      "TaskDashboardResponse" : {
+        "required" : [ "overdue", "upcoming" ],
+        "type" : "object",
+        "properties" : {
+          "overdue" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskResponse"
+            }
+          },
+          "upcoming" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskResponse"
+            }
           }
         }
       },
