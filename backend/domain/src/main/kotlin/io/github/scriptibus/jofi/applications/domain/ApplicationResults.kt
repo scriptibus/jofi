@@ -181,6 +181,12 @@ sealed interface ApplicationResult<out T> {
     /** Only a failed or stalled posting import can be retried; this one is done, or pending and not stalled. */
     data object ImportNotRetryable : Failure
 
+    /**
+     * The same link is being imported by another request that did not finish within the wait (#97): try again
+     * shortly; by then its import or its failure is known.
+     */
+    data object ImportInProgress : Failure
+
     /** No AI model is assigned to the task the operation needs; the user sets one up first (spec §3.2). */
     data object AiNotConfigured : Failure
 

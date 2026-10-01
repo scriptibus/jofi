@@ -22,6 +22,7 @@ import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.PROVIDER
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.addresses
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.completion
 import io.github.scriptibus.jofi.applications.adapter.jobs.PostingImportJobAdapter
+import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
 import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
@@ -76,6 +77,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.net.InetAddress
 import java.net.URI
+import java.time.OffsetDateTime
 import java.util.UUID
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
@@ -218,6 +220,62 @@ class PostingUrlImportConcurrencyFlowTest(
             answers.map { it["id"].asString() }.toSet().size shouldBe 1
         }
         dsl.fetchCount(POSTING_IMPORT) shouldBe 10
+    }
+
+    @Test
+    fun `a stalled URL import is resumed by a resubmit, so the late job and the new one make one application`() {
+        val browser = owner()
+        FAKE_POSTING.stubFor(
+            wireMockGet(urlEqualTo("/jobs/late")).willReturn(
+                aResponse()
+                    .withHeader("Content-Type", "text/html")
+                    .withBody("<html><body><h1>Senior Kotlin Developer</h1></body></html>"),
+            ),
+        )
+        answers(ANSWER)
+        val body = """{"url":"${postingUrl("/jobs/late")}"}"""
+        val first = browser.post("$IMPORTS/url", body).ok(202)["id"].asString()
+        stall(first)
+
+        val again = browser.post("$IMPORTS/url", body).ok(202)
+
+        again["id"].asString() shouldBe first
+        runBothJobs(first)
+        FAKE_POSTING.findAll(getRequestedFor(urlEqualTo("/jobs/late"))).size shouldBe 1
+    }
+
+    @Test
+    fun `a stalled text import is resumed by a resubmit, so the late job and the new one make one application`() {
+        val browser = owner()
+        answers(ANSWER)
+        val body = json.writeValueAsString(mapOf("description" to "Senior Kotlin Developer at ACME Robotics"))
+        val first = browser.post("$IMPORTS/text", body).ok(202)["id"].asString()
+        stall(first)
+
+        val again = browser.post("$IMPORTS/text", body).ok(202)
+
+        again["id"].asString() shouldBe first
+        runBothJobs(first)
+    }
+
+    /** Makes the import look like one whose job has not run for [PostingImport.STALLED_AFTER]. */
+    private fun stall(id: String) {
+        val before = OffsetDateTime.now().minus(PostingImport.STALLED_AFTER).minusMinutes(1)
+        dsl
+            .update(POSTING_IMPORT)
+            .set(POSTING_IMPORT.CREATED_AT, before)
+            .set(POSTING_IMPORT.UPDATED_AT, before)
+            .where(POSTING_IMPORT.ID.eq(UUID.fromString(id)))
+            .execute()
+    }
+
+    /** The original job comes back late next to the one queued by the resubmit: both run, nothing doubles. */
+    private fun runBothJobs(id: String) {
+        repeat(2) { job.run(mapOf("import" to id)) shouldBe JobOutcome.Done }
+        dsl.fetchCount(APPLICATION) shouldBe 1
+        dsl.fetchCount(POSTING_IMPORT) shouldBe 1
+        dsl.fetchValue(POSTING_IMPORT.STATUS) shouldBe "SUCCEEDED"
+        FAKE_AI.findAll(postRequestedFor(urlEqualTo(COMPLETIONS))).size shouldBe 1
     }
 
     /** Runs [call] on [threads] threads released together, and answers what each returned. */

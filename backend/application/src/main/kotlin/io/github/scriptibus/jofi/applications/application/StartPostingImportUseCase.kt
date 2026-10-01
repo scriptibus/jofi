@@ -55,15 +55,19 @@ class StartPostingImportUseCase(
                 if (isNew) jobs.queue(pending) { notQueued(it, actor) } else ApplicationResult.Success(pending)
             }
 
-    /** Under a lock on the text, so a concurrent double submit waits and then finds the first import (F6). */
+    /**
+     * Under a lock on the text, so a concurrent double submit waits and then finds the first import (F6). A pending
+     * import that stalled ([PostingImport.STALLED_AFTER]) is asked for again as its next attempt, like a retry, and
+     * its job queued again, so the late original job and the new one still make one application.
+     */
     private fun storeUnlessPending(
         description: DescriptionText,
         actor: Actor,
     ): ApplicationResult<Pair<PostingImport, Boolean>> =
         imports.lockForStart("text:${description.value}").toResult().then {
-            stillPending(description).then { duplicate ->
+            imports.findPendingByText(description).toResult().then { duplicate ->
                 if (duplicate != null) {
-                    ApplicationResult.Success(duplicate to false)
+                    answerPending(duplicate, actor)
                 } else {
                     val started = PostingImport.start(ImportId(UUID.randomUUID()), description, clock.storedNow())
                     imports.addWithChangelog(changelog, started, actor).then { ApplicationResult.Success(it to true) }
@@ -71,11 +75,16 @@ class StartPostingImportUseCase(
             }
         }
 
-    /** The import pending for [description], unless it stalled (its job is gone): then a resubmit starts a new one. */
-    private fun stillPending(description: DescriptionText): ApplicationResult<PostingImport?> {
+    private fun answerPending(
+        pending: PostingImport,
+        actor: Actor,
+    ): ApplicationResult<Pair<PostingImport, Boolean>> {
         val now = clock.storedNow()
-        return imports.findPendingByText(description).toResult().then { found ->
-            ApplicationResult.Success(found?.takeUnless { it.stalled(now) })
+        val again = pending.retried(now).takeIf { pending.stalled(now) }
+        return if (again == null) {
+            ApplicationResult.Success(pending to false)
+        } else {
+            imports.transition(changelog, pending, again, actor).then { ApplicationResult.Success(it to true) }
         }
     }
 

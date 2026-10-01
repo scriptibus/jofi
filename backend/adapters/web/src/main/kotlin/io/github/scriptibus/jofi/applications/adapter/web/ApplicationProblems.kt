@@ -33,6 +33,7 @@ object ApplicationProblems {
     const val SAVED_VIEW_NOT_FOUND = "urn:jofi:problem:applications:saved-view-not-found"
     const val IMPORT_NOT_FOUND = "urn:jofi:problem:applications:import-not-found"
     const val IMPORT_NOT_RETRYABLE = "urn:jofi:problem:applications:import-not-retryable"
+    const val IMPORT_IN_PROGRESS = "urn:jofi:problem:applications:import-in-progress"
     const val AI_NOT_CONFIGURED = "urn:jofi:problem:applications:ai-not-configured"
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
@@ -56,6 +57,7 @@ object ApplicationProblems {
 
             ApplicationResult.VersionConflict,
             ApplicationResult.ImportNotRetryable,
+            ApplicationResult.ImportInProgress,
             ApplicationResult.AiNotConfigured,
             -> {
                 listed(HttpStatus.CONFLICT, CONFLICT_PROBLEMS, failure)
@@ -121,6 +123,8 @@ object ApplicationProblems {
             ApplicationResult.VersionConflict to (VERSION_CONFLICT to "It changed meanwhile; reload it and retry"),
             ApplicationResult.ImportNotRetryable to
                 (IMPORT_NOT_RETRYABLE to "Only a failed or stalled import can be retried"),
+            ApplicationResult.ImportInProgress to
+                (IMPORT_IN_PROGRESS to "This link is being imported by another request; try again shortly"),
             ApplicationResult.AiNotConfigured to
                 (
                     AI_NOT_CONFIGURED to

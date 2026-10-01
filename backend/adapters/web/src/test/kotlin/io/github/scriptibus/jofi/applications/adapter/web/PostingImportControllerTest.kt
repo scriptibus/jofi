@@ -49,6 +49,7 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import java.net.URI
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
@@ -105,6 +106,8 @@ class PostingImportControllerTest(
                 object : KeyedLockPort {
                     override fun <T> withLock(
                         key: String,
+                        wait: Duration,
+                        onTimeout: () -> T,
                         work: () -> T,
                     ): T = work()
                 },

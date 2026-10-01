@@ -5,6 +5,9 @@ package io.github.scriptibus.jofi.applications.application
 
 import io.github.scriptibus.jofi.applications.application.ApplicationFixtures.Companion.CLOCK
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
+import io.github.scriptibus.jofi.applications.domain.ExtractedPosting
+import io.github.scriptibus.jofi.applications.domain.ImportStatus
+import io.github.scriptibus.jofi.applications.domain.PostingExtraction
 import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.kotest.matchers.collections.shouldHaveSize
@@ -64,19 +67,38 @@ class StartPostingImportDoubleSubmitTest {
     }
 
     @Test
-    fun `a pending import that stalled has no job any more, so a resubmit starts a new one and queues it`() {
+    fun `a pending import that stalled is asked for again as its next attempt and queued again`() {
         val first = started()
-        fixtures.imports[first.id] =
-            first.copy(
-                createdAt = first.createdAt.minus(PostingImport.STALLED_AFTER),
-                updatedAt = first.updatedAt.minus(PostingImport.STALLED_AFTER),
-            )
+        fixtures.imports[first.id] = stalled(first)
 
         val second = started()
 
-        second.id shouldNotBe first.id
+        second.id shouldBe first.id
+        second.attempt shouldBe 2
+        fixtures.imports.size shouldBe 1
         fixtures.queued shouldHaveSize 2
     }
+
+    @Test
+    fun `the late job of the stalled import and the new one together make one application and one AI call`() {
+        val first = started()
+        fixtures.imports[first.id] = stalled(first)
+        started()
+        fixtures.extraction =
+            PostingExtraction.Extracted(ExtractedPosting(title = "Kotlin Developer", company = "ACME"))
+
+        fixtures.queued.forEach { run.execute(first.id, Actor.Ai) }
+
+        fixtures.base.applications.size shouldBe 1
+        fixtures.extracted shouldHaveSize 1
+        fixtures.imports.values.none { it.status == ImportStatus.PENDING } shouldBe true
+    }
+
+    private fun stalled(import: PostingImport): PostingImport =
+        import.copy(
+            createdAt = import.createdAt.minus(PostingImport.STALLED_AFTER),
+            updatedAt = import.updatedAt.minus(PostingImport.STALLED_AFTER),
+        )
 
     private companion object {
         const val POSTING = "# Senior Kotlin Developer\n\nACME Robotics AG, Berlin."

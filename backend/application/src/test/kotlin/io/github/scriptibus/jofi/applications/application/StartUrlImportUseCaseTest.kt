@@ -94,7 +94,7 @@ class StartUrlImportUseCaseTest {
     }
 
     @Test
-    fun `a pending import for the link that stalled has no job any more, so a resubmit starts a new one`() {
+    fun `a pending import that stalled is asked for again as its next attempt and queued again, without a new fetch`() {
         val first = started()
         fixtures.imports[first.id] =
             first.copy(
@@ -104,8 +104,38 @@ class StartUrlImportUseCaseTest {
 
         val second = started()
 
-        second.id shouldNotBe first.id
+        second.id shouldBe first.id
+        second.attempt shouldBe 2
+        second.status shouldBe ImportStatus.PENDING
+        fixtures.imports.size shouldBe 1
         fixtures.queued shouldHaveSize 2
+        fixtures.fetchRequests shouldHaveSize 1
+    }
+
+    @Test
+    fun `an application that got the link while it was fetched wins over storing a second import`() {
+        val application = fixtures.base.application()
+        val source =
+            ApplicationSource(SourceId(UUID.randomUUID()), application.id, SourceKind.URL, WebAddress(URL), NOW)
+        fixtures.duringFetch =
+            { fixtures.base.applications[application.id] = application.copy(sources = listOf(source)) }
+
+        val outcome =
+            start.execute(URL, Actor.User).shouldBeInstanceOf<ApplicationResult.Success<UrlImportOutcome>>().value
+
+        outcome.shouldBeInstanceOf<UrlImportOutcome.AlreadyImported>()
+        outcome.import.application shouldBe application.id
+        fixtures.imports.values.none { it.status == ImportStatus.PENDING } shouldBe true
+        fixtures.queued shouldHaveSize 0
+    }
+
+    @Test
+    fun `a request that waits too long for the link answers import in progress, fetching nothing`() {
+        fixtures.lockTimesOut = true
+
+        start.execute(URL, Actor.User) shouldBe ApplicationResult.ImportInProgress
+        fixtures.fetchRequests shouldHaveSize 0
+        fixtures.imports.size shouldBe 0
     }
 
     @Test

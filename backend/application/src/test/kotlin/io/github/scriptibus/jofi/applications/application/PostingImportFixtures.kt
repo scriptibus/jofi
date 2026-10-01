@@ -38,6 +38,7 @@ import io.github.scriptibus.jofi.shared.domain.job.JobResult
 import io.github.scriptibus.jofi.shared.domain.job.RecurringJobId
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import java.net.URI
+import java.time.Duration
 import java.util.UUID
 
 /**
@@ -174,15 +175,21 @@ class PostingImportFixtures {
     var openTransactions = 0
     val transactionsOpenAtFetch = mutableListOf<Int>()
     val lockedKeys = mutableListOf<String>()
+    var lockTimesOut = false
+
+    /** Runs while a fetch is answered, to let the world change meanwhile (an application gets the link). */
+    var duringFetch: () -> Unit = {}
 
     val locks =
         object : KeyedLockPort {
             override fun <T> withLock(
                 key: String,
+                wait: Duration,
+                onTimeout: () -> T,
                 work: () -> T,
             ): T {
                 lockedKeys += key
-                return work()
+                return if (lockTimesOut) onTimeout() else work()
             }
         }
 
@@ -191,6 +198,7 @@ class PostingImportFixtures {
             override fun fetch(request: OutboundRequest): FetchResult {
                 fetchRequests += request
                 transactionsOpenAtFetch += openTransactions
+                duringFetch()
                 return fetched
             }
         }

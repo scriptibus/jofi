@@ -20,6 +20,7 @@ import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.http.FetchLimits
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import java.time.Clock
 
@@ -28,10 +29,12 @@ import java.time.Clock
  * stripped) and checked against sites Jofi never scrapes ([DisallowedPostingHosts]), then [ResolveUrlImportPort]
  * decides what it comes to while this use case holds the link's lock ([KeyedLockPort]): a double submit (#187
  * finding F6) waits for the first request instead of fetching and importing again, and answers with its pending
- * import or application. The wait costs a thread, not a database connection: nothing holds a connection (or a
- * database lock) while the page is fetched, which the guard bounds to 20 seconds, so a burst of slow imports cannot
- * starve the connection pool. A new import's job is queued after its transaction committed, as
- * [StartPostingImportUseCase]; an import whose job cannot be queued is stored as failed (`NOT_QUEUED`).
+ * import or application. A request that waited as long as a fetch may take (the guard's 20 seconds) answers
+ * `ImportInProgress` (try again shortly) instead of queueing another fetch behind it. The wait costs a thread, not
+ * a database connection: nothing holds a connection (or a database lock) while the page is fetched, so a burst of
+ * slow imports cannot starve the connection pool. A new or resumed import's job is queued after its transaction
+ * committed, as [StartPostingImportUseCase]; an import whose job cannot be queued is stored as failed
+ * (`NOT_QUEUED`).
  */
 class StartUrlImportUseCase(
     private val resolve: ResolveUrlImportPort,
@@ -47,8 +50,13 @@ class StartUrlImportUseCase(
         actor: Actor,
     ): ApplicationResult<UrlImportOutcome> =
         parsed(url)
-            .then { address -> locks.withLock("url:${address.value}") { resolve.execute(address, actor) } }
-            .then { outcome ->
+            .then { address ->
+                locks.withLock(
+                    "url:${address.value}",
+                    FetchLimits.DEFAULT_TIMEOUT,
+                    onTimeout = { ApplicationResult.ImportInProgress },
+                ) { resolve.execute(address, actor) }
+            }.then { outcome ->
                 if (outcome is UrlImportOutcome.Started) {
                     jobs.queue(outcome.import) { notQueued(it, actor) }.then { ApplicationResult.Success(outcome) }
                 } else {

@@ -146,4 +146,14 @@ class PostingHtmlTextTest {
         PostingHtmlText.extract("<p>&#150; &#x80; &#132;Junior&#147; &#129;</p>") shouldBe
             "\u2013 \u20AC \u201EJunior\u201C &#129;"
     }
+
+    @Test
+    fun `an unclosed title does not swallow the page, however often it repeats`() {
+        PostingHtmlText.extract("<title>Job<p>content</p>") shouldBe "Job\ncontent"
+        assertTimeoutPreemptively(
+            Duration.ofSeconds(10),
+            Executable { PostingHtmlText.extract("<title>".repeat(300_000)) },
+            "repeated unclosed titles",
+        )
+    }
 }

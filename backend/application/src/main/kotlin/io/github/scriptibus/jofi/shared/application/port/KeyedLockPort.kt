@@ -3,15 +3,22 @@
 
 package io.github.scriptibus.jofi.shared.application.port
 
+import java.time.Duration
+
 /**
  * Lets one caller at a time run work for a key, without holding a database connection while it waits or works:
  * for slow work that must not run twice for the same thing, such as fetching one link (#97). Only the `app`
  * container serves requests (as `ConfirmationStorePort`); a store-level check still guards what gets stored.
  */
 interface KeyedLockPort {
-    /** Runs [work] once no other call holds [key]; calls for other keys never wait for each other. */
+    /**
+     * Runs [work] once no other call holds [key]; calls for other keys never wait for each other. A call that has
+     * not got the key within [wait] answers [onTimeout] instead and runs nothing.
+     */
     fun <T> withLock(
         key: String,
+        wait: Duration,
+        onTimeout: () -> T,
         work: () -> T,
     ): T
 }

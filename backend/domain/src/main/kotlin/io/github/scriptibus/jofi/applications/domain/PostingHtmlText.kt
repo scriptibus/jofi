@@ -25,6 +25,7 @@ object PostingHtmlText {
 
     /** The only noise element that may close itself (`<svg/>`); `<script src=x/>` still opens a script. */
     private const val SELF_CLOSING_NOISE = "svg"
+    private const val TITLE = "title"
     private const val CDATA_OPEN = "<![CDATA["
     private const val CDATA_CLOSE = "]]>"
     private val SPACE_RUNS = Regex("[ \t]{2,}")
@@ -38,6 +39,7 @@ object PostingHtmlText {
     ) {
         private val text = StringBuilder()
         private var position = 0
+        private val unclosedTitles = mutableSetOf<String>()
 
         fun scan(): String {
             while (position < html.length) {
@@ -53,11 +55,26 @@ object PostingHtmlText {
         private fun markup() {
             val next = html.getOrNull(position + 1)
             when {
-                html.startsWith("<!--", position) -> comment()
-                html.startsWith(CDATA_OPEN, position) -> cdata()
-                next == '/' || next?.let(HtmlEntities::isAsciiLetter) == true -> tag()
-                next == '!' || next == '?' -> position = indexAfter('>', position)
-                else -> append(html[position++])
+                html.startsWith("<!--", position) -> {
+                    comment()
+                }
+
+                html.startsWith(CDATA_OPEN, position) -> {
+                    cdata()
+                }
+
+                next == '/' || next?.let(HtmlEntities::isAsciiLetter) == true -> {
+                    tag()
+                }
+
+                next == '!' || next == '?' -> {
+                    position =
+                        html.indexOf('>', position).let { if (it < 0) html.length else it + 1 }
+                }
+
+                else -> {
+                    append(html[position++])
+                }
             }
         }
 
@@ -113,26 +130,25 @@ object PostingHtmlText {
         }
 
         private fun skipElementContent(name: String) {
+            if (name in unclosedTitles) return
             val closer = "</$name"
-            var index = position
-            while (true) {
-                index = html.indexOf('<', index)
-                if (index < 0) {
-                    position = html.length
-                    return
-                }
-                if (closesElement(html, index, closer)) {
-                    position = tagEnd(index + closer.length)
-                    return
-                }
-                index++
+            val close = indexOfCloser(closer)
+            when {
+                close >= 0 -> position = tagEnd(close + closer.length)
+
+                // An unclosed title is a typo, not a reason to lose the page; seen once, later ones are plain tags.
+                name == TITLE -> unclosedTitles += name
+
+                else -> position = html.length
             }
         }
 
-        private fun indexAfter(
-            char: Char,
-            from: Int,
-        ): Int = html.indexOf(char, from).let { if (it < 0) html.length else it + 1 }
+        /** The index of the next `</name` (matched exactly) from the current position, or -1. */
+        private fun indexOfCloser(closer: String): Int {
+            var index = html.indexOf('<', position)
+            while (index >= 0 && !closesElement(html, index, closer)) index = html.indexOf('<', index + 1)
+            return index
+        }
 
         private fun entity() {
             val limit = minOf(html.length, position + 1 + HtmlEntities.MAX_LENGTH)
