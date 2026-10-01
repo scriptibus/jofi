@@ -50,7 +50,9 @@ export function LoginPage() {
       {
         onSuccess: async () => {
           await refreshSession(queryClient);
-          await router.navigate({ href: safeRedirect(redirect) ?? "/" });
+          // Replacing the login entry keeps what the redirect carried (a share's text) out of the session history.
+          const target = safeRedirect(redirect);
+          await router.navigate({ href: target ?? "/", replace: target !== undefined });
         },
         onError,
       },

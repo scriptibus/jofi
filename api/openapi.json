@@ -7342,7 +7342,7 @@
                   },
                   "problem" : {
                     "type" : "string",
-                    "description" : "REQUIRED, TOO_LONG, TOO_MANY, INVALID_URL or OUT_OF_RANGE"
+                    "description" : "REQUIRED, TOO_LONG, TOO_MANY, INVALID_URL or OUT_OF_RANGE; a URL import also NOT_ALLOWED, UNREACHABLE, TIMEOUT, TOO_LARGE, NOT_HTML, LOGIN_REQUIRED, REFUSED or NO_TEXT"
                   }
                 },
                 "required" : [ "field", "problem" ]

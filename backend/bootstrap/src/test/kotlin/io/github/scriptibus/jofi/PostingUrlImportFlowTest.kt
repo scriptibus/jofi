@@ -81,7 +81,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.get as wireMockGet
  * destination (and two names for a shortener and for LinkedIn, resolved to loopback) [HttpTestConfig] allowlists for
  * this test only; production posting fetches get no allowlist at all. Also the concurrent double submits (F6).
  */
-@SpringBootTest
+@SpringBootTest(properties = ["jofi.import.fetch-timeout=PT1S"])
 @ExtendWith(OutputCaptureExtension::class)
 @AutoConfigureMockMvc
 @Import(PostgresTestConfiguration::class, PostingUrlImportFlowTest.HttpTestConfig::class)
@@ -286,8 +286,8 @@ class PostingUrlImportFlowTest(
         )
         servesPosting("/login", "<html><body><form>Please sign in to continue</form></body></html>")
 
-        browser.refusedUrl(postingUrl("/private")).refusedWith("UNREACHABLE")
-        browser.refusedUrl(postingUrl("/members")).refusedWith("UNREACHABLE")
+        browser.refusedUrl(postingUrl("/private")).refusedWith("LOGIN_REQUIRED")
+        browser.refusedUrl(postingUrl("/members")).refusedWith("LOGIN_REQUIRED")
     }
 
     @Test
@@ -329,8 +329,26 @@ class PostingUrlImportFlowTest(
         )
         servesPosting("/huge", "<p>" + "a".repeat(1_048_576 + 1) + "</p>")
 
-        browser.refusedUrl(postingUrl("/data.json")).refusedWith("UNREACHABLE")
-        browser.refusedUrl(postingUrl("/huge")).refusedWith("UNREACHABLE")
+        browser.refusedUrl(postingUrl("/data.json")).refusedWith("NOT_HTML")
+        browser.refusedUrl(postingUrl("/huge")).refusedWith("TOO_LARGE")
+    }
+
+    @Test
+    fun `a server that does not answer within the configured fetch timeout is refused as a timeout`() {
+        val browser = owner()
+        FAKE_POSTING.stubFor(
+            wireMockGet(urlEqualTo("/slow")).willReturn(aResponse().withStatus(200).withFixedDelay(SLOW_MILLIS)),
+        )
+
+        browser.refusedUrl(postingUrl("/slow")).refusedWith("TIMEOUT")
+    }
+
+    @Test
+    fun `a page that builds its content with a script has no readable text`() {
+        val browser = owner()
+        servesPosting("/spa", "<html><body><script>render()</script></body></html>")
+
+        browser.refusedUrl(postingUrl("/spa")).refusedWith("NO_TEXT")
     }
 
     @Test
@@ -405,6 +423,7 @@ class PostingUrlImportFlowTest(
     }
 
     internal companion object {
+        const val SLOW_MILLIS = 3_000
         const val SHORTENER_HOST = "short.example"
         const val DISALLOWED_HOST = "www.linkedin.com"
         const val PASSWORD = "correct horse battery staple"

@@ -50,9 +50,9 @@ interface StartPostingImportPort {
  * Jofi never scrapes (LinkedIn, StepStone, Indeed). A URL already imported successfully answers at once with its
  * existing application ([UrlImportOutcome.AlreadyImported]); one already pending answers with that import instead
  * of starting another (double submit, #187 finding F6). Otherwise fetched through `OutboundHttpPort`, its main text
- * extracted, then the same path as [StartPostingImportPort]: `Invalid` `SOURCE_URL`/`UNREACHABLE` for a blocked,
- * failed fetch or one with no readable text (paste the text instead); `AiNotConfigured` while no model is assigned
- * to the extraction task, before anything is fetched.
+ * extracted, then the same path as [StartPostingImportPort]: `Invalid` `SOURCE_URL` with the reason a fetch failed
+ * (`UNREACHABLE`, `TIMEOUT`, `TOO_LARGE`, `NOT_HTML`, `LOGIN_REQUIRED`, `REFUSED`, `NO_TEXT`; paste the text instead);
+ * `AiNotConfigured` while no model is assigned to the extraction task, before anything is fetched.
  */
 interface StartUrlImportPort {
     fun execute(
@@ -97,9 +97,10 @@ interface RunPostingImportPort {
  * Fetches the posting at [address] and answers its main text (spec §8.1, #97), the step [StartUrlImportPort] runs once
  * it knows nothing is pending or imported. `AiNotConfigured` while no model is assigned to the extraction task, before
  * anything is fetched. `Invalid` `SOURCE_URL`: `NOT_ALLOWED` if the fetch ended on a site Jofi never scrapes (a
- * redirect or shortener into LinkedIn, StepStone or Indeed), `UNREACHABLE` for a blocked or failed fetch, a login
- * wall (an answer other than 2xx, or a redirect to a login page), the wrong content type, a body over the limit or no
- * readable text. Nothing is stored.
+ * redirect or shortener into LinkedIn, StepStone or Indeed), `LOGIN_REQUIRED` for a login wall (401, or a redirect
+ * to a login page), `REFUSED` for a 403 (a bot protection is no login), `TIMEOUT`, `TOO_LARGE` (a body over the
+ * limit), `NOT_HTML` (the wrong content type), `NO_TEXT` (no readable text) and `UNREACHABLE`
+ * for any other blocked or failed fetch. Nothing is stored.
  */
 interface FetchPostingTextPort {
     fun execute(address: WebAddress): ApplicationResult<DescriptionText>

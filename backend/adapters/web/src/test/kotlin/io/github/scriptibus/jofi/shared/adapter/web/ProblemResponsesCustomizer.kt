@@ -60,7 +60,10 @@ class ProblemResponsesCustomizer :
             .addProperty("field", StringSchema().description("The request field, e.g. name or careersPage"))
             .addProperty(
                 "problem",
-                StringSchema().description("REQUIRED, TOO_LONG, TOO_MANY, INVALID_URL or OUT_OF_RANGE"),
+                StringSchema().description(
+                    "REQUIRED, TOO_LONG, TOO_MANY, INVALID_URL or OUT_OF_RANGE; a URL import also " +
+                        "NOT_ALLOWED, UNREACHABLE, TIMEOUT, TOO_LARGE, NOT_HTML, LOGIN_REQUIRED, REFUSED or NO_TEXT",
+                ),
             ).required(listOf("field", "problem"))
 
     private fun response(

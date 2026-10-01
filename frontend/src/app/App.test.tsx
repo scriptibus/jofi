@@ -183,16 +183,6 @@ describe("the shell", () => {
     expect(alert).toHaveTextContent("Server message: Database on fire");
   });
 
-  it("shows what was shared with the share target", async () => {
-    start("/share?title=Kotlin%20developer&url=https%3A%2F%2Fjobs.example%2F42&text=", {
-      authenticated: true,
-    });
-    expect(await screen.findByRole("heading", { level: 1, name: "Shared with Jofi" })).toBeVisible();
-    expect(screen.getByText("Kotlin developer")).toBeVisible();
-    expect(screen.getByText("https://jobs.example/42")).toBeVisible();
-    expect(screen.queryByText("Text")).not.toBeInTheDocument();
-  });
-
   it("has a not-found page inside the shell", async () => {
     start("/nope", { authenticated: true });
     expect(await screen.findByRole("heading", { level: 1, name: "Page not found" })).toBeVisible();

@@ -55,7 +55,7 @@ export type WebAppManifest = Partial<ManifestOptions> &
 /**
  * The manifest (vite-plugin-pwa writes it as manifest.webmanifest). `share_target` makes Jofi a
  * target of the system share sheet once installed: a GET to `/share?title=…&text=…&url=…`, which
- * the SPA shows (import handling: #34).
+ * the SPA shows and offers to import (#98).
  */
 export function webAppManifest(colours: ThemeColours): WebAppManifest {
   return {

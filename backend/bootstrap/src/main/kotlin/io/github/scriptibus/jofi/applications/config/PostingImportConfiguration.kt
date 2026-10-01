@@ -22,8 +22,10 @@ import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedP
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import java.time.Duration
 
 /**
  * Sources and the posting import (#96, #97): adding a source, a discovered application with its source, and the
@@ -61,7 +63,8 @@ class PostingImportConfiguration {
     fun fetchPostingTextUseCase(
         ai: CheckAiTaskAssignedPort,
         http: OutboundHttpPort,
-    ): FetchPostingTextUseCase = FetchPostingTextUseCase(ai, http)
+        @Value("\${jofi.import.fetch-timeout:PT20S}") timeout: Duration,
+    ): FetchPostingTextUseCase = FetchPostingTextUseCase(ai, http, timeout)
 
     @Bean
     fun resolveUrlImportUseCase(
