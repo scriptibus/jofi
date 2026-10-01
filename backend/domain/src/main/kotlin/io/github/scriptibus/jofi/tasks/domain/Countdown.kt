@@ -122,14 +122,21 @@ enum class CountdownKind {
 
 /** When a dashboard countdown ends: on a day of the viewer's calendar, or at an instant planned in a zone. */
 sealed interface CountdownTarget {
+    /** When the countdown ends as seen from [viewer]: the start of the day there, or the instant itself. */
+    fun endsAt(viewer: ZoneId): Instant
+
     data class OnDay(
         val date: LocalDate,
-    ) : CountdownTarget
+    ) : CountdownTarget {
+        override fun endsAt(viewer: ZoneId): Instant = date.atStartOfDay(viewer).toInstant()
+    }
 
     data class At(
         val instant: Instant,
         val zone: ZoneId,
-    ) : CountdownTarget
+    ) : CountdownTarget {
+        override fun endsAt(viewer: ZoneId): Instant = instant
+    }
 }
 
 /**
@@ -144,4 +151,31 @@ data class DashboardCountdown(
     val subject: EntityRef,
 ) {
     override fun toString(): String = "DashboardCountdown(kind=$kind, target=$target, subject=$subject)"
+
+    companion object {
+        /** The subject type of a countdown about an application (the applications context's changelog type). */
+        const val APPLICATION = "application"
+
+        /** The subject type of a countdown about an interview (the applications context's changelog type). */
+        const val INTERVIEW = "interview"
+
+        /** [countdown] on the dashboard: it ends on its target day. */
+        fun of(countdown: Countdown): DashboardCountdown =
+            DashboardCountdown(
+                CountdownKind.CUSTOM,
+                countdown.details.title,
+                CountdownTarget.OnDay(countdown.details.targetDate),
+                countdown.id.toEntityRef(),
+            )
+
+        /**
+         * Soonest first as seen from [viewer]: a day counts from its start on the viewer's calendar, so a deadline
+         * comes before an interview later that day. Ties go by [kind], then by subject, so the order is stable.
+         */
+        fun soonestFirst(viewer: ZoneId): Comparator<DashboardCountdown> =
+            compareBy<DashboardCountdown> { it.target.endsAt(viewer) }
+                .thenBy { it.kind }
+                .thenBy { it.subject.type }
+                .thenBy { it.subject.id }
+    }
 }

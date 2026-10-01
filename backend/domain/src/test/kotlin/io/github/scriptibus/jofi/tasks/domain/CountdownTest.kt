@@ -88,4 +88,53 @@ class CountdownTest {
             it.toString() shouldNotContain "Secret"
         }
     }
+
+    @Test
+    fun `a custom countdown on the dashboard ends on its day and links to itself`() {
+        DashboardCountdown.of(countdown) shouldBe
+            DashboardCountdown(
+                CountdownKind.CUSTOM,
+                "Secret notice ends",
+                CountdownTarget.OnDay(LocalDate.parse("2026-12-31")),
+                EntityRef("countdown", id.value.toString()),
+            )
+    }
+
+    @Test
+    fun `a day ends at its start on the viewer's calendar, an instant wherever it was planned`() {
+        val berlin = ZoneId.of("Europe/Berlin")
+        val day = LocalDate.parse("2026-10-05")
+
+        CountdownTarget.OnDay(day).endsAt(berlin) shouldBe Instant.parse("2026-10-04T22:00:00Z")
+        CountdownTarget.OnDay(day).endsAt(ZoneId.of("UTC")) shouldBe Instant.parse("2026-10-05T00:00:00Z")
+        CountdownTarget.At(at, ZoneId.of("Asia/Tokyo")).endsAt(berlin) shouldBe at
+    }
+
+    @Test
+    fun `the dashboard comes soonest first on the viewer's calendar, then by kind and subject`() {
+        val berlin = ZoneId.of("Europe/Berlin")
+        val day = LocalDate.parse("2026-10-05")
+        val midnight = day.atStartOfDay(berlin)
+        val earlyInterview =
+            dashboard(
+                CountdownKind.NEXT_INTERVIEW,
+                CountdownTarget.At(midnight.minusHours(1).toInstant(), berlin),
+                "i1",
+            )
+        val deadline = dashboard(CountdownKind.APPLICATION_DEADLINE, CountdownTarget.OnDay(day), "a2")
+        val custom = dashboard(CountdownKind.CUSTOM, CountdownTarget.OnDay(day), "c1")
+        val otherDeadline = dashboard(CountdownKind.APPLICATION_DEADLINE, CountdownTarget.OnDay(day), "a1")
+        val laterInterview =
+            dashboard(CountdownKind.NEXT_INTERVIEW, CountdownTarget.At(midnight.plusHours(9).toInstant(), berlin), "i2")
+
+        listOf(laterInterview, deadline, custom, earlyInterview, otherDeadline)
+            .sortedWith(DashboardCountdown.soonestFirst(berlin)) shouldBe
+            listOf(earlyInterview, custom, otherDeadline, deadline, laterInterview)
+    }
+
+    private fun dashboard(
+        kind: CountdownKind,
+        target: CountdownTarget,
+        subject: String,
+    ) = DashboardCountdown(kind, "Title", target, EntityRef("x", subject))
 }
