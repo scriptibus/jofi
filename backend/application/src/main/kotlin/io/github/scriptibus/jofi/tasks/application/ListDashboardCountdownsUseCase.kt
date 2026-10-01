@@ -46,7 +46,7 @@ class ListDashboardCountdownsUseCase(
                     CountdownKind.NEXT_INTERVIEW,
                     it.title,
                     CountdownTarget.At(it.startsAt, it.zone),
-                    EntityRef(DashboardCountdown.INTERVIEW, it.interview.toString()),
+                    EntityRef(FindCountdownFactsPort.INTERVIEW_ENTITY_TYPE, it.interview.toString()),
                 )
             }
         return listOfNotNull(interview) +
@@ -62,6 +62,6 @@ class ListDashboardCountdownsUseCase(
             kind,
             due.title,
             CountdownTarget.OnDay(due.date),
-            EntityRef(DashboardCountdown.APPLICATION, due.application.toString()),
+            EntityRef(FindCountdownFactsPort.APPLICATION_ENTITY_TYPE, due.application.toString()),
         )
 }

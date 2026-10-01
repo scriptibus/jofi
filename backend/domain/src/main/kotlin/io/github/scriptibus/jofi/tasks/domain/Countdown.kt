@@ -153,12 +153,6 @@ data class DashboardCountdown(
     override fun toString(): String = "DashboardCountdown(kind=$kind, target=$target, subject=$subject)"
 
     companion object {
-        /** The subject type of a countdown about an application (the applications context's changelog type). */
-        const val APPLICATION = "application"
-
-        /** The subject type of a countdown about an interview (the applications context's changelog type). */
-        const val INTERVIEW = "interview"
-
         /** [countdown] on the dashboard: it ends on its target day. */
         fun of(countdown: Countdown): DashboardCountdown =
             DashboardCountdown(

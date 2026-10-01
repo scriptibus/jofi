@@ -3,6 +3,8 @@
 
 package io.github.scriptibus.jofi.applications.application.port.api
 
+import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.InterviewId
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -65,5 +67,11 @@ interface FindCountdownFactsPort {
     companion object {
         /** The most deadlines and offer answers [execute] returns of each kind. */
         const val MAX_PER_KIND = 50
+
+        /** How other contexts name an application they link to (its changelog entity type). */
+        const val APPLICATION_ENTITY_TYPE = ApplicationId.ENTITY_TYPE
+
+        /** How other contexts name an interview they link to (its changelog entity type). */
+        const val INTERVIEW_ENTITY_TYPE = InterviewId.ENTITY_TYPE
     }
 }

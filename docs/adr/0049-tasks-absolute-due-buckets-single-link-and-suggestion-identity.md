@@ -8,7 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: spec §10.1 (countdowns), §10.2 (task list), §6.1 (follow-up rules); issue #80 (M1-C2e); builds on
-  ADR-0041 and ADR-0048. Amended by #95 (M1-5c): the suggestion rules and accepting
+  ADR-0041 and ADR-0048. Amended by #95 (M1-5c): the suggestion rules and accepting; by #112 (M1-11a1): the
+  dashboard countdown query
 
 ## Context
 
@@ -57,6 +58,22 @@ tasks, pending suggestions (`GET /suggestions`) and dismissed ones are not.
 Custom countdowns count down to a `LocalDate` (`countdown.target_date`), counted on the viewer's calendar like
 buckets. The derived dashboard countdowns (next interview, application and offer answer deadlines; the end of
 employment in M2) are queries over the other contexts (#112) and never stored.
+
+The query (`GET /api/dashboard/countdowns?timeZone=`) reads the applications context only through its named
+interface `api` (`FindCountdownFactsPort`, plain values; applications never depends on tasks). It shows:
+
+- every custom countdown, also a past one (the dashboard shows it as reached);
+- the next interview: the soonest one that is not cancelled and starts at or after now (the instant decides,
+  ADR-0048);
+- application deadlines from the viewer's today on, only of applications not yet applied for and still in the
+  pipeline (`DISCOVERED`, `SHORTLISTED`, `PREPARING`): once the user applied, the posting's deadline no longer matters;
+- offer answer dates from the viewer's today on, of applications at `OFFER`.
+
+Deadlines and offer answers are capped at 50 each, read by a query of their own (date on or after today, soonest
+first) so that many past deadlines cannot push the coming ones out. The list is soonest first as seen from the viewer:
+a day counts from its start on the viewer's calendar, an interview at its instant; ties go by kind, then subject.
+Each entry names its subject by changelog entity type and id (`countdown`, `application`, `interview`), the types
+coming from the owning context.
 
 ### One link, cleared when its target goes
 
