@@ -29,6 +29,7 @@ import { EditCompanyPage, NewCompanyPage } from "./companies/CompanyEditPages";
 import { ContactDetailPage } from "./contacts/ContactDetailPage";
 import { EditContactPage, NewContactPage } from "./contacts/ContactEditPages";
 import { ContactsPage, parseContactsSearch, parseNewContactSearch } from "./contacts/ContactsPage";
+import { CountdownsWidget } from "./dashboard/CountdownsWidget";
 import type { NoticeStore } from "./notices";
 import { PlaceholderPage } from "./pages/PlaceholderPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -137,9 +138,12 @@ const dashboardRoute = createRoute({
       throw redirect({ to: "/setup", search: { step: "welcome" } });
   },
   component: () => (
-    <PlaceholderPage title={m.dashboard_heading()} eyebrow={m.dashboard_eyebrow()}>
-      {m.dashboard_empty()}
-    </PlaceholderPage>
+    <>
+      <PlaceholderPage title={m.dashboard_heading()} eyebrow={m.dashboard_eyebrow()}>
+        {m.dashboard_empty()}
+      </PlaceholderPage>
+      <CountdownsWidget />
+    </>
   ),
 });
 // Applications (spec §6.3): the list with its filters, order and page in the URL; create (`?company=`

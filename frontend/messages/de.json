@@ -1107,5 +1107,39 @@
   "application_timeline_field_unread": "Gelesen oder ungelesen",
   "application_timeline_field_other": "Weitere Angaben",
   "application_timeline_read": "Gelesen",
-  "application_timeline_none": "keine"
+  "application_timeline_none": "keine",
+  "countdowns_heading": "Countdowns",
+  "countdowns_empty": "Noch keine Countdowns. Dein nächstes Vorstellungsgespräch, Bewerbungsfristen und Antwortfristen für Angebote erscheinen hier von selbst. Für alles andere, etwa das Ende deiner Kündigungsfrist, legst du eigene an.",
+  "countdowns_failed": "Die Countdowns konnten nicht geladen werden.",
+  "countdown_source_custom": "Dein Countdown",
+  "countdown_source_next_interview": "Nächstes Vorstellungsgespräch",
+  "countdown_source_application_deadline": "Bewerbungsfrist",
+  "countdown_source_offer_answer_deadline": "Antwortfrist für das Angebot",
+  "countdown_today": "Heute",
+  "countdown_tomorrow": "Morgen",
+  "countdown_in_days": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "In {count} Tag",
+        "countPlural=other": "In {count} Tagen"
+      }
+    }
+  ],
+  "countdown_reached": "Erreicht",
+  "countdown_when_other_zone": "{when} ({local} in {zone})",
+  "countdown_add_heading": "Countdown anlegen",
+  "countdown_field_title": "Worauf du wartest (Pflichtfeld)",
+  "countdown_field_date": "Datum (Pflichtfeld)",
+  "countdown_add": "Countdown hinzufügen",
+  "countdown_added_message": "Countdown „{title}“ hinzugefügt.",
+  "countdown_delete": "Löschen",
+  "countdown_delete_named": "Countdown löschen: {title}",
+  "countdown_delete_title": "Diesen Countdown löschen?",
+  "countdown_delete_action": "Countdown löschen",
+  "countdown_delete_confirm": "Der Countdown „{title}“ wird gelöscht. Das lässt sich nicht rückgängig machen.",
+  "countdown_deleted_message": "Countdown „{title}“ gelöscht.",
+  "countdown_error_not_found": "Diesen Countdown gibt es nicht (mehr).",
+  "countdown_error_mismatch": "Der Server wollte etwas anderes bestätigen lassen als das Löschen dieses Countdowns. Es wurde nichts gelöscht; bitte versuche es noch einmal."
 }
