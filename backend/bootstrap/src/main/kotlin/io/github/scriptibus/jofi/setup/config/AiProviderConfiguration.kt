@@ -15,6 +15,7 @@ import io.github.scriptibus.jofi.setup.application.port.CostEntryPort
 import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCapabilityPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCatalogPort
+import io.github.scriptibus.jofi.setup.application.port.ModelPricePort
 import io.github.scriptibus.jofi.setup.application.port.MonthlyBudgetPort
 import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
 import io.github.scriptibus.jofi.shared.adapter.net.GuardedAiTransport
@@ -63,8 +64,9 @@ class AiProviderConfiguration {
     fun aiMeter(
         costs: CostEntryPort,
         budgets: MonthlyBudgetPort,
+        userPrices: ModelPricePort,
         clock: Clock,
-    ): AiMeter = AiMeter(costs, budgets, PriceTableFile.load(), clock)
+    ): AiMeter = AiMeter(costs, budgets, PriceTableFile.load(), userPrices, clock)
 
     /** Implements both `LlmPort` and `EmbeddingPort`. */
     @Bean

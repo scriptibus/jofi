@@ -97,7 +97,7 @@ class AiGatewayAdapterTest {
             provider,
             AiRouter(setup.assignmentPort, setup.providerPort, setup.capabilityPort, catalog),
             NeverSendGuard(visibility),
-            AiMeter(setup.costPort, setup.budgetPort, prices, clock),
+            AiMeter(setup.costPort, setup.budgetPort, prices, setup.pricePort, clock),
         )
 
     private fun assign(
@@ -243,7 +243,7 @@ class AiGatewayAdapterTest {
     @Test
     fun `a budget that cannot be read stops non-essential work only`() {
         assign(AiTask.SCANNER_PRE_SCORING)
-        val meter = AiMeter(setup.costPort, setup.budgetPort, prices, clock)
+        val meter = AiMeter(setup.costPort, setup.budgetPort, prices, setup.pricePort, clock)
         setup.failing = true
 
         meter.admit(AiTask.SCANNER_PRE_SCORING) shouldBe AiResult.Unavailable
@@ -393,7 +393,7 @@ class AiGatewayAdapterTest {
                 provider,
                 AiRouter(setup.assignmentPort, setup.providerPort, setup.capabilityPort, catalog),
                 NeverSendGuard(visibility),
-                AiMeter(brokenMeter.costPort, brokenMeter.budgetPort, prices, clock),
+                AiMeter(brokenMeter.costPort, brokenMeter.budgetPort, prices, brokenMeter.pricePort, clock),
             )
 
         gateway.complete(chat()).shouldBeInstanceOf<AiResult.Success<*>>()
@@ -414,7 +414,7 @@ class AiGatewayAdapterTest {
                 throwing,
                 AiRouter(setup.assignmentPort, setup.providerPort, setup.capabilityPort, catalog),
                 NeverSendGuard(visibility),
-                AiMeter(setup.costPort, setup.budgetPort, prices, clock),
+                AiMeter(setup.costPort, setup.budgetPort, prices, setup.pricePort, clock),
             )
 
         gateway.complete(chat()) shouldBe AiResult.Unavailable

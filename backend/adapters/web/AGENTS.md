@@ -116,6 +116,11 @@ the cap. `capMicros` is required (required + nullable in the contract): a body w
 lifts the cap. The cap is changed with `PUT`, not `DELETE`: removing it destroys nothing, so it needs no
 confirmation, but it is a user-only setup mutation (`SetupRules`) with a changelog entry. Amounts are integer
 USD micros everywhere.
+`ModelPriceController` (ADR-0055, #142): `GET|PUT|DELETE /api/setup/providers/{id}/model-prices` lists, sets
+(model name and `inputMicrosPerMillion`/`outputMicrosPerMillion` in the body; 0 to 10,000,000,000, 0 allowed) and
+removes (`?model=`, since model names contain slashes) the user's price of a model of an OpenAI-compatible
+provider; a cloud provider is `409 price-not-allowed`. The `DELETE` takes no confirmation header (reviewed entry in
+`ConfirmationRules.ENDPOINTS_WITHOUT_CONFIRMATION`, same reason as the cap). A price applies to later calls only.
 
 ## Applications (#76, ADR-0041)
 

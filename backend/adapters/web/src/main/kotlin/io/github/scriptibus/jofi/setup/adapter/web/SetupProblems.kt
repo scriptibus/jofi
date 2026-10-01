@@ -21,6 +21,7 @@ import java.net.URI
 object SetupProblems {
     const val INVALID = "urn:jofi:problem:setup:invalid-input"
     const val NOT_FOUND = "urn:jofi:problem:setup:provider-not-found"
+    const val PRICE_NOT_ALLOWED = "urn:jofi:problem:setup:price-not-allowed"
     const val IN_USE = "urn:jofi:problem:setup:provider-in-use"
     const val FORBIDDEN = "urn:jofi:problem:setup:forbidden"
     const val AUTHENTICATION_FAILED = "urn:jofi:problem:setup:provider-authentication-failed"
@@ -42,8 +43,8 @@ object SetupProblems {
                 problem(HttpStatus.NOT_FOUND, NOT_FOUND, "No AI provider with this id")
             }
 
-            SetupResult.InUse -> {
-                problem(HttpStatus.CONFLICT, IN_USE, "Tasks are still assigned to this provider; reassign them first")
+            SetupResult.InUse, SetupResult.PriceNotAllowed -> {
+                conflict(failure)
             }
 
             SetupResult.Forbidden -> {
@@ -64,16 +65,31 @@ object SetupProblems {
         }
 
     /** The request field a domain field arrives in. */
-    fun apiName(field: SetupField): String =
-        when (field) {
-            SetupField.DISPLAY_NAME -> "displayName"
-            SetupField.BASE_URL -> "baseUrl"
-            SetupField.API_KEY -> "apiKey"
-            SetupField.MODEL -> "model"
-            SetupField.CONTEXT_WINDOW -> "contextWindowTokens"
-            SetupField.MONTHLY_CAP -> "capMicros"
-            SetupField.MONTH -> "month"
-            SetupField.MONTHS -> "months"
+    fun apiName(field: SetupField): String = API_NAMES.getValue(field)
+
+    private val API_NAMES =
+        mapOf(
+            SetupField.DISPLAY_NAME to "displayName",
+            SetupField.BASE_URL to "baseUrl",
+            SetupField.API_KEY to "apiKey",
+            SetupField.MODEL to "model",
+            SetupField.CONTEXT_WINDOW to "contextWindowTokens",
+            SetupField.MONTHLY_CAP to "capMicros",
+            SetupField.MONTH to "month",
+            SetupField.MONTHS to "months",
+            SetupField.INPUT_PRICE to "inputMicrosPerMillion",
+            SetupField.OUTPUT_PRICE to "outputMicrosPerMillion",
+        )
+
+    private fun conflict(failure: SetupResult.Failure): ErrorResponseException =
+        if (failure == SetupResult.InUse) {
+            problem(HttpStatus.CONFLICT, IN_USE, "Tasks are still assigned to this provider; reassign them first")
+        } else {
+            problem(
+                HttpStatus.CONFLICT,
+                PRICE_NOT_ALLOWED,
+                "Only models of an OpenAI-compatible provider take a user price; cloud providers have list prices",
+            )
         }
 
     // The provider is a server of the user's choosing, so its failures are a bad gateway, not ours.

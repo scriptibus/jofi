@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.setup.application.port.CostEntryPort
 import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCapabilityPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCatalogPort
+import io.github.scriptibus.jofi.setup.application.port.ModelPricePort
 import io.github.scriptibus.jofi.setup.application.port.MonthlyBudgetPort
 import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
 import io.github.scriptibus.jofi.setup.domain.BillingMonth
@@ -19,6 +20,7 @@ import io.github.scriptibus.jofi.setup.domain.ModelCapabilities
 import io.github.scriptibus.jofi.setup.domain.ModelCapabilityProfile
 import io.github.scriptibus.jofi.setup.domain.ModelKey
 import io.github.scriptibus.jofi.setup.domain.ModelName
+import io.github.scriptibus.jofi.setup.domain.ModelPriceOverride
 import io.github.scriptibus.jofi.setup.domain.Money
 import io.github.scriptibus.jofi.setup.domain.MonthlyBudget
 import io.github.scriptibus.jofi.setup.domain.ProviderConfig
@@ -58,6 +60,7 @@ class SetupFixtures {
     val providers = linkedMapOf<ProviderId, ProviderConfig>()
     val assignments = linkedMapOf<AiTask, ModelAssignment>()
     val profiles = linkedMapOf<Pair<ProviderId, ModelName>, ModelCapabilityProfile>()
+    val prices = linkedMapOf<Pair<ProviderId, ModelName>, ModelPriceOverride>()
     val secrets = linkedMapOf<SecretId, SecretValue>()
     val entries = mutableListOf<ChangelogEntry>()
     val costs = mutableListOf<CostEntry>()
@@ -96,10 +99,23 @@ class SetupFixtures {
                 proof: ConfirmationResult.Confirmed,
             ): SetupStoreResult<Unit> =
                 when {
-                    !proof.covers(ProviderId.DELETE_OPERATION, id.value.toString()) -> SetupStoreResult.NotConfirmed
-                    assignments.values.any { it.provider == id } -> SetupStoreResult.InUse
-                    providers.remove(id) == null -> SetupStoreResult.NotFound
-                    else -> write { profiles.keys.removeIf { it.first == id } }
+                    !proof.covers(ProviderId.DELETE_OPERATION, id.value.toString()) -> {
+                        SetupStoreResult.NotConfirmed
+                    }
+
+                    assignments.values.any { it.provider == id } -> {
+                        SetupStoreResult.InUse
+                    }
+
+                    providers.remove(id) == null -> {
+                        SetupStoreResult.NotFound
+                    }
+
+                    else -> {
+                        write {
+                            profiles.keys.removeIf { it.first == id } && prices.keys.removeIf { it.first == id }
+                        }
+                    }
                 }
         }
 
@@ -129,6 +145,31 @@ class SetupFixtures {
                     profiles[profile.provider to profile.model] =
                         profile
                 }
+        }
+
+    val pricePort =
+        object : ModelPricePort {
+            override fun find(
+                provider: ProviderId,
+                model: ModelName,
+            ) = read(prices[provider to model])
+
+            override fun findByProvider(provider: ProviderId) =
+                SetupStoreResult.Success(prices.values.filter { it.provider == provider }.sortedBy { it.model.value })
+
+            override fun save(price: ModelPriceOverride) =
+                if (price.provider in
+                    providers
+                ) {
+                    write { prices[price.provider to price.model] = price }
+                } else {
+                    SetupStoreResult.NotFound
+                }
+
+            override fun clear(
+                provider: ProviderId,
+                model: ModelName,
+            ) = write { prices.remove(provider to model) }
         }
 
     val budgetPort =
@@ -290,6 +331,7 @@ class SetupFixtures {
         private val providersBefore = providers.toMap()
         private val assignmentsBefore = assignments.toMap()
         private val profilesBefore = profiles.toMap()
+        private val pricesBefore = prices.toMap()
         private val secretsBefore = secrets.toMap()
         private val entriesBefore = entries.toList()
         private val budgetBefore = budget
@@ -301,6 +343,8 @@ class SetupFixtures {
             assignments.putAll(assignmentsBefore)
             profiles.clear()
             profiles.putAll(profilesBefore)
+            prices.clear()
+            prices.putAll(pricesBefore)
             secrets.clear()
             secrets.putAll(secretsBefore)
             entries.clear()

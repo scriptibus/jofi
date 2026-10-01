@@ -26,6 +26,12 @@ sealed interface SetupResult<out T> {
     /** No provider with this id. */
     data object NotFound : Failure
 
+    /**
+     * The provider is not an OpenAI-compatible endpoint: cloud providers are priced by the verified price
+     * table only (ADR-0043), so a user price for one of their models is refused.
+     */
+    data object PriceNotAllowed : Failure
+
     /** The provider still has tasks assigned; reassign them first. */
     data object InUse : Failure
 

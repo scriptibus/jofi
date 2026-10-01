@@ -67,7 +67,12 @@ object ConfirmationRules {
      * as `"<controller simple name>.<method>"` with the reason. Logging out, for instance, would go
      * here if it were a `DELETE`. Every entry needs a human review.
      */
-    val ENDPOINTS_WITHOUT_CONFIRMATION: Map<String, String> = emptyMap()
+    val ENDPOINTS_WITHOUT_CONFIRMATION: Map<String, String> =
+        mapOf(
+            "ModelPriceController.clearModelPrice" to
+                "removes a price the user typed in and can enter again (like clearing the monthly cap); " +
+                "past cost entries keep their cost and the change is in the changelog (#142)",
+        )
 
     /**
      * Use cases that call a destructive port method without the gate, with the reason. Every entry

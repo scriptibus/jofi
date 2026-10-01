@@ -265,6 +265,7 @@ class DatabaseBackupRepositoryTest {
         dsl.execute(CHANGELOG_INSERT, "USER", null, "Said \"hi\", then\nleft; ü€", null)
         dsl.execute(CHANGELOG_INSERT, "SCANNER", "rss", "found, \"quoted\"", "why,\r\nnot")
         seedSetup()
+        seedModelPrices()
         if (!olderSchema) seedUnknownCost()
         dsl.execute(
             "insert into user_account (account_id, password_hash, created_at, password_changed_at) " +
@@ -294,6 +295,23 @@ class DatabaseBackupRepositoryTest {
                 "cost_micros, currency, occurred_at) " +
                 "values ('EMBEDDING', ?, 'OPENAI', 'gpt', 5, 0, null, 'USD', now())",
             UUID.fromString("00000000-0000-0000-0000-000000000002"),
+        )
+    }
+
+    private fun seedModelPrices() {
+        val local = UUID.fromString("00000000-0000-0000-0000-000000000003")
+        dsl.execute(
+            "insert into ai_provider_config values (?, 'Ollama', 'OPENAI_COMPATIBLE', null, 'http://ollama:11434/v1')",
+            local,
+        )
+        // A free local model with a name that needs CSV quoting, next to a priced one at the upper limit.
+        dsl.execute(
+            "insert into ai_model_price_override values (?, 'meta/llama-3.1,\"8b\"', 0, 0, ?::timestamptz), " +
+                "(?, 'big', 10000000000, 10000000000, ?::timestamptz)",
+            local,
+            AT,
+            local,
+            AT,
         )
     }
 
@@ -389,6 +407,7 @@ class DatabaseBackupRepositoryTest {
                 "saved_view",
                 "application_settings",
                 "posting_import",
+                "ai_model_price_override",
             )
         val COMPANY: UUID = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
         const val CHANGELOG_INSERT =
