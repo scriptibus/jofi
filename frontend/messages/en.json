@@ -953,5 +953,30 @@
       }
     }
   ],
-  "application_description_source_shown": "Source shown"
+  "application_description_source_shown": "Source shown",
+  "application_contacts_heading": "Linked contacts",
+  "application_contacts_unlink_hint": "Unlinking only removes the link to this application; the contact itself stays in your contacts.",
+  "application_contacts_link": "Link a contact",
+  "application_contacts_create": "Create a new contact",
+  "application_contacts_full": "An application links at most {max} contacts. Unlink one to link another.",
+  "application_contacts_empty": "No contacts linked yet.",
+  "application_contacts_conflict": "This application was changed elsewhere (another tab or device) after you opened it, so its contacts were not changed. Load the latest version, then try again.",
+  "application_contacts_linked": "{name} is now linked.",
+  "application_contacts_unlinked": "{name} is no longer linked. The contact itself was kept.",
+  "application_contacts_unlink": "Unlink",
+  "application_contacts_unlink_named": "Unlink {name}",
+  "application_contacts_unknown": "Unavailable contact",
+  "application_contacts_unavailable": "This contact could not be loaded.",
+  "application_contacts_error_not_found": "One of these contacts no longer exists. Reload the page and try again.",
+  "application_contacts_error_too_many": "Too many contacts: an application links at most 50.",
+  "application_contacts_picker_title": "Link a contact",
+  "application_contacts_picker_failed": "The contacts could not be loaded. Close this and try again.",
+  "application_contacts_picker_empty": "No contacts match. You can create a new one instead.",
+  "application_contacts_picker_company": "At {company}",
+  "application_contacts_picker_this_company": "At this company",
+  "application_contacts_picker_others": "Other contacts",
+  "application_contacts_picker_close": "Close",
+  "application_contacts_link_short": "Link",
+  "application_contacts_link_named": "Link {name}",
+  "contact_new_for_application": "After you create it, the new contact is linked to the application you came from."
 }

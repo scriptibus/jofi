@@ -144,12 +144,14 @@ describe("Application detail", () => {
 
   it("has keyboard tabs with the later sections disabled, and ignores an unknown tab in the URL", async () => {
     const application = anApplication(acme.id);
-    const { user } = start(`/applications/${application.id}?tab=timeline`, { applications: [application] });
+    const { user, router } = start(`/applications/${application.id}?tab=timeline`, {
+      applications: [application],
+    });
     const overview = await screen.findByRole("tab", { name: "Overview" });
     expect(overview).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("tab", { name: "Description" })).not.toHaveAttribute("aria-disabled");
-    for (const name of ["Contacts", "Timeline"])
-      expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-disabled", "true");
+    for (const name of ["Description", "Contacts"])
+      expect(screen.getByRole("tab", { name })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
 
     await user.click(overview);
@@ -157,7 +159,13 @@ describe("Application detail", () => {
     const description = screen.getByRole("tab", { name: "Description" });
     expect(description).toHaveFocus();
     expect(description).toHaveAttribute("aria-selected", "true");
-    // The disabled tabs are skipped: the next one is Overview again.
+    await user.keyboard("{ArrowRight}");
+    const contacts = screen.getByRole("tab", { name: "Contacts" });
+    expect(contacts).toHaveFocus();
+    expect(contacts).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("tabpanel", { name: "Contacts" })).toBeVisible();
+    expect(router.state.location.search).toEqual({ tab: "contacts" });
+    // The disabled tab is skipped: the next one is Overview again.
     await user.keyboard("{ArrowRight}");
     expect(overview).toHaveFocus();
   });
