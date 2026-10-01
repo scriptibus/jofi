@@ -49,19 +49,27 @@ class StartPostingImportUseCase(
         description: DescriptionText,
         actor: Actor,
     ): ApplicationResult<PostingImport> =
-        imports.findPendingByText(description).toResult().then { duplicate ->
-            duplicate?.let { ApplicationResult.Success(it) } ?: startAndQueue(description, actor)
-        }
+        transactions
+            .inApplicationTransaction { storeUnlessPending(description, actor) }
+            .then { (pending, isNew) ->
+                if (isNew) jobs.queue(pending) { notQueued(it, actor) } else ApplicationResult.Success(pending)
+            }
 
-    private fun startAndQueue(
+    /** Under a lock on the text, so a concurrent double submit waits and then finds the first import (F6). */
+    private fun storeUnlessPending(
         description: DescriptionText,
         actor: Actor,
-    ): ApplicationResult<PostingImport> {
-        val started = PostingImport.start(ImportId(UUID.randomUUID()), description, clock.storedNow())
-        return transactions
-            .inApplicationTransaction { imports.addWithChangelog(changelog, started, actor) }
-            .then { pending -> jobs.queue(pending) { notQueued(it, actor) } }
-    }
+    ): ApplicationResult<Pair<PostingImport, Boolean>> =
+        imports.lockForStart("text:${description.value}").toResult().then {
+            imports.findPendingByText(description).toResult().then { duplicate ->
+                if (duplicate != null) {
+                    ApplicationResult.Success(duplicate to false)
+                } else {
+                    val started = PostingImport.start(ImportId(UUID.randomUUID()), description, clock.storedNow())
+                    imports.addWithChangelog(changelog, started, actor).then { ApplicationResult.Success(it to true) }
+                }
+            }
+        }
 
     private fun notQueued(
         pending: PostingImport,

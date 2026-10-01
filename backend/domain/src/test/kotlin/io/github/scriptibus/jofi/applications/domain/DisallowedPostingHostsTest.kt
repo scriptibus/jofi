@@ -28,4 +28,13 @@ class DisallowedPostingHostsTest {
         DisallowedPostingHosts.isDisallowed(WebAddress("https://linkedin-consulting.example/jobs/1")) shouldBe false
         DisallowedPostingHosts.isDisallowed(WebAddress("https://jobs.example/careers")) shouldBe false
     }
+
+    @Test
+    fun `the shorteners the sites run themselves are disallowed, hosts as a fetch reports them too`() {
+        DisallowedPostingHosts.isDisallowed(WebAddress("https://lnkd.in/abc")) shouldBe true
+        DisallowedPostingHosts.isDisallowedHost("lnkd.in") shouldBe true
+        DisallowedPostingHosts.isDisallowedHost("WWW.LinkedIn.com.") shouldBe true
+        DisallowedPostingHosts.isDisallowedHost("jobs.example") shouldBe false
+        DisallowedPostingHosts.isDisallowedHost("notlnkd.in") shouldBe false
+    }
 }

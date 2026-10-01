@@ -41,4 +41,13 @@ interface PostingImportRepositoryPort {
      * F6): a double submit of the same link. `null` when there is none.
      */
     fun findPendingBySourceUrl(sourceUrl: WebAddress): ApplicationStoreResult<PostingImport?>
+
+    /**
+     * Takes a lock on [key] (the normalised link, or the pasted text) that the caller's transaction holds until it
+     * commits or rolls back, and that blocks any other transaction asking for the same key meanwhile (#187 finding
+     * F6): a use case takes it before it looks for a pending import and keeps it through the fetch and the insert,
+     * so a double submit waits, then finds the first import instead of fetching and importing a second time.
+     * Different keys never wait for each other.
+     */
+    fun lockForStart(key: String): ApplicationStoreResult<Unit>
 }

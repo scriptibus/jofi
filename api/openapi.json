@@ -330,7 +330,17 @@
                 }
               }
             },
-            "description" : "OK"
+            "description" : "The link was imported before; the import carries its application"
+          },
+          "202" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostingImportResponse"
+                }
+              }
+            },
+            "description" : "Accepted"
           },
           "400" : {
             "content" : {

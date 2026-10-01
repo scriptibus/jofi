@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.FetchPostingTextUseCase
 import io.github.scriptibus.jofi.applications.application.GetPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.RetryPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.StartPostingImportUseCase
@@ -93,8 +94,7 @@ class PostingImportControllerTest(
             StartUrlImportUseCase(
                 ports.imports,
                 ports.sources,
-                ports.ai,
-                ports.http,
+                FetchPostingTextUseCase(ports.ai, ports.http),
                 ports.jobs,
                 ports.applications.changelog,
                 ports.applications.transactions,
@@ -139,6 +139,7 @@ class PostingImportControllerTest(
         every { ports.imports.findPendingByText(DescriptionText("Kotlin Developer at ACME")) } returns
             ApplicationStoreResult.Success(null)
         every { ports.imports.findPendingBySourceUrl(postingUrl) } returns ApplicationStoreResult.Success(null)
+        every { ports.imports.lockForStart(any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.sources.findByOriginalUrl(postingUrl) } returns ApplicationStoreResult.Success(emptyList())
         every { ports.jobs.enqueue(any()) } returns JobResult.Success(JobId(UUID.randomUUID()))
         every { ports.applications.changelog.append(any()) } returns ChangelogResult.Success(Unit)

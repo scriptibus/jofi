@@ -36,8 +36,7 @@ class StartUrlImportUseCaseTest {
         StartUrlImportUseCase(
             fixtures.importPort,
             fixtures.sources,
-            fixtures.ai,
-            fixtures.http,
+            fixtures.fetchPosting,
             fixtures.jobs,
             base.changelog,
             fixtures.transactions,
@@ -140,6 +139,114 @@ class StartUrlImportUseCaseTest {
         unreachable()
         fixtures.imports.size shouldBe 0
     }
+
+    @Test
+    fun `a link that is no URL java net URI can read is refused as invalid, without a fetch or an exception`() {
+        listOf(
+            "https://[abc/x",
+            "https://exa%mple.com/x",
+            "https://exa|mple.com/x",
+            "https://exa\"mple.com/",
+            "https://b\u00fccher.example/" + "a".repeat(2_030),
+            "https://my_team.example/job",
+        ).forEach { link ->
+            start.execute(link, Actor.User) shouldBe
+                ApplicationResult.Invalid(
+                    listOf(ApplicationViolation(ApplicationField.SOURCE_URL, ApplicationProblem.INVALID_URL)),
+                )
+        }
+        fixtures.fetchRequests shouldHaveSize 0
+    }
+
+    @Test
+    fun `a shortener of a disallowed site is refused without a fetch`() {
+        start.execute("https://lnkd.in/abc123", Actor.User) shouldBe notAllowed()
+        fixtures.fetchRequests shouldHaveSize 0
+    }
+
+    @Test
+    fun `a redirect that ends on a disallowed site is refused after the fetch, storing and sending nothing`() {
+        fixtures.fetched =
+            FetchResult.Success(
+                FetchedResource(
+                    URI.create("https://www.linkedin.com/jobs/view/1"),
+                    200,
+                    "text/html",
+                    ResponseBody("<html><body><h1>Senior Kotlin Engineer</h1></body></html>".toByteArray()),
+                ),
+            )
+
+        start.execute("https://short.example/x", Actor.User) shouldBe notAllowed()
+
+        fixtures.imports.size shouldBe 0
+        fixtures.queued shouldHaveSize 0
+        fixtures.base.entries.size shouldBe 0
+    }
+
+    @Test
+    fun `a redirect to a login page is a login wall, refused so the user pastes the text instead`() {
+        fixtures.fetched =
+            FetchResult.Success(
+                FetchedResource(
+                    URI.create("https://jobs.example/login?next=/posting"),
+                    200,
+                    "text/html",
+                    ResponseBody("<html><body>Please sign in to continue</body></html>".toByteArray()),
+                ),
+            )
+
+        unreachable()
+        fixtures.imports.size shouldBe 0
+    }
+
+    @Test
+    fun `the page is decoded with the character set it declares`() {
+        val body = "<html><body><p>Entwickler f\u00fcr K\u00fcche</p></body></html>"
+        fixtures.fetched =
+            FetchResult.Success(
+                FetchedResource(
+                    URI.create(URL),
+                    200,
+                    "text/html; charset=ISO-8859-1",
+                    ResponseBody(body.toByteArray(Charsets.ISO_8859_1)),
+                ),
+            )
+        started().text?.value shouldBe "Entwickler f\u00fcr K\u00fcche"
+
+        fixtures.imports.clear()
+        val meta = "<html><head><meta charset=\"windows-1252\"></head><body><p>Gr\u00f6\u00dfe \u20ac</p></body></html>"
+        fixtures.fetched =
+            FetchResult.Success(
+                FetchedResource(
+                    URI.create(URL),
+                    200,
+                    "text/html",
+                    ResponseBody(meta.toByteArray(charset("windows-1252"))),
+                ),
+            )
+        started().text?.value shouldBe "Gr\u00f6\u00dfe \u20ac"
+    }
+
+    @Test
+    fun `the fetch asks for html only and caps the body at one mebibyte`() {
+        started()
+
+        val request = fixtures.fetchRequests.single()
+        request.acceptedContentTypes shouldBe setOf("text/html", "application/xhtml+xml")
+        request.limits.maxBodyBytes shouldBe 1_048_576L
+    }
+
+    @Test
+    fun `a page that is all invalid numeric entities still imports its readable text`() {
+        fixtures.fetched = html("<html><body><p>&#0; &#xFFFFFFFFFF; Kotlin &#1114112;</p></body></html>")
+
+        started().text?.value shouldBe "&#0; &#xFFFFFFFFFF; Kotlin &#1114112;"
+    }
+
+    private fun notAllowed(): ApplicationResult<UrlImportOutcome> =
+        ApplicationResult.Invalid(
+            listOf(ApplicationViolation(ApplicationField.SOURCE_URL, ApplicationProblem.NOT_ALLOWED)),
+        )
 
     private fun unreachable() {
         start.execute(URL, Actor.User) shouldBe

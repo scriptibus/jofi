@@ -255,7 +255,10 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `ApplicationSourceRepositoryPort` (#86, #96), read with the application; adding one is no new version.
 - `posting_import.source_url` (#97, nullable): the normalised link of a URL import, kept through success so a resubmitted
   link finds its pending or finished import; same format checks as `application_source.original_url`, with a **hash**
-  index (`findPendingBySourceUrl`). Included in export/import with the table.
+  index (`findPendingBySourceUrl`). Included in export/import with the table. `lockForStart(key)` takes a
+  transaction-scoped advisory lock (`pg_advisory_xact_lock(hashtextextended(key, 0))`) on a link or a pasted text, held
+  until the caller's transaction ends, so a concurrent double submit waits and then finds the pending import (#187
+  finding F6); the start use cases keep the transaction open through the fetch.
 - `application_description_snapshot` (#78, ADR-0046): one row per version of a source's description, deleted with
   its source. `description` is untrusted posting text (at most 100,000 characters), `content_hash` must equal
   `encode(sha256(convert_to(description, 'UTF8')), 'hex')` (`..._content_hash_matches`, what `ContentHash`

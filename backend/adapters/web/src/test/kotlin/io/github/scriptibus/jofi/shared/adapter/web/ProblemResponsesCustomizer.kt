@@ -32,6 +32,13 @@ class ProblemResponsesCustomizer :
             val schema = if (kind == ProblemKind.INVALID_INPUT) VALIDATION_PROBLEM else PROBLEM_DETAIL
             operation.responses.addApiResponse(kind.status.value().toString(), response(schema, kind.description))
         }
+        handlerMethod.getMethodAnnotation(AlsoAnswers::class.java)?.let { also ->
+            val primary = operation.responses.values.first()
+            operation.responses.addApiResponse(
+                also.status.value().toString(),
+                ApiResponse().description(also.description).content(primary.content),
+            )
+        }
         return operation
     }
 

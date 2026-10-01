@@ -142,6 +142,8 @@ class PostingImportFixtures {
                 }
             }
 
+            override fun lockForStart(key: String): ApplicationStoreResult<Unit> = ApplicationStoreResult.Success(Unit)
+
             override fun findPendingByText(text: DescriptionText): ApplicationStoreResult<PostingImport?> =
                 ApplicationStoreResult.Success(
                     imports.values.find { it.status == ImportStatus.PENDING && it.text == text },
@@ -238,6 +240,8 @@ class PostingImportFixtures {
                 }
             }
         }
+
+    val fetchPosting = FetchPostingTextUseCase(ai, http)
 
     val discovered = AddDiscoveredApplicationUseCase(base.repository, sources, base.changelog, transactions, CLOCK)
 }

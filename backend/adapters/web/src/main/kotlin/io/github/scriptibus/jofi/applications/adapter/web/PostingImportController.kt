@@ -9,6 +9,7 @@ import io.github.scriptibus.jofi.applications.application.StartPostingImportUseC
 import io.github.scriptibus.jofi.applications.application.StartUrlImportUseCase
 import io.github.scriptibus.jofi.applications.domain.ImportId
 import io.github.scriptibus.jofi.applications.domain.UrlImportOutcome
+import io.github.scriptibus.jofi.shared.adapter.web.AlsoAnswers
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
@@ -52,6 +53,8 @@ class PostingImportController(
      * import.
      */
     @PostMapping("/url")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    @AlsoAnswers(HttpStatus.OK, "The link was imported before; the import carries its application")
     @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.CONFLICT)
     fun startUrlImport(
         @RequestBody request: StartUrlImportRequest,

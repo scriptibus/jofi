@@ -23,6 +23,7 @@ import io.github.scriptibus.jofi.setup.domain.ProviderKind
 import io.github.scriptibus.jofi.shared.adapter.net.Destination
 import io.github.scriptibus.jofi.shared.adapter.net.DestinationAllowlist
 import io.github.scriptibus.jofi.shared.adapter.net.DestinationGuard
+import io.github.scriptibus.jofi.shared.adapter.net.HostResolver
 import io.github.scriptibus.jofi.shared.adapter.net.OutboundHttpAdapter
 import io.github.scriptibus.jofi.shared.adapter.net.UserAgent
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.AI_MODEL_ASSIGNMENT
@@ -49,9 +50,12 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
@@ -61,8 +65,12 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester
 import org.springframework.test.web.servlet.assertj.MvcTestResult
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.net.InetAddress
 import java.net.URI
 import java.util.UUID
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import com.github.tomakehurst.wiremock.client.WireMock.get as wireMockGet
 
@@ -71,13 +79,12 @@ import com.github.tomakehurst.wiremock.client.WireMock.get as wireMockGet
  * handler (called directly: the `app` profile runs no jobs), the AI gateway with its filter and meter, the Spring AI
  * adapter and the guarded transport, against an OpenAI-compatible provider played by WireMock. The received requests
  * prove the posting travels as data with a schema and no tools; a posting that tries to take over the model still
- * only yields a `DISCOVERED` application; a failed call keeps the text for the retry. The URL import (#97) goes
- * through the real SSRF guard too, over a second WireMock server [FAKE_POSTING] whose exact loopback destination
- * [HttpTestConfig] allowlists for this test only (production posting fetches still get no allowlist at all).
+ * only yields a `DISCOVERED` application; a failed call keeps the text for the retry. The URL import (#97) is in
+ * [PostingUrlImportFlowTest].
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(PostgresTestConfiguration::class, PostingImportFlowTest.HttpTestConfig::class)
+@Import(PostgresTestConfiguration::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PostingImportFlowTest(
     @param:Autowired private val mvc: MockMvcTester,
@@ -100,13 +107,11 @@ class PostingImportFlowTest(
         dsl.deleteFrom(AI_MODEL_ASSIGNMENT).where(AI_MODEL_ASSIGNMENT.PROVIDER_ID.eq(PROVIDER.id.value)).execute()
         dsl.deleteFrom(AI_PROVIDER_CONFIG).where(AI_PROVIDER_CONFIG.ID.eq(PROVIDER.id.value)).execute()
         FAKE_AI.stop()
-        FAKE_POSTING.stop()
     }
 
     @BeforeEach
     fun startWithoutUserOrApplications() {
         FAKE_AI.resetAll()
-        FAKE_POSTING.resetAll()
         dsl.deleteFrom(POSTING_IMPORT).execute()
         dsl.deleteFrom(APPLICATION).execute()
         dsl.deleteFrom(COMPANY).execute()
@@ -137,19 +142,6 @@ class PostingImportFlowTest(
         job.run(mapOf("import" to id)) shouldBe JobOutcome.Done
         return get("$IMPORTS/$id").ok()
     }
-
-    private fun servesPosting(
-        path: String,
-        html: String,
-    ) {
-        FAKE_POSTING.stubFor(
-            wireMockGet(urlEqualTo(path)).willReturn(
-                aResponse().withHeader("Content-Type", "text/html; charset=utf-8").withBody(html),
-            ),
-        )
-    }
-
-    private fun postingUrl(path: String): String = "http://127.0.0.1:${FAKE_POSTING.port()}$path"
 
     @Test
     fun `a pasted posting becomes a DISCOVERED application of the matched company, with the text as its source`() {
@@ -263,124 +255,6 @@ class PostingImportFlowTest(
         browser.post("$IMPORTS/text", """{"description":"Kotlin"}""", csrf = null).response.status shouldBe 403
     }
 
-    @Test
-    fun `a posting fetched from a URL becomes a DISCOVERED application, with the link as its source`() {
-        val browser = owner()
-        servesPosting(
-            "/jobs/42",
-            "<html><body><script>evil()</script><h1>Senior Kotlin Developer</h1>" +
-                "<p>ACME Robotics AG, Berlin.</p></body></html>",
-        )
-        answers(ANSWER)
-        val url = postingUrl("/jobs/42") + "?utm_source=newsletter"
-
-        val started = browser.post("$IMPORTS/url", json.writeValueAsString(mapOf("url" to url))).ok(202)
-        started["status"].asString() shouldBe "PENDING"
-        job.run(mapOf("import" to started["id"].asString())) shouldBe JobOutcome.Done
-        val done = browser.get("$IMPORTS/${started["id"].asString()}").ok()
-
-        done["status"].asString() shouldBe "SUCCEEDED"
-        val application = browser.get("/api/applications/${done["applicationId"].asString()}").ok()
-        application["title"].asString() shouldBe "Senior Kotlin Developer"
-        application["sources"][0]["kind"].asString() shouldBe "URL"
-        val sentText = json.readTree(FAKE_AI.findAll(postRequestedFor(urlEqualTo(COMPLETIONS))).single().bodyAsString)
-        sentText["messages"][1]["content"].asString() shouldNotContain "evil()"
-    }
-
-    @Test
-    fun `a failed AI call on a URL import keeps the extracted text and link, and the retry imports it`() {
-        val browser = owner()
-        servesPosting("/jobs/42", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
-        val busy = aResponse().withStatus(503).withBody("""{"error":{"message":"busy"}}""")
-        FAKE_AI.stubFor(post(COMPLETIONS).willReturn(busy))
-
-        val started = browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/42")}"}""").ok(202)
-        job.run(mapOf("import" to started["id"].asString())) shouldBe JobOutcome.Done
-        val failed = browser.get("$IMPORTS/${started["id"].asString()}").ok()
-
-        failed["status"].asString() shouldBe "FAILED"
-        failed["failure"].asString() shouldBe "AI_UNAVAILABLE"
-        dsl.fetchValue(POSTING_IMPORT.DESCRIPTION) shouldBe "Senior Kotlin Developer"
-        dsl.fetchValue(POSTING_IMPORT.SOURCE_URL) shouldBe postingUrl("/jobs/42")
-        FAKE_AI.resetAll()
-        answers(ANSWER)
-        val id = failed["id"].asString()
-        browser.post("$IMPORTS/$id/retry").ok(202)["attempt"].asInt() shouldBe 2
-        job.run(mapOf("import" to id)) shouldBe JobOutcome.Done
-        val done = browser.get("$IMPORTS/$id").ok()
-        done["status"].asString() shouldBe "SUCCEEDED"
-        val application = browser.get("/api/applications/${done["applicationId"].asString()}").ok()
-        application["sources"][0]["kind"].asString() shouldBe "URL"
-    }
-
-    @Test
-    fun `re-importing the same link, with different tracking parameters, returns the existing application`() {
-        val browser = owner()
-        servesPosting("/jobs/42", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
-        answers(ANSWER)
-        val first = browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/42")}?utm_source=a"}""").ok(202)
-        job.run(mapOf("import" to first["id"].asString())) shouldBe JobOutcome.Done
-
-        val again = browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/42")}?utm_source=b"}""").ok(200)
-
-        again["status"].asString() shouldBe "SUCCEEDED"
-        again["applicationId"].asString() shouldBe
-            browser.get("$IMPORTS/${first["id"].asString()}").ok()["applicationId"].asString()
-        dsl.fetchCount(APPLICATION) shouldBe 1
-    }
-
-    @Test
-    fun `submitting the same link twice before it finishes answers with the same pending import`() {
-        val browser = owner()
-        servesPosting("/jobs/42", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
-        val url = postingUrl("/jobs/42")
-
-        val first = browser.post("$IMPORTS/url", """{"url":"$url"}""").ok(202)
-        val second = browser.post("$IMPORTS/url", """{"url":"$url"}""").ok(202)
-
-        second["id"].asString() shouldBe first["id"].asString()
-        dsl.fetchCount(POSTING_IMPORT) shouldBe 1
-    }
-
-    @Test
-    fun `a link to a site Jofi never scrapes is refused without any fetch`() {
-        val browser = owner()
-
-        val refused = browser.post("$IMPORTS/url", """{"url":"https://www.linkedin.com/jobs/view/1"}""")
-
-        refused.response.status shouldBe 400
-        refused.response.contentAsString shouldContain "NOT_ALLOWED"
-        FAKE_POSTING.findAll(getRequestedFor(urlMatching(".*"))).size shouldBe 0
-    }
-
-    @Test
-    fun `a blocked or failed fetch is refused with a hint to paste the text instead`() {
-        val browser = owner()
-        FAKE_POSTING.stubFor(wireMockGet(urlEqualTo("/gone")).willReturn(aResponse().withStatus(404)))
-
-        val refused = browser.post("$IMPORTS/url", """{"url":"${postingUrl("/gone")}"}""")
-
-        refused.response.status shouldBe 400
-        refused.response.contentAsString shouldContain "UNREACHABLE"
-        dsl.fetchCount(POSTING_IMPORT) shouldBe 0
-    }
-
-    /**
-     * Allowlists exactly [FAKE_POSTING]'s loopback destination in the real SSRF guard, for this test only: a
-     * posting fetch still gets no allowlist at all in production
-     * ([io.github.scriptibus.jofi.shared.config.OutboundHttpConfiguration]).
-     */
-    @TestConfiguration(proxyBeanMethods = false)
-    class HttpTestConfig {
-        @Bean
-        @Primary
-        fun testOutboundHttpPort(): OutboundHttpPort =
-            OutboundHttpAdapter(
-                DestinationGuard(DestinationAllowlist.of(listOf(Destination.of("127.0.0.1", FAKE_POSTING.port())))),
-                UserAgent.of(null),
-            )
-    }
-
     /** Entity types and actors of the import's and the application's changelog entries, oldest first. */
     private fun actorsOf(vararg ids: String): List<Pair<String, String>> =
         dsl
@@ -407,9 +281,6 @@ class PostingImportFlowTest(
         val FAKE_AI: WireMockServer =
             WireMockServer(wireMockConfig().dynamicPort().bindAddress("127.0.0.1")).apply { start() }
 
-        /** Plays job postings for the URL import (#97), over the real SSRF guard, allowlisted by [HttpTestConfig]. */
-        val FAKE_POSTING: WireMockServer =
-            WireMockServer(wireMockConfig().dynamicPort().bindAddress("127.0.0.1")).apply { start() }
         val PROVIDER =
             ProviderConfig(
                 ProviderId(UUID.randomUUID()),

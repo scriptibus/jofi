@@ -39,6 +39,12 @@ value class WebAddress(
         return URI("${value.substringBefore("://")}://$asciiAuthority$rest")
     }
 
+    /**
+     * [toUri], or null for a value `java.net.URI` rejects (`https://[abc/x`, a malformed escape, a character no
+     * authority may contain). No exception escapes: its message would carry the whole link into a log.
+     */
+    fun toUriOrNull(): URI? = runCatching(::toUri).getOrNull()
+
     override fun toString(): String = "WebAddress(host=$host)"
 
     companion object {

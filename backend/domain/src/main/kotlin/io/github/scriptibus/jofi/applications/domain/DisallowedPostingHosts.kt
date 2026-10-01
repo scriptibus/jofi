@@ -12,30 +12,47 @@ import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 object DisallowedPostingHosts {
     private val DISALLOWED_LABELS = setOf("linkedin", "stepstone", "indeed")
 
+    /** Shorteners the sites run themselves: a link that merely redirects into one of them is as disallowed. */
+    private val DISALLOWED_HOSTS = setOf("lnkd.in")
+
     /** Whether [address] names one of the disallowed sites, by a dot-separated label of its host. */
-    fun isDisallowed(address: WebAddress): Boolean =
-        address.host
-            .lowercase()
-            .split('.')
-            .any { it in DISALLOWED_LABELS }
+    fun isDisallowed(address: WebAddress): Boolean = isDisallowedHost(address.host)
+
+    /** Whether [host] (as a web address or a fetch's final URI gives it) belongs to a disallowed site. */
+    fun isDisallowedHost(host: String): Boolean {
+        val normalized = host.lowercase().trimEnd('.')
+        return normalized.split('.').any { it in DISALLOWED_LABELS } ||
+            DISALLOWED_HOSTS.any { normalized == it || normalized.endsWith(".$it") }
+    }
 }
 
 /**
  * [this] with its well-known tracking query parameters stripped, its scheme, host and remaining parameter order
- * canonicalised, its default port and fragment dropped (#97): so a link shared twice with different tracking
- * parameters is recognised as the same posting. The stored link becomes this normalised form, not what the user
- * pasted. Null when the host is not a valid server name (for example one with an underscore), which `java.net.URI`
- * cannot parse as an authority.
+ * canonicalised, its default port dropped (#97): so a link shared twice with different tracking parameters is
+ * recognised as the same posting. The stored link becomes this normalised form, not what the user pasted. The
+ * fragment is dropped unless it is a route (`#/jobs/1`), which single-page career sites use to name the posting.
+ * Null when there is no such form: a host `java.net.URI` cannot parse as a server name (an underscore, a bad
+ * escape), or a normalised link that is too long (an internationalised host grows in its ASCII form).
  */
 fun WebAddress.normalizedForImport(): WebAddress? {
-    val uri = toUri()
-    val host = uri.host ?: return null
+    val uri = toUriOrNull()
+    val host =
+        uri
+            ?.host
+            ?.lowercase()
+            ?.trimEnd('.')
+            ?.takeIf(String::isNotEmpty)
+    if (uri == null || host == null) return null
     val scheme = uri.scheme.lowercase()
     val defaultPort = if (scheme == "https") HTTPS_PORT else HTTP_PORT
     val portSuffix = if (uri.port == -1 || uri.port == defaultPort) "" else ":${uri.port}"
     val query = keptQuery(uri.rawQuery)?.let { "?$it" }.orEmpty()
-    val normalized = "$scheme://${host.lowercase()}$portSuffix${uri.rawPath.orEmpty()}$query"
-    return checkNotNull(WebAddress.parse(normalized)) { "Normalizing $this must still yield a web address" }
+    val route =
+        uri.rawFragment
+            ?.takeIf { it.startsWith("/") }
+            ?.let { "#$it" }
+            .orEmpty()
+    return WebAddress.parse("$scheme://$host$portSuffix${uri.rawPath.orEmpty()}$query$route")
 }
 
 private const val HTTP_PORT = 80
@@ -57,7 +74,6 @@ private val TRACKING_PARAMETERS =
         "mc_cid",
         "mc_eid",
         "igshid",
-        "ref",
         "ref_src",
         "trk",
         "ocid",

@@ -149,6 +149,16 @@ class PostingImportRepositoryTest {
     }
 
     @Test
+    fun `the start lock is taken in a transaction, again by the same one, and for other keys`() {
+        dsl.transaction { configuration ->
+            val inTransaction = PostingImportRepository(configuration.dsl())
+            inTransaction.lockForStart("url:https://jobs.example/1") shouldBe ApplicationStoreResult.Success(Unit)
+            inTransaction.lockForStart("url:https://jobs.example/1") shouldBe ApplicationStoreResult.Success(Unit)
+            inTransaction.lockForStart("text:" + "x".repeat(100_000)) shouldBe ApplicationStoreResult.Success(Unit)
+        }
+    }
+
+    @Test
     fun `a failing statement is a storage failure, not an exception`() {
         val pending = started()
         dsl.execute("drop table posting_import")

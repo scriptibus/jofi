@@ -5,54 +5,43 @@ package io.github.scriptibus.jofi.applications.application
 
 import io.github.scriptibus.jofi.applications.application.port.ApplicationSourceRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.PostingImportRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.inbound.FetchPostingTextPort
 import io.github.scriptibus.jofi.applications.application.port.inbound.StartUrlImportPort
 import io.github.scriptibus.jofi.applications.domain.ApplicationField
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationProblem
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
-import io.github.scriptibus.jofi.applications.domain.ApplicationValidation
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
-import io.github.scriptibus.jofi.applications.domain.DescriptionInput
-import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.DisallowedPostingHosts
 import io.github.scriptibus.jofi.applications.domain.ImportFailure
 import io.github.scriptibus.jofi.applications.domain.ImportId
-import io.github.scriptibus.jofi.applications.domain.PostingHtmlText
 import io.github.scriptibus.jofi.applications.domain.PostingImport
-import io.github.scriptibus.jofi.applications.domain.SnapshotReason
 import io.github.scriptibus.jofi.applications.domain.UrlImportOutcome
 import io.github.scriptibus.jofi.applications.domain.normalizedForImport
-import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
-import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
-import io.github.scriptibus.jofi.shared.domain.http.FetchResult
-import io.github.scriptibus.jofi.shared.domain.http.OutboundRequest
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import java.time.Clock
 import java.util.UUID
 
 /**
  * Starts importing a posting fetched from a URL (spec §8.1, #97): the link normalised (tracking parameters
- * stripped), checked against sites Jofi never scrapes ([DisallowedPostingHosts]), then whether the extraction task
- * has a model (nothing is fetched otherwise). A link already imported successfully answers at once with its
- * existing application; one already pending answers with that import (double submit, #187 finding F6). Otherwise
- * fetched through [OutboundHttpPort] (the SSRF guard), its main text extracted ([PostingHtmlText]), then the same
- * path as [StartPostingImportUseCase]: a new pending import with its changelog entry, committed before the job is
- * queued.
+ * stripped) and checked against sites Jofi never scrapes ([DisallowedPostingHosts]), then, in one transaction that
+ * holds a lock on the link: a pending import for it answers with that import (double submit, #187 finding F6; the
+ * lock makes a concurrent second request wait and find it, instead of fetching and importing again); a link
+ * already imported successfully answers with its existing application; otherwise [FetchPostingTextPort] fetches
+ * and extracts, and the same pending-import path as [StartPostingImportUseCase] stores it with its changelog entry.
+ * The job is queued after the commit.
  *
- * Eight constructor parameters: every port is its own real dependency (fetching, matching an existing
- * application and starting the import each need one, ADR-0034, ADR-0041); none bundles cleanly without
- * inventing a type that is not a use case, which `SourceConventionsTest` forbids in `application`.
+ * The transaction (and its database connection) stays open during the fetch, which the guard bounds to 20 seconds;
+ * Jofi has one user, so that costs nothing, and a lock held only in memory would not survive a second instance.
  */
-@Suppress("LongParameterList")
 class StartUrlImportUseCase(
     private val imports: PostingImportRepositoryPort,
     private val sources: ApplicationSourceRepositoryPort,
-    private val ai: CheckAiTaskAssignedPort,
-    private val http: OutboundHttpPort,
+    private val fetch: FetchPostingTextPort,
     private val jobs: JobSchedulerPort,
     private val changelog: ChangelogPort,
     private val transactions: TransactionPort,
@@ -62,74 +51,61 @@ class StartUrlImportUseCase(
         url: String,
         actor: Actor,
     ): ApplicationResult<UrlImportOutcome> =
-        parsed(url).then { address -> ai.extractionAssigned().then { duplicateOrFetch(address, actor) } }
+        parsed(url)
+            .then { address -> transactions.inApplicationTransaction { begin(address, actor) } }
+            .then { (outcome, isNew) ->
+                if (isNew) {
+                    jobs
+                        .queue(
+                            outcome.import,
+                        ) { notQueued(it, actor) }
+                        .then { ApplicationResult.Success(outcome) }
+                } else {
+                    ApplicationResult.Success(outcome)
+                }
+            }
 
-    private fun duplicateOrFetch(
+    private fun begin(
         address: WebAddress,
         actor: Actor,
-    ): ApplicationResult<UrlImportOutcome> =
-        imports.findPendingBySourceUrl(address).toResult().then { pending ->
-            pending?.let { ApplicationResult.Success(UrlImportOutcome.Started(it)) } ?: alreadyImportedOrFetch(
-                address,
-                actor,
-            )
+    ): ApplicationResult<Pair<UrlImportOutcome, Boolean>> =
+        imports.lockForStart("url:${address.value}").toResult().then {
+            imports.findPendingBySourceUrl(address).toResult().then { pending ->
+                pending?.let { ApplicationResult.Success(UrlImportOutcome.Started(it) to false) }
+                    ?: alreadyImportedOrFetch(address, actor)
+            }
         }
 
     private fun alreadyImportedOrFetch(
         address: WebAddress,
         actor: Actor,
-    ): ApplicationResult<UrlImportOutcome> =
+    ): ApplicationResult<Pair<UrlImportOutcome, Boolean>> =
         sources.findByOriginalUrl(address).toResult().then { found ->
             found.firstOrNull()?.let { recordAlreadyImported(it.application, address, actor) }
-                ?: fetchAndStart(address, actor)
+                ?: fetchAndStore(address, actor)
         }
 
     private fun recordAlreadyImported(
         application: ApplicationId,
         address: WebAddress,
         actor: Actor,
-    ): ApplicationResult<UrlImportOutcome> {
+    ): ApplicationResult<Pair<UrlImportOutcome, Boolean>> {
         val found = PostingImport.alreadyImported(ImportId(UUID.randomUUID()), application, address, clock.storedNow())
-        return transactions
-            .inApplicationTransaction { imports.addWithChangelog(changelog, found, actor) }
-            .then { ApplicationResult.Success(UrlImportOutcome.AlreadyImported(it)) }
+        return imports
+            .addWithChangelog(changelog, found, actor)
+            .then { ApplicationResult.Success(UrlImportOutcome.AlreadyImported(it) to false) }
     }
 
-    private fun fetchAndStart(
+    private fun fetchAndStore(
         address: WebAddress,
         actor: Actor,
-    ): ApplicationResult<UrlImportOutcome> =
-        fetch(address).then { html ->
-            toDescription(html).then { description -> startAndQueue(description, address, actor) }
+    ): ApplicationResult<Pair<UrlImportOutcome, Boolean>> =
+        fetch.execute(address).then { description ->
+            val started = PostingImport.start(ImportId(UUID.randomUUID()), description, clock.storedNow(), address)
+            imports
+                .addWithChangelog(changelog, started, actor)
+                .then { ApplicationResult.Success(UrlImportOutcome.Started(it) to true) }
         }
-
-    private fun fetch(address: WebAddress): ApplicationResult<String> {
-        val request = OutboundRequest(uri = address.toUri(), acceptedContentTypes = HTML_CONTENT_TYPES)
-        return when (val result = http.fetch(request)) {
-            is FetchResult.Success -> ApplicationResult.Success(String(result.resource.body.bytes(), Charsets.UTF_8))
-            else -> invalid(ApplicationProblem.UNREACHABLE)
-        }
-    }
-
-    private fun toDescription(html: String): ApplicationResult<DescriptionText> {
-        val text = PostingHtmlText.extract(html).take(DescriptionText.MAX_LENGTH)
-        return when (val validated = DescriptionInput(text, SnapshotReason.DISCOVERY).validate()) {
-            is ApplicationValidation.Valid -> ApplicationResult.Success(validated.value)
-            is ApplicationValidation.Invalid -> invalid(ApplicationProblem.UNREACHABLE)
-        }
-    }
-
-    private fun startAndQueue(
-        description: DescriptionText,
-        address: WebAddress,
-        actor: Actor,
-    ): ApplicationResult<UrlImportOutcome> {
-        val started = PostingImport.start(ImportId(UUID.randomUUID()), description, clock.storedNow(), address)
-        return transactions
-            .inApplicationTransaction { imports.addWithChangelog(changelog, started, actor) }
-            .then { pending -> jobs.queue(pending) { notQueued(it, actor) } }
-            .then { pending -> ApplicationResult.Success(UrlImportOutcome.Started(pending)) }
-    }
 
     private fun notQueued(
         pending: PostingImport,
@@ -141,7 +117,8 @@ class StartUrlImportUseCase(
 
     private fun parsed(url: String): ApplicationResult<WebAddress> {
         val address =
-            WebAddress.parse(url.trim())?.normalizedForImport() ?: return invalid(ApplicationProblem.INVALID_URL)
+            WebAddress.parse(url.trim())?.normalizedForImport()
+                ?: return invalid(ApplicationProblem.INVALID_URL)
         return if (DisallowedPostingHosts.isDisallowed(address)) {
             invalid(ApplicationProblem.NOT_ALLOWED)
         } else {
@@ -151,8 +128,4 @@ class StartUrlImportUseCase(
 
     private fun <T> invalid(problem: ApplicationProblem): ApplicationResult<T> =
         ApplicationResult.Invalid(listOf(ApplicationViolation(ApplicationField.SOURCE_URL, problem)))
-
-    private companion object {
-        val HTML_CONTENT_TYPES = setOf("text/html", "application/xhtml+xml")
-    }
 }

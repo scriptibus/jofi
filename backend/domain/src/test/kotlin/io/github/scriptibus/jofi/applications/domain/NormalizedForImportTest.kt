@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.domain
 
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 
 class NormalizedForImportTest {
@@ -41,5 +42,33 @@ class NormalizedForImportTest {
     @Test
     fun `a host java net URI cannot parse as a server name has no normalised form`() {
         WebAddress("https://my_team.example/job").normalizedForImport() shouldBe null
+    }
+
+    @Test
+    fun `hosts java net URI rejects have no normalised form, and nothing is thrown`() {
+        listOf(
+            "https://[abc/x",
+            "https://exa%mple.com/x",
+            "https://exa|mple.com/x",
+            "https://exa\"mple.com/",
+            "https://b\u00fccher.example/" + "a".repeat(2_030),
+        ).forEach { raw ->
+            WebAddress.parse(raw)?.normalizedForImport() shouldBe null
+        }
+    }
+
+    @Test
+    fun `a route fragment of a single-page site is kept, a plain fragment dropped, ref is no tracking parameter`() {
+        WebAddress("https://jobs.example/careers#/job/1").normalizedForImport() shouldBe
+            WebAddress("https://jobs.example/careers#/job/1")
+        WebAddress("https://jobs.example/careers#/job/1").normalizedForImport() shouldNotBe
+            WebAddress("https://jobs.example/careers#/job/2").normalizedForImport()
+        WebAddress("https://jobs.example/job?ref=1234&utm_source=x").normalizedForImport() shouldBe
+            WebAddress("https://jobs.example/job?ref=1234")
+    }
+
+    @Test
+    fun `a trailing dot on the host names the same site`() {
+        WebAddress("https://jobs.example./42").normalizedForImport() shouldBe WebAddress("https://jobs.example/42")
     }
 }

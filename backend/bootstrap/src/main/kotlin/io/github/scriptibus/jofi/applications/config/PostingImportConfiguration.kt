@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.config
 
 import io.github.scriptibus.jofi.applications.application.AddApplicationSourceUseCase
 import io.github.scriptibus.jofi.applications.application.AddDiscoveredApplicationUseCase
+import io.github.scriptibus.jofi.applications.application.FetchPostingTextUseCase
 import io.github.scriptibus.jofi.applications.application.GetPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.RetryPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.RunPostingImportUseCase
@@ -54,26 +55,21 @@ class PostingImportConfiguration {
     ): StartPostingImportUseCase =
         StartPostingImportUseCase(imports, ai, jobs, audit.changelog, audit.transactions, audit.clock)
 
-    @Suppress("LongParameterList") // Every port is wired once; see the same exception on the use case itself.
+    @Bean
+    fun fetchPostingTextUseCase(
+        ai: CheckAiTaskAssignedPort,
+        http: OutboundHttpPort,
+    ): FetchPostingTextUseCase = FetchPostingTextUseCase(ai, http)
+
     @Bean
     fun startUrlImportUseCase(
         imports: PostingImportRepositoryPort,
         sources: ApplicationSourceRepositoryPort,
-        ai: CheckAiTaskAssignedPort,
-        http: OutboundHttpPort,
+        fetch: FetchPostingTextUseCase,
         jobs: JobSchedulerPort,
         audit: ApplicationAudit,
     ): StartUrlImportUseCase =
-        StartUrlImportUseCase(
-            imports,
-            sources,
-            ai,
-            http,
-            jobs,
-            audit.changelog,
-            audit.transactions,
-            audit.clock,
-        )
+        StartUrlImportUseCase(imports, sources, fetch, jobs, audit.changelog, audit.transactions, audit.clock)
 
     @Bean
     fun getPostingImportUseCase(imports: PostingImportRepositoryPort): GetPostingImportUseCase =

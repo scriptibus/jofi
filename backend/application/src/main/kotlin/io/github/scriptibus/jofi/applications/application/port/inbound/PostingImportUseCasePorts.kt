@@ -6,11 +6,13 @@ package io.github.scriptibus.jofi.applications.application.port.inbound
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationInput
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
+import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.ImportId
 import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.applications.domain.SourceInput
 import io.github.scriptibus.jofi.applications.domain.UrlImportOutcome
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 
 // Inbound ports of the posting import (spec §8.1, #96): the user pastes a posting, a worker job reads its fields with
 // AI and creates a `DISCOVERED` application. The posting is untrusted data, never instructions, and never goes into a
@@ -89,4 +91,16 @@ interface RunPostingImportPort {
         id: ImportId,
         actor: Actor,
     ): ApplicationResult<PostingImport>
+}
+
+/**
+ * Fetches the posting at [address] and answers its main text (spec §8.1, #97), the step [StartUrlImportPort] runs once
+ * it knows nothing is pending or imported. `AiNotConfigured` while no model is assigned to the extraction task, before
+ * anything is fetched. `Invalid` `SOURCE_URL`: `NOT_ALLOWED` if the fetch ended on a site Jofi never scrapes (a
+ * redirect or shortener into LinkedIn, StepStone or Indeed), `UNREACHABLE` for a blocked or failed fetch, a login
+ * wall (an answer other than 2xx, or a redirect to a login page), the wrong content type, a body over the limit or no
+ * readable text. Nothing is stored.
+ */
+interface FetchPostingTextPort {
+    fun execute(address: WebAddress): ApplicationResult<DescriptionText>
 }
