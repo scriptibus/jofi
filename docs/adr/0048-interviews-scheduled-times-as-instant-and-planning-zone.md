@@ -112,9 +112,10 @@ the application does not have is 404 `interview-not-found`.
 - A company delete cascades to its contacts and so to their links and participations (#188). It reads the same
   port once per contact (`FindCompanyLinksUseCase`, which the delete already used for the tasks, so no eighth
   constructor parameter) in its transaction before it deletes, and writes the same entries with the same texts and the
-  delete's actor: one per affected application and one per affected interview, with one `FieldChange` per deleted
-  contact that was linked to it (a contact on several applications appears on each, an application with several
-  deleted contacts gets a single entry). An unreadable port is a storage failure and nothing is deleted. The company
+  delete's actor: one per affected application and one per affected interview, with a single `FieldChange` per entry
+  (`contacts` or `participants`) whose value is the ids of the deleted contacts linked to it, sorted and comma-joined
+  like the contact link edit's entry, since a field is unique within an entry and the timeline relies on it (a contact
+  on several applications appears on each, an application with several deleted contacts gets a single entry). An unreadable port is a storage failure and nothing is deleted. The company
   delete's confirmation effect does **not** count applications and interviews: they belong to other companies (a
   company with applications is refused) and only lose a link, the dialog names what disappears (`contacts`, `tasks`),
   and since the entries come from the read in the confirming transaction a link added between the steps is recorded

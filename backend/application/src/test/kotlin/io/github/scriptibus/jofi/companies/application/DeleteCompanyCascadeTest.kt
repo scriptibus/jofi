@@ -67,7 +67,7 @@ class DeleteCompanyCascadeTest {
     private fun contactChanges(
         field: String,
         contacts: List<ContactId>,
-    ) = contacts.map { FieldChange(field, it.value.toString(), null) }
+    ) = listOf(FieldChange(field, contacts.map { it.value.toString() }.sorted().joinToString(","), null))
 
     private fun ChangelogEntry.shouldBe(
         description: String,

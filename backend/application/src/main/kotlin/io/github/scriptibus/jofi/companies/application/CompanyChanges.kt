@@ -46,7 +46,9 @@ internal fun ChangelogPort.recordClearedLink(
 
 /**
  * The entry of an application that [contacts] were linked to when they were deleted (ADR-0041): ids only, one change
- * per contact. The single contact delete and the company delete's cascade write the same text and shape.
+ * as one change with the ids sorted and comma-joined, like the entry of a contact link edit (a field is unique within
+ * an entry, the timeline relies on it). The single contact delete and the company delete's cascade write the same
+ * text and shape.
  */
 internal fun ChangelogPort.recordUnlinkedContacts(
     application: EntityRef,
@@ -59,8 +61,12 @@ internal fun ChangelogPort.recordUnlinkedContacts(
         actor,
         at,
         "Unlinked a deleted contact",
-        contacts.map { FieldChange("contacts", it.value.toString(), null) },
+        listOf(FieldChange("contacts", sortedIds(contacts), null)),
     )
+
+/** The ids as one value, sorted so the entry does not depend on read order (a field is unique within an entry). */
+private fun sortedIds(contacts: List<ContactId>): String =
+    contacts.map { it.value.toString() }.sorted().joinToString(",")
 
 /** The entry of an interview that [contacts] took part in when they were deleted (ADR-0048): ids only. */
 internal fun ChangelogPort.recordRemovedParticipants(
@@ -74,7 +80,7 @@ internal fun ChangelogPort.recordRemovedParticipants(
         actor,
         at,
         "Removed a deleted contact from the participants",
-        contacts.map { FieldChange("participants", it.value.toString(), null) },
+        listOf(FieldChange("participants", sortedIds(contacts), null)),
     )
 
 /**

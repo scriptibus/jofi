@@ -16,7 +16,6 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.kotest.matchers.collections.shouldContainExactly
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import org.jooq.DSLContext
@@ -111,15 +110,17 @@ class CompanyDeleteCascadeFlowTest(
 
         dsl.fetchCount(APPLICATION_CONTACT) shouldBe 1
         dsl.fetchCount(INTERVIEW_PARTICIPANT) shouldBe 1
-        unlinked(backend, "Unlinked a deleted contact") shouldContainExactlyInAnyOrder
-            listOf("contacts" to erika, "contacts" to max)
+        unlinked(backend, "Unlinked a deleted contact") shouldContainExactly
+            listOf("contacts" to joined(erika, max))
         unlinked(platform, "Unlinked a deleted contact") shouldContainExactly listOf("contacts" to erika)
         val removal = "Removed a deleted contact from the participants"
-        unlinked(screening, removal) shouldContainExactlyInAnyOrder
-            listOf("participants" to erika, "participants" to paula)
+        unlinked(screening, removal) shouldContainExactly
+            listOf("participants" to joined(erika, paula))
         unlinked(onsite, removal) shouldContainExactly listOf("participants" to max)
         actorsAndNames(listOf(backend, platform, screening, onsite)) shouldBe setOf("USER")
     }
+
+    private fun joined(vararg ids: String): String = ids.sorted().joinToString(",")
 
     private fun deleteWithConfirmation(
         browser: Browser,
