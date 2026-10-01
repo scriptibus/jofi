@@ -15,6 +15,8 @@ import type {
   PayBandDtoEstimateConfidence,
   PayBandDtoPeriod,
   PayBandDtoSource,
+  TimelineInterviewDtoOutcome,
+  TimelineInterviewDtoType,
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 
@@ -33,6 +35,8 @@ export type SourceKind = ApplicationSourceResponseKind;
 export type DeclineCategory = DeclineReasonDtoCategory;
 export type ActorKind = ChangeActorDtoKind;
 export type SnapshotReason = DescriptionSnapshotSummaryResponseReason;
+export type InterviewType = TimelineInterviewDtoType;
+export type InterviewOutcome = NonNullable<TimelineInterviewDtoOutcome>;
 
 export const statusLabels: Record<Status, () => string> = {
   DISCOVERED: m.application_status_discovered,
@@ -148,6 +152,32 @@ export const actorLabels: Record<ActorKind, () => string> = {
   SCANNER: m.application_actor_scanner,
   SYSTEM: m.application_actor_system,
   EXTERNAL_CLIENT: m.application_actor_external,
+};
+
+/** Who made a change, as a badge of its own on the timeline ("User", "KI"). */
+export const actorBadgeLabels: Record<ActorKind, () => string> = {
+  USER: m.application_actor_badge_user,
+  AI: m.application_actor_badge_ai,
+  SCANNER: m.application_actor_badge_scanner,
+  SYSTEM: m.application_actor_badge_system,
+  EXTERNAL_CLIENT: m.application_actor_badge_external,
+};
+
+export const interviewTypeLabels: Record<InterviewType, () => string> = {
+  PHONE_SCREEN: m.application_interview_phone_screen,
+  HR: m.application_interview_hr,
+  TECHNICAL: m.application_interview_technical,
+  CASE: m.application_interview_case,
+  ON_SITE: m.application_interview_on_site,
+  FINAL: m.application_interview_final,
+  OTHER: m.application_interview_other,
+};
+
+export const interviewOutcomeLabels: Record<InterviewOutcome, () => string> = {
+  PASSED: m.application_interview_outcome_passed,
+  REJECTED: m.application_interview_outcome_rejected,
+  WITHDRAWN: m.application_interview_outcome_withdrawn,
+  CANCELLED: m.application_interview_outcome_cancelled,
 };
 
 /** The options of `labels` in declaration order, for a Select or SegmentedControl. */
