@@ -242,7 +242,7 @@ class CountdownControllerTest(
                "subjectType":"application","subjectId":"$application"},
               {"source":"NEXT_INTERVIEW","title":"Engineer","targetAt":"2026-10-06T08:00:00Z",
                "localTarget":"2026-10-06T17:00:00","timeZone":"Asia/Tokyo",
-               "subjectType":"interview","subjectId":"$interview"},
+               "subjectType":"interview","subjectId":"$interview","applicationId":"$application"},
               {"source":"CUSTOM","title":"Notice ends","targetDate":"2026-12-31",
                "subjectType":"countdown","subjectId":"${stored.id.value}"}]}
             """.trimIndent(),
