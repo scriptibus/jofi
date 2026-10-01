@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.shared.adapter.mcp
 
 import io.github.scriptibus.jofi.shared.domain.ai.NeverSendFilter
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.format.DateTimeParseException
 import java.util.UUID
 
@@ -48,6 +49,13 @@ class ToolArguments(
             ToolArguments(fields.entries.associate { (key, value) -> key.toString() to value })
         }
 
+    /** One JSON object, read through its own [ToolArguments]; null if the argument is missing or `null`. */
+    fun obj(name: String): ToolArguments? =
+        values[name]?.let { item ->
+            val fields = item as? Map<*, *> ?: invalid(name)
+            ToolArguments(fields.entries.associate { (key, value) -> key.toString() to value })
+        }
+
     fun uuid(name: String): UUID? =
         text(name)?.let { text ->
             try {
@@ -86,6 +94,16 @@ class ToolArguments(
         text(name)?.let { text ->
             try {
                 Instant.parse(text)
+            } catch (_: DateTimeParseException) {
+                invalid(name)
+            }
+        }
+
+    /** A date and time without a zone, such as `2026-10-05T10:00`. */
+    fun localDateTime(name: String): LocalDateTime? =
+        text(name)?.let { text ->
+            try {
+                LocalDateTime.parse(text)
             } catch (_: DateTimeParseException) {
                 invalid(name)
             }
