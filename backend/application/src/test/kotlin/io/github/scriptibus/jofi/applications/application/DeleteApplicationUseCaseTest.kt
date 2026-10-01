@@ -22,6 +22,7 @@ import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.FieldChange
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRejection
@@ -31,6 +32,7 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.time.ZoneId
@@ -41,7 +43,7 @@ class DeleteApplicationUseCaseTest {
     private val delete =
         DeleteApplicationUseCase(
             fixtures.repository,
-            fixtures.interviewPort,
+            fixtures.linkedTaskPort,
             fixtures.confirmation,
             fixtures.eventPort,
             fixtures.changelog,
@@ -60,7 +62,7 @@ class DeleteApplicationUseCaseTest {
 
     /**
      * An application with two linked contacts, one status change after its first entry, one source with
-     * three description snapshots and two interviews.
+     * three description snapshots, two interviews and two linked tasks.
      */
     private fun appliedWithContacts(): Application {
         val stored = fixtures.application("Backend Engineer")
@@ -75,8 +77,15 @@ class DeleteApplicationUseCaseTest {
         fixtures.history +=
             StatusChange(stored.id, stored.status, ApplicationStatus.APPLIED, null, null, Actor.User, NOW)
         repeat(2) { interview(stored.id) }
+        tasksOf(stored.id, 2)
         return linked
     }
+
+    private fun tasksOf(
+        application: ApplicationId,
+        count: Int,
+    ): List<EntityRef> =
+        List(count) { EntityRef("task", UUID.randomUUID().toString()) }.also { fixtures.linkedTasks[application] = it }
 
     private fun interview(application: ApplicationId): Interview {
         val details = InterviewDetails(InterviewType.HR, InterviewTime(NOW, ZoneId.of("Europe/Berlin")))
@@ -86,7 +95,7 @@ class DeleteApplicationUseCaseTest {
     }
 
     @Test
-    fun `the first call only asks, counting the links, status changes, sources, snapshots and interviews`() {
+    fun `the first call only asks, counting the links, status changes, sources, snapshots, interviews and tasks`() {
         val application = appliedWithContacts()
 
         val required = firstStep(application.id)
@@ -97,7 +106,14 @@ class DeleteApplicationUseCaseTest {
             ConfirmationEffect(
                 "application",
                 "Backend Engineer",
-                mapOf("contactLinks" to 2, "statusChanges" to 2, "sources" to 1, "snapshots" to 3, "interviews" to 2),
+                mapOf(
+                    "contactLinks" to 2,
+                    "statusChanges" to 2,
+                    "sources" to 1,
+                    "snapshots" to 3,
+                    "interviews" to 2,
+                    "tasks" to 2,
+                ),
             )
         fixtures.applications.size shouldBe 1
         fixtures.entries.shouldBeEmpty()
@@ -106,14 +122,13 @@ class DeleteApplicationUseCaseTest {
 
     @Test
     fun `the confirmed repeat deletes, records the title and announces the delete`() {
-        val application = appliedWithContacts()
+        val application = fixtures.application("Backend Engineer")
         val ai = ConfirmationRequester(Actor.Ai, "chat-7")
 
         delete.execute(application.id, ai, firstStep(application.id, ai).token) shouldBe ApplicationResult.Success(Unit)
 
         fixtures.applications.size shouldBe 0
         fixtures.history.shouldBeEmpty()
-        fixtures.interviews.size shouldBe 0
         val entry = fixtures.entries.single()
         entry.entity shouldBe application.id.toEntityRef()
         entry.actor shouldBe Actor.Ai
@@ -121,6 +136,63 @@ class DeleteApplicationUseCaseTest {
         entry.change.description shouldBe "Deleted application"
         entry.change.fieldChanges shouldContainExactly listOf(FieldChange("title", "Backend Engineer", null))
         fixtures.events shouldContainExactly listOf(ApplicationDeleted(application.id, Actor.Ai, NOW))
+    }
+
+    @Test
+    fun `the confirmed repeat records each task whose link it clears, by id only, as the deleting actor`() {
+        val application = appliedWithContacts()
+        val tasks = fixtures.linkedTasks.getValue(application.id)
+        val client = ConfirmationRequester(Actor.ExternalClient("claude-desktop"), "mcp-1")
+
+        delete.execute(application.id, client, firstStep(application.id, client).token) shouldBe
+            ApplicationResult.Success(Unit)
+
+        fixtures.interviews.size shouldBe 0
+        fixtures.linkedTasks.size shouldBe 0
+        fixtures.entries.map { it.entity } shouldContainExactly listOf(application.id.toEntityRef()) + tasks
+        fixtures.entries.map { it.actor }.toSet() shouldBe setOf(Actor.ExternalClient("claude-desktop"))
+        fixtures.entries.map { it.occurredAt }.toSet() shouldBe setOf(NOW)
+        fixtures.entries.drop(1).forEach {
+            it.change.description shouldBe "Cleared the link to a deleted application"
+            it.change.fieldChanges shouldContainExactly
+                listOf(FieldChange("link", "application:${application.id.value}", null))
+            it.change.toString() shouldNotContain "Backend Engineer"
+        }
+    }
+
+    @Test
+    fun `a new task link between the steps voids the token`() {
+        val application = fixtures.application()
+        val token = firstStep(application.id).token
+        tasksOf(application.id, 1)
+
+        rejected(delete.execute(application.id, user, token))
+        fixtures.applications.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `unreadable task links delete nothing`() {
+        val application = fixtures.application()
+        fixtures.linkedTasksAvailable = false
+
+        delete.execute(application.id, user, ConfirmationToken("any")) shouldBe
+            ApplicationResult.StorageFailure("read linked tasks")
+        fixtures.applications.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `a failing task entry rolls the delete back`() {
+        val application = fixtures.application()
+        tasksOf(application.id, 1)
+        val token = firstStep(application.id).token
+        fixtures.failingChangelogFor = "task"
+
+        delete.execute(application.id, user, token) shouldBe ApplicationResult.StorageFailure("changelog")
+        fixtures.applications.size shouldBe 1
+        fixtures.linkedTasks.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
     }
 
     @Test

@@ -3,18 +3,28 @@
 
 package io.github.scriptibus.jofi.applications.application.port.spi
 
+import io.github.scriptibus.jofi.shared.domain.EntityRef
 import java.time.Instant
 import java.util.UUID
 
 /**
- * The tasks linked to an application, for its timeline (#87). The applications context asks, the tasks context
- * answers (ADR-0041: tasks depend on applications through this named interface, never the reverse), so this port
- * names applications and tasks by `UUID` and nests its types. Only the user's tasks count (open or done), not
- * suggestions that are pending or dismissed. Implementations never throw and never log titles.
+ * The tasks linked to an application, for its timeline (#87) and its delete (#168). The applications context asks, the
+ * tasks context answers (ADR-0041: tasks depend on applications through this named interface, never the reverse), so
+ * this port names applications and tasks by `UUID` and nests its types. Implementations never throw and never log
+ * titles.
  */
 interface LinkedTasksPort {
     /**
-     * Up to [count] tasks linked to [application], newest first by creation time, then by id (descending, in
+     * Every task linked to [application], suggestions too, as changelog references built by the tasks context, in id
+     * order. The application delete reads them in its transaction **before** it deletes, counts them in the
+     * confirmation effect and writes one changelog entry per task; `task_application_fk` (`ON DELETE SET NULL`) then
+     * clears the links (ADR-0049).
+     */
+    fun linkedTo(application: UUID): Linked
+
+    /**
+     * Up to [count] of the user's tasks (open or done, not suggestions that are pending or dismissed) linked to
+     * [application], newest first by creation time, then by id (descending, in
      * PostgreSQL's `uuid` order), starting after [before] (from the newest without).
      */
     fun linkedTasks(
@@ -51,5 +61,16 @@ interface LinkedTasksPort {
 
         /** The tasks could not be read. */
         data object Unavailable : Tasks()
+    }
+
+    /** Outcome of [linkedTo]; a sealed class for the reason given at [Tasks]. */
+    @Suppress("AbstractClassCanBeInterface")
+    sealed class Linked {
+        data class Found(
+            val tasks: List<EntityRef>,
+        ) : Linked()
+
+        /** The tasks could not be read; the delete answers a storage failure and deletes nothing. */
+        data object Unavailable : Linked()
     }
 }

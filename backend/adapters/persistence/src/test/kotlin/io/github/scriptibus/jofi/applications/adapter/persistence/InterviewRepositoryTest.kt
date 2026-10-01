@@ -44,6 +44,9 @@ import java.util.UUID
 class InterviewRepositoryTest {
     private lateinit var dsl: DSLContext
     private lateinit var repository: InterviewRepository
+
+    /** The repository whose delete cascades to the interviews counts them (`interviewCount`). */
+    private lateinit var applications: ApplicationRepository
     private lateinit var rows: ApplicationRows
     private lateinit var company: UUID
     private val application = ApplicationId(UUID.randomUUID())
@@ -52,6 +55,7 @@ class InterviewRepositoryTest {
     fun migrateFromZero() {
         dsl = PostgresTestDatabase.migratedFromZero()
         repository = InterviewRepository(dsl)
+        applications = ApplicationRepository(dsl)
         rows = ApplicationRows(dsl)
         company = rows.company()
         rows.application(application.value, company)
@@ -126,7 +130,7 @@ class InterviewRepositoryTest {
         stored(of = otherApplication)
 
         repository.listByApplication(application) shouldBe ApplicationStoreResult.Success(listOf(sooner, later))
-        repository.countByApplication(application) shouldBe ApplicationStoreResult.Success(2)
+        applications.interviewCount(application) shouldBe ApplicationStoreResult.Success(2)
         repository.listByApplication(ApplicationId(UUID.randomUUID())) shouldBe
             ApplicationStoreResult.Success(emptyList())
     }
@@ -195,7 +199,7 @@ class InterviewRepositoryTest {
         repository.findById(application, interview.id) shouldBe ApplicationStoreResult.NotFound
         dsl.fetchCount(INTERVIEW_PARTICIPANT) shouldBe 0
         dsl.fetchCount(CONTACT) shouldBe 1
-        repository.countByApplication(application) shouldBe ApplicationStoreResult.Success(1)
+        applications.interviewCount(application) shouldBe ApplicationStoreResult.Success(1)
     }
 
     @Test
