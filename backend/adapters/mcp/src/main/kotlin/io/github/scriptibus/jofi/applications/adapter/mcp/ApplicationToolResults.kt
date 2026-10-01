@@ -194,5 +194,15 @@ internal object ApplicationToolErrors {
             else -> ToolAnswer.Error("failed", "The applications could not be read.")
         }
 
+    /** The answer of a delete once the gate is passed: success, not found, or a failure of the store. */
+    fun deleted(result: ApplicationResult<Unit>): ToolAnswer =
+        when (result) {
+            is ApplicationResult.Success -> ToolAnswer.Result(Unit)
+            ApplicationResult.NotFound -> ToolAnswer.Error("not-found", "No application has this id.")
+            ApplicationResult.InterviewNotFound -> ToolAnswer.Error("not-found", "No such interview.")
+            is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", "The delete cannot run now.")
+            else -> ToolAnswer.Error("failed", "The delete could not be completed.")
+        }
+
     private fun problemCode(problem: ApplicationProblem): String = problem.name.lowercase().replace('_', '-')
 }

@@ -12,12 +12,18 @@ import io.github.scriptibus.jofi.shared.domain.ai.FlaggedValue
 import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
 import io.modelcontextprotocol.common.McpTransportContext
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper
+import io.modelcontextprotocol.server.McpSyncServerExchange
 import io.modelcontextprotocol.spec.McpSchema
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.KotlinModule
+import java.util.UUID
 
 class McpToolSpecificationsTest {
     private val json = JsonMapper.builder().addModule(KotlinModule.Builder().build()).build()
@@ -134,6 +140,49 @@ class McpToolSpecificationsTest {
     }
 
     @Test
+    fun `a delete that happened is still reported as deleted when the privacy filter then fails`() {
+        val id = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
+        val deleter = toolAnswering(ToolAnswer.Result(DeleteOutcome(DeleteOutcome.DELETED, "task", id)))
+        val declined = toolAnswering(ToolAnswer.Result(DeleteOutcome(DeleteOutcome.DECLINED, "task", id)))
+        val down = specifications(AiVisibilityResult.Unavailable("down"))
+
+        val happened = down.call(deleter, chat, emptyMap())
+        val notHappened = down.call(declined, chat, emptyMap())
+
+        happened.isError shouldBe false
+        textOf(happened) shouldBe
+            """{"status":"deleted","kind":"task","id":"$id","note":"The delete happened; the rest of the result """ +
+            """was withheld."}"""
+        notHappened.isError shouldBe true
+        textOf(notHappened) shouldBe PRIVACY_FILTER_FAILED
+    }
+
+    @Test
+    fun `the confirmation text passes the privacy filter before it is asked, and is not asked if the filter fails`() {
+        val flagged = AiVisibilityResult.Known(NeverSendRules(emptyMap(), setOf(FlaggedValue("Musterstraße 5"))))
+        val asked = slot<McpSchema.ElicitRequest>()
+        val exchange = elicitingExchange { asked.captured = it }
+
+        specifications(flagged).confirmerFor(exchange).ask("Delete the task at Musterstraße 5 \"quoted\"")
+        asked.captured.message() shouldBe "Delete the task at [withheld] \"quoted\""
+
+        val unreadable = specifications(AiVisibilityResult.Unavailable("down")).confirmerFor(exchange)
+        unreadable.ask("anything") shouldBe HumanAnswer.UNAVAILABLE
+        verify(exactly = 1) { exchange.createElicitation(any()) }
+    }
+
+    @Test
+    fun `stored text is screened as stored, so flagged values with quotes and brackets are withheld`() {
+        val value = "O'Brien & \"Söhne\" #1 [intern]"
+        val flagged = AiVisibilityResult.Known(NeverSendRules(emptyMap(), setOf(FlaggedValue(value))))
+        val confirmer = specifications(flagged).confirmerFor(elicitingExchange { })
+
+        confirmer.screen("Team $value") shouldBe "Team [withheld]"
+        specifications(AiVisibilityResult.Unavailable("down")).confirmerFor(elicitingExchange { }).screen("x") shouldBe
+            null
+    }
+
+    @Test
     fun `a call without an authenticated caller runs nothing`() {
         val result = specifications().call(echo, McpTransportContext.EMPTY, mapOf("text" to "hi"))
 
@@ -141,6 +190,31 @@ class McpToolSpecificationsTest {
         textOf(result) shouldBe
             """{"code":"unauthenticated","message":"The call carries no authenticated caller.","problems":[]}"""
         seenCaller shouldBe null
+    }
+
+    private fun toolAnswering(answer: ToolAnswer) =
+        object : McpTool {
+            override val name = "answering"
+            override val description = "Answers as told."
+            override val inputSchema = """{"type":"object"}"""
+            override val readOnly = false
+
+            override fun call(call: ToolCall) = answer
+        }
+
+    private fun elicitingExchange(onAsk: (McpSchema.ElicitRequest) -> Unit): McpSyncServerExchange {
+        val exchange = mockk<McpSyncServerExchange>()
+        every { exchange.sessionId() } returns "session"
+        every { exchange.clientCapabilities } returns
+            McpSchema.ClientCapabilities
+                .builder()
+                .elicitation()
+                .build()
+        every { exchange.createElicitation(any()) } answers {
+            onAsk(arg<McpSchema.ElicitRequest>(0))
+            McpSchema.ElicitResult(McpSchema.ElicitResult.Action.DECLINE, null)
+        }
+        return exchange
     }
 
     private fun textOf(result: McpSchema.CallToolResult): String =

@@ -24,7 +24,7 @@ class SharedConfiguration {
         clock: Clock,
     ): ConfirmActionUseCase = ConfirmActionUseCase(store, clock, CONFIRMATION_TIME_TO_LIVE)
 
-    private companion object {
+    companion object {
         /** Long enough to read a dialog or an MCP elicitation, short enough that a leaked token soon dies. */
         val CONFIRMATION_TIME_TO_LIVE: Duration = Duration.ofMinutes(5)
     }
