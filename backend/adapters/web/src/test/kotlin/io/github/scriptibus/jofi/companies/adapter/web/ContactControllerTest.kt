@@ -5,11 +5,13 @@ package io.github.scriptibus.jofi.companies.adapter.web
 
 import io.github.scriptibus.jofi.companies.application.CreateContactUseCase
 import io.github.scriptibus.jofi.companies.application.DeleteContactUseCase
+import io.github.scriptibus.jofi.companies.application.FindContactLinksUseCase
 import io.github.scriptibus.jofi.companies.application.GetContactUseCase
 import io.github.scriptibus.jofi.companies.application.SearchContactsUseCase
 import io.github.scriptibus.jofi.companies.application.UpdateContactUseCase
 import io.github.scriptibus.jofi.companies.application.port.ContactRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.companies.domain.ChannelKind
 import io.github.scriptibus.jofi.companies.domain.CompanyId
 import io.github.scriptibus.jofi.companies.domain.CompanyPage
@@ -68,6 +70,7 @@ class ContactControllerTest(
     class Ports {
         val contacts = mockk<ContactRepositoryPort>()
         val applications = mockk<LinkedApplicationsPort>()
+        val tasks = mockk<TaskLinksPort>()
         val changelog = mockk<ChangelogPort>()
         val events = mockk<DomainEventPort>()
         val transactions =
@@ -102,7 +105,7 @@ class ContactControllerTest(
         fun delete(ports: Ports) =
             DeleteContactUseCase(
                 ports.contacts,
-                ports.applications,
+                FindContactLinksUseCase(ports.applications, ports.tasks),
                 ConfirmActionUseCase(MapStore(), clock, Duration.ofMinutes(5)),
                 ports.events,
                 ports.changelog,
@@ -145,7 +148,7 @@ class ContactControllerTest(
 
     @BeforeEach
     fun storeErika() {
-        clearMocks(ports.contacts, ports.applications, ports.changelog, ports.events)
+        clearMocks(ports.contacts, ports.applications, ports.tasks, ports.changelog, ports.events)
         every { ports.contacts.findById(any()) } returns ContactStoreResult.NotFound
         every { ports.contacts.findById(erika.id) } returns ContactStoreResult.Success(erika)
         every { ports.contacts.add(any()) } returns ContactStoreResult.Success(Unit)
@@ -153,6 +156,11 @@ class ContactControllerTest(
         every { ports.contacts.delete(any(), any()) } returns ContactStoreResult.Success(Unit)
         every { ports.applications.linkedTo(erika.id.value) } returns
             LinkedApplicationsPort.Linked.Found(listOf(EntityRef("application", UUID.randomUUID().toString())))
+        every { ports.tasks.linkedTo(emptySet(), setOf(erika.id.value)) } returns
+            TaskLinksPort.Links.Found(
+                emptyList(),
+                listOf(TaskLinksPort.LinkedTask(erika.id.value, EntityRef("task", UUID.randomUUID().toString()))),
+            )
         every { ports.changelog.append(any()) } returns ChangelogResult.Success(Unit)
         every { ports.events.publish(any()) } returns true
     }
@@ -319,7 +327,7 @@ class ContactControllerTest(
     }
 
     @Test
-    fun `deleting takes two steps and the effect counts the linked applications`() {
+    fun `deleting takes two steps and the effect counts the linked applications and tasks`() {
         val session = MockHttpSession()
 
         val first = deleteErika(session)
@@ -327,7 +335,7 @@ class ContactControllerTest(
         val problem = json.readTree(first.response.contentAsString)
         problem["type"].asString() shouldBe Confirmations.REQUIRED
         problem["effect"].toString() shouldBe
-            """{"kind":"contact","name":"Erika Mustermann","counts":{"applications":1,"interviews":0}}"""
+            """{"kind":"contact","name":"Erika Mustermann","counts":{"applications":1,"interviews":0,"tasks":1}}"""
         verify(exactly = 0) { ports.contacts.delete(any(), any()) }
 
         val token = problem["confirmationToken"].asString()

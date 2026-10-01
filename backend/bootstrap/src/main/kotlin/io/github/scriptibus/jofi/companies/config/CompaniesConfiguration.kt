@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.companies.config
 
 import io.github.scriptibus.jofi.companies.application.CreateCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.DeleteCompanyUseCase
+import io.github.scriptibus.jofi.companies.application.FindCompanyLinksUseCase
 import io.github.scriptibus.jofi.companies.application.GetCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.MatchCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.SearchCompaniesUseCase
@@ -12,6 +13,7 @@ import io.github.scriptibus.jofi.companies.application.SetCompanyPreferenceUseCa
 import io.github.scriptibus.jofi.companies.application.UpdateCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
@@ -20,7 +22,10 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
-/** The company use cases (#88). `ApplicationCountsPort` comes from the applications context (ADR-0041). */
+/**
+ * The company use cases (#88). `ApplicationCountsPort` comes from the applications context, `TaskLinksPort` from the
+ * tasks context (ADR-0041).
+ */
 @Configuration(proxyBeanMethods = false)
 class CompaniesConfiguration {
     @Bean
@@ -66,16 +71,22 @@ class CompaniesConfiguration {
         SetCompanyPreferenceUseCase(companies, applications, events, audit.changelog, audit.transactions, audit.clock)
 
     @Bean
+    fun findCompanyLinksUseCase(
+        applications: ApplicationCountsPort,
+        tasks: TaskLinksPort,
+    ): FindCompanyLinksUseCase = FindCompanyLinksUseCase(applications, tasks)
+
+    @Bean
     fun deleteCompanyUseCase(
         companies: CompanyRepositoryPort,
-        applications: ApplicationCountsPort,
+        links: FindCompanyLinksUseCase,
         confirmation: ConfirmActionUseCase,
         events: DomainEventPort,
         audit: CompanyAudit,
     ): DeleteCompanyUseCase =
         DeleteCompanyUseCase(
             companies,
-            applications,
+            links,
             confirmation,
             events,
             audit.changelog,

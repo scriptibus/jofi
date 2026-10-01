@@ -40,8 +40,13 @@ class ContactFixtures {
     val changelog get() = shared.changelog
     val eventPort get() = shared.eventPort
     val confirmation get() = shared.confirmation
+
+    /** Tasks linked to each contact (by its id), as the tasks context reports them (#168). */
+    val linkedTasks get() = shared.linkedTasks
     var linksAvailable = true
+    var taskLinksAvailable by shared::taskLinksAvailable
     var failingChangelog by shared::failingChangelog
+    var failingChangelogFor by shared::failingChangelogFor
     var failingEvents by shared::failingEvents
 
     /** A version another client stored between this use case's read and its write (the update race). */
@@ -95,6 +100,7 @@ class ContactFixtures {
                         ContactStoreResult.Success(Unit).also {
                             links.remove(id)
                             participations.remove(id)
+                            linkedTasks.remove(id.value)
                         }
                     }
                 }
@@ -112,6 +118,9 @@ class ContactFixtures {
                     LinkedApplicationsPort.Linked.Unavailable
                 }
         }
+
+    /** The contact delete's read of what other contexts link to a contact. */
+    val findLinks get() = FindContactLinksUseCase(linkedApplications, shared.taskLinkPort)
 
     val transactions =
         object : TransactionPort {

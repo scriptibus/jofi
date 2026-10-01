@@ -77,6 +77,18 @@ class LayerDependencyTest {
             .check(classes)
     }
 
+    /** ADR-0041, ADR-0049: dependencies run tasks -> companies; companies declares ports tasks implement. */
+    @Test
+    fun `the companies context never depends on the tasks context`() {
+        noClasses()
+            .that()
+            .resideInAPackage("$BASE.companies..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("$BASE.tasks..")
+            .check(classes)
+    }
+
     /** ADR-0041: dependencies run tasks -> applications; applications declares ports the tasks context implements. */
     @Test
     fun `the applications context never depends on the tasks context`() {

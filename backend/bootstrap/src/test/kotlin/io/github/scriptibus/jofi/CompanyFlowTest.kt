@@ -113,7 +113,8 @@ class CompanyFlowTest(
         val contact = contactOf(id)
         val first = browser.delete("/api/companies/$id")
         first.response.status shouldBe 428
-        first.body()["effect"].toString() shouldBe """{"kind":"company","name":"ACME GmbH","counts":{"contacts":1}}"""
+        first.body()["effect"].toString() shouldBe
+            """{"kind":"company","name":"ACME GmbH","counts":{"contacts":1,"tasks":0}}"""
         val token = first.body()["confirmationToken"].asString()
         browser.delete("/api/companies/$id", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
 

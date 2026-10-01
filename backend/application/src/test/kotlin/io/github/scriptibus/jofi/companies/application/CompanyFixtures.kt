@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.companies.application
 
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.companies.domain.Company
 import io.github.scriptibus.jofi.companies.domain.CompanyDetails
 import io.github.scriptibus.jofi.companies.domain.CompanyId
@@ -45,7 +46,14 @@ class CompanyFixtures {
     val entries = mutableListOf<ChangelogEntry>()
     val events = mutableListOf<DomainEvent>()
     var countsAvailable = true
+
+    /** Tasks linked to each company or contact (by its id), as the tasks context reports them (#168). */
+    val linkedTasks = linkedMapOf<UUID, List<EntityRef>>()
+    var taskLinksAvailable = true
     var failingChangelog = false
+
+    /** An entity type whose entries the changelog refuses, to fail a use case after its first entries. */
+    var failingChangelogFor: String? = null
     var failingEvents = false
 
     /** A version another client stored between this use case's read and its write (the update race). */
@@ -87,10 +95,26 @@ class CompanyFixtures {
                 proof: ConfirmationResult.Confirmed,
             ): CompanyStoreResult<Unit> =
                 when {
-                    !proof.covers(Company.DELETE_OPERATION, id.value.toString()) -> CompanyStoreResult.NotConfirmed
-                    id in restrictedByApplications -> CompanyStoreResult.HasApplications
-                    companies.remove(id) == null -> CompanyStoreResult.NotFound
-                    else -> CompanyStoreResult.Success(Unit).also { contacts.remove(id) }
+                    !proof.covers(Company.DELETE_OPERATION, id.value.toString()) -> {
+                        CompanyStoreResult.NotConfirmed
+                    }
+
+                    id in restrictedByApplications -> {
+                        CompanyStoreResult.HasApplications
+                    }
+
+                    companies.remove(id) == null -> {
+                        CompanyStoreResult.NotFound
+                    }
+
+                    else -> {
+                        CompanyStoreResult.Success(Unit).also {
+                            // `ON DELETE SET NULL` clears the links to the company and to its contacts.
+                            val targets = contacts[id].orEmpty().map { contact -> contact.value }.toSet() + id.value
+                            linkedTasks.keys.removeAll(targets)
+                            contacts.remove(id)
+                        }
+                    }
                 }
         }
 
@@ -104,10 +128,30 @@ class CompanyFixtures {
                 }
         }
 
+    val taskLinkPort =
+        object : TaskLinksPort {
+            override fun linkedTo(
+                companies: Set<UUID>,
+                contacts: Set<UUID>,
+            ): TaskLinksPort.Links =
+                if (taskLinksAvailable) {
+                    TaskLinksPort.Links.Found(linkedTo(companies), linkedTo(contacts))
+                } else {
+                    TaskLinksPort.Links.Unavailable
+                }
+
+            private fun linkedTo(targets: Set<UUID>): List<TaskLinksPort.LinkedTask> =
+                targets.sorted().flatMap { target ->
+                    linkedTasks[target].orEmpty().map { TaskLinksPort.LinkedTask(target, it) }
+                }
+        }
+
     val changelog =
         object : ChangelogPort {
             override fun append(entry: ChangelogEntry): ChangelogResult<Unit> {
-                if (failingChangelog) return ChangelogResult.StorageFailure("append")
+                if (failingChangelog || entry.entity.type == failingChangelogFor) {
+                    return ChangelogResult.StorageFailure("append")
+                }
                 entries += entry
                 return ChangelogResult.Success(Unit)
             }
@@ -139,6 +183,7 @@ class CompanyFixtures {
                 val contactsBefore = contacts.toMap()
                 val entriesBefore = entries.toList()
                 val eventsBefore = events.toList()
+                val linkedTasksBefore = linkedTasks.toMap()
                 val result = work()
                 if (!commitIf(result)) {
                     companies.clear()
@@ -149,6 +194,8 @@ class CompanyFixtures {
                     entries.addAll(entriesBefore)
                     events.clear()
                     events.addAll(eventsBefore)
+                    linkedTasks.clear()
+                    linkedTasks.putAll(linkedTasksBefore)
                 }
                 return result
             }

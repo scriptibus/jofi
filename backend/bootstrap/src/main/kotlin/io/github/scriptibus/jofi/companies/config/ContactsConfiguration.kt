@@ -5,11 +5,13 @@ package io.github.scriptibus.jofi.companies.config
 
 import io.github.scriptibus.jofi.companies.application.CreateContactUseCase
 import io.github.scriptibus.jofi.companies.application.DeleteContactUseCase
+import io.github.scriptibus.jofi.companies.application.FindContactLinksUseCase
 import io.github.scriptibus.jofi.companies.application.GetContactUseCase
 import io.github.scriptibus.jofi.companies.application.SearchContactsUseCase
 import io.github.scriptibus.jofi.companies.application.UpdateContactUseCase
 import io.github.scriptibus.jofi.companies.application.port.ContactRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.companies.config.CompaniesConfiguration.CompanyAudit
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
@@ -18,7 +20,7 @@ import org.springframework.context.annotation.Configuration
 
 /**
  * The contact use cases (#89), writing with the companies context's [CompanyAudit].
- * `LinkedApplicationsPort` comes from the applications context (ADR-0041).
+ * `LinkedApplicationsPort` comes from the applications context, `TaskLinksPort` from the tasks context (ADR-0041).
  */
 @Configuration(proxyBeanMethods = false)
 class ContactsConfiguration {
@@ -41,16 +43,22 @@ class ContactsConfiguration {
     fun searchContactsUseCase(contacts: ContactRepositoryPort): SearchContactsUseCase = SearchContactsUseCase(contacts)
 
     @Bean
+    fun findContactLinksUseCase(
+        applications: LinkedApplicationsPort,
+        tasks: TaskLinksPort,
+    ): FindContactLinksUseCase = FindContactLinksUseCase(applications, tasks)
+
+    @Bean
     fun deleteContactUseCase(
         contacts: ContactRepositoryPort,
-        applications: LinkedApplicationsPort,
+        links: FindContactLinksUseCase,
         confirmation: ConfirmActionUseCase,
         events: DomainEventPort,
         audit: CompanyAudit,
     ): DeleteContactUseCase =
         DeleteContactUseCase(
             contacts,
-            applications,
+            links,
             confirmation,
             events,
             audit.changelog,

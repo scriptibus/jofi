@@ -92,9 +92,9 @@ interface LinkApplicationContactsPort {
  * Deletes an application in two steps (ADR-0039): without [token] it answers
  * [ApplicationResult.Unconfirmed] with a token bound to [Application.DELETE_OPERATION], the application
  * id and the effect `ConfirmationEffect("application", <title>, counts)`, counting what the delete cascades
- * to: `contactLinks`, `statusChanges`, `sources` and `snapshots` (later contracts add theirs, e.g. interviews
- * and tasks). With the token, it deletes, writes the changelog entry and publishes `ApplicationDeleted`. The
- * actor is [requester]'s.
+ * to: `contactLinks`, `statusChanges`, `sources`, `snapshots` and `interviews`, plus the `tasks` whose link it
+ * clears (ADR-0049). With the token, it deletes, writes the changelog entries (the application's and one per
+ * such task) and publishes `ApplicationDeleted`. The actor is [requester]'s.
  */
 interface DeleteApplicationPort {
     fun execute(

@@ -25,6 +25,15 @@ class SourceConventionsTest {
             .assertFalse { file -> file.imports.any { it.name.startsWith("${JofiPackages.BASE}.applications.") } }
     }
 
+    /** ADR-0041, ADR-0049, on the sources: tasks depend on companies (its `spi`), never the reverse. */
+    @Test
+    fun `the companies context imports nothing of the tasks context`() {
+        production
+            .files
+            .filter { it.packagee?.name?.startsWith("${JofiPackages.BASE}.companies") == true }
+            .assertFalse { file -> file.imports.any { it.name.startsWith("${JofiPackages.BASE}.tasks.") } }
+    }
+
     /** ADR-0041, on the sources: tasks depend on applications (its `spi`), never the reverse. */
     @Test
     fun `the applications context imports nothing of the tasks context`() {
