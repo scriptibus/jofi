@@ -102,6 +102,9 @@ logging:
     org.springframework.ai: "off"
     com.openai: "off"
     com.anthropic: "off"
+    # The MCP SDK logs messages at DEBUG and parser errors (which can quote tool arguments) at ERROR; the
+    # Spring AI MCP transport is already off above. McpToolSpecifications logs tool failures without content.
+    io.modelcontextprotocol: "off"
 
 management:
   endpoints:
