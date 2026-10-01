@@ -19,6 +19,17 @@ annotation class ProblemResponses(
     vararg val value: ProblemKind,
 )
 
+/**
+ * A second success status a handler may answer with the same body as its `@ResponseStatus` one (a handler that
+ * returns a `ResponseEntity` picks the status at run time), so the contract documents both.
+ */
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class AlsoAnswers(
+    val status: HttpStatus,
+    val description: String,
+)
+
 /** A documented problem response: its status and, for [INVALID_INPUT], a body with violations. */
 enum class ProblemKind(
     val status: HttpStatus,

@@ -11,7 +11,8 @@ import java.util.UUID
  * the applications context. The contact delete reads them in its transaction **before** it deletes,
  * counts the applications in the confirmation effect and writes one changelog entry per application and
  * per interview (ids only); `application_contact_contact_fk` and `interview_participant_contact_fk`
- * (both `ON DELETE CASCADE`) then remove the links and the participations. Never throws.
+ * (both `ON DELETE CASCADE`) then remove the links and the participations. The company delete reads it once per
+ * contact it deletes with the company and writes the same entries (#188). Never throws.
  */
 interface LinkedApplicationsPort {
     /**

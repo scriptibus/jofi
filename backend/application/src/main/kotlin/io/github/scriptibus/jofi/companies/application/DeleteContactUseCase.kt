@@ -15,7 +15,6 @@ import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
-import io.github.scriptibus.jofi.shared.domain.FieldChange
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmableAction
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequest
@@ -88,15 +87,14 @@ class DeleteContactUseCase(
     ): ContactResult<Unit> {
         val at = clock.storedNow()
         // The contact's id is all that remains of it; its name and details are not repeated anywhere.
-        val unlinked = listOf(FieldChange("contacts", contact.value.toString(), null))
-        val removed = listOf(FieldChange("participants", contact.value.toString(), null))
+        val deleted = listOf(contact)
         val recorded =
             changelog.record(contact.toEntityRef(), actor, at, "Deleted contact") &&
                 linked.applications.all { application ->
-                    changelog.record(application, actor, at, "Unlinked a deleted contact", unlinked)
+                    changelog.recordUnlinkedContacts(application, deleted, actor, at)
                 } &&
                 linked.interviews.all { interview ->
-                    changelog.record(interview, actor, at, "Removed a deleted contact from the participants", removed)
+                    changelog.recordRemovedParticipants(interview, deleted, actor, at)
                 } &&
                 linked.tasks.all { task -> changelog.recordClearedLink(task, contact.toEntityRef(), actor, at) }
         return Unit

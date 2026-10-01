@@ -154,6 +154,38 @@ test("delete asks first, names the contacts that go with it, and removes both", 
   expect((await request.get(`/api/contacts/${contactId}`)).status()).toBe(404);
 });
 
+test("delete names the applications and interviews its contacts are removed from", async ({ page }) => {
+  const company = await createCompany(page, uniqueName("Umbrella"));
+  const other = await createCompany(page, uniqueName("Cyberdyne"));
+  const { request, headers } = await api(page);
+  const created = async (path: string, data: object) => {
+    const response = await request.post(path, { data, headers });
+    expect(response.status()).toBe(201);
+    return ((await response.json()) as { id: string }).id;
+  };
+  const contact = await created("/api/contacts", { name: "Alice Abernathy", companyId: company.id });
+  const application = await created("/api/applications", { title: "Backend Engineer", companyId: other.id });
+  const linked = await request.put(`/api/applications/${application}/contacts`, {
+    data: { contactIds: [contact], basedOnVersion: 0 },
+    headers,
+  });
+  expect(linked.status()).toBe(200);
+  await created(`/api/applications/${application}/interviews`, {
+    type: "PHONE_SCREEN",
+    localStart: "2099-03-01T10:00",
+    timeZone: "Europe/Berlin",
+    participantIds: [contact],
+  });
+
+  await page.goto(`/companies/${company.id}`);
+  await page.getByRole("button", { name: "Delete…" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Delete this company?" });
+  await expect(dialog).toContainText("Its contacts are removed from 1 application.");
+  await expect(dialog).toContainText("Its contacts are removed as participants from 1 interview.");
+  await expectNoA11yViolations(page);
+  await snapshot(page, "company-delete-confirm-links");
+});
+
 test("a company with applications cannot be deleted; its AI profile renders inert", async ({ page }) => {
   await page.goto(`/companies/${SEEDED_ID}`);
   await expect(page.getByRole("heading", { level: 1, name: SEEDED_NAME })).toBeVisible();

@@ -31,12 +31,22 @@ import { CompanyApplications, CompanyContacts, sectionCard } from "./RelatedReco
 
 const route = getRouteApi("/_app/companies/$companyId");
 
-/** The delete question, from the server's effect: what the delete would really remove. */
+/** The delete question, from the server's effect: what the delete would really remove: the contacts, and the applications and interviews they leave. */
 export function describeDelete(effect: ConfirmationEffect): string {
   const contacts = effect.counts.contacts ?? 0;
-  return contacts === 0
-    ? m.company_delete_confirm_alone({ name: effect.name })
-    : m.company_delete_confirm_with_contacts({ name: effect.name, contacts });
+  const applications = effect.counts.applications ?? 0;
+  const interviews = effect.counts.interviews ?? 0;
+  const question =
+    contacts === 0
+      ? m.company_delete_confirm_alone({ name: effect.name })
+      : m.company_delete_confirm_with_contacts({ name: effect.name, contacts });
+  return [
+    question,
+    applications > 0 ? m.company_delete_confirm_applications({ applications }) : null,
+    interviews > 0 ? m.company_delete_confirm_interviews({ interviews }) : null,
+  ]
+    .filter((sentence) => sentence !== null)
+    .join(" ");
 }
 
 export function CompanyDetailPage() {

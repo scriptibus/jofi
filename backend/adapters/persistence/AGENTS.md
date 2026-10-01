@@ -253,6 +253,13 @@ The generator lives in the `codegen` source set and has its own locked classpath
   btree row could exceed its size limit. The 50-sources limit stays in the domain; `add` re-counts after locking
   the application row with `FOR NO KEY UPDATE`. `discovered_at` has no lower bound here (the domain's is 2000-01-01). Written only by
   `ApplicationSourceRepositoryPort` (#86, #96), read with the application; adding one is no new version.
+- `posting_import.source_url` (#97, nullable): the normalised link of a URL import, kept through success so a resubmitted
+  link finds its pending or finished import; same format checks as `application_source.original_url`, with a **hash**
+  index (`findPendingBySourceUrl`). Included in export/import with the table. `lockForStart(key)` takes a
+  transaction-scoped advisory lock (`pg_advisory_xact_lock(hashtextextended(key, 0))`) on a link or a pasted text, held
+  until the caller's transaction ends, so a concurrent double submit waits and then finds the pending import (#187
+  finding F6). It must run inside a transaction (it throws `IllegalStateException` otherwise: an autocommit lock
+  would guard nothing). The URL import takes it only in its short store transaction, never around the fetch.
 - `application_description_snapshot` (#78, ADR-0046): one row per version of a source's description, deleted with
   its source. `description` is untrusted posting text (at most 100,000 characters), `content_hash` must equal
   `encode(sha256(convert_to(description, 'UTF8')), 'hex')` (`..._content_hash_matches`, what `ContentHash`

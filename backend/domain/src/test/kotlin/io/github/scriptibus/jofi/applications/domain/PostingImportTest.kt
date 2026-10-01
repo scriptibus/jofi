@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.applications.domain
 
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
@@ -73,6 +74,24 @@ class PostingImportTest {
     fun `its source is pasted text found when the import started, and it never prints the text`() {
         started.toSourceInput() shouldBe SourceInput(SourceKind.MANUAL_CHAT, null, AT, text.value)
         started.toString() shouldNotContain "Kotlin"
+    }
+
+    @Test
+    fun `a URL import's source is the link it was fetched from, with the discovery time, not pasted text`() {
+        val url = WebAddress("https://jobs.example/42")
+        val fromUrl = PostingImport.start(ImportId(UUID.randomUUID()), text, AT, url)
+
+        fromUrl.toSourceInput() shouldBe SourceInput(SourceKind.URL, url.value, AT, text.value)
+    }
+
+    @Test
+    fun `an already-imported URL is recorded as succeeded at once, keeping the link but no text`() {
+        val url = WebAddress("https://jobs.example/42")
+        val id = ImportId(UUID.randomUUID())
+
+        val found = PostingImport.alreadyImported(id, application, url, AT)
+
+        found shouldBe PostingImport(id, null, ImportStatus.SUCCEEDED, null, application, 1, AT, AT, url)
     }
 
     @Test

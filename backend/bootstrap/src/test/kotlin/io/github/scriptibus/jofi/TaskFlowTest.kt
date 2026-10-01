@@ -171,7 +171,8 @@ class TaskFlowTest(
 
         confirmedDelete(browser, "/api/applications/$application")["tasks"].asInt() shouldBe 1
         confirmedDelete(browser, "/api/contacts/$erika")["tasks"].asInt() shouldBe 1
-        confirmedDelete(browser, "/api/companies/$globex").toString() shouldBe """{"contacts":1,"tasks":2}"""
+        confirmedDelete(browser, "/api/companies/$globex").toString() shouldBe
+            """{"applications":0,"contacts":1,"interviews":0,"tasks":2}"""
 
         listOf(onApplication, onErika, onMax, onGlobex).forEach { task ->
             val kept = browser.get("/api/tasks/$task").ok()

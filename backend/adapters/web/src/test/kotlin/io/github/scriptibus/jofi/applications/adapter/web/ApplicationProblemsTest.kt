@@ -95,6 +95,7 @@ class ApplicationProblemsTest {
         expect(ApplicationResult.VersionConflict, HttpStatus.CONFLICT, ApplicationProblems.VERSION_CONFLICT)
         expect(ApplicationResult.ImportNotFound, HttpStatus.NOT_FOUND, ApplicationProblems.IMPORT_NOT_FOUND)
         expect(ApplicationResult.ImportNotRetryable, HttpStatus.CONFLICT, ApplicationProblems.IMPORT_NOT_RETRYABLE)
+        expect(ApplicationResult.ImportInProgress, HttpStatus.CONFLICT, ApplicationProblems.IMPORT_IN_PROGRESS)
         expect(ApplicationResult.AiNotConfigured, HttpStatus.CONFLICT, ApplicationProblems.AI_NOT_CONFIGURED)
         expect(
             ApplicationResult.InvalidTransition(ApplicationStatus.DISCOVERED, ApplicationStatus.ACCEPTED),

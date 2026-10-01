@@ -64,6 +64,16 @@ internal fun ApplicationSourceRepositoryPort.addWithDiscovery(
 internal fun <T> ApplicationStoreResult<T>.importResult(): ApplicationResult<T> =
     if (this == ApplicationStoreResult.NotFound) ApplicationResult.ImportNotFound else toResult()
 
+/** Stores [started] as a new import with its changelog entry, in the caller's transaction. */
+internal fun PostingImportRepositoryPort.addWithChangelog(
+    changelog: ChangelogPort,
+    started: PostingImport,
+    actor: Actor,
+): ApplicationResult<PostingImport> =
+    add(started).toResult().then {
+        started.applicationIf(changelog.recordImport(null, started, actor), "changelog")
+    }
+
 /** Stores the import's step from [current] to [next] with its changelog entry, in the caller's transaction. */
 internal fun PostingImportRepositoryPort.transition(
     changelog: ChangelogPort,

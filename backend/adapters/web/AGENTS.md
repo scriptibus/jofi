@@ -149,7 +149,9 @@ Posting texts are untrusted (render sanitised) and links may carry tracking para
 `applications.adapter.web.PostingImportController` (ADR-0051) under `/api/applications/imports`: `POST /text` (202, a
 pending import; 400 for the text; 409 `ai-not-configured` without an extraction model), `GET /{importId}` (status,
 failure reason, the created application; never the text) and `POST /{importId}/retry` (202; 409
-`import-not-retryable` unless failed or stalled).
+`import-not-retryable` unless failed or stalled). `POST /url` (#97; 202 for a new or still-pending import, 200 with the
+existing application when the normalised link was imported before; 400 with an `originalUrl` violation
+`INVALID_URL` / `NOT_ALLOWED` / `UNREACHABLE`; 409 `ai-not-configured`): it translates and calls `StartUrlImportPort`.
 
 ## Documented problem responses (ADR-0041)
 

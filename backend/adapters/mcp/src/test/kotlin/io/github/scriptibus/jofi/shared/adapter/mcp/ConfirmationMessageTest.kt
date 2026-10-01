@@ -81,9 +81,11 @@ class ConfirmationMessageTest {
             "Also deleted: 3 status history entries, 2 posting sources, 1 description snapshot, 2 interviews."
         application shouldContain
             "Only unlinked (the items themselves stay): 1 link to a contact, 1 task loses its link."
-        message("C", "company", mapOf("contacts" to 2, "tasks" to 3)).also {
+        message("C", "company", mapOf("contacts" to 2, "applications" to 1, "interviews" to 2, "tasks" to 3)).also {
             it shouldContain "Also deleted: 2 contacts."
-            it shouldContain "Only unlinked (the items themselves stay): 3 tasks lose their link."
+            it shouldContain
+                "Only unlinked (the items themselves stay): 1 application loses contacts of this company, " +
+                "2 interviews lose participants of this company, 3 tasks lose their link."
         }
         message("P", "contact", mapOf("applications" to 1, "interviews" to 2, "tasks" to 1)) shouldContain
             "Only unlinked (the items themselves stay): 1 application loses this contact, " +
@@ -117,7 +119,9 @@ class ConfirmationMessageTest {
                 "application.sources",
                 "application.statusChanges",
                 "application.tasks",
+                "company.applications",
                 "company.contacts",
+                "company.interviews",
                 "company.tasks",
                 "contact.applications",
                 "contact.interviews",

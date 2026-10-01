@@ -6,9 +6,11 @@ package io.github.scriptibus.jofi
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
+import com.github.tomakehurst.wiremock.client.WireMock.urlMatching
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig
 import io.github.scriptibus.jofi.applications.adapter.jobs.PostingImportJobAdapter
 import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
@@ -18,6 +20,12 @@ import io.github.scriptibus.jofi.setup.domain.ModelName
 import io.github.scriptibus.jofi.setup.domain.ProviderConfig
 import io.github.scriptibus.jofi.setup.domain.ProviderId
 import io.github.scriptibus.jofi.setup.domain.ProviderKind
+import io.github.scriptibus.jofi.shared.adapter.net.Destination
+import io.github.scriptibus.jofi.shared.adapter.net.DestinationAllowlist
+import io.github.scriptibus.jofi.shared.adapter.net.DestinationGuard
+import io.github.scriptibus.jofi.shared.adapter.net.HostResolver
+import io.github.scriptibus.jofi.shared.adapter.net.OutboundHttpAdapter
+import io.github.scriptibus.jofi.shared.adapter.net.UserAgent
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.AI_MODEL_ASSIGNMENT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.AI_PROVIDER_CONFIG
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
@@ -26,6 +34,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.POSTING_IMPORT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.SPRING_SESSION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.USER_ACCOUNT
+import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
 import io.github.scriptibus.jofi.shared.domain.job.JobOutcome
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
@@ -41,25 +50,37 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.ApplicationContext
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.Primary
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import org.springframework.test.web.servlet.assertj.MvcTestResult
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.net.InetAddress
 import java.net.URI
 import java.util.UUID
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import com.github.tomakehurst.wiremock.client.WireMock.get as wireMockGet
 
 /**
- * The posting import (#96) through the wired app: the REST API behind the real filter chain, the worker job's handler
- * (called directly: the `app` profile runs no jobs), the AI gateway with its filter and meter, the Spring AI adapter
- * and the guarded transport, against an OpenAI-compatible provider played by WireMock. The received requests prove
- * the posting travels as data with a schema and no tools; a posting that tries to take over the model still only
- * yields a `DISCOVERED` application; a failed call keeps the text for the retry.
+ * The posting import (#96, #97) through the wired app: the REST API behind the real filter chain, the worker job's
+ * handler (called directly: the `app` profile runs no jobs), the AI gateway with its filter and meter, the Spring AI
+ * adapter and the guarded transport, against an OpenAI-compatible provider played by WireMock. The received requests
+ * prove the posting travels as data with a schema and no tools; a posting that tries to take over the model still
+ * only yields a `DISCOVERED` application; a failed call keeps the text for the retry. The URL import (#97) is in
+ * [PostingUrlImportFlowTest].
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -259,6 +280,7 @@ class PostingImportFlowTest(
         val addresses = AtomicInteger(0)
         val FAKE_AI: WireMockServer =
             WireMockServer(wireMockConfig().dynamicPort().bindAddress("127.0.0.1")).apply { start() }
+
         val PROVIDER =
             ProviderConfig(
                 ProviderId(UUID.randomUUID()),

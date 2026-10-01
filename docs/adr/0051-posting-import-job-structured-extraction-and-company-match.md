@@ -7,7 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 
 - Status: accepted
 - Date: 2026-10-01
-- Source: issue #96 (M1-6a); spec §6.1, §8.1; threat model T2, T4; refines ADR-0032, ADR-0038, ADR-0043, ADR-0046
+- Source: issue #96 (M1-6a), #97; spec §6.1, §8.1; threat model T2, T4; refines ADR-0032, ADR-0038, ADR-0043, ADR-0046
 
 ## Context
 
@@ -37,6 +37,17 @@ companies context without reaching into it.
   (`NOT_COMPLETED`) instead of retrying; a run that ends in anything a retry cannot change does so at once; and the
   user may retry a stalled import like a failed one (the attempt counter keeps a still-running old job from storing).
   So a restored `PENDING` row is never stuck: after the timeout it can be retried.
+- **A resubmit never duplicates a stalled import (#97).** A resubmit of a link or text whose import is pending for
+  `STALLED_AFTER` or longer asks for that import again as its next attempt (as a retry) and queues its job again; it
+  answers with that same import, never a second row. Its late original job and the new one both run, and the second
+  finds the import done and changes nothing (the attempt counter), so one application and one AI call result.
+- **One fetch per link, no connection held (#97).** `StartUrlImportUseCase` serialises a link with the in-process
+  `KeyedLockPort` (`InProcessKeyedLockAdapter`), valid because Jofi runs one `app` container (ADR-0039); a second
+  request waits (a thread, no database connection) and then finds the first one's pending import or application.
+  The wait is bounded by the fetch timeout (20 s): a waiter that times out answers `409 import-in-progress`. The page
+  is fetched with no transaction open; the short store transaction takes a Postgres advisory lock on the link
+  (`lockForStart`) and looks once more for a pending import and an imported application, so a second instance would
+  at worst fetch twice, never store twice. A failed fetch stores nothing.
 - **Structured extraction.** `LlmRequest` gets an optional `outputSchema` (JSON Schema text, Jofi's own constant,
   never user data), passed to Spring AI 2.0.1's `StructuredOutputChatOptions.outputSchema` (OpenAI and compatible
   endpoints: `response_format` `json_schema`; Anthropic: `output_config.format`). The extraction request has no tools,
