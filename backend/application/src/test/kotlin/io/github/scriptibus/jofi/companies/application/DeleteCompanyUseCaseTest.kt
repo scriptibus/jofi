@@ -21,6 +21,7 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -32,7 +33,7 @@ class DeleteCompanyUseCaseTest {
     private val delete =
         DeleteCompanyUseCase(
             fixtures.companyPort,
-            FindCompanyLinksUseCase(fixtures.applicationPort, fixtures.taskLinkPort),
+            FindCompanyLinksUseCase(fixtures.applicationPort, fixtures.taskLinkPort, fixtures.linkedApplicationsPort),
             fixtures.confirmation,
             fixtures.eventPort,
             fixtures.changelog,

@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.companies.application
 
 import io.github.scriptibus.jofi.companies.domain.CompanyDetails
+import io.github.scriptibus.jofi.companies.domain.ContactId
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangeSummary
@@ -42,6 +43,39 @@ internal fun ChangelogPort.recordClearedLink(
     val cleared = listOf(FieldChange("link", "${target.type}:${target.id}", null))
     return record(task, actor, at, "Cleared the link to a deleted ${target.type}", cleared)
 }
+
+/**
+ * The entry of an application that [contacts] were linked to when they were deleted (ADR-0041): ids only, one change
+ * per contact. The single contact delete and the company delete's cascade write the same text and shape.
+ */
+internal fun ChangelogPort.recordUnlinkedContacts(
+    application: EntityRef,
+    contacts: List<ContactId>,
+    actor: Actor,
+    at: Instant,
+): Boolean =
+    record(
+        application,
+        actor,
+        at,
+        "Unlinked a deleted contact",
+        contacts.map { FieldChange("contacts", it.value.toString(), null) },
+    )
+
+/** The entry of an interview that [contacts] took part in when they were deleted (ADR-0048): ids only. */
+internal fun ChangelogPort.recordRemovedParticipants(
+    interview: EntityRef,
+    contacts: List<ContactId>,
+    actor: Actor,
+    at: Instant,
+): Boolean =
+    record(
+        interview,
+        actor,
+        at,
+        "Removed a deleted contact from the participants",
+        contacts.map { FieldChange("participants", it.value.toString(), null) },
+    )
 
 /**
  * What changed between two versions of the details. Research notes are free text that may hold

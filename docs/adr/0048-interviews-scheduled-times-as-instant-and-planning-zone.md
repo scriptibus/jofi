@@ -109,6 +109,16 @@ the application does not have is 404 `interview-not-found`.
   effect counts them (`interviews`), and each gets a changelog entry (entity `interview`, "Removed a deleted contact
   from the participants", `FieldChange("participants", <contact id>, null)`) with the delete's actor. The interview's
   `version` stays, as for application links.
+- A company delete cascades to its contacts and so to their links and participations (#188). It reads the same
+  port once per contact (`FindCompanyLinksUseCase`, which the delete already used for the tasks, so no eighth
+  constructor parameter) in its transaction before it deletes, and writes the same entries with the same texts and the
+  delete's actor: one per affected application and one per affected interview, with one `FieldChange` per deleted
+  contact that was linked to it (a contact on several applications appears on each, an application with several
+  deleted contacts gets a single entry). An unreadable port is a storage failure and nothing is deleted. The company
+  delete's confirmation effect does **not** count applications and interviews: they belong to other companies (a
+  company with applications is refused) and only lose a link, the dialog names what disappears (`contacts`, `tasks`),
+  and since the entries come from the read in the confirming transaction a link added between the steps is recorded
+  without voiding the token.
 
 ## Consequences
 
