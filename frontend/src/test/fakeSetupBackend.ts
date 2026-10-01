@@ -9,6 +9,7 @@
 import { HttpResponse, http } from "msw";
 import type {
   CapabilityNeedsResponse,
+  ModelPriceResponse,
   ModelResponse,
   ProviderPrivacyEntryResponse,
   ProviderPrivacyResponse,
@@ -118,7 +119,13 @@ export interface FakeSetupState {
   deleteCalls: ("first" | "confirmed")[];
   /** Budget bodies received, to check `capMicros` is always sent. */
   budgetBodies: unknown[];
+  /** The user's model prices per provider id (#142). */
+  prices: Map<string, ModelPriceResponse[]>;
+  /** Price bodies received by `PUT .../model-prices`. */
+  priceBodies: unknown[];
 }
+
+const MAX_PRICE_MICROS = 10_000_000_000;
 
 function missing(needs: CapabilityNeedsResponse, found: ModelResponse | undefined): CapabilityNeedsResponse {
   const context = needs.minContextWindowTokens ?? null;
@@ -126,6 +133,22 @@ function missing(needs: CapabilityNeedsResponse, found: ModelResponse | undefine
     features: needs.features.filter((feature) => !found?.features.includes(feature)),
     minContextWindowTokens: context !== null && (found?.contextWindowTokens ?? 0) < context ? context : null,
   };
+}
+
+/** The violations the backend's `ModelPriceInput` finds, in its order: model, input, output. */
+function priceViolations(body: {
+  model?: string | null;
+  inputMicrosPerMillion?: number | null;
+  outputMicrosPerMillion?: number | null;
+}) {
+  const violations: { field: string; problem: string }[] = [];
+  if (!body.model?.trim()) violations.push({ field: "model", problem: "REQUIRED" });
+  for (const field of ["inputMicrosPerMillion", "outputMicrosPerMillion"] as const) {
+    const value = body[field];
+    if (value == null) violations.push({ field, problem: "REQUIRED" });
+    else if (value < 0 || value > MAX_PRICE_MICROS) violations.push({ field, problem: "OUT_OF_RANGE" });
+  }
+  return violations;
 }
 
 function originOf(url: string | null | undefined) {
@@ -144,6 +167,8 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
     spentMicros: 0,
     deleteCalls: [],
     budgetBodies: [],
+    prices: new Map(),
+    priceBodies: [],
     ...initial,
   };
   let next = 1;
@@ -253,6 +278,47 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
       if (state.refreshFails) return problem(502, setup(state.refreshFails));
       state.models.set(String(params.id), state.listed);
       return json(state.listed);
+    }),
+    // The user's model prices: only OpenAI-compatible providers take one (409 otherwise), as the backend does.
+    http.get(`${origin()}/api/setup/providers/:id/model-prices`, ({ params }) =>
+      state.providers.some((entry) => entry.id === params.id)
+        ? json(state.prices.get(String(params.id)) ?? [])
+        : problem(404, setup("provider-not-found")),
+    ),
+    http.put(`${origin()}/api/setup/providers/:id/model-prices`, async ({ request, params }) => {
+      const provider = state.providers.find((entry) => entry.id === params.id);
+      if (!provider) return problem(404, setup("provider-not-found"));
+      const body = (await request.json()) as {
+        model?: string | null;
+        inputMicrosPerMillion?: number | null;
+        outputMicrosPerMillion?: number | null;
+      };
+      state.priceBodies.push(body);
+      const violations = priceViolations(body);
+      if (violations.length > 0) return invalid(violations);
+      if (provider.kind !== "OPENAI_COMPATIBLE") return problem(409, setup("price-not-allowed"));
+      const price = {
+        model: (body.model ?? "").trim(),
+        inputMicrosPerMillion: body.inputMicrosPerMillion ?? 0,
+        outputMicrosPerMillion: body.outputMicrosPerMillion ?? 0,
+        updatedAt: "2026-10-02T12:00:00Z",
+      } satisfies ModelPriceResponse;
+      const others = (state.prices.get(provider.id) ?? []).filter((entry) => entry.model !== price.model);
+      state.prices.set(
+        provider.id,
+        [...others, price].sort((a, b) => a.model.localeCompare(b.model)),
+      );
+      return json(price);
+    }),
+    http.delete(`${origin()}/api/setup/providers/:id/model-prices`, ({ request, params }) => {
+      if (!state.providers.some((entry) => entry.id === params.id))
+        return problem(404, setup("provider-not-found"));
+      const model = new URL(request.url).searchParams.get("model") ?? "";
+      state.prices.set(
+        String(params.id),
+        (state.prices.get(String(params.id)) ?? []).filter((entry) => entry.model !== model),
+      );
+      return new HttpResponse(null, { status: 204 });
     }),
     http.get(`${origin()}/api/setup/assignments`, () => json(TASKS.map(assignment))),
     http.put(`${origin()}/api/setup/assignments/:task`, async ({ request, params }) => {

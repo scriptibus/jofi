@@ -6,7 +6,7 @@ import { ConfirmationMismatchError } from "../../api/confirmation";
 import { ApiProblemError } from "../../api/fetcher";
 import { model, NEEDS } from "../../test/fakeSetupBackend";
 import { checkBaseUrl, sameOrigin } from "./baseUrl";
-import { formatUsd, usdToMicros } from "./money";
+import { formatUsd, formatUsdPrice, usdToMicros } from "./money";
 import { describeSetupError, fieldErrorsOf } from "./setupProblems";
 import { describeCapabilities, optionId, parseOptionId, suggestModel } from "./tasks";
 
@@ -30,6 +30,17 @@ describe("formatUsd", () => {
   it("rounds half away from zero on the exact decimal, not the float", () => {
     // 1.005 is 1.00499999… as a float; the micros are exact.
     expect(formatUsd(1_005_000, "en")).toBe("$1.01");
+  });
+
+  it.each([
+    [0, "en", "$0.00"],
+    [150_000, "en", "$0.15"],
+    [125, "en", "$0.000125"],
+    [1, "en", "$0.000001"],
+    [10_000_000_000, "en", "$10,000.00"],
+    [125_000, "de", "0,125 $"],
+  ])("formats the price %d micros in %s as %s, exact to the micro", (micros, locale, expected) => {
+    expect(plain(formatUsdPrice(micros, locale))).toBe(expected);
   });
 
   it("turns dollars into whole micros", () => {

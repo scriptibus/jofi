@@ -29,6 +29,19 @@ export function formatUsd(micros: number, locale: string = getLocale()): string 
   }).format(exactDecimal(micros));
 }
 
+/**
+ * A price per million tokens in the user's locale, exact to the micro ($0.15, $0.125, $0.000001): prices
+ * are small fractions, so cents would hide what the user typed.
+ */
+export function formatUsdPrice(micros: number, locale: string = getLocale()): string {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(exactDecimal(micros));
+}
+
 /** Dollars as entered (a float from the number field) to whole micros. */
 export function usdToMicros(usd: number): number {
   return Math.round(usd * MICROS_PER_USD);
