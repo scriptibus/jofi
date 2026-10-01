@@ -101,20 +101,20 @@ function Funnel({ funnel }: { funnel: FunnelDto }) {
   const response = formatRate(funnel.responseRate);
   return (
     <>
-      <dl className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-3">
         {stages.map(({ label, count, rate }) => (
-          <div key={label} className="flex flex-col gap-1">
+          <li key={label} className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-3">
-              <dt>{label}</dt>
-              <dd className="font-data">
+              <span>{label}</span>
+              <span className="font-data">
                 {formatCount(count)}
                 {rate ? <span className="text-muted"> · {m.dashboard_funnel_rate({ rate })}</span> : null}
-              </dd>
+              </span>
             </div>
             <ShareBar value={count} max={funnel.applied} />
-          </div>
+          </li>
         ))}
-      </dl>
+      </ul>
       <p className="flex flex-col gap-1 border-line border-t pt-4">
         <span className="font-data text-h2">{response ?? m.dashboard_rate_none()}</span>
         <span className="text-muted">
