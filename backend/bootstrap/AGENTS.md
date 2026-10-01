@@ -29,7 +29,10 @@ Rules:
   `7d`), `JOFI_SESSION_MAX_AGE` (absolute, default `30d`), `JOFI_RESET_PASSWORD` (password
   recovery at startup), `JOFI_ACCEPT_SECRET_LOSS` (accept a lost master keyset),
   `JOFI_BACKUP_MAX_UPLOAD_SIZE` / `_MAX_UNPACKED_SIZE` / `_MAX_ENTRIES` (limits of an uploaded backup,
-  ADR-0042). Tests get a data
+  ADR-0042), `JOFI_MCP_CONFIRMATION_TIMEOUT` (how long an MCP delete call waits for the user's answer, ISO-8601,
+  default `PT4M30S`; must be positive and below the 5 minute confirmation token, else the start fails) and
+  `JOFI_MCP_MAX_PENDING_CONFIRMATIONS` (delete confirmations that may wait at once, default 4, one per MCP session;
+  each waiting call holds a server thread). Tests get a data
   directory under the test task's temporary directory; `bootRun` needs `JOFI_DATA_DIR` set.
 - `system.config.AuthStartup` (a `SmartLifecycle` in the phase just before the web server's, so it
   runs after the refresh but before the port is bound; web apps only and never under the `worker`
