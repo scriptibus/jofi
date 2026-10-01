@@ -214,14 +214,18 @@ class TaskToolsTest {
         val other = UUID.fromString("00000000-0000-0000-0000-0000000000a2")
         every { tasks.findById(TaskId(taskId)) } returns TaskStoreResult.Success(dismissed)
         every { tasks.findById(TaskId(other)) } returns TaskStoreResult.Success(done.copy(id = TaskId(other)))
-        val invalid = "A task cannot move from %s to %s. Read it again to see its state."
+
+        fun invalid(
+            from: String,
+            to: String,
+        ) = "A task cannot move from $from to $to. Read it again to see its state."
 
         acceptSuggestion.call(call("id" to taskId.toString(), "version" to 1)) shouldBe
-            ToolAnswer.Error("invalid-transition", invalid.format("DISMISSED", "OPEN"))
+            ToolAnswer.Error("invalid-transition", invalid("DISMISSED", "OPEN"))
         acceptSuggestion.call(call("id" to other.toString(), "version" to 1)) shouldBe
-            ToolAnswer.Error("invalid-transition", invalid.format("DONE", "OPEN"))
+            ToolAnswer.Error("invalid-transition", invalid("DONE", "OPEN"))
         completeTask.call(call("id" to taskId.toString(), "version" to 1)) shouldBe
-            ToolAnswer.Error("invalid-transition", invalid.format("DISMISSED", "DONE"))
+            ToolAnswer.Error("invalid-transition", invalid("DISMISSED", "DONE"))
         changelog.entries shouldBe emptyList()
     }
 
