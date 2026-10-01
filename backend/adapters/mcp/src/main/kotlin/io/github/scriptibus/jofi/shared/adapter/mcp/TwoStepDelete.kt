@@ -36,6 +36,7 @@ object TwoStepDelete {
         unconfirmed: (R) -> ConfirmationResult.Unconfirmed?,
         finish: (R) -> ToolAnswer,
     ): ToolAnswer {
+        if (!call.human.canAsk) return UNAVAILABLE
         val requester = ConfirmationRequester(call.caller, call.session)
         val first = execute(requester, null)
         return when (val gate = unconfirmed(first)) {

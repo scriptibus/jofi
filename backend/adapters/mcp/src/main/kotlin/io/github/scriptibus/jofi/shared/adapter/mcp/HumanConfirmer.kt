@@ -24,9 +24,20 @@ enum class HumanAnswer {
 fun interface HumanConfirmer {
     fun ask(message: String): HumanAnswer
 
+    /**
+     * Whether asking can work at all. A tool checks it before the first step, so a client that cannot ask never
+     * makes the server issue a confirmation token that nobody can use.
+     */
+    val canAsk: Boolean get() = true
+
     companion object {
         /** For callers that cannot reach a human: every confirmation is unavailable. */
-        val NONE = HumanConfirmer { HumanAnswer.UNAVAILABLE }
+        val NONE =
+            object : HumanConfirmer {
+                override val canAsk = false
+
+                override fun ask(message: String) = HumanAnswer.UNAVAILABLE
+            }
     }
 }
 
@@ -38,6 +49,8 @@ fun interface HumanConfirmer {
 class ElicitingConfirmer(
     private val exchange: McpSyncServerExchange,
 ) : HumanConfirmer {
+    override val canAsk: Boolean get() = supportsForms()
+
     @Suppress("TooGenericExceptionCaught") // The SDK throws unchecked transport and protocol errors.
     override fun ask(message: String): HumanAnswer {
         if (!supportsForms()) return HumanAnswer.UNAVAILABLE

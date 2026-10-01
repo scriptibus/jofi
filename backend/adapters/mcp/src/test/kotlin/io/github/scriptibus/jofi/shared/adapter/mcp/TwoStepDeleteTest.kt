@@ -85,6 +85,15 @@ class TwoStepDeleteTest {
     }
 
     @Test
+    fun `a client that cannot ask never reaches the use case, so no token is issued`() {
+        val call = ToolCall(ToolArguments(emptyMap()), Actor.Ai, "mcp-session", HumanConfirmer.NONE)
+
+        val answer = TwoStepDelete.run(call, id, { _, _ -> error("must not run") }, { null }, { error("no") })
+
+        answer.shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-unavailable"
+    }
+
+    @Test
     fun `a declined confirmation runs nothing and says so`() {
         val answer = run(HumanAnswer.DECLINED)
 
