@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.AddApplicationSourceUseCase
 import io.github.scriptibus.jofi.applications.application.DiffDescriptionSnapshotsUseCase
 import io.github.scriptibus.jofi.applications.application.GetDescriptionSnapshotUseCase
 import io.github.scriptibus.jofi.applications.application.ListDescriptionSnapshotsUseCase
@@ -14,8 +15,6 @@ import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
 import org.springframework.http.HttpStatus
-import org.springframework.http.ProblemDetail
-import org.springframework.web.ErrorResponseException
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -27,29 +26,29 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * Where an application's job was found and the history of its description (spec §6.1, ADR-0046). Recording,
- * listing, reading and diffing versions (#86) call their use case and map each `ApplicationResult.Failure` with
- * [ApplicationProblems.of]. Adding a source is still the contract only and answers `501 Not Implemented` until
- * #96; its parameters only declare it. The sources themselves come with the application
+ * Where an application's job was found and the history of its description (spec §6.1, ADR-0046). Adding a source
+ * (#96) and recording, listing, reading and diffing versions (#86) call their use case and map each
+ * `ApplicationResult.Failure` with [ApplicationProblems.of]. The sources themselves come with the application
  * (`ApplicationResponse.sources`).
  */
 @RestController
 @RequestMapping("/api/applications/{id}")
 class ApplicationSourceController(
+    private val addSource: AddApplicationSourceUseCase,
     private val recordSnapshot: RecordDescriptionSnapshotUseCase,
     private val listSnapshots: ListDescriptionSnapshotsUseCase,
     private val getSnapshot: GetDescriptionSnapshotUseCase,
     private val diffSnapshots: DiffDescriptionSnapshotsUseCase,
 ) {
     /** Adds a place the job was found, with the posting's text there as its first description version. */
-    @Suppress("UnusedParameter")
     @PostMapping("/sources")
     @ResponseStatus(HttpStatus.CREATED)
     @ProblemResponses(ProblemKind.INVALID_INPUT, ProblemKind.NOT_FOUND)
     fun addApplicationSource(
         @PathVariable id: UUID,
         @RequestBody request: AddApplicationSourceRequest,
-    ): ApplicationSourceResponse = throw notImplemented()
+    ): ApplicationSourceResponse =
+        ApplicationSourceResponse.from(addSource.execute(ApplicationId(id), request.toInput(), Actor.User).orThrow())
 
     /**
      * Records the posting's current text as a new version of the source's description; the same text again
@@ -103,10 +102,4 @@ class ApplicationSourceController(
         DescriptionDiffResponse.from(
             diffSnapshots.execute(ApplicationId(id), SnapshotId(from), SnapshotId(to)).orThrow(),
         )
-
-    private fun notImplemented(): ErrorResponseException {
-        val problem =
-            ProblemDetail.forStatusAndDetail(HttpStatus.NOT_IMPLEMENTED, "Adding sources is not available yet")
-        return ErrorResponseException(HttpStatus.NOT_IMPLEMENTED, problem, null)
-    }
 }

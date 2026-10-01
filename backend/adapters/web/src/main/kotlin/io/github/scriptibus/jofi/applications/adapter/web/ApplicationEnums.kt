@@ -88,5 +88,20 @@ enum class InterviewKind { PHONE_SCREEN, HR, TECHNICAL, CASE, ON_SITE, FINAL, OT
 /** Copy of `InterviewOutcome`: how it ended for the user; absent while it is to come or undecided. */
 enum class InterviewResultKind { PASSED, REJECTED, WITHDRAWN, CANCELLED }
 
+/** Copy of `ImportStatus`: where a posting import stands. */
+enum class PostingImportStatus { PENDING, SUCCEEDED, FAILED }
+
+/** Copy of `ImportFailure`: why a posting import failed; each can be retried. */
+enum class PostingImportFailure {
+    AI_NOT_CONFIGURED,
+    AI_AUTHENTICATION_FAILED,
+    AI_UNAVAILABLE,
+    AI_REJECTED,
+    UNREADABLE_ANSWER,
+    NOT_A_POSTING,
+    NOT_QUEUED,
+    NOT_COMPLETED,
+}
+
 /** The constant of [T] with this constant's name (API enum to domain enum and back). */
 internal inline fun <reified T : Enum<T>> Enum<*>.mapByName(): T = enumValueOf<T>(name)

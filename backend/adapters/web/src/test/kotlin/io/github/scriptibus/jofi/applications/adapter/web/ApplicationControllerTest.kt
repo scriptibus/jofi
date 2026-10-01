@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.applications.application.LinkApplicationContact
 import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.ApplicationSourceRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
 import io.github.scriptibus.jofi.applications.domain.Application
@@ -72,6 +73,7 @@ class ApplicationControllerTest(
     class Ports {
         val applications = mockk<ApplicationRepositoryPort>()
         val snapshots = mockk<DescriptionSnapshotRepositoryPort>()
+        val sources = mockk<ApplicationSourceRepositoryPort>()
         val tasks = mockk<LinkedTasksPort>()
         val changelog = mockk<ChangelogPort>()
         val events = mockk<DomainEventPort>()

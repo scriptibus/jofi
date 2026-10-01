@@ -141,11 +141,15 @@ notes, reasons, pay amounts or an estimate basis print none of them.
 `POST /sources` (201; kind, original link, discovery time, optional text at discovery), `POST
 /sources/{sourceId}/snapshots` (record the current text by hand, reason `MANUAL`; `added` says whether it was a
 new version), `GET /sources/{sourceId}/snapshots` (versions without texts), `GET /snapshots/{snapshotId}` (one
-version with its text) and `GET /description-diff?from=&to=` (line-level segments). Adding a source answers `501`
-until #96. None takes
+version with its text) and `GET /description-diff?from=&to=` (line-level segments). None takes
 `basedOnVersion` (sources and snapshots are no version of the application) and none deletes. An unknown source
 or snapshot is 404 `source-not-found` / `snapshot-not-found`. `ApplicationResponse.sources` lists the sources.
 Posting texts are untrusted (render sanitised) and links may carry tracking parameters: these DTOs print neither.
+
+`applications.adapter.web.PostingImportController` (ADR-0051) under `/api/applications/imports`: `POST /text` (202, a
+pending import; 400 for the text; 409 `ai-not-configured` without an extraction model), `GET /{importId}` (status,
+failure reason, the created application; never the text) and `POST /{importId}/retry` (202; 409
+`import-not-retryable` unless failed or stalled).
 
 ## Documented problem responses (ADR-0041)
 

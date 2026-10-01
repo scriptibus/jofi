@@ -24,6 +24,8 @@ import io.github.scriptibus.jofi.shared.domain.ai.ToolCall
 import io.github.scriptibus.jofi.shared.domain.ai.ToolDefinition
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
@@ -139,6 +141,26 @@ class OpenAiFamilyAdapterTest {
         )
     }
 
+    @ParameterizedTest
+    @EnumSource(names = ["OPENAI", "OPENAI_COMPATIBLE"])
+    fun `asks for structured output with the request's JSON schema, and for plain text without one`(
+        kind: ProviderKind,
+    ) {
+        val path = "${stub.pathOf(kind)}/chat/completions"
+        stub.server.stubFor(post(path).willReturn(okJson(ProviderStub.fixture("openai/chat-completion.json"))))
+
+        adapter.complete(
+            stub.target(kind, "gpt-4o-mini"),
+            greeting().copy(task = AiTask.EXTRACTION, outputSchema = SCHEMA),
+        )
+        adapter.complete(stub.target(kind, "gpt-4o-mini"), greeting())
+
+        val bodies = stub.server.findAll(postRequestedFor(urlEqualTo(path))).map { it.bodyAsString }
+        bodies[0] shouldContain "\"json_schema\""
+        bodies[0] shouldContain "\"postingTitle\""
+        bodies[1] shouldNotContain "response_format"
+    }
+
     private fun greeting() =
         LlmRequest(
             AiTask.CHAT,
@@ -166,6 +188,10 @@ class OpenAiFamilyAdapterTest {
         )
 
     companion object {
+        const val SCHEMA =
+            """{"type":"object","properties":{"postingTitle":{"type":["string","null"]}},""" +
+                """"required":["postingTitle"],"additionalProperties":false}"""
+
         fun okJson(body: String): ResponseDefinitionBuilder =
             aResponse().withHeader("Content-Type", "application/json").withBody(body)
 

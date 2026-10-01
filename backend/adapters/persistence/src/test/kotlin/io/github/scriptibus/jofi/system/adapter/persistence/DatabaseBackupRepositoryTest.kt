@@ -388,6 +388,7 @@ class DatabaseBackupRepositoryTest {
                 "countdown",
                 "saved_view",
                 "application_settings",
+                "posting_import",
             )
         val COMPANY: UUID = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
         const val CHANGELOG_INSERT =

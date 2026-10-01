@@ -88,6 +88,7 @@ class ProviderModels(
                 .model(target.model.value)
                 .maxTokens(request.maxOutputTokens ?: AnthropicChatOptions.DEFAULT_MAX_TOKENS)
                 .toolCallbacks(PromptMapper.toolCallbacks(request.tools))
+                .outputSchema(request.outputSchema)
                 .build()
         val transport = anthropicTransports()
         val client = anthropicOptions(target.provider, key, transport)
@@ -112,6 +113,8 @@ class ProviderModels(
                 .model(target.model.value)
                 .maxTokens(request.maxOutputTokens)
                 .toolCallbacks(PromptMapper.toolCallbacks(request.tools))
+                // Null leaves the response format unset (plain text).
+                .outputSchema(request.outputSchema)
                 .build()
         val transport = openAiTransports()
         val client = openAiOptions(target.provider, key, transport)

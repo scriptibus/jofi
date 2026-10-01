@@ -26,6 +26,28 @@ internal class BackupDomainSeeds(
         )
         seedContacts(company)
         seedViewsAndSettings(company, UUID.fromString("00000000-0000-0000-0000-0000000000c1"))
+        seedPostingImports()
+    }
+
+    // A pending import with CR-free Markdown, quotes and non-BMP text, a failed one, and a succeeded one without text
+    // whose application id is no foreign key.
+    private fun seedPostingImports() {
+        dsl.execute(
+            "insert into posting_import (id, description, status, failure, application_id, attempt, created_at, " +
+                "updated_at) values " +
+                "('00000000-0000-0000-0000-000000000041', '# Kotlin, \"Senior\"\n\nBerlin 🚀', 'PENDING', NULL, " +
+                "NULL, 1, ?::timestamptz, ?::timestamptz), " +
+                "('00000000-0000-0000-0000-000000000042', 'Text', 'FAILED', 'AI_UNAVAILABLE', NULL, 3, " +
+                "?::timestamptz, ?::timestamptz), " +
+                "('00000000-0000-0000-0000-000000000043', NULL, 'SUCCEEDED', NULL, " +
+                "'00000000-0000-0000-0000-0000000000ff', 2, ?::timestamptz, ?::timestamptz)",
+            at,
+            at,
+            at,
+            at,
+            at,
+            at,
+        )
     }
 
     // A quoted email local part, CR/LF in notes, a non-ASCII phone number, several channels, NULL labels.

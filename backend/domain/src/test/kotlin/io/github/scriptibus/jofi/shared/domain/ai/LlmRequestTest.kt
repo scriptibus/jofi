@@ -64,6 +64,16 @@ class LlmRequestTest {
     }
 
     @Test
+    fun `an output schema is optional, never blank, and printed only as present`() {
+        shouldThrow<IllegalArgumentException> { LlmRequest(AiTask.EXTRACTION, question, outputSchema = " ") }
+        val structured = LlmRequest(AiTask.EXTRACTION, question, outputSchema = """{"type":"object"}""")
+
+        structured.toString() shouldContain "structured=true"
+        structured.toString() shouldNotContain "object"
+        LlmRequest(AiTask.EXTRACTION, question).toString() shouldContain "structured=false"
+    }
+
+    @Test
     fun `messages reject blank content`() {
         shouldThrow<IllegalArgumentException> { LlmMessage.System(" ") }
         shouldThrow<IllegalArgumentException> { LlmMessage.User("") }

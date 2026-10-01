@@ -1,0 +1,29 @@
+// SPDX-FileCopyrightText: 2026 Jofi contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+package io.github.scriptibus.jofi.applications.application.port
+
+import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
+import io.github.scriptibus.jofi.applications.domain.ImportId
+import io.github.scriptibus.jofi.applications.domain.PostingImport
+
+/**
+ * Stores posting imports (table `posting_import`, #96) with their pasted text. The use case appends the changelog
+ * entry (entity [ImportId.ENTITY_TYPE]; status, failure and attempt, never the text) in the same transaction.
+ * Implementations never throw and never log row data.
+ */
+interface PostingImportRepositoryPort {
+    fun add(postingImport: PostingImport): ApplicationStoreResult<Unit>
+
+    fun findById(id: ImportId): ApplicationStoreResult<PostingImport>
+
+    /**
+     * Stores [next] (status, failure, application, attempt, `updated_at`) only if the stored import still has
+     * [current]'s status and attempt, so a stale job run or a double retry changes nothing:
+     * [ApplicationStoreResult.VersionConflict]. [ApplicationStoreResult.NotFound] if the import is gone.
+     */
+    fun update(
+        current: PostingImport,
+        next: PostingImport,
+    ): ApplicationStoreResult<Unit>
+}

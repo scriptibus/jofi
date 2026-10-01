@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.applications.adapter.web
 
+import io.github.scriptibus.jofi.applications.application.AddApplicationSourceUseCase
 import io.github.scriptibus.jofi.applications.application.DiffDescriptionSnapshotsUseCase
 import io.github.scriptibus.jofi.applications.application.GetDescriptionSnapshotUseCase
 import io.github.scriptibus.jofi.applications.application.ListDescriptionSnapshotsUseCase
@@ -39,9 +40,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * The description endpoints (#86) over the real use cases with mocked repositories: recording (added or
- * unchanged), the version list, one version with its text, the diff, and their 404s and 400s. Adding a source
- * still answers `501` (#96). Security (session, CSRF) is the filter chain's job, tested in bootstrap.
+ * Adding a source (#96) and the description endpoints (#86) over the real use cases with mocked repositories:
+ * recording (added or unchanged), the version list, one version with its text, the diff, and their 404s and 400s.
+ * Security (session, CSRF) is the filter chain's job, tested in bootstrap.
  */
 @WebMvcTest(ApplicationSourceController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
@@ -56,6 +57,10 @@ class ApplicationSourceControllerTest(
 
         @Bean
         fun ports() = ApplicationControllerTest.Ports()
+
+        @Bean
+        fun addSource(ports: ApplicationControllerTest.Ports) =
+            AddApplicationSourceUseCase(ports.applications, ports.sources, ports.changelog, ports.transactions, clock)
 
         @Bean
         fun record(ports: ApplicationControllerTest.Ports) =
@@ -112,7 +117,8 @@ class ApplicationSourceControllerTest(
 
     @BeforeEach
     fun storeOne() {
-        clearMocks(ports.applications, ports.snapshots, ports.changelog)
+        clearMocks(ports.applications, ports.snapshots, ports.sources, ports.changelog)
+        every { ports.sources.add(any(), any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.applications.findById(any()) } returns ApplicationStoreResult.NotFound
         every { ports.applications.findById(applicationId) } returns ApplicationStoreResult.Success(stored)
         every { ports.snapshots.latest(source.id) } returns ApplicationStoreResult.Success(old)
@@ -214,11 +220,32 @@ class ApplicationSourceControllerTest(
     }
 
     @Test
-    fun `adding a source is not implemented yet`() {
-        json(mvc.post().uri("$base/sources"), """{"kind":"MANUAL_CHAT"}""")
+    fun `adding a source answers it, with its text stored as the first description`() {
+        json(
+            mvc.post().uri("$base/sources"),
+            """{"kind":"URL","originalUrl":"https://jobs.example/1","discoveredAt":"2026-09-30T08:00:00Z",""" +
+                """"description":"Kotlin"}""",
+        ).assertThat()
+            .hasStatus(201)
+            .bodyJson()
+            .extractingPath("$.kind")
+            .isEqualTo("URL")
+        verify {
+            ports.sources.add(
+                match { it.application == applicationId && it.originalUrl?.value == "https://jobs.example/1" },
+                match { it.text.value == "Kotlin" && it.reason == SnapshotReason.DISCOVERY },
+            )
+        }
+        notFound(
+            json(mvc.post().uri("/api/applications/${UUID(0, 9)}/sources"), """{"kind":"SCANNER"}"""),
+            ApplicationProblems.NOT_FOUND,
+        )
+        json(mvc.post().uri("$base/sources"), """{"kind":"URL"}""")
             .assertThat()
-            .hasStatus(501)
-            .hasContentType(MediaType.APPLICATION_PROBLEM_JSON)
+            .hasStatus(400)
+            .bodyJson()
+            .extractingPath("$.violations[0].field")
+            .isEqualTo("originalUrl")
     }
 
     @Test

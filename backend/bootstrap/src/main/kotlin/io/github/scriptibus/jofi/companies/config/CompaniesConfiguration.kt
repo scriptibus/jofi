@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.companies.application.CreateCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.DeleteCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.FindCompanyLinksUseCase
 import io.github.scriptibus.jofi.companies.application.GetCompanyUseCase
+import io.github.scriptibus.jofi.companies.application.MatchCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.SearchCompaniesUseCase
 import io.github.scriptibus.jofi.companies.application.SetCompanyPreferenceUseCase
 import io.github.scriptibus.jofi.companies.application.UpdateCompanyUseCase
@@ -32,6 +33,13 @@ class CompaniesConfiguration {
         companies: CompanyRepositoryPort,
         audit: CompanyAudit,
     ): CreateCompanyUseCase = CreateCompanyUseCase(companies, audit.changelog, audit.transactions, audit.clock)
+
+    /** For the posting import of the applications context (named interface `api`, #96). */
+    @Bean
+    fun matchCompanyUseCase(
+        companies: CompanyRepositoryPort,
+        create: CreateCompanyUseCase,
+    ): MatchCompanyUseCase = MatchCompanyUseCase(companies, create)
 
     @Bean
     fun updateCompanyUseCase(

@@ -39,7 +39,7 @@ class LayerDependencyTest {
             .and()
             .haveNameNotMatching(SPI_METADATA)
             .and()
-            .doNotHaveFullyQualifiedName(API_METADATA)
+            .haveNameNotMatching(API_METADATA)
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage(*FRAMEWORK_PACKAGES)
@@ -49,7 +49,7 @@ class LayerDependencyTest {
 
     /**
      * The exceptions to the rule above: the `ModuleMetadata` (in bootstrap) that makes the companies and
-     * applications SPI packages (ADR-0041) and the applications API package (#85) Spring Modulith named
+     * applications SPI packages (ADR-0041) and the API packages (#85, #96) Spring Modulith named
      * interfaces may use Spring Modulith, nothing else.
      */
     @Test
@@ -58,7 +58,7 @@ class LayerDependencyTest {
             .that()
             .haveNameMatching(SPI_METADATA)
             .or()
-            .haveFullyQualifiedName(API_METADATA)
+            .haveNameMatching(API_METADATA)
             .should()
             .onlyDependOnClassesThat()
             .resideInAnyPackage("org.springframework.modulith..", "java..", "kotlin..", "org.jetbrains.annotations..")
