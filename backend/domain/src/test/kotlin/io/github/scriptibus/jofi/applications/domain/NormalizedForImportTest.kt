@@ -63,6 +63,10 @@ class NormalizedForImportTest {
             WebAddress("https://jobs.example/careers#/job/1")
         WebAddress("https://jobs.example/careers#/job/1").normalizedForImport() shouldNotBe
             WebAddress("https://jobs.example/careers#/job/2").normalizedForImport()
+        WebAddress("https://jobs.example/careers#!/job/1").normalizedForImport() shouldBe
+            WebAddress("https://jobs.example/careers#!/job/1")
+        WebAddress("https://jobs.example/careers#!/job/1").normalizedForImport() shouldNotBe
+            WebAddress("https://jobs.example/careers#!/job/2").normalizedForImport()
         WebAddress("https://jobs.example/job?ref=1234&utm_source=x").normalizedForImport() shouldBe
             WebAddress("https://jobs.example/job?ref=1234")
     }

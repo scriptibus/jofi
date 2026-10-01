@@ -43,24 +43,27 @@ class FetchPostingTextUseCase(
         val uri = address.toUriOrNull() ?: return invalid(ApplicationProblem.INVALID_URL)
         val request = OutboundRequest(uri, acceptedContentTypes = HTML_CONTENT_TYPES, limits = POSTING_LIMITS)
         return when (val result = http.fetch(request)) {
-            is FetchResult.Success -> describe(result.resource)
+            is FetchResult.Success -> describe(result.resource, uri)
             else -> invalid(ApplicationProblem.UNREACHABLE)
         }
     }
 
-    private fun describe(resource: FetchedResource): ApplicationResult<DescriptionText> =
+    private fun describe(
+        resource: FetchedResource,
+        requested: URI,
+    ): ApplicationResult<DescriptionText> =
         when {
             DisallowedPostingHosts.isDisallowedHost(resource.finalUri.host.orEmpty()) -> {
                 invalid(ApplicationProblem.NOT_ALLOWED)
             }
 
-            resource.finalUri.isLoginPage() -> {
+            resource.redirectedToLogin(requested) -> {
                 invalid(ApplicationProblem.UNREACHABLE)
             }
 
             else -> {
                 val bytes = resource.body.bytes()
-                val html = String(bytes, PostingCharset.of(resource.contentType, bytes))
+                val html = String(bytes, PostingCharset.of(resource.contentType, bytes)).removePrefix(BYTE_ORDER_MARK)
                 toDescription(PostingHtmlText.extract(html))
             }
         }
@@ -69,7 +72,7 @@ class FetchPostingTextUseCase(
         when (
             val validated =
                 DescriptionInput(
-                    extracted.take(DescriptionText.MAX_LENGTH),
+                    extracted.cutAtMaxLength(),
                     SnapshotReason.DISCOVERY,
                 ).validate()
         ) {
@@ -77,19 +80,33 @@ class FetchPostingTextUseCase(
             is ApplicationValidation.Invalid -> invalid(ApplicationProblem.UNREACHABLE)
         }
 
-    /** A redirect that ended on a login page: the posting is behind a login wall, so the user pastes it instead. */
-    private fun URI.isLoginPage(): Boolean =
+    /**
+     * A redirect that ended on a login page the submitted link was not: the posting is behind a login wall, so the
+     * user pastes it instead. A link that itself has `login` in its path (`/careers/login/42`) is no wall, and
+     * neither is a page that answers directly; a 401 or 403 never gets here (an HTTP error is `UNREACHABLE`).
+     */
+    private fun FetchedResource.redirectedToLogin(requested: URI): Boolean =
+        finalUri.rawPath.orEmpty() != requested.rawPath.orEmpty() &&
+            finalUri.isLoginPath() &&
+            !requested.isLoginPath()
+
+    private fun URI.isLoginPath(): Boolean =
         rawPath
             .orEmpty()
             .lowercase()
             .split('/')
             .any { it in LOGIN_SEGMENTS }
 
+    /** At most `DescriptionText.MAX_LENGTH` characters, never ending in half of a surrogate pair. */
+    private fun String.cutAtMaxLength(): String =
+        take(DescriptionText.MAX_LENGTH).let { if (it.lastOrNull()?.isHighSurrogate() == true) it.dropLast(1) else it }
+
     private fun <T> invalid(problem: ApplicationProblem): ApplicationResult<T> =
         ApplicationResult.Invalid(listOf(ApplicationViolation(ApplicationField.SOURCE_URL, problem)))
 
     private companion object {
         val HTML_CONTENT_TYPES = setOf("text/html", "application/xhtml+xml")
+        const val BYTE_ORDER_MARK = "\uFEFF"
         val LOGIN_SEGMENTS = setOf("login", "log-in", "signin", "sign-in", "sso", "authwall")
 
         /**

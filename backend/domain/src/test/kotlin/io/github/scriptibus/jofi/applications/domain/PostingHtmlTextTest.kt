@@ -110,4 +110,40 @@ class PostingHtmlTextTest {
         PostingHtmlText.extract("<p>Kotlin</p><script>x()") shouldBe "Kotlin"
         PostingHtmlText.extract("<p>Kotlin</p><!-- never closed <p>hidden</p>") shouldBe "Kotlin"
     }
+
+    @Test
+    fun `a page without a head end tag still yields its body text`() {
+        PostingHtmlText.extract("<head><title>T</title><meta charset=utf-8><body><p>content</p>") shouldBe "content"
+    }
+
+    @Test
+    fun `a closing tag only ends the element of exactly that name`() {
+        PostingHtmlText.extract("<script>a</scripty>b</script><p>text</p>") shouldBe "text"
+        PostingHtmlText.extract("<style>x</stylesheet>y</style><p>text</p>") shouldBe "text"
+        PostingHtmlText.extract("<head><header>Top</header><p>text</p>") shouldBe "Top\n\ntext"
+        PostingHtmlText.extract("<script>a</script >b") shouldBe "b"
+    }
+
+    @Test
+    fun `a script or style never closes itself, so its code does not leak`() {
+        PostingHtmlText.extract("<script src=x/>code()</script><p>text</p>") shouldBe "text"
+        PostingHtmlText.extract("<style media=a/>p{}</style><p>text</p>") shouldBe "text"
+        PostingHtmlText.extract("<svg/><p>text</p>") shouldBe "text"
+    }
+
+    @Test
+    fun `CDATA sections give their text, without the markers`() {
+        PostingHtmlText.extract("<p><![CDATA[ x > y ]]> and more</p>") shouldBe "x > y and more"
+    }
+
+    @Test
+    fun `runs of spaces and tabs inside a line collapse`() {
+        PostingHtmlText.extract("<p>Senior   Kotlin \t\t Developer</p>") shouldBe "Senior Kotlin Developer"
+    }
+
+    @Test
+    fun `numeric references 128 to 159 mean the windows-1252 characters`() {
+        PostingHtmlText.extract("<p>&#150; &#x80; &#132;Junior&#147; &#129;</p>") shouldBe
+            "\u2013 \u20AC \u201EJunior\u201C &#129;"
+    }
 }

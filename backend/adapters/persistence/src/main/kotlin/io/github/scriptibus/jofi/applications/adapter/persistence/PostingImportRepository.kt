@@ -101,12 +101,15 @@ class PostingImportRepository(
             )
         }
 
-    override fun lockForStart(key: String): ApplicationStoreResult<Unit> =
-        storeCall("lock import start") {
+    override fun lockForStart(key: String): ApplicationStoreResult<Unit> {
+        // Outside a transaction (autocommit) the lock would be released at once and guard nothing: a bug, not a result.
+        check(dsl.connectionResult { !it.autoCommit }) { "lockForStart needs the caller's transaction" }
+        return storeCall("lock import start") {
             // Held until the caller's transaction ends; the key is hashed, so its length does not matter.
             dsl.fetch("SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtextextended(?, 0))) AS locked", key)
             ApplicationStoreResult.Success(Unit)
         }
+    }
 
     private fun toRecord(postingImport: PostingImport): PostingImportRecord =
         PostingImportRecord().apply {

@@ -37,4 +37,25 @@ class DisallowedPostingHostsTest {
         DisallowedPostingHosts.isDisallowedHost("jobs.example") shouldBe false
         DisallowedPostingHosts.isDisallowedHost("notlnkd.in") shouldBe false
     }
+
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "https://indeedjobs.com/careers",
+            "https://www.indeedjobs.com/x",
+            "https://indeed.co.uk/jobs",
+            "https://uk.linkedin.com/jobs",
+            "https://WWW.LINKEDIN.COM./x",
+            "https://www.\uFF4Cinkedin.com/x",
+        ],
+    )
+    fun `other domains of the sites and country suffixes are disallowed`(url: String) {
+        DisallowedPostingHosts.isDisallowed(WebAddress(url)) shouldBe true
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["https://indeed.example.org/x", "https://careers.indeed-partner.example/x"])
+    fun `a brand name that is not the registrable name of the host is no match`(url: String) {
+        DisallowedPostingHosts.isDisallowed(WebAddress(url)) shouldBe false
+    }
 }

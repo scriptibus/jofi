@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.adapter.web
 
 import io.github.scriptibus.jofi.applications.application.FetchPostingTextUseCase
 import io.github.scriptibus.jofi.applications.application.GetPostingImportUseCase
+import io.github.scriptibus.jofi.applications.application.ResolveUrlImportUseCase
 import io.github.scriptibus.jofi.applications.application.RetryPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.StartPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.StartUrlImportUseCase
@@ -21,6 +22,7 @@ import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
+import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.ai.AiTask
@@ -92,9 +94,21 @@ class PostingImportControllerTest(
         @Bean
         fun startUrl(ports: ImportPorts) =
             StartUrlImportUseCase(
+                ResolveUrlImportUseCase(
+                    ports.imports,
+                    ports.sources,
+                    FetchPostingTextUseCase(ports.ai, ports.http),
+                    ports.applications.changelog,
+                    ports.applications.transactions,
+                    clock,
+                ),
+                object : KeyedLockPort {
+                    override fun <T> withLock(
+                        key: String,
+                        work: () -> T,
+                    ): T = work()
+                },
                 ports.imports,
-                ports.sources,
-                FetchPostingTextUseCase(ports.ai, ports.http),
                 ports.jobs,
                 ports.applications.changelog,
                 ports.applications.transactions,

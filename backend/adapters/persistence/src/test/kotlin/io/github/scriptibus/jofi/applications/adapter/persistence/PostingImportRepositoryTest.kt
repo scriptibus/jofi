@@ -15,6 +15,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.POSTING_
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.tables.records.PostingImportRecord
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -156,6 +157,13 @@ class PostingImportRepositoryTest {
             inTransaction.lockForStart("url:https://jobs.example/1") shouldBe ApplicationStoreResult.Success(Unit)
             inTransaction.lockForStart("text:" + "x".repeat(100_000)) shouldBe ApplicationStoreResult.Success(Unit)
         }
+    }
+
+    @Test
+    fun `the start lock outside a transaction fails loudly instead of locking nothing`() {
+        val failure = runCatching { repository.lockForStart("url:https://jobs.example/1") }.exceptionOrNull()
+
+        failure.shouldBeInstanceOf<IllegalStateException>()
     }
 
     @Test

@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.applications.application.AddApplicationSourceUs
 import io.github.scriptibus.jofi.applications.application.AddDiscoveredApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.FetchPostingTextUseCase
 import io.github.scriptibus.jofi.applications.application.GetPostingImportUseCase
+import io.github.scriptibus.jofi.applications.application.ResolveUrlImportUseCase
 import io.github.scriptibus.jofi.applications.application.RetryPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.RunPostingImportUseCase
 import io.github.scriptibus.jofi.applications.application.StartPostingImportUseCase
@@ -19,6 +20,7 @@ import io.github.scriptibus.jofi.applications.config.ApplicationsConfiguration.A
 import io.github.scriptibus.jofi.companies.application.port.api.MatchCompanyPort
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
+import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -62,14 +64,23 @@ class PostingImportConfiguration {
     ): FetchPostingTextUseCase = FetchPostingTextUseCase(ai, http)
 
     @Bean
-    fun startUrlImportUseCase(
+    fun resolveUrlImportUseCase(
         imports: PostingImportRepositoryPort,
         sources: ApplicationSourceRepositoryPort,
         fetch: FetchPostingTextUseCase,
+        audit: ApplicationAudit,
+    ): ResolveUrlImportUseCase =
+        ResolveUrlImportUseCase(imports, sources, fetch, audit.changelog, audit.transactions, audit.clock)
+
+    @Bean
+    fun startUrlImportUseCase(
+        resolve: ResolveUrlImportUseCase,
+        locks: KeyedLockPort,
+        imports: PostingImportRepositoryPort,
         jobs: JobSchedulerPort,
         audit: ApplicationAudit,
     ): StartUrlImportUseCase =
-        StartUrlImportUseCase(imports, sources, fetch, jobs, audit.changelog, audit.transactions, audit.clock)
+        StartUrlImportUseCase(resolve, locks, imports, jobs, audit.changelog, audit.transactions, audit.clock)
 
     @Bean
     fun getPostingImportUseCase(imports: PostingImportRepositoryPort): GetPostingImportUseCase =

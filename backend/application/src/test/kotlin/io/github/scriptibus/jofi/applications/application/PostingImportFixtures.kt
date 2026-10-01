@@ -22,6 +22,7 @@ import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.companies.application.port.api.MatchCompanyPort
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
+import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
@@ -169,10 +170,27 @@ class PostingImportFixtures {
         )
     val fetchRequests = mutableListOf<OutboundRequest>()
 
+    /** Transactions open right now; a fetch must see 0 (no database connection is held while fetching, #97). */
+    var openTransactions = 0
+    val transactionsOpenAtFetch = mutableListOf<Int>()
+    val lockedKeys = mutableListOf<String>()
+
+    val locks =
+        object : KeyedLockPort {
+            override fun <T> withLock(
+                key: String,
+                work: () -> T,
+            ): T {
+                lockedKeys += key
+                return work()
+            }
+        }
+
     val http =
         object : OutboundHttpPort {
             override fun fetch(request: OutboundRequest): FetchResult {
                 fetchRequests += request
+                transactionsOpenAtFetch += openTransactions
                 return fetched
             }
         }
@@ -231,7 +249,9 @@ class PostingImportFixtures {
             ): T {
                 val importsBefore = imports.toMap()
                 return base.transactions.inTransaction(commitIf) {
-                    work().also {
+                    openTransactions++
+                    val result = runCatching(work).also { openTransactions-- }.getOrThrow()
+                    result.also {
                         if (!commitIf(it)) {
                             imports.clear()
                             imports.putAll(importsBefore)
@@ -242,6 +262,7 @@ class PostingImportFixtures {
         }
 
     val fetchPosting = FetchPostingTextUseCase(ai, http)
+    val resolveUrl = ResolveUrlImportUseCase(importPort, sources, fetchPosting, base.changelog, transactions, CLOCK)
 
     val discovered = AddDiscoveredApplicationUseCase(base.repository, sources, base.changelog, transactions, CLOCK)
 }

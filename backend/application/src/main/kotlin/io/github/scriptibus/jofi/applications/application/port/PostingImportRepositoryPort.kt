@@ -47,7 +47,8 @@ interface PostingImportRepositoryPort {
      * commits or rolls back, and that blocks any other transaction asking for the same key meanwhile (#187 finding
      * F6): a use case takes it before it looks for a pending import and keeps it through the fetch and the insert,
      * so a double submit waits, then finds the first import instead of fetching and importing a second time.
-     * Different keys never wait for each other.
+     * Different keys never wait for each other. Throws `IllegalStateException` when called outside a transaction,
+     * where the lock would guard nothing.
      */
     fun lockForStart(key: String): ApplicationStoreResult<Unit>
 }

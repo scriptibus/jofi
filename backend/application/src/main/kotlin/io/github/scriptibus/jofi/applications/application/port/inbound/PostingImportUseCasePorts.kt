@@ -104,3 +104,15 @@ interface RunPostingImportPort {
 interface FetchPostingTextPort {
     fun execute(address: WebAddress): ApplicationResult<DescriptionText>
 }
+
+/**
+ * What a URL import of the normalised, allowed link [address] comes to (spec §8.1, #97), the step [StartUrlImportPort]
+ * runs once per link at a time: the pending import already there, the existing application, or the fetched text stored
+ * as a new pending import. No database connection is held while the page is fetched. Failures as [FetchPostingTextPort].
+ */
+interface ResolveUrlImportPort {
+    fun execute(
+        address: WebAddress,
+        actor: Actor,
+    ): ApplicationResult<UrlImportOutcome>
+}

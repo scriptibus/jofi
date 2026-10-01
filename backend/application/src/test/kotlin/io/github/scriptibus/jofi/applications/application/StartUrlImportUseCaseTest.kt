@@ -34,9 +34,9 @@ class StartUrlImportUseCaseTest {
     private val base = fixtures.base
     private val start =
         StartUrlImportUseCase(
+            fixtures.resolveUrl,
+            fixtures.locks,
             fixtures.importPort,
-            fixtures.sources,
-            fixtures.fetchPosting,
             fixtures.jobs,
             base.changelog,
             fixtures.transactions,
@@ -87,9 +87,30 @@ class StartUrlImportUseCaseTest {
 
         val second = start.execute(URL, Actor.User).shouldBeInstanceOf<ApplicationResult.Success<UrlImportOutcome>>()
 
-        second.value.shouldBeInstanceOf<UrlImportOutcome.Started>()
+        second.value.shouldBeInstanceOf<UrlImportOutcome.AlreadyPending>()
         second.value.import shouldBe first
         fixtures.fetchRequests shouldHaveSize 1
+    }
+
+    @Test
+    fun `no transaction is open while the page is fetched, and the link is locked for the whole import`() {
+        started()
+
+        fixtures.transactionsOpenAtFetch shouldBe listOf(0)
+        fixtures.lockedKeys shouldBe listOf("url:$URL")
+    }
+
+    @Test
+    fun `a failed fetch leaves nothing stored, so the next attempt starts clean`() {
+        fixtures.fetched = FetchResult.Timeout
+        unreachable()
+        fixtures.imports.size shouldBe 0
+        fixtures.base.entries.size shouldBe 0
+
+        fixtures.fetched = html("<html><body><h1>Senior Kotlin Engineer</h1></body></html>")
+
+        started().status shouldBe ImportStatus.PENDING
+        fixtures.imports.size shouldBe 1
     }
 
     @Test
@@ -197,6 +218,55 @@ class StartUrlImportUseCaseTest {
 
         unreachable()
         fixtures.imports.size shouldBe 0
+    }
+
+    @Test
+    fun `a posting whose own path says login or sso is no login wall when nothing redirected`() {
+        listOf("https://jobs.example/careers/login/42", "https://jobs.example/jobs/sso").forEach { link ->
+            fixtures.imports.clear()
+            fixtures.fetched =
+                FetchResult.Success(
+                    FetchedResource(
+                        URI.create(link),
+                        200,
+                        "text/html",
+                        ResponseBody("<html><body><h1>Senior Kotlin Engineer</h1></body></html>".toByteArray()),
+                    ),
+                )
+
+            started(link).text?.value shouldBe "Senior Kotlin Engineer"
+        }
+    }
+
+    @Test
+    fun `a redirect from a login-looking link to another login page is no new wall either`() {
+        fixtures.fetched =
+            FetchResult.Success(
+                FetchedResource(
+                    URI.create("https://jobs.example/sso/login"),
+                    200,
+                    "text/html",
+                    ResponseBody("<html><body><h1>Senior Kotlin Engineer</h1></body></html>".toByteArray()),
+                ),
+            )
+
+        started("https://jobs.example/login/42").text?.value shouldBe "Senior Kotlin Engineer"
+    }
+
+    @Test
+    fun `a byte order mark is not part of the text`() {
+        val bytes = "\uFEFF<html><body><p>Titel</p></body></html>".toByteArray(Charsets.UTF_8)
+        fixtures.fetched = FetchResult.Success(FetchedResource(URI.create(URL), 200, "text/html", ResponseBody(bytes)))
+
+        started().text?.value shouldBe "Titel"
+    }
+
+    @Test
+    fun `the cut at the maximum length never splits a surrogate pair`() {
+        val page = "<html><body><p>" + "a".repeat(99_999) + "\uD83D\uDE00 tail</p></body></html>"
+        fixtures.fetched = html(page)
+
+        started().text?.value shouldBe "a".repeat(99_999)
     }
 
     @Test

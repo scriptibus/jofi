@@ -174,13 +174,18 @@ data class PostingImport(
 }
 
 /**
- * Outcome of starting a URL import (#97): a new pending [import], or one recorded at once because [sourceUrl] was
- * already imported successfully, or already pending (double submit, #187 finding F6).
+ * Outcome of starting a URL import (#97): a new pending [import] ([Started]), the one already pending for the link
+ * ([AlreadyPending], a double submit, #187 finding F6), or one recorded at once because the link was already
+ * imported successfully ([AlreadyImported]).
  */
 sealed interface UrlImportOutcome {
     val import: PostingImport
 
     data class Started(
+        override val import: PostingImport,
+    ) : UrlImportOutcome
+
+    data class AlreadyPending(
         override val import: PostingImport,
     ) : UrlImportOutcome
 

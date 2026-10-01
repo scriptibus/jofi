@@ -4,25 +4,46 @@
 package io.github.scriptibus.jofi.applications.domain
 
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
+import java.net.IDN
 
 /**
  * Sites Jofi never fetches for a URL import (spec §8.1): no scraping workarounds for LinkedIn, StepStone or
  * Indeed, whatever the result would be, so the user is asked to paste the text instead before any fetch is tried.
  */
 object DisallowedPostingHosts {
-    private val DISALLOWED_LABELS = setOf("linkedin", "stepstone", "indeed")
+    /** The sites' brand names: the registrable name under any country domain (`linkedin.com`, `de.indeed.com`). */
+    private val DISALLOWED_BRANDS = setOf("linkedin", "stepstone", "indeed")
 
-    /** Shorteners the sites run themselves: a link that merely redirects into one of them is as disallowed. */
-    private val DISALLOWED_HOSTS = setOf("lnkd.in")
+    /**
+     * First-party domains of the sites under another name, with their subdomains: LinkedIn's own shortener
+     * (`lnkd.in`), Indeed's careers and e-mail domains (`indeedjobs.com`, `indeedemail.com`). Gathered from the sites'
+     * own published domains in 2026-10; StepStone is known to run none besides its country domains. A link that
+     * reaches one of these by redirect is caught by the final-address check in any case.
+     */
+    private val DISALLOWED_DOMAINS = setOf("lnkd.in", "indeedjobs.com", "indeedemail.com")
 
-    /** Whether [address] names one of the disallowed sites, by a dot-separated label of its host. */
+    /** Second-level labels under a country domain (`indeed.co.uk`): the brand is one label further left. */
+    private val SECOND_LEVEL_LABELS = setOf("co", "com", "org", "net", "ac", "gov", "edu")
+    private const val COUNTRY_CODE_LENGTH = 2
+    private const val LABELS_WITH_SECOND_LEVEL = 3
+    private const val LABELS_FROM_RIGHT = 2
+
+    /** Whether [address] names one of the disallowed sites. */
     fun isDisallowed(address: WebAddress): Boolean = isDisallowedHost(address.host)
 
     /** Whether [host] (as a web address or a fetch's final URI gives it) belongs to a disallowed site. */
     fun isDisallowedHost(host: String): Boolean {
-        val normalized = host.lowercase().trimEnd('.')
-        return normalized.split('.').any { it in DISALLOWED_LABELS } ||
-            DISALLOWED_HOSTS.any { normalized == it || normalized.endsWith(".$it") }
+        val normalized = (runCatching { IDN.toASCII(host) }.getOrNull() ?: host).lowercase().trimEnd('.')
+        return registrableLabel(normalized.split('.')) in DISALLOWED_BRANDS ||
+            DISALLOWED_DOMAINS.any { normalized == it || normalized.endsWith(".$it") }
+    }
+
+    /** The label that names the owner of a host: second from the right, or third under `co.uk` and alike. */
+    private fun registrableLabel(labels: List<String>): String? {
+        val underCountrySuffix =
+            labels.size >= LABELS_WITH_SECOND_LEVEL && labels.last().length == COUNTRY_CODE_LENGTH &&
+                labels[labels.size - 2] in SECOND_LEVEL_LABELS
+        return labels.getOrNull(labels.size - if (underCountrySuffix) LABELS_WITH_SECOND_LEVEL else LABELS_FROM_RIGHT)
     }
 }
 
@@ -49,7 +70,7 @@ fun WebAddress.normalizedForImport(): WebAddress? {
     val query = keptQuery(uri.rawQuery)?.let { "?$it" }.orEmpty()
     val route =
         uri.rawFragment
-            ?.takeIf { it.startsWith("/") }
+            ?.takeIf { it.startsWith("/") || it.startsWith("!/") }
             ?.let { "#$it" }
             .orEmpty()
     return WebAddress.parse("$scheme://$host$portSuffix${uri.rawPath.orEmpty()}$query$route")

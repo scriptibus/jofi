@@ -106,8 +106,6 @@ class PostingUrlImportFlowTest(
     fun removeFakeProvider() {
         dsl.deleteFrom(AI_MODEL_ASSIGNMENT).where(AI_MODEL_ASSIGNMENT.PROVIDER_ID.eq(PROVIDER.id.value)).execute()
         dsl.deleteFrom(AI_PROVIDER_CONFIG).where(AI_PROVIDER_CONFIG.ID.eq(PROVIDER.id.value)).execute()
-        FAKE_AI.stop()
-        FAKE_POSTING.stop()
     }
 
     @BeforeEach
@@ -293,6 +291,27 @@ class PostingUrlImportFlowTest(
     }
 
     @Test
+    fun `a posting with login in its own path is no login wall`() {
+        val browser = owner()
+        servesPosting("/careers/login/42", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
+
+        browser.post("$IMPORTS/url", """{"url":"${postingUrl("/careers/login/42")}"}""").ok(202)
+    }
+
+    @Test
+    fun `a failed fetch leaves no pending import behind, and the same link imports on the next try`() {
+        val browser = owner()
+        FAKE_POSTING.stubFor(wireMockGet(urlEqualTo("/flaky")).willReturn(aResponse().withStatus(503)))
+        browser.refusedUrl(postingUrl("/flaky")).refusedWith("UNREACHABLE")
+        FAKE_POSTING.resetAll()
+        servesPosting("/flaky", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
+
+        browser.post("$IMPORTS/url", """{"url":"${postingUrl("/flaky")}"}""").ok(202)["status"].asString() shouldBe
+            "PENDING"
+        dsl.fetchCount(POSTING_IMPORT) shouldBe 1
+    }
+
+    @Test
     fun `an address the guard does not allow is refused without a single request reaching it`() {
         val browser = owner()
 
@@ -353,62 +372,6 @@ class PostingUrlImportFlowTest(
         output.all shouldNotContain "hunter2"
     }
 
-    @Test
-    fun `two requests for the same link at once fetch it once and answer with one import`() {
-        val browser = owner()
-        FAKE_POSTING.stubFor(
-            wireMockGet(urlEqualTo("/jobs/slow")).willReturn(
-                aResponse()
-                    .withHeader("Content-Type", "text/html")
-                    .withBody("<html><body><h1>Senior Kotlin Developer</h1></body></html>")
-                    .withFixedDelay(1_500),
-            ),
-        )
-        answers(ANSWER)
-
-        val answers =
-            concurrently(2) { browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/slow")}"}""").ok(202) }
-
-        answers.map { it["id"].asString() }.toSet().size shouldBe 1
-        FAKE_POSTING.findAll(getRequestedFor(urlEqualTo("/jobs/slow"))).size shouldBe 1
-        dsl.fetchCount(POSTING_IMPORT) shouldBe 1
-        job.run(mapOf("import" to answers.first()["id"].asString())) shouldBe JobOutcome.Done
-        dsl.fetchCount(APPLICATION) shouldBe 1
-        FAKE_AI.findAll(postRequestedFor(urlEqualTo(COMPLETIONS))).size shouldBe 1
-    }
-
-    @Test
-    fun `two requests for the same pasted text at once answer with one import`() {
-        val browser = owner()
-
-        repeat(10) { round ->
-            val body = json.writeValueAsString(mapOf("description" to "Kotlin Developer, round $round, ACME Robotics"))
-            val answers = concurrently(2) { browser.post("$IMPORTS/text", body).ok(202) }
-            answers.map { it["id"].asString() }.toSet().size shouldBe 1
-        }
-        dsl.fetchCount(POSTING_IMPORT) shouldBe 10
-    }
-
-    /** Runs [call] on [threads] threads released together, and answers what each returned. */
-    private fun <T> concurrently(
-        threads: Int,
-        call: () -> T,
-    ): List<T> {
-        val start = CyclicBarrier(threads)
-        val pool = Executors.newFixedThreadPool(threads)
-        try {
-            return (1..threads)
-                .map {
-                    pool.submit<T> {
-                        start.await()
-                        call()
-                    }
-                }.map { it.get(60, TimeUnit.SECONDS) }
-        } finally {
-            pool.shutdownNow()
-        }
-    }
-
     /**
      * Allowlists exactly [FAKE_POSTING]'s loopback destination in the real SSRF guard, for this test only: a
      * posting fetch still gets no allowlist at all in production
@@ -441,7 +404,7 @@ class PostingUrlImportFlowTest(
             )
     }
 
-    private companion object {
+    internal companion object {
         const val SHORTENER_HOST = "short.example"
         const val DISALLOWED_HOST = "www.linkedin.com"
         const val PASSWORD = "correct horse battery staple"

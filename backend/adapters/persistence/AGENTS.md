@@ -258,7 +258,8 @@ The generator lives in the `codegen` source set and has its own locked classpath
   index (`findPendingBySourceUrl`). Included in export/import with the table. `lockForStart(key)` takes a
   transaction-scoped advisory lock (`pg_advisory_xact_lock(hashtextextended(key, 0))`) on a link or a pasted text, held
   until the caller's transaction ends, so a concurrent double submit waits and then finds the pending import (#187
-  finding F6); the start use cases keep the transaction open through the fetch.
+  finding F6). It must run inside a transaction (it throws `IllegalStateException` otherwise: an autocommit lock
+  would guard nothing). The URL import takes it only in its short store transaction, never around the fetch.
 - `application_description_snapshot` (#78, ADR-0046): one row per version of a source's description, deleted with
   its source. `description` is untrusted posting text (at most 100,000 characters), `content_hash` must equal
   `encode(sha256(convert_to(description, 'UTF8')), 'hex')` (`..._content_hash_matches`, what `ContentHash`
