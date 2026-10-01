@@ -5,7 +5,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { api, onStack, uniqueName } from "./helpers.ts";
 
 // The posting import (#96) against the full stack: the app queues the job, the worker reads the posting through the
-// AI gateway from the fake AI (fixtures/extraction), and the client polls. API only; the page comes with #98.
+// AI gateway from the fake AI (fixtures/extraction), and the client polls. The import dialog is covered by import-dialog.spec.ts.
 test.skip(!onStack, "Needs the full stack: run `pnpm e2e`.");
 
 interface PostingImport {

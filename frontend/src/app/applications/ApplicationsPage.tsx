@@ -10,7 +10,7 @@ import {
   useSearchApplications,
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
-import { AddIcon, Alert, Button, EmptyState, SegmentedControl, TextLink } from "../../ui";
+import { AddIcon, Alert, Button, DownloadIcon, EmptyState, SegmentedControl, TextLink } from "../../ui";
 import { type CompanyChoices, useCompanyChoices } from "../contacts/companyChoices";
 import { PageHeader } from "../pages/PlaceholderPage";
 import { describeError } from "../problems";
@@ -35,6 +35,7 @@ import {
   withPage,
   withView,
 } from "./applicationsSearch";
+import { ImportPostingDialog } from "./import/ImportPostingDialog";
 import { SavedViews } from "./SavedViews";
 import { TERMINAL } from "./statusMatrix";
 
@@ -52,13 +53,21 @@ export function ApplicationsPage() {
   const [text, setText] = useSearchText(search, (q) => go(withFilter(search, "q", q || undefined), true));
   const companies = useCompanyChoices(search.company);
   const views = { search, onSearch: go, companies };
+  const [importing, setImporting] = useState(false);
 
   return (
     <>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <PageHeader title={m.nav_applications()} />
-        <NewApplicationLink company={search.company} />
+        <div className="flex flex-wrap items-center gap-4 self-start sm:self-auto">
+          <Button variant="secondary" onPress={() => setImporting(true)}>
+            <DownloadIcon className="size-4" aria-hidden="true" />
+            {m.import_open()}
+          </Button>
+          <NewApplicationLink company={search.company} />
+        </div>
       </div>
+      <ImportPostingDialog isOpen={importing} onClose={() => setImporting(false)} />
       <ApplicationFilters search={search} onSearch={go} text={text} onText={setText} companies={companies} />
       <SavedViews search={search} onOpen={go} />
       <SegmentedControl<View>

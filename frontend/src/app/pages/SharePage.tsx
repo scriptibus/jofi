@@ -2,18 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { getRouteApi } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { m } from "../../paraglide/messages.js";
-import { EmptyState } from "../../ui";
+import { Button, DownloadIcon, EmptyState } from "../../ui";
+import { ImportPostingDialog } from "../applications/import/ImportPostingDialog";
+import { draftFromShare, type SharedContent } from "../applications/import/importModel";
 import { PageHeader } from "./PlaceholderPage";
 
 const route = getRouteApi("/_app/share");
-
-/** What the Web Share Target sends (manifest `share_target.params`); each part is optional. */
-export interface SharedContent {
-  title?: string;
-  text?: string;
-  url?: string;
-}
 
 /** Keeps only non-empty strings: the query string is untrusted input from another app. */
 export function parseSharedContent(search: Record<string, unknown>): SharedContent {
@@ -25,12 +21,30 @@ export function parseSharedContent(search: Record<string, unknown>): SharedConte
   return shared;
 }
 
+function hasContent(shared: SharedContent): boolean {
+  return Boolean(shared.title || shared.text || shared.url);
+}
+
 /**
- * The share target: shows what another app shared with Jofi. Shown as plain text, never as a
- * link or markup (untrusted input). Importing it is #34.
+ * The share target (manifest `share_target`, GET): shows what another app shared and opens the import dialog with it
+ * filled in (spec §8.1). Nothing is imported until the user presses "Import" in the dialog. The shared parts are
+ * untrusted input from another app: shown as plain text, never as a link or markup, and moved out of the address
+ * bar (replaced by `/share`) as soon as the page holds them, so they do not stay in the history. A new share while
+ * the page is open replaces the old one.
  */
 export function SharePage() {
-  const shared = route.useSearch();
+  const search = route.useSearch();
+  const navigate = route.useNavigate();
+  const [shared, setShared] = useState<SharedContent>(search);
+  const [dialog, setDialog] = useState({ open: hasContent(search), received: 0 });
+
+  useEffect(() => {
+    if (!hasContent(search)) return;
+    setShared(search);
+    setDialog((current) => ({ open: true, received: current.received + 1 }));
+    void navigate({ search: {}, replace: true });
+  }, [search, navigate]);
+
   const rows: { label: string; value: string }[] = [];
   if (shared.title) rows.push({ label: m.share_title(), value: shared.title });
   if (shared.text) rows.push({ label: m.share_text(), value: shared.text });
@@ -52,8 +66,18 @@ export function SharePage() {
               </div>
             ))}
           </dl>
+          <Button className="self-start" onPress={() => setDialog((current) => ({ ...current, open: true }))}>
+            <DownloadIcon className="size-4" aria-hidden="true" />
+            {m.share_import()}
+          </Button>
         </section>
       )}
+      <ImportPostingDialog
+        key={dialog.received}
+        isOpen={dialog.open && rows.length > 0}
+        onClose={() => setDialog((current) => ({ ...current, open: false }))}
+        initial={draftFromShare(shared)}
+      />
     </>
   );
 }

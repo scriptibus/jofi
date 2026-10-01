@@ -108,10 +108,14 @@ test("settings: theme, accent and language persist; German works", async ({ page
   await snapshot(page, "dashboard-de");
 });
 
-test("share target: the share route shows what was shared", async ({ page }) => {
+test("share target: the share route shows what was shared and opens the import dialog", async ({ page }) => {
   await page.goto(
     "/share?title=Kotlin%20Developer%20(m%2Fw%2Fd)&text=Look%20at%20this&url=https%3A%2F%2Fjobs.example%2F42",
   );
+  const dialog = page.getByRole("dialog", { name: "Import a job posting" });
+  await expect(dialog.getByLabel("Link to the posting")).toHaveValue("https://jobs.example/42");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
   await expect(page.getByRole("heading", { level: 1, name: "Shared with Jofi" })).toBeVisible();
   await expect(page.getByText("Kotlin Developer (m/w/d)")).toBeVisible();
   await expect(page.getByText("Look at this")).toBeVisible();
