@@ -23,7 +23,7 @@ import {
   TextLink,
 } from "../../ui";
 import { useConfirmation } from "../useConfirmation";
-import { DELETE_OPERATION, describeTiming } from "./task";
+import { DELETE_OPERATION, describeTiming, taskTitle } from "./task";
 import { TaskLinkChip } from "./taskLinks";
 import { isTaskVersionConflict } from "./taskProblems";
 
@@ -99,6 +99,7 @@ export interface TaskRowProps {
 export function TaskRow({ task, listKey, overdue, viewerZone, onDone, onDeleted, onFailure }: TaskRowProps) {
   const setDone = useSetTaskDone(listKey);
   const done = task.status === "DONE";
+  const title = taskTitle(task);
   const toggle = (next: boolean) =>
     setDone.mutate({ task, done: next }, { onSuccess: onDone, onError: onFailure });
 
@@ -106,7 +107,7 @@ export function TaskRow({ task, listKey, overdue, viewerZone, onDone, onDeleted,
     <li className="flex flex-col gap-3 rounded border border-line bg-surface p-4 shadow-card sm:flex-row sm:justify-between">
       <div className="flex min-w-0 flex-col gap-2">
         <Checkbox isSelected={done} onChange={toggle} isDisabled={setDone.isPending}>
-          <span className={done ? "text-muted line-through" : "font-semibold"}>{task.title}</span>
+          <span className={done ? "text-muted line-through" : "font-semibold"}>{title}</span>
         </Checkbox>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-8 text-muted">
           {overdue && !done ? (
@@ -131,7 +132,7 @@ export function TaskRow({ task, listKey, overdue, viewerZone, onDone, onDeleted,
         <TextLink
           to="/tasks/$taskId/edit"
           params={{ taskId: task.id }}
-          aria-label={m.task_edit_named({ title: task.title })}
+          aria-label={m.task_edit_named({ title })}
           className="inline-flex items-center gap-2"
         >
           <EditIcon className="size-4" aria-hidden="true" />
@@ -174,7 +175,7 @@ function DeleteTask({ task, onDeleted, onFailure }: Pick<TaskRowProps, "task" | 
         variant="secondary"
         onPress={start}
         isDisabled={remove.isPending}
-        aria-label={m.task_delete_named({ title: task.title })}
+        aria-label={m.task_delete_named({ title: taskTitle(task) })}
       >
         <DeleteIcon className="size-4" aria-hidden="true" />
         {m.task_delete()}

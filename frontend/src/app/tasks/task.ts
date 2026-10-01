@@ -55,6 +55,44 @@ export const linkTypeLabels: Record<TaskLinkType, () => string> = {
   CONTACT: m.task_link_contact,
 };
 
+/**
+ * The suggestion rules' titles (backend `TaskSuggestionRules`, `GhostedSuggestion`; ADR-0049): the server writes
+ * them in English as "<prefix><what it is about>", and the UI puts them in the user's language.
+ */
+const suggestionTitles: ReadonlyMap<string, { prefix: string; title: (subject: string) => string }> = new Map(
+  [
+    [
+      "follow-up",
+      { prefix: "Follow up: ", title: (subject) => m.task_suggestion_title_follow_up({ subject }) },
+    ],
+    [
+      "interview-preparation",
+      {
+        prefix: "Prepare for the interview: ",
+        title: (subject) => m.task_suggestion_title_interview_preparation({ subject }),
+      },
+    ],
+    [
+      "offer-answer",
+      { prefix: "Answer the offer: ", title: (subject) => m.task_suggestion_title_offer_answer({ subject }) },
+    ],
+    [
+      "ghosted-suggestion",
+      { prefix: "Mark as Ghosted: ", title: (subject) => m.task_suggestion_title_ghosted({ subject }) },
+    ],
+  ],
+);
+
+/**
+ * A task's title as shown: a suggestion's rule title in the user's language, as long as it is the rule's own
+ * (not edited since); any other title as it is.
+ */
+export function taskTitle(task: Pick<TaskResponse, "title" | "suggestionRule">): string {
+  const rule = task.suggestionRule ? suggestionTitles.get(task.suggestionRule) : undefined;
+  if (!rule || !task.title.startsWith(rule.prefix)) return task.title;
+  return rule.title(task.title.slice(rule.prefix.length));
+}
+
 /** The browser's IANA zone (e.g. `Europe/Berlin`): buckets and the grouping follow the viewer's calendar. */
 export function viewerTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;

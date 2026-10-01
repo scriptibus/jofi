@@ -28,6 +28,7 @@ import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { sectionCard } from "../companies/RelatedRecords";
 import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
+import { SuggestedTasks } from "./SuggestedTasks";
 import { storeSavedTask } from "./TaskEditPages";
 import { TaskRow, useSetTaskDone } from "./TaskRow";
 import {
@@ -39,19 +40,24 @@ import {
   MAX_TITLE_LENGTH,
   type TaskBucket,
   taskFieldErrorsOf,
+  taskTitle,
   viewerTimeZone,
 } from "./task";
 import { describeTaskError } from "./taskProblems";
 
-/** What the page last has to say: a task added, done or deleted (with undo for done), or a failure. */
+/**
+ * What the page last has to say: a task added, done or deleted (with undo for done), a suggestion accepted or
+ * dismissed, or a failure.
+ */
 type Feedback =
-  | { kind: "added" | "deleted" | "reopened"; title: string }
+  | { kind: "added" | "deleted" | "reopened" | "accepted" | "dismissed"; title: string }
   | { kind: "done"; task: TaskResponse }
   | { kind: "failure"; failure: ErrorDescription };
 
 /**
- * Tasks (spec §10.2): a quick add, then the open tasks grouped by when they are due on the viewer's calendar
- * (the browser's zone goes to the server). Complete with a checkbox (undo reopens), edit, delete with confirmation.
+ * Tasks (spec §10.2): a quick add, the suggested tasks to accept or dismiss, then the open tasks grouped by when
+ * they are due on the viewer's calendar (the browser's zone goes to the server). Complete with a checkbox (undo
+ * reopens), edit, delete with confirmation.
  */
 export function TasksPage() {
   const [viewerZone] = useState(viewerTimeZone);
@@ -69,13 +75,20 @@ export function TasksPage() {
         onAdded={(task) => setFeedback({ kind: "added", title: task.title })}
       />
       <FeedbackMessage feedback={feedback} listKey={listKey} onChange={setFeedback} onFailure={fail} />
+      <SuggestedTasks
+        viewerZone={viewerZone}
+        onDecided={(task, decision) =>
+          setFeedback({ kind: decision === "accept" ? "accepted" : "dismissed", title: taskTitle(task) })
+        }
+        onFailure={fail}
+      />
       {list.data ? (
         <TaskGroups
           groups={list.data.groups}
           listKey={listKey}
           viewerZone={viewerZone}
           onDone={(task) => setFeedback(task.status === "DONE" ? { kind: "done", task } : null)}
-          onDeleted={(task) => setFeedback({ kind: "deleted", title: task.title })}
+          onDeleted={(task) => setFeedback({ kind: "deleted", title: taskTitle(task) })}
           onFailure={fail}
         />
       ) : list.isPending ? (
@@ -106,7 +119,7 @@ function FeedbackMessage({ feedback, listKey, onChange, onFailure }: FeedbackPro
       .find((other) => other.id === task.id);
     reopen.mutate(
       { task: cached ?? task, done: false },
-      { onSuccess: () => onChange({ kind: "reopened", title: task.title }), onError: onFailure },
+      { onSuccess: () => onChange({ kind: "reopened", title: taskTitle(task) }), onError: onFailure },
     );
   };
 
@@ -114,7 +127,7 @@ function FeedbackMessage({ feedback, listKey, onChange, onFailure }: FeedbackPro
     <div role="status" className="flex min-h-10 flex-wrap items-center gap-3">
       {feedback?.kind === "done" ? (
         <>
-          <span>{m.task_done_message({ title: feedback.task.title })}</span>
+          <span>{m.task_done_message({ title: taskTitle(feedback.task) })}</span>
           <Button variant="secondary" onPress={() => undo(feedback.task)} isDisabled={reopen.isPending}>
             <UndoIcon className="size-4" aria-hidden="true" />
             {m.task_undo()}
@@ -125,6 +138,12 @@ function FeedbackMessage({ feedback, listKey, onChange, onFailure }: FeedbackPro
       {feedback?.kind === "deleted" ? <span>{m.task_deleted_message({ title: feedback.title })}</span> : null}
       {feedback?.kind === "reopened" ? (
         <span>{m.task_reopened_message({ title: feedback.title })}</span>
+      ) : null}
+      {feedback?.kind === "accepted" ? (
+        <span>{m.task_suggestion_accepted_message({ title: feedback.title })}</span>
+      ) : null}
+      {feedback?.kind === "dismissed" ? (
+        <span>{m.task_suggestion_dismissed_message({ title: feedback.title })}</span>
       ) : null}
     </div>
   );
