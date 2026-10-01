@@ -27,11 +27,22 @@ interface McpTool {
     fun call(call: ToolCall): ToolAnswer
 }
 
-/** One call: the [arguments] the client sent, and the [caller] the server authenticated (never an argument). */
+/**
+ * One call: the [arguments] the client sent, and what the server knows itself (never arguments): the authenticated
+ * [caller], the MCP [session] the call runs in (a confirmation is bound to it) and the [human] it can ask to
+ * confirm a delete. Without a human to ask, confirmations are unavailable and nothing destructive runs.
+ */
 class ToolCall(
     val arguments: ToolArguments,
     val caller: Actor,
-)
+    val session: String = NO_SESSION,
+    val human: HumanConfirmer = HumanConfirmer.NONE,
+) {
+    companion object {
+        /** A session id that no MCP session has; a confirmation bound to it is never redeemed. */
+        const val NO_SESSION = "no-session"
+    }
+}
 
 /** What a tool answers. */
 sealed interface ToolAnswer {

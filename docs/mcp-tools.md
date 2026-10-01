@@ -60,3 +60,47 @@ remoteSharePercent, employmentType, seniority, deadline, howApplied, portalNotes
 currency, period, source}, wantScore, fitScore, createdAt, updatedAt, posting: untrusted {title, location,
 sources: [{kind, url, discoveredAt, offlineSince}]}}`. Language and tone and the offer are not returned yet.
 Errors: `not-found`, `unavailable`.
+
+## Deleting (two-step confirmation)
+
+The delete tools change data, so the server enforces the confirmation of ADR-0039 for them; the model cannot
+skip, replay or redirect it.
+
+- A delete tool first runs the use case without a token. That mutates nothing and yields a single-use token (5
+  minutes) bound to the caller, the MCP session, the operation, the target and the effect the server derived.
+- The server then asks **the user** through MCP elicitation (form mode): the client shows the server's own
+  description of the effect (kind, name, counts of what goes with it) and a checkbox. Only an `accept` with the
+  box checked runs the delete, by repeating the call with the token inside the server.
+- The model never receives the token. Its result says only `deleted` or `declined`.
+- A client that does not declare the `elicitation` capability (or fails to answer) cannot confirm: the tool
+  answers `confirmation-unavailable` and nothing is deleted. The user can delete in the Jofi UI instead.
+- If what the delete affects changed while the user was deciding, the token no longer matches and the tool
+  answers `confirmation-invalid`; nothing is deleted. Call the tool again to start over.
+- Each delete is logged in the changelog like every mutation, with the AI as actor (external clients get their
+  own actor with #125); cascades follow the REST deletes.
+
+Additional error codes: `confirmation-unavailable`, `confirmation-invalid`, `has-applications` (a company that
+still has applications).
+
+### `delete_application`
+
+Argument `id` (UUID, required). Deletes the application with its status history, interviews, sources and
+description snapshots; tasks linked to it lose the link.
+Result: `{status: "deleted" | "declined", kind: "application", id}`. Errors: `not-found`, `unavailable`.
+
+### `delete_interview`
+
+Arguments `applicationId` and `id` (UUIDs, required). Result as above with `kind: "interview"`.
+
+### `delete_company`
+
+Argument `id`. Deletes the company and its contacts; refused with `has-applications` while it has applications.
+Result with `kind: "company"`.
+
+### `delete_contact`
+
+Argument `id`. Deletes the contact with its channels and links. Result with `kind: "contact"`.
+
+### `delete_task`
+
+Argument `id`. Result with `kind: "task"`.

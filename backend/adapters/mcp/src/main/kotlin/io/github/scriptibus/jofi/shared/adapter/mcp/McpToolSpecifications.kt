@@ -27,17 +27,26 @@ class McpToolSpecifications(
         McpServerFeatures.SyncToolSpecification
             .builder()
             .tool(definitionOf(tool))
-            .callHandler { exchange, request -> call(tool, exchange.transportContext(), request.arguments().orEmpty()) }
-            .build()
+            .callHandler { exchange, request ->
+                call(
+                    tool,
+                    exchange.transportContext(),
+                    request.arguments().orEmpty(),
+                    exchange.sessionId() ?: ToolCall.NO_SESSION,
+                    ElicitingConfirmer(exchange),
+                )
+            }.build()
 
     /** One call of [tool] with the raw [arguments], for the caller in [context]. */
     fun call(
         tool: McpTool,
         context: McpTransportContext,
         arguments: Map<String, Any?>,
+        session: String = ToolCall.NO_SESSION,
+        human: HumanConfirmer = HumanConfirmer.NONE,
     ): McpSchema.CallToolResult {
         val caller = McpCallers.actorOf(context) ?: return answer(UNAUTHENTICATED)
-        return answer(run(tool, ToolCall(ToolArguments(arguments), caller)))
+        return answer(run(tool, ToolCall(ToolArguments(arguments), caller, session, human)))
     }
 
     private fun definitionOf(tool: McpTool): McpSchema.Tool =
