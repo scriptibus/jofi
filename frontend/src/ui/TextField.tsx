@@ -18,6 +18,12 @@ export interface TextFieldProps extends Omit<AriaTextFieldProps, "children" | "c
   description?: ReactNode;
   /** Monospace input, e.g. for tokens. */
   mono?: boolean;
+  /**
+   * The smallest and largest value of a `date` (or other ranged) input, e.g. `2000-01-01`: the browser's picker
+   * offers nothing outside. Give the range's message through `validate` too, so it reads in the app's language.
+   */
+  min?: string;
+  max?: string;
   className?: string;
 }
 
@@ -26,11 +32,21 @@ export interface TextFieldProps extends Omit<AriaTextFieldProps, "children" | "c
  * Errors come from `validate`, native constraints (`isRequired`, `minLength`) or a surrounding
  * `Form`'s `validationErrors` (server errors), and show after submit or blur.
  */
-export function TextField({ label, description, mono = false, className, ...props }: TextFieldProps) {
+export function TextField({
+  label,
+  description,
+  mono = false,
+  min,
+  max,
+  className,
+  ...props
+}: TextFieldProps) {
   return (
     <AriaTextField {...props} className={["flex flex-col gap-1.5", className].filter(Boolean).join(" ")}>
       <Label className="font-semibold text-body">{label}</Label>
       <Input
+        {...(min === undefined ? {} : { min })}
+        {...(max === undefined ? {} : { max })}
         className={
           "w-full rounded border border-line bg-surface px-3 py-2 text-body text-fg transition-colors " +
           "placeholder:text-muted data-hovered:border-muted " +
