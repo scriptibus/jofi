@@ -163,10 +163,12 @@ src/
                   shell/ (layout, navigation, logout, notices), pages/ (placeholders, settings, share),
                   backup/ (Settings > Backup: export, upload, confirmed restore; ADR-0042),
                   ai/ (first-run setup guide at /setup and Settings > AI: providers, task models, budget, costs),
-                  companies/ (list with fuzzy search and flag filter, detail, create/edit, flag, delete), contacts/
+                  companies/ (list with fuzzy search and flag filter, detail, create/edit, flag, delete), contacts/,
+                  dashboard/ (start page: one widget per figure, each loading and failing on its own; ADR-0054)
   ui/             our component library (Alert, AppLink, BoardColumn (drag and drop), Button, ConfirmDialog,
                   DateTimeField (wall-clock date and time, no zone), Dialog, DonkeyLogo, EmptyState, ExternalLink,
-                  FilePicker, Markdown, MenuButton, NavItem/TextLink, NumberField, ProgressBar, SegmentedControl, Select, Tabs,
+                  FilePicker, Markdown, MenuButton, NavItem/TextLink, NumberField, ProgressBar (value against a cap),
+                  SegmentedControl, Select, ShareBar (decorative count share, e.g. the funnel), Tabs,
                   TextArea, TextField, Form, icons, appearance)
   pwa/            manifest.ts: web app manifest + theme-color from tokens.css (used by vite.config.ts)
   styles/         tokens.css (the only raw values) + app.css (Tailwind, fonts, base)

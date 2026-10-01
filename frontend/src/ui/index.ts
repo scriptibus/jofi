@@ -46,6 +46,7 @@ export {
   type SelectOption,
   type SelectProps,
 } from "./Select";
+export { ShareBar, type ShareBarProps, type ShareBarTone, sharePercent } from "./ShareBar";
 export {
   type SortDirection,
   Table,

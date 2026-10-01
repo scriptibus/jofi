@@ -193,7 +193,7 @@ No direct scraping of LinkedIn, StepStone or Indeed.
 - Jofi can **expose its MCP server to external clients** (e.g. Claude Desktop, Claude Code, other MCP-capable apps), so the user can work with Jofi without its own chat UI.
 - **Off by default.** Enabled in settings, with a per-client access token (revocable) and optionally a restricted tool set (e.g. read-only).
 - External clients get **exactly the same tools** as the built-in chat. There is no second API surface.
-- The safety rules live **in the server, not in the chat UI**: deletes and outward actions need a confirmation step the server enforces (two-step tool call or MCP elicitation), knowledge changes still become proposals, and every change is logged with actor "AI (external client: <name>)".
+- The safety rules live **in the server, not in the chat UI**: deletes and outward actions need a confirmation step the server enforces (for MCP clients this is MCP elicitation answered through the client; the confirmation token never reaches the client, so a client that cannot elicit cannot delete), knowledge changes still become proposals, and every change is logged with actor "AI (external client: <name>)".
 - "Never send to AI" entries are never returned by MCP tools, because an external client is itself an AI.
 - The MCP endpoint follows the same network rules as the app (localhost by default; HTTPS when exposed).
 

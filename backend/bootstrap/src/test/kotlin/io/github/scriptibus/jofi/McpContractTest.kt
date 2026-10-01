@@ -121,8 +121,9 @@ class McpContractTest(
 
             val tools = client.listTools().tools()
 
-            tools.map { it.name() } shouldContainExactlyInAnyOrder listOf("search_applications", "get_application")
-            tools.all { it.annotations().readOnlyHint() } shouldBe true
+            val reading = tools.filter { it.annotations().readOnlyHint() }
+            reading.map { it.name() } shouldContainExactlyInAnyOrder listOf("search_applications", "get_application")
+            tools.filterNot { it.annotations().readOnlyHint() }.all { it.name().startsWith("delete_") } shouldBe true
         }
     }
 

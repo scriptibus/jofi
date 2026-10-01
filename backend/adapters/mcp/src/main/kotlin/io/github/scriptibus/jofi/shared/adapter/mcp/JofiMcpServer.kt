@@ -23,6 +23,7 @@ class JofiMcpServer(
     specifications: McpToolSpecifications,
     protocol: McpJsonMapper,
     version: String,
+    confirmationTimeout: Duration,
 ) : AutoCloseable {
     private val transport =
         WebMvcStreamableServerTransportProvider
@@ -45,6 +46,9 @@ class JofiMcpServer(
                 .sync(transport)
                 .serverInfo(SERVER_NAME, version)
                 .instructions(INSTRUCTIONS)
+                // The SDK's 10 s default would also cut off a person answering a delete confirmation (elicitation
+                // is the only server-to-client request of ours); the SDK has no per-request timeout.
+                .requestTimeout(confirmationTimeout)
                 .capabilities(
                     McpSchema.ServerCapabilities
                         .builder()
