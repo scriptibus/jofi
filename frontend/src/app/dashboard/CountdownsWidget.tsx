@@ -96,7 +96,8 @@ function CountdownRow({ countdown, today, viewerZone, onDeleted, onFailure }: Co
   const day = targetDay(countdown, viewerZone);
   const days = day === undefined ? undefined : daysBetween(today, day);
   const soon = days !== undefined && days >= 0 && days <= 1;
-  const applicationId = countdown.subjectType === "application" ? countdown.subjectId : undefined;
+  const deadlineOf = countdown.subjectType === "application" ? countdown.subjectId : undefined;
+  const interviewOf = countdown.subjectType === "interview" ? countdown.applicationId : undefined;
 
   return (
     <li className="flex flex-col gap-1 rounded border border-line p-4">
@@ -113,10 +114,19 @@ function CountdownRow({ countdown, today, viewerZone, onDeleted, onFailure }: Co
         ) : null}
       </div>
       <span className="font-data text-eyebrow text-muted uppercase">{sourceLabels[countdown.source]()}</span>
-      {applicationId ? (
+      {deadlineOf ? (
         <TextLink
           to="/applications/$applicationId"
-          params={{ applicationId }}
+          params={{ applicationId: deadlineOf }}
+          className="self-start font-semibold"
+        >
+          {countdown.title}
+        </TextLink>
+      ) : interviewOf ? (
+        <TextLink
+          to="/applications/$applicationId"
+          params={{ applicationId: interviewOf }}
+          search={{ tab: "interviews" }}
           className="self-start font-semibold"
         >
           {countdown.title}
