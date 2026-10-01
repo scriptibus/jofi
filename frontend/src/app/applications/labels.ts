@@ -180,6 +180,14 @@ export const interviewOutcomeLabels: Record<InterviewOutcome, () => string> = {
   CANCELLED: m.application_interview_outcome_cancelled,
 };
 
+/** An outcome on its own, as a choice or a value ("Passed"); `interviewOutcomeLabels` read inside a sentence. */
+export const interviewResultLabels: Record<InterviewOutcome, () => string> = {
+  PASSED: m.application_interview_result_passed,
+  REJECTED: m.application_interview_result_rejected,
+  WITHDRAWN: m.application_interview_result_withdrawn,
+  CANCELLED: m.application_interview_result_cancelled,
+};
+
 /** The options of `labels` in declaration order, for a Select or SegmentedControl. */
 export function optionsOf<K extends string>(labels: Record<K, () => string>) {
   return (Object.keys(labels) as K[]).map((id) => ({ id, label: labels[id]() }));

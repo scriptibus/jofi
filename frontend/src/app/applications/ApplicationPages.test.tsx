@@ -13,6 +13,7 @@ import {
 } from "../../test/fakeApplicationBackend";
 import { fakeAuthBackend } from "../../test/fakeAuthBackend";
 import { aCompany, fakeCompanyBackend } from "../../test/fakeCompanyBackend";
+import { fakeInterviewBackend } from "../../test/fakeInterviewBackend";
 import { fakeTimelineBackend } from "../../test/fakeTimelineBackend";
 import { App, createApp } from "../App";
 
@@ -28,7 +29,14 @@ function start(path: string, data: Partial<FakeApplicationState> = {}) {
   const applications = fakeApplicationBackend(data);
   const companies = fakeCompanyBackend({ companies: [acme] });
   const timeline = fakeTimelineBackend();
-  server.use(...applications.handlers, ...companies.handlers, ...timeline.handlers, ...auth.handlers);
+  const interviews = fakeInterviewBackend();
+  server.use(
+    ...applications.handlers,
+    ...companies.handlers,
+    ...timeline.handlers,
+    ...interviews.handlers,
+    ...auth.handlers,
+  );
   const app = createApp(createMemoryHistory({ initialEntries: [path] }));
   render(<App app={app} />);
   return { state: applications.state, router: app.router, user: userEvent.setup() };
@@ -151,7 +159,7 @@ describe("Application detail", () => {
     });
     const overview = await screen.findByRole("tab", { name: "Overview" });
     expect(overview).toHaveAttribute("aria-selected", "true");
-    for (const name of ["Description", "Contacts", "Timeline"])
+    for (const name of ["Description", "Contacts", "Interviews", "Timeline"])
       expect(screen.getByRole("tab", { name })).not.toHaveAttribute("aria-disabled");
     expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
 
@@ -166,6 +174,10 @@ describe("Application detail", () => {
     expect(contacts).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("tabpanel", { name: "Contacts" })).toBeVisible();
     expect(router.state.location.search).toEqual({ tab: "contacts" });
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Interviews" })).toHaveFocus();
+    expect(await screen.findByRole("tabpanel", { name: "Interviews" })).toBeVisible();
+    expect(router.state.location.search).toEqual({ tab: "interviews" });
     await user.keyboard("{ArrowRight}");
     const timeline = screen.getByRole("tab", { name: "Timeline" });
     expect(timeline).toHaveFocus();
