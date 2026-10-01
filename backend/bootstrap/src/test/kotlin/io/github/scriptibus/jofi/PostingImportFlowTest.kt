@@ -288,6 +288,32 @@ class PostingImportFlowTest(
     }
 
     @Test
+    fun `a failed AI call on a URL import keeps the extracted text and link, and the retry imports it`() {
+        val browser = owner()
+        servesPosting("/jobs/42", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
+        val busy = aResponse().withStatus(503).withBody("""{"error":{"message":"busy"}}""")
+        FAKE_AI.stubFor(post(COMPLETIONS).willReturn(busy))
+
+        val started = browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/42")}"}""").ok(202)
+        job.run(mapOf("import" to started["id"].asString())) shouldBe JobOutcome.Done
+        val failed = browser.get("$IMPORTS/${started["id"].asString()}").ok()
+
+        failed["status"].asString() shouldBe "FAILED"
+        failed["failure"].asString() shouldBe "AI_UNAVAILABLE"
+        dsl.fetchValue(POSTING_IMPORT.DESCRIPTION) shouldBe "Senior Kotlin Developer"
+        dsl.fetchValue(POSTING_IMPORT.SOURCE_URL) shouldBe postingUrl("/jobs/42")
+        FAKE_AI.resetAll()
+        answers(ANSWER)
+        val id = failed["id"].asString()
+        browser.post("$IMPORTS/$id/retry").ok(202)["attempt"].asInt() shouldBe 2
+        job.run(mapOf("import" to id)) shouldBe JobOutcome.Done
+        val done = browser.get("$IMPORTS/$id").ok()
+        done["status"].asString() shouldBe "SUCCEEDED"
+        val application = browser.get("/api/applications/${done["applicationId"].asString()}").ok()
+        application["sources"][0]["kind"].asString() shouldBe "URL"
+    }
+
+    @Test
     fun `re-importing the same link, with different tracking parameters, returns the existing application`() {
         val browser = owner()
         servesPosting("/jobs/42", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
