@@ -17,7 +17,7 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.kotest.assertions.throwables.shouldThrowAny
-import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
@@ -121,8 +121,9 @@ class McpContractTest(
 
             val tools = client.listTools().tools()
 
-            tools.map { it.name() } shouldContainExactlyInAnyOrder listOf("search_applications", "get_application")
-            tools.all { it.annotations().readOnlyHint() } shouldBe true
+            // The tools of the later PRs have their own contract tests; here the two read tools of #116.
+            val reading = tools.filter { it.annotations().readOnlyHint() }.map { it.name() }
+            reading shouldContainAll listOf("search_applications", "get_application")
         }
     }
 

@@ -80,4 +80,37 @@ class ToolArgumentsTest {
             error.message shouldBe "Invalid tool argument: ${error.argument}"
         }
     }
+
+    @Test
+    fun `longs, uuid sets and objects are read in their JSON shapes`() {
+        val values =
+            ToolArguments(
+                mapOf(
+                    "version" to 7,
+                    "wide" to 9_000_000_000L,
+                    "ids" to listOf(id.toString(), id.toString()),
+                    "items" to listOf(mapOf("kind" to "EMAIL")),
+                ),
+            )
+
+        values.long("version") shouldBe 7L
+        values.long("wide") shouldBe 9_000_000_000L
+        values.long("missing").shouldBeNull()
+        values.uuids("ids") shouldBe setOf(id)
+        values.objects("items").single().text("kind") shouldBe "EMAIL"
+        values.objects("missing").shouldBeEmpty()
+    }
+
+    @Test
+    fun `a long, uuid set or object list of the wrong shape names the argument`() {
+        val wrong =
+            ToolArguments(mapOf("version" to "7", "ids" to listOf("nope"), "items" to listOf("x"), "other" to 1))
+
+        listOf<() -> Any?>(
+            { wrong.long("version") },
+            { wrong.uuids("ids") },
+            { wrong.objects("items") },
+            { wrong.objects("other") },
+        ).forEach { read -> shouldThrow<InvalidToolArgument> { read() } }
+    }
 }

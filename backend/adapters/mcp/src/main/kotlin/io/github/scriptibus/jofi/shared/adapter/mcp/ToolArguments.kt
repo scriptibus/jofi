@@ -12,6 +12,7 @@ import java.util.UUID
  * empty collection) for a missing argument and throws [InvalidToolArgument] for one of the wrong shape,
  * which the server answers as an `invalid-arguments` error. Domain validation stays in the domain's `*Input`.
  */
+@Suppress("TooManyFunctions") // One getter per JSON shape a tool argument can have.
 class ToolArguments(
     private val values: Map<String, Any?>,
 ) {
@@ -30,6 +31,22 @@ class ToolArguments(
             }
         }
 
+    fun long(name: String): Long? =
+        values[name]?.let { value ->
+            when (value) {
+                is Int -> value.toLong()
+                is Long -> value
+                else -> invalid(name)
+            }
+        }
+
+    /** A list of JSON objects, each read through its own [ToolArguments]. */
+    fun objects(name: String): List<ToolArguments> =
+        list(name).map { item ->
+            val fields = item as? Map<*, *> ?: invalid(name)
+            ToolArguments(fields.entries.associate { (key, value) -> key.toString() to value })
+        }
+
     fun uuid(name: String): UUID? =
         text(name)?.let { text ->
             try {
@@ -38,6 +55,16 @@ class ToolArguments(
                 invalid(name)
             }
         }
+
+    fun uuids(name: String): Set<UUID> =
+        texts(name)
+            .map { text ->
+                try {
+                    UUID.fromString(text)
+                } catch (_: IllegalArgumentException) {
+                    invalid(name)
+                }
+            }.toSet()
 
     fun instant(name: String): Instant? =
         text(name)?.let { text ->
