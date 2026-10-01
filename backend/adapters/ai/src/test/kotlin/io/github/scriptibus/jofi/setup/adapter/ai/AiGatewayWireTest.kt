@@ -58,7 +58,7 @@ class AiGatewayWireTest {
             stub.adapter(),
             AiRouter(setup.assignmentPort, setup.providerPort, setup.capabilityPort, stub.catalog()),
             NeverSendGuard(visibility),
-            AiMeter(setup.costPort, setup.budgetPort, PriceTableFile.load(), ProviderStub.CLOCK),
+            AiMeter(setup.costPort, setup.budgetPort, PriceTableFile.load(), setup.pricePort, ProviderStub.CLOCK),
         )
 
     @BeforeEach
@@ -120,6 +120,22 @@ class AiGatewayWireTest {
         // 21 * $0.15 + 4 * $0.60 per million tokens = 5.55 micro dollars (price table, 2026-09-30)
         setup.costs.single().usage shouldBe TokenUsage(21, 4)
         setup.costs.single().estimatedCost shouldBe Money.usd(6)
+    }
+
+    @Test
+    fun `a stream to an OpenAI-compatible endpoint asks for usage, so the call can be priced`() {
+        stub.server.stubFor(
+            post("/local/v1/chat/completions").willReturn(sse(ProviderStub.openAiStream("openai/chat-stream.json"))),
+        )
+        route(AiTask.CHAT, ProviderKind.OPENAI_COMPATIBLE, "llama3.1:8b")
+
+        gateway.stream(flaggedConversation()) {}.shouldBeInstanceOf<AiResult.Success<*>>()
+
+        stub.server
+            .findAll(anyRequestedFor(anyUrl()))
+            .single()
+            .bodyAsString shouldContain "\"include_usage\":true"
+        setup.costs.single().usage shouldBe TokenUsage(21, 4)
     }
 
     @Test

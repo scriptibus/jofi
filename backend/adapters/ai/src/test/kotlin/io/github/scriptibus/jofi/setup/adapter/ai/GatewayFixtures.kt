@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.setup.application.port.AiProviderPort
 import io.github.scriptibus.jofi.setup.application.port.CostEntryPort
 import io.github.scriptibus.jofi.setup.application.port.ModelAssignmentPort
 import io.github.scriptibus.jofi.setup.application.port.ModelCapabilityPort
+import io.github.scriptibus.jofi.setup.application.port.ModelPricePort
 import io.github.scriptibus.jofi.setup.application.port.MonthlyBudgetPort
 import io.github.scriptibus.jofi.setup.application.port.ProviderConfigPort
 import io.github.scriptibus.jofi.setup.domain.BillingMonth
@@ -16,6 +17,7 @@ import io.github.scriptibus.jofi.setup.domain.CostTotals
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
 import io.github.scriptibus.jofi.setup.domain.ModelCapabilityProfile
 import io.github.scriptibus.jofi.setup.domain.ModelName
+import io.github.scriptibus.jofi.setup.domain.ModelPriceOverride
 import io.github.scriptibus.jofi.setup.domain.Money
 import io.github.scriptibus.jofi.setup.domain.MonthlyBudget
 import io.github.scriptibus.jofi.setup.domain.ProviderConfig
@@ -43,6 +45,7 @@ class InMemorySetup(
     val providers = mutableMapOf<ProviderId, ProviderConfig>()
     val assignments = mutableMapOf<AiTask, ModelAssignment>()
     val profiles = mutableMapOf<Pair<ProviderId, ModelName>, ModelCapabilityProfile>()
+    val prices = mutableMapOf<Pair<ProviderId, ModelName>, ModelPriceOverride>()
     var budget: MonthlyBudget? = null
     val costs = mutableListOf<CostEntry>()
 
@@ -100,6 +103,23 @@ class InMemorySetup(
                     profiles[profile.provider to profile.model] =
                         profile
                 }
+        }
+
+    val pricePort =
+        object : ModelPricePort {
+            override fun find(
+                provider: ProviderId,
+                model: ModelName,
+            ) = read(prices[provider to model])
+
+            override fun findByProvider(provider: ProviderId) = read(prices.values.filter { it.provider == provider })
+
+            override fun save(price: ModelPriceOverride) = write { prices[price.provider to price.model] = price }
+
+            override fun clear(
+                provider: ProviderId,
+                model: ModelName,
+            ) = write { prices.remove(provider to model) }
         }
 
     val budgetPort =

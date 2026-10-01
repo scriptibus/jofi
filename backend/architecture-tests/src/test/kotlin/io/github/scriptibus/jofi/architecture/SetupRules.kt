@@ -9,10 +9,12 @@ import com.tngtech.archunit.lang.ArchRule
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import io.github.scriptibus.jofi.architecture.JofiPackages.BASE
 import io.github.scriptibus.jofi.setup.application.AssignTaskModelUseCase
+import io.github.scriptibus.jofi.setup.application.ClearModelPriceUseCase
 import io.github.scriptibus.jofi.setup.application.CorrectModelCapabilitiesUseCase
 import io.github.scriptibus.jofi.setup.application.CreateProviderUseCase
 import io.github.scriptibus.jofi.setup.application.DeleteProviderUseCase
 import io.github.scriptibus.jofi.setup.application.RefreshProviderModelsUseCase
+import io.github.scriptibus.jofi.setup.application.SetModelPriceUseCase
 import io.github.scriptibus.jofi.setup.application.SetMonthlyBudgetUseCase
 import io.github.scriptibus.jofi.setup.application.UpdateProviderUseCase
 import io.github.scriptibus.jofi.shared.domain.Actor
@@ -35,6 +37,9 @@ object SetupRules {
             AssignTaskModelUseCase::class.java,
             // The AI or a scanner must not lift the cap that pauses its own work (#24).
             SetMonthlyBudgetUseCase::class.java,
+            // A price the AI could set or clear would hide its own spending from that cap (#142).
+            SetModelPriceUseCase::class.java,
+            ClearModelPriceUseCase::class.java,
         )
 
     /** The setup inbound ports; their implementations live in setup.application. */

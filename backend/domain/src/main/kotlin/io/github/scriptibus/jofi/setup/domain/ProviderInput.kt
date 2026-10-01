@@ -9,7 +9,18 @@ import java.net.URISyntaxException
 import java.text.Normalizer
 
 /** The request field a setup violation belongs to. */
-enum class SetupField { DISPLAY_NAME, BASE_URL, API_KEY, MODEL, CONTEXT_WINDOW, MONTHLY_CAP, MONTH, MONTHS }
+enum class SetupField {
+    DISPLAY_NAME,
+    BASE_URL,
+    API_KEY,
+    MODEL,
+    CONTEXT_WINDOW,
+    MONTHLY_CAP,
+    MONTH,
+    MONTHS,
+    INPUT_PRICE,
+    OUTPUT_PRICE,
+}
 
 enum class SetupViolationKind {
     /** The field is required but empty. */

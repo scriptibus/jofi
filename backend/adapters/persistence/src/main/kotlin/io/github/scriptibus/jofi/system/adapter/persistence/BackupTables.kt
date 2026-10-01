@@ -21,6 +21,7 @@ internal object BackupTables {
             "secret",
             "ai_provider_config",
             "ai_model_capability",
+            "ai_model_price_override",
             "ai_model_assignment",
             "ai_cost_entry",
             "ai_monthly_budget",
