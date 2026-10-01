@@ -15,6 +15,7 @@ import type {
   ChangeApplicationStatusRequest,
 } from "../api/generated/jofi";
 import { canMoveTo } from "../app/applications/statusMatrix";
+import { type FakeSavedViewState, fakeSavedViewBackend } from "./fakeSavedViewBackend";
 
 const origin = () => window.location.origin;
 
@@ -94,7 +95,12 @@ function sorted(applications: ApplicationResponse[], params: URLSearchParams): A
   return [...ordered, ...rest];
 }
 
-export function fakeApplicationListBackend(initial: Partial<FakeApplicationListState> = {}) {
+/** The list's backend; its saved views (empty unless `views` says otherwise) come with it, as the page loads both. */
+export function fakeApplicationListBackend(
+  initial: Partial<FakeApplicationListState> = {},
+  views: Partial<FakeSavedViewState> = {},
+) {
+  const savedViews = fakeSavedViewBackend(views);
   const state: FakeApplicationListState = {
     applications: [],
     searches: [],
@@ -104,7 +110,9 @@ export function fakeApplicationListBackend(initial: Partial<FakeApplicationListS
     ...initial,
   };
 
+  // Saved views first: `/api/applications/saved-views` would otherwise match `/api/applications/:id` elsewhere.
   const handlers = [
+    ...savedViews.handlers,
     http.get(`${origin()}/api/applications`, ({ request }) => {
       const params = new URL(request.url).searchParams;
       state.searches.push(params);
@@ -147,5 +155,5 @@ export function fakeApplicationListBackend(initial: Partial<FakeApplicationListS
     }),
   ];
 
-  return { state, handlers };
+  return { state, handlers, views: savedViews.state };
 }
