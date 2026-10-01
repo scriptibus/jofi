@@ -18,8 +18,8 @@ export function DashboardPage() {
     <>
       <PageHeader title={m.dashboard_heading()} eyebrow={m.dashboard_eyebrow()} />
       <div className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {/* First in the grid: what is due soonest comes first. */}
-        <CountdownsWidget />
+        {/* First in the grid: what is due soonest comes first. It is the tallest, so two rows of others go beside it. */}
+        <CountdownsWidget className="md:row-span-2" />
         <TasksWidget />
         <PipelineWidget />
         <FunnelWidget />
