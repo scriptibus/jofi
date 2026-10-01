@@ -28,6 +28,7 @@ const interview = aDashboardCountdown({
   localTarget: "2026-10-05T10:00:00",
   timeZone: "Europe/Berlin",
   subjectType: "interview",
+  applicationId: crypto.randomUUID(),
 });
 
 describe("daysBetween", () => {

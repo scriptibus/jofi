@@ -187,6 +187,41 @@ class ModelPriceControllerTest(
     }
 
     @Test
+    fun `a price that is not a whole number of micros is refused at its field, never rounded or coerced`() {
+        listOf(
+            """{"model":"llama","inputMicrosPerMillion":1.9,"outputMicrosPerMillion":1}""" to "inputMicrosPerMillion",
+            """{"model":"llama","inputMicrosPerMillion":0.15,"outputMicrosPerMillion":1}""" to "inputMicrosPerMillion",
+            """{"model":"llama","inputMicrosPerMillion":1,"outputMicrosPerMillion":1e3}""" to "outputMicrosPerMillion",
+            """{"model":"llama","inputMicrosPerMillion":"150000","outputMicrosPerMillion":1}""" to
+                "inputMicrosPerMillion",
+            """{"model":"llama","inputMicrosPerMillion":1,"outputMicrosPerMillion":true}""" to "outputMicrosPerMillion",
+            """{"model":"llama","inputMicrosPerMillion":1,"outputMicrosPerMillion":9223372036854775808}""" to
+                "outputMicrosPerMillion",
+            """{"model":5,"inputMicrosPerMillion":1,"outputMicrosPerMillion":1}""" to "model",
+        ).forEach { (request, field) ->
+            violations(put(local, request)) shouldBe listOf(field to "INVALID_FORMAT")
+        }
+        verify(exactly = 0) { ports.prices.save(any()) }
+    }
+
+    @Test
+    fun `a malformed body is a plain 400`() {
+        put(local, "{").response.status shouldBe 400
+        verify(exactly = 0) { ports.prices.save(any()) }
+    }
+
+    @Test
+    fun `a provider deleted between the check and the write is 404`() {
+        every { ports.prices.save(any()) } returns SetupStoreResult.NotFound
+
+        put(
+            local,
+            """{"model":"llama","inputMicrosPerMillion":1,"outputMicrosPerMillion":1}""",
+        ).response.status shouldBe
+            404
+    }
+
+    @Test
     fun `the list shows the provider's prices`() {
         every { ports.prices.findByProvider(local.id) } returns
             SetupStoreResult.Success(listOf(ModelPriceOverride(local.id, llama, 0, 0, at)))

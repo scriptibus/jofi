@@ -5908,6 +5908,11 @@
         "required" : [ "source", "subjectId", "subjectType", "title" ],
         "type" : "object",
         "properties" : {
+          "applicationId" : {
+            "type" : "string",
+            "format" : "uuid",
+            "nullable" : true
+          },
           "localTarget" : {
             "pattern" : "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?$",
             "type" : "string",

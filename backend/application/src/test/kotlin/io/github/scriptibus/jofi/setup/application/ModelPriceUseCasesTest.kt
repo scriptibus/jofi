@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.setup.application
 
 import io.github.scriptibus.jofi.setup.application.SetupFixtures.Companion.CLOCK
 import io.github.scriptibus.jofi.setup.application.SetupFixtures.Companion.NOW
+import io.github.scriptibus.jofi.setup.application.port.ModelPricePort
 import io.github.scriptibus.jofi.setup.domain.ModelName
 import io.github.scriptibus.jofi.setup.domain.ModelPriceInput
 import io.github.scriptibus.jofi.setup.domain.ModelPriceOverride
@@ -14,6 +15,7 @@ import io.github.scriptibus.jofi.setup.domain.SetupField
 import io.github.scriptibus.jofi.setup.domain.SetupResult
 import io.github.scriptibus.jofi.setup.domain.SetupViolation
 import io.github.scriptibus.jofi.setup.domain.SetupViolationKind
+import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.FieldChange
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -175,6 +177,51 @@ class ModelPriceUseCasesTest {
 
         set.execute(provider.id, price(1, 1), Actor.User) shouldBe SetupResult.StorageFailure("save model price")
         setup.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `a provider deleted after the check is not found, not a storage failure`() {
+        // The provider is readable for the check (a stale read) but gone when the price is written.
+        setup.staleReads[provider.id] = provider
+        setup.providers.remove(provider.id)
+
+        set.execute(provider.id, price(1, 1), Actor.User) shouldBe SetupResult.NotFound
+        setup.prices.shouldBeEmpty()
+        setup.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `the old price is read inside the transaction that replaces or removes it`() {
+        var inside = false
+        val findsInside = mutableListOf<Boolean>()
+        val observed =
+            object : TransactionPort {
+                override fun <T> inTransaction(
+                    commitIf: (T) -> Boolean,
+                    work: () -> T,
+                ): T {
+                    inside = true
+                    try {
+                        return setup.transactions.inTransaction(commitIf, work)
+                    } finally {
+                        inside = false
+                    }
+                }
+            }
+        val reading =
+            object : ModelPricePort by setup.pricePort {
+                override fun find(
+                    provider: ProviderId,
+                    model: ModelName,
+                ) = setup.pricePort.find(provider, model).also { findsInside += inside }
+            }
+
+        SetModelPriceUseCase(setup.providerPort, reading, setup.changelog, observed, CLOCK)
+            .execute(provider.id, price(1, 1), Actor.User)
+        ClearModelPriceUseCase(setup.providerPort, reading, setup.changelog, observed, CLOCK)
+            .execute(provider.id, model.value, Actor.User)
+
+        findsInside shouldBe listOf(true, true)
     }
 
     @Test

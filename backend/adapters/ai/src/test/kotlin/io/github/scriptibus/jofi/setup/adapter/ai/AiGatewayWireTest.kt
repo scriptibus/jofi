@@ -123,6 +123,22 @@ class AiGatewayWireTest {
     }
 
     @Test
+    fun `a stream to an OpenAI-compatible endpoint asks for usage, so the call can be priced`() {
+        stub.server.stubFor(
+            post("/local/v1/chat/completions").willReturn(sse(ProviderStub.openAiStream("openai/chat-stream.json"))),
+        )
+        route(AiTask.CHAT, ProviderKind.OPENAI_COMPATIBLE, "llama3.1:8b")
+
+        gateway.stream(flaggedConversation()) {}.shouldBeInstanceOf<AiResult.Success<*>>()
+
+        stub.server
+            .findAll(anyRequestedFor(anyUrl()))
+            .single()
+            .bodyAsString shouldContain "\"include_usage\":true"
+        setup.costs.single().usage shouldBe TokenUsage(21, 4)
+    }
+
+    @Test
     fun `an embedding of a flagged item never leaves, other inputs arrive redacted`() {
         stub.server.stubFor(
             post("/openai/v1/embeddings").willReturn(okJson(ProviderStub.fixture("openai/embeddings.json"))),

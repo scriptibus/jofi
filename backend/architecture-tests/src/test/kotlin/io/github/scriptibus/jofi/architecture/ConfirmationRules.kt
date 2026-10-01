@@ -70,8 +70,10 @@ object ConfirmationRules {
     val ENDPOINTS_WITHOUT_CONFIRMATION: Map<String, String> =
         mapOf(
             "ModelPriceController.clearModelPrice" to
-                "removes a price the user typed in and can enter again (like clearing the monthly cap); " +
-                "past cost entries keep their cost and the change is in the changelog (#142)",
+                "meets all of: a setting the user can enter again, changeable by the logged-in user only " +
+                "(SetupRules; the AI, scanners and external clients are refused), its old value is kept in the " +
+                "changelog, nothing cascades, and recorded cost entries keep their cost (#142, ADR-0055). " +
+                "Later entries must meet the same criteria",
         )
 
     /**

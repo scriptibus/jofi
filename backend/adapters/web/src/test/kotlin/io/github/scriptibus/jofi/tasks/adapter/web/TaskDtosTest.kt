@@ -168,6 +168,7 @@ class TaskDtosTest {
                 "Backend",
                 CountdownTarget.At(exact.dueAt, berlin),
                 EntityRef("interview", "f1"),
+                uuid,
             )
 
         DashboardCountdownResponse.from(interview) shouldBe
@@ -180,6 +181,7 @@ class TaskDtosTest {
                 "Europe/Berlin",
                 "interview",
                 "f1",
+                uuid,
             )
     }
 
@@ -205,6 +207,7 @@ class TaskDtosTest {
                     null,
                     "application",
                     "b1",
+                    null,
                 ),
             )
     }
@@ -214,7 +217,7 @@ class TaskDtosTest {
         val request = TaskRequest("Secret", TaskTimingRequest("UTC", TaskBucket.TODAY), notes = "Secret")
         val countdown = CountdownResponse(uuid, "Secret", LocalDate.parse("2026-12-31"), 0, at, at)
         val dashboard =
-            DashboardCountdownResponse(CountdownSource.CUSTOM, "Secret", null, null, null, null, "countdown", "x")
+            DashboardCountdownResponse(CountdownSource.CUSTOM, "Secret", null, null, null, null, "countdown", "x", null)
 
         listOf(
             request,

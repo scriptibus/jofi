@@ -29,7 +29,7 @@ internal fun openAiCompatibleProvider(
         }
     }
 
-/** What changed between two prices of a model; USD per million tokens as plain decimals. */
+/** What changed between two prices of a model, as the stored micros of a US dollar per million tokens. */
 internal fun priceChanges(
     before: ModelPriceOverride?,
     after: ModelPriceOverride?,
