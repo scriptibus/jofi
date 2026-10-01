@@ -16,6 +16,7 @@ official MCP Java SDK, with no Spring AI starter. Tool reference: `docs/mcp-tool
 | `shared.adapter.mcp.McpCallers` | the authenticated caller as actor (a session is `Actor.Ai`) |
 | `shared.adapter.mcp.SameOriginValidator`, `McpOriginFilter` | 403 for a foreign `Origin`, in the security chain and in the transport |
 | `shared.adapter.mcp.Untrusted` | the mark on third-party content in results |
+| `shared.adapter.mcp.TwoStepDelete`, `HumanConfirmer` | drives a delete tool's two steps; the user (MCP elicitation), never the model, answers; the token stays server-side |
 | `<context>.adapter.mcp.*Tool` | the tools, one use case each |
 
 Adding a tool:
@@ -24,7 +25,10 @@ Adding a tool:
   with `ToolArguments` and the domain's `*Input.validate()`; map failures to `ToolAnswer.Error` with stable
   codes and no stored content.
 - Never take the actor from arguments: use `call.caller`. Never name `Actor.User` (`SetupRules`). Deletes and
-  outward actions go through the use case's confirmation gate (ADR-0039), never through the tool.
+  outward actions go through the use case's confirmation gate (ADR-0039), never through the tool: a delete tool
+  wraps its use case call in `TwoStepDelete.run`, which asks the client through elicitation. No elicitation means
+  nothing runs (`confirmation-unavailable`); never put a token in a result, and never put stored text into a
+  message except through `ConfirmationMessage`.
 - Wrap text from postings, pages or uploads in `Untrusted`. Return flaggable items (knowledge, M2) only
   after leaving out the flagged ones; the server's value filter is the second line.
 - Write the result as DTOs in the same package; never return domain objects.

@@ -13,7 +13,7 @@ const AREAS = [
   { link: "Companies", heading: "Companies", path: "/companies", placeholder: false },
   { link: "Tasks", heading: "Tasks", path: "/tasks", placeholder: false },
   { link: "Chat", heading: "Chat", path: "/chat", placeholder: true },
-  { link: "Dashboard", heading: "Let the donkey do the donkey work.", path: "/", placeholder: true },
+  { link: "Dashboard", heading: "Let the donkey do the donkey work.", path: "/", placeholder: false },
 ];
 
 test("shell: navigation to every area, landmarks, skip link, accessibility", async ({ page }, testInfo) => {

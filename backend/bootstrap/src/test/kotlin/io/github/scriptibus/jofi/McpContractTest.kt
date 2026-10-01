@@ -120,8 +120,8 @@ class McpContractTest(
 
             val tools = client.listTools().tools().associate { it.name() to it.annotations().readOnlyHint() }
 
-            // The only test that pins the whole tool surface: a PR that adds a tool extends this map (#117 adds
-            // the delete tools, #119 the tasks tools), and a write tool marked read only fails it.
+            // The only test that pins the whole tool surface: a PR that adds a tool extends this map, and a
+            // write tool marked read only fails it.
             tools shouldBe
                 mapOf(
                     "search_applications" to true,
@@ -135,6 +135,11 @@ class McpContractTest(
                     "create_contact" to false,
                     "update_contact" to false,
                     "set_application_contacts" to false,
+                    "delete_application" to false,
+                    "delete_interview" to false,
+                    "delete_company" to false,
+                    "delete_contact" to false,
+                    "delete_task" to false,
                 )
         }
     }
