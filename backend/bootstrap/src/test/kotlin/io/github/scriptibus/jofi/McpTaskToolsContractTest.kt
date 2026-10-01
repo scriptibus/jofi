@@ -145,10 +145,10 @@ class McpTaskToolsContractTest : McpToolContractSupport() {
             client.failure("create_task", badZone, "invalid-arguments").problems() shouldContainExactly
                 listOf("timeZone:invalid-time-zone")
             client.failure("create_task", task("T"), "invalid-arguments").problems() shouldContainExactly
-                listOf("timing:required")
+                listOf("bucket:required", "localDue:required")
             val both = task("T", "bucket" to "TODAY", "localDue" to "2026-10-05T10:00")
             client.failure("create_task", both, "invalid-arguments").problems() shouldContainExactly
-                listOf("timing:ambiguous")
+                listOf("bucket:ambiguous", "localDue:ambiguous")
             client
                 .failure("create_task", task("T", "localDue" to "1999-01-01T10:00"), "invalid-arguments")
                 .problems() shouldContainExactly listOf("localDue:out-of-range")
@@ -180,8 +180,18 @@ class McpTaskToolsContractTest : McpToolContractSupport() {
             val wrongState = client.failure("complete_task", suggested, "invalid-transition")
             wrongState["message"].asString() shouldBe
                 "A task cannot move from SUGGESTED to DONE. Read it again to see its state."
+            val dismissed =
+                suggest(
+                    "Dismissed",
+                ).also { dsl.execute("UPDATE task SET state = 'DISMISSED' WHERE id = ?::uuid", it) }
+            val done = owner.create("/api/tasks", """{"title":"D","timing":{"timeZone":"UTC","bucket":"TODAY"}}""")
+            client.call("complete_task", mapOf("id" to done, "version" to 0))
+            client.failure("accept_task_suggestion", mapOf("id" to dismissed, "version" to 0), "invalid-transition")
+            client.failure("accept_task_suggestion", mapOf("id" to done, "version" to 1), "invalid-transition")
+            client.failure("complete_task", mapOf("id" to dismissed, "version" to 0), "invalid-transition")
             changelog("task", open).size shouldBe 1
-            dsl.fetchCount(TASK, TASK.VERSION.ne(0L)) shouldBe 0
+            changelog("task", dismissed).size shouldBe 0
+            dsl.fetchCount(TASK, TASK.VERSION.ne(0L)) shouldBe 1
         }
     }
 

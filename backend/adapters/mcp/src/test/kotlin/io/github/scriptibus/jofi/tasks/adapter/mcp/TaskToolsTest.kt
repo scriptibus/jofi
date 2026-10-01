@@ -25,8 +25,10 @@ import io.github.scriptibus.jofi.tasks.domain.TaskGroupKind
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskState
+import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
+import io.github.scriptibus.jofi.tasks.domain.TaskTransition
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -135,9 +137,9 @@ class TaskToolsTest {
         val missing = createTask.call(call(*timing, "bucket" to "TODAY", "link" to link))
 
         both.shouldBeInstanceOf<ToolAnswer.Error>().problems shouldContainExactly
-            listOf(ArgumentProblem("timing", "ambiguous"))
+            listOf(ArgumentProblem("bucket", "ambiguous"), ArgumentProblem("localDue", "ambiguous"))
         neither.shouldBeInstanceOf<ToolAnswer.Error>().problems shouldContainExactly
-            listOf(ArgumentProblem("timing", "required"))
+            listOf(ArgumentProblem("bucket", "required"), ArgumentProblem("localDue", "required"))
         missing.shouldBeInstanceOf<ToolAnswer.Error>().problems shouldContainExactly
             listOf(ArgumentProblem("link", "not-found"))
         changelog.entries shouldBe emptyList()
@@ -203,6 +205,24 @@ class TaskToolsTest {
         val result = answer.shouldBeInstanceOf<ToolAnswer.Result>().value.shouldBeInstanceOf<TaskDetailResult>()
         result.origin shouldBe TaskOriginKind.SUGGESTED
         result.suggestionRule shouldBe "follow-up"
+    }
+
+    @Test
+    fun `accepting a dismissed or a done task, and completing a dismissed one, answers invalid-transition`() {
+        val dismissed = (suggestion.apply(TaskTransition.DISMISS, at) as TaskStateChange.Changed).task
+        val done = (open.apply(TaskTransition.COMPLETE, at) as TaskStateChange.Changed).task
+        val other = UUID.fromString("00000000-0000-0000-0000-0000000000a2")
+        every { tasks.findById(TaskId(taskId)) } returns TaskStoreResult.Success(dismissed)
+        every { tasks.findById(TaskId(other)) } returns TaskStoreResult.Success(done.copy(id = TaskId(other)))
+        val invalid = "A task cannot move from %s to %s. Read it again to see its state."
+
+        acceptSuggestion.call(call("id" to taskId.toString(), "version" to 1)) shouldBe
+            ToolAnswer.Error("invalid-transition", invalid.format("DISMISSED", "OPEN"))
+        acceptSuggestion.call(call("id" to other.toString(), "version" to 1)) shouldBe
+            ToolAnswer.Error("invalid-transition", invalid.format("DONE", "OPEN"))
+        completeTask.call(call("id" to taskId.toString(), "version" to 1)) shouldBe
+            ToolAnswer.Error("invalid-transition", invalid.format("DISMISSED", "DONE"))
+        changelog.entries shouldBe emptyList()
     }
 
     @Test

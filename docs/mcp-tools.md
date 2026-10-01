@@ -73,9 +73,9 @@ only deletes and outward actions are confirmed). Each is logged in the changelog
 replace ALL fields (a PUT, not a patch): a field left out is cleared. Call `get_*` first, change what you mean to
 change and send everything back with the `version` you read (the fields of `company` or `contact` in the answer;
 `null` means not set and is accepted); a stale version answers `version-conflict` and changes nothing.
-Every field a tool can write is returned as untrusted, notes included: it can come from postings and pages, or
+Every free-text field a tool can write is returned as untrusted, notes included: it can come from postings and pages, or
 from a model that was prompt-injected and stored instructions for later sessions (ADR-0053, amendment of #119).
-Only fields no tool writes stay plain: the company preference and its reason, ids, versions and timestamps.
+Only fields no tool writes, and typed values that cannot carry text, stay plain: the company preference and its reason, ids, versions and timestamps.
 Problems of a domain violation are named like `name:required`, `website:invalid-url`,
 `channels[0].value:invalid-email`, `companyId:not-found`, `contactIds:not-found`.
 
@@ -143,12 +143,18 @@ result is `{id, version, status (OPEN, DONE, SUGGESTED, DISMISSED), origin (MANU
 suggestionRule, timing: {dueAt, localDue, timeZone} or {span, startsOn, endsBefore}, link: {type, id}, completedAt,
 createdAt, updatedAt, task: untrusted {title, notes}}`. Title and notes are untrusted for the reasons given above
 (a suggestion's title is made from an application's); ids, versions, status, timing and the link stay plain.
-Problems are named like `title:required`, `timeZone:invalid-time-zone`, `timing:required` (neither `bucket` nor
-`localDue`), `timing:ambiguous` (both), `localDue:out-of-range`, `link:not-found`.
+Problems are named like `title:required`, `timeZone:invalid-time-zone`, `bucket:required` and
+`localDue:required` (neither given), `bucket:ambiguous` and `localDue:ambiguous` (both given),
+`localDue:out-of-range`, `link:not-found`. Ids and versions of the wrong shape answer `id:invalid` or `version:invalid`.
+The tools have no count limit; a write budget is #217. Follow-ups: #235 (a view of done tasks and `reopen_task`,
+before the chat uses these tools, #121), #236 (bound the two list tools, before #121 and #125) and #237 (accepting
+a task that never was a suggestion answers success, a use-case bug).
 
 ### `list_tasks` (read only)
 
-`timeZone` (required, the user's zone: an IANA id such as `Europe/Berlin` or an offset such as `+02:00`).
+`timeZone` (required, the user's own zone, which Jofi does not store, so the client must pass it: for the
+built-in chat the browser's; a wrong zone puts "today" on the wrong day. An IANA id such as `Europe/Berlin` or an
+offset such as `+02:00`).
 Result: `{groups: [{group, tasks}]}` with the OPEN tasks only, grouped on the calendar of `timeZone` with weeks
 from Monday, as the Tasks page does (`ListTaskGroupsUseCase`, ADR-0049). Every group is always present, in this
 order, empty ones included: `OVERDUE` (an exact time that has passed, or a day, week or month that has ended),
@@ -161,14 +167,17 @@ open task. Errors: `invalid-arguments` (`timeZone:invalid-time-zone`), `unavaila
 
 No arguments. The suggested tasks waiting for a yes (for example a follow-up after applying), newest first, as
 `{tasks: [...]}`. It exists so `accept_task_suggestion` has ids and versions; the use case behind it is the one of
-`GET /api/tasks/suggestions`.
+`GET /api/tasks/suggestions`. Errors: `unavailable`.
 
 ### `create_task`
 
 `title` and `timeZone` (required), and when it is due as exactly one of `bucket` (`TODAY`, `THIS_WEEK`,
 `NEXT_WEEK`, `THIS_MONTH`, `SOMEDAY`, resolved on today's date in `timeZone`) or `localDue` (an exact wall-clock
 time in `timeZone`, `2026-10-05T10:00`); `link` (`{type: APPLICATION|COMPANY|CONTACT, id}`, must exist) and
-`notes` (Markdown); `null` for an optional argument is accepted. The task is open with origin `CHAT`. There is no
+`notes` (Markdown); `null` for an optional argument is accepted. A `localDue` that does not exist because the
+clocks change (a gap) is moved on as `java.time` does (ADR-0048): `2026-03-29T02:30` in `Europe/Berlin` is stored and
+answered as `03:30`; in an overlap the earlier offset is taken. The use case has no way to refuse it, so check
+the `localDue` in the answer. The task is open with origin `CHAT`. There is no
 update tool for tasks yet, so nothing takes a task back whole and the `[withheld]` refusal of the updates above
 does not apply. Result: the task. Errors: `invalid-arguments`, `unavailable`.
 
@@ -176,7 +185,7 @@ does not apply. Result: the task. Errors: `invalid-arguments`, `unavailable`.
 
 `id` and `version` (from `list_tasks`), both required. Marks an OPEN task done. A done task is returned unchanged
 and writes nothing; a suggestion or dismissed task answers `invalid-transition`. Result: the task. Errors:
-`not-found`, `version-conflict`, `invalid-transition`, `unavailable`.
+`invalid-arguments`, `not-found`, `version-conflict`, `invalid-transition`, `unavailable`.
 
 ### `accept_task_suggestion`
 

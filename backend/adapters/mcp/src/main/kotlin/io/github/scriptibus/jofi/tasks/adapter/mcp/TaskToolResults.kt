@@ -17,6 +17,7 @@ import io.github.scriptibus.jofi.tasks.domain.TaskGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskGroupKind
 import io.github.scriptibus.jofi.tasks.domain.TaskLink
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
+import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskState
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
@@ -142,7 +143,7 @@ internal object TaskToolErrors {
                 ToolAnswer.Error(
                     "invalid-arguments",
                     "The task arguments are invalid.",
-                    failure.violations.map(::problemOf),
+                    failure.violations.flatMap(::problemsOf),
                 )
             }
 
@@ -171,15 +172,26 @@ internal object TaskToolErrors {
             }
         }
 
-    /** The violation as the `create_task` argument it belongs to; `timing` means `bucket` and `localDue` together. */
-    fun problemOf(violation: TaskViolation): ArgumentProblem =
-        ArgumentProblem(argumentOf(violation.field), ToolProblems.problemCode(violation.problem.name))
+    /**
+     * The violation as the `create_task` arguments it belongs to. A timing that is missing or given twice concerns
+     * `bucket` and `localDue` together; a bucket out of range, `bucket` alone.
+     */
+    fun problemsOf(violation: TaskViolation): List<ArgumentProblem> {
+        val code = ToolProblems.problemCode(violation.problem.name)
+        val arguments =
+            when {
+                violation.field != TaskField.TIMING -> listOf(argumentOf(violation.field))
+                violation.problem == TaskProblem.OUT_OF_RANGE -> listOf("bucket")
+                else -> listOf("bucket", "localDue")
+            }
+        return arguments.map { ArgumentProblem(it, code) }
+    }
 
     private fun argumentOf(field: TaskField) =
         when (field) {
             TaskField.TITLE -> "title"
             TaskField.NOTES -> "notes"
-            TaskField.TIMING -> "timing"
+            TaskField.TIMING -> "bucket"
             TaskField.DUE -> "localDue"
             TaskField.TIME_ZONE -> "timeZone"
             TaskField.LINK -> "link"

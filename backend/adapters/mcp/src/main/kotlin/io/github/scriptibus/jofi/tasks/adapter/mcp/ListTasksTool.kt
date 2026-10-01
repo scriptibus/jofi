@@ -3,15 +3,15 @@
 
 package io.github.scriptibus.jofi.tasks.adapter.mcp
 
-import io.github.scriptibus.jofi.shared.adapter.mcp.ArgumentProblem
 import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
-import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
+import io.github.scriptibus.jofi.tasks.domain.TaskField
 import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
+import io.github.scriptibus.jofi.tasks.domain.TaskViolation
 import org.springframework.stereotype.Component
 import java.time.ZoneId
 
@@ -43,10 +43,8 @@ class ListTasksTool(
     override fun call(call: ToolCall): ToolAnswer {
         val zone =
             TaskTiming.zoneOf(call.arguments.text("timeZone").orEmpty())
-                ?: return ToolAnswer.Error(
-                    "invalid-arguments",
-                    "The task arguments are invalid.",
-                    listOf(ArgumentProblem("timeZone", ToolProblems.problemCode(TaskProblem.INVALID_TIME_ZONE.name))),
+                ?: return TaskToolErrors.failure(
+                    TaskResult.Invalid(listOf(TaskViolation(TaskField.TIME_ZONE, TaskProblem.INVALID_TIME_ZONE))),
                 )
         return when (val result = list(zone)) {
             is TaskResult.Success -> ToolAnswer.Result(TaskGroupsResult(result.value.map(TaskGroupResult::from)))
