@@ -37,6 +37,8 @@ class McpToolSpecificationsTest {
                 return when (val text = call.arguments.text("text")) {
                     "fail" -> error("boom with a secret")
                     "refuse" -> ToolAnswer.Error("not-found", "Nothing here.")
+                    "unserialisable" -> ToolAnswer.Result(Unserialisable())
+                    "checked" -> throw java.io.IOException("a checked failure with a secret")
                     else -> ToolAnswer.Result(mapOf("echo" to text, "page" to Untrusted(mapOf("title" to text))))
                 }
             }
@@ -44,6 +46,35 @@ class McpToolSpecificationsTest {
 
     private fun specifications(visibility: AiVisibilityResult = AiVisibilityResult.Known(NeverSendRules.NONE)) =
         McpToolSpecifications(json, protocol, FilterToolResultUseCase(fixed(visibility)))
+
+    /** Its getter throws while Jackson serialises it, with a message that must never reach the client. */
+    class Unserialisable {
+        val secret: String get() = throw IllegalStateException("Musterstraße 5 leaked through an exception")
+    }
+
+    @Test
+    fun `when reading the flags throws, nothing of the result or the exception leaves`() {
+        val throwing =
+            object : AiVisibilityPort {
+                override fun rulesFor(sources: Set<ContentSource>): AiVisibilityResult =
+                    throw IllegalStateException("Musterstraße 5 leaked through an exception")
+            }
+        val specifications = McpToolSpecifications(json, protocol, FilterToolResultUseCase(throwing))
+
+        val result = specifications.call(echo, chat, mapOf("text" to "I live at Musterstraße 5"))
+
+        result.isError shouldBe true
+        textOf(result) shouldBe PRIVACY_FILTER_FAILED
+    }
+
+    @Test
+    fun `when serialising the result throws, nothing of the result or the exception leaves`() {
+        val result = specifications().call(echo, chat, mapOf("text" to "unserialisable"))
+
+        result.isError shouldBe true
+        textOf(result) shouldBe PRIVACY_FILTER_FAILED
+        textOf(result) shouldNotContain "Muster"
+    }
 
     @Test
     fun `the definition carries name, description, schema and the read-only hint`() {
@@ -82,9 +113,7 @@ class McpToolSpecificationsTest {
         val result = specifications(AiVisibilityResult.Unavailable("down")).call(echo, chat, mapOf("text" to "hi"))
 
         result.isError shouldBe true
-        textOf(result) shouldBe
-            """{"code":"privacy-filter-failed","message":"The result was withheld: the privacy flags could """ +
-            """not be read.","problems":[]}"""
+        textOf(result) shouldBe PRIVACY_FILTER_FAILED
     }
 
     @Test
@@ -101,6 +130,7 @@ class McpToolSpecificationsTest {
             """{"code":"invalid-arguments","message":"An argument has the wrong type or format.",""" +
             """"problems":[{"argument":"text","problem":"invalid"}]}"""
         textOf(failed) shouldBe """{"code":"internal-error","message":"The tool failed unexpectedly.","problems":[]}"""
+        textOf(specifications.call(echo, chat, mapOf("text" to "checked"))) shouldBe textOf(failed)
     }
 
     @Test
@@ -120,4 +150,10 @@ class McpToolSpecificationsTest {
         object : AiVisibilityPort {
             override fun rulesFor(sources: Set<ContentSource>): AiVisibilityResult = answer
         }
+
+    private companion object {
+        const val PRIVACY_FILTER_FAILED =
+            """{"code":"privacy-filter-failed","message":"The result was withheld: the privacy flags could """ +
+                """not be read.","problems":[]}"""
+    }
 }

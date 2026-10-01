@@ -39,9 +39,15 @@ object McpToolRules {
             .because("an MCP tool translates its arguments and calls exactly one use case")
             .allowEmptyShould(true)
 
+    /**
+     * Not only the tools: no class in an MCP adapter (helpers and result types included) reaches a port, an
+     * adapter or a repository, so a tool cannot route around its one use case through a helper.
+     */
     val toolsDoNotUsePortsAdaptersOrRepositories: ArchRule =
         noClasses()
             .that()
+            .resideInAPackage("..adapter.mcp..")
+            .or()
             .implement(McpTool::class.java)
             .should()
             .dependOnClassesThat()

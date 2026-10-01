@@ -84,8 +84,9 @@ the app's CSRF rules, where tools live given that adapters may not depend on eac
 - `McpToolSpecifications` serialises every answer (results and errors) with the app's Jackson mapper and
   runs `FilterToolResultUseCase` on the JSON before it leaves: each flagged value of `AiVisibilityPort` is
   redacted inside JSON string values (`NeverSendFilter.applyToToolResult`, the ADR-0043 matching), so the
-  JSON stays valid. If the flags cannot be read, the call answers `privacy-filter-failed` and nothing of
-  the result (fail closed). Tools cannot skip the filter because they never write the response.
+  JSON stays valid. If the flags cannot be read, or serialising, reading the flags or redacting throws,
+  the call answers `privacy-filter-failed` and nothing of the result (fail closed); an exception must
+  never reach the SDK, which would send its message and causes to the client unfiltered. Tools cannot skip the filter because they never write the response.
 - Tools that will return flaggable items (knowledge, M2) must leave flagged items out before serialising;
   the value scan here is the second line, as in the gateway.
 - Third-party text (the posting's title, location and source URLs today) is wrapped as `Untrusted`:

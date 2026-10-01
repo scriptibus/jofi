@@ -52,7 +52,7 @@ class McpToolSpecifications(
                     .build(),
             ).build()
 
-    @Suppress("TooGenericExceptionCaught") // An unexpected failure must not leave as a message with internals.
+    @Suppress("TooGenericExceptionCaught") // Any failure, checked ones from Java code too, must not leave as a message.
     private fun run(
         tool: McpTool,
         call: ToolCall,
@@ -61,7 +61,7 @@ class McpToolSpecifications(
             tool.call(call)
         } catch (invalid: InvalidToolArgument) {
             ToolAnswer.Error(INVALID_ARGUMENTS, "An argument has the wrong type or format.", listOf(invalid.problem()))
-        } catch (failure: RuntimeException) {
+        } catch (failure: Exception) {
             log.error("MCP tool {} failed: {}", tool.name, failure.javaClass.name)
             ToolAnswer.Error("internal-error", "The tool failed unexpectedly.")
         }
@@ -72,13 +72,23 @@ class McpToolSpecifications(
             is ToolAnswer.Error -> filtered(answer, isError = true)
         }
 
+    /**
+     * Fail closed: if serialising, reading the flags or redacting throws, the SDK would send the exception's
+     * message (and its causes) to the client unfiltered, so every failure here answers privacy-filter-failed.
+     */
+    @Suppress("TooGenericExceptionCaught")
     private fun filtered(
         value: Any,
         isError: Boolean,
     ): McpSchema.CallToolResult =
-        when (val result = filter.execute(results.writeValueAsString(value))) {
-            is FilteredToolResult.Passed -> textResult(result.json, isError)
-            FilteredToolResult.Refused -> textResult(results.writeValueAsString(PRIVACY_FILTER_FAILED), true)
+        try {
+            when (val result = filter.execute(results.writeValueAsString(value))) {
+                is FilteredToolResult.Passed -> textResult(result.json, isError)
+                FilteredToolResult.Refused -> textResult(PRIVACY_FILTER_FAILED, true)
+            }
+        } catch (failure: Exception) {
+            log.error("MCP tool result withheld: {}", failure.javaClass.name)
+            textResult(PRIVACY_FILTER_FAILED, true)
         }
 
     private fun textResult(
@@ -97,7 +107,10 @@ class McpToolSpecifications(
         const val INVALID_ARGUMENTS = "invalid-arguments"
         private val log = LoggerFactory.getLogger(McpToolSpecifications::class.java)
         private val UNAUTHENTICATED = ToolAnswer.Error("unauthenticated", "The call carries no authenticated caller.")
-        private val PRIVACY_FILTER_FAILED =
-            ToolAnswer.Error("privacy-filter-failed", "The result was withheld: the privacy flags could not be read.")
+
+        /** A constant, so answering it cannot fail in turn. */
+        private const val PRIVACY_FILTER_FAILED =
+            """{"code":"privacy-filter-failed","message":"The result was withheld: the privacy flags could not """ +
+                """be read.","problems":[]}"""
     }
 }

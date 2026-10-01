@@ -70,6 +70,27 @@ class McpContractTest(
         dsl.deleteFrom(USER_ACCOUNT).execute()
         context.getBean(LoginThrottlePort::class.java).reset(ThrottleKey.Everyone)
         context.getBean(SetupTokenPort::class.java).issue()
+        broken = false
+    }
+
+    @Test
+    fun `when the flag source throws, the call answers privacy-filter-failed and leaks nothing`() {
+        val owner = Session().open().firstRun()
+        val company = owner.create("/api/companies", """{"name":"ACME GmbH"}""")
+        val id = owner.create("/api/applications", """{"title":"Kotlin Engineer","companyId":"$company"}""")
+
+        owner.mcpClient().use { client ->
+            client.initialize()
+            broken = true
+
+            val result = client.callTool(request("get_application", mapOf("id" to id)))
+
+            result.isError shouldBe true
+            text(result) shouldContain "\"code\":\"privacy-filter-failed\""
+            text(result) shouldNotContain "Kotlin Engineer"
+            text(result) shouldNotContain "1234567"
+            text(result) shouldNotContain "flag store"
+        }
     }
 
     @Test
@@ -247,12 +268,17 @@ class McpContractTest(
         @Primary
         fun flaggedPhoneNumberSource(): AiVisibilityPort =
             object : AiVisibilityPort {
-                override fun rulesFor(sources: Set<ContentSource>): AiVisibilityResult =
-                    AiVisibilityResult.Known(NeverSendRules(emptyMap(), setOf(FlaggedValue(FLAGGED_PHONE))))
+                override fun rulesFor(sources: Set<ContentSource>): AiVisibilityResult {
+                    check(!broken) { "flag store down while holding $FLAGGED_PHONE" }
+                    return AiVisibilityResult.Known(NeverSendRules(emptyMap(), setOf(FlaggedValue(FLAGGED_PHONE))))
+                }
             }
     }
 
     private companion object {
+        /** Makes the flag source throw, as a broken knowledge store would (M2). */
+        @Volatile
+        var broken = false
         const val PASSWORD = "correct horse battery staple"
         const val FLAGGED_PHONE = "0170 1234567"
         const val CSRF_HEADER = "X-XSRF-TOKEN"
