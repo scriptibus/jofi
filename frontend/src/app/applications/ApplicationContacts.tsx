@@ -18,9 +18,9 @@ import { sectionCard } from "../companies/RelatedRecords";
 import { ChannelList } from "../contacts/ChannelList";
 import type { ErrorDescription } from "../problems";
 import { storeSavedApplication } from "./applicationCache";
-import { MAX_CONTACTS, withContact, withoutContact } from "./applicationContacts";
 import { describeApplicationError, isApplicationVersionConflict } from "./applicationProblems";
 import { ContactPicker, NewContactLink, useContactFacts } from "./ContactPicker";
+import { MAX_CONTACTS, withContact, withoutContact } from "./contactLinks";
 
 /** What the last link or unlink did, for the message under the heading. */
 type Outcome =

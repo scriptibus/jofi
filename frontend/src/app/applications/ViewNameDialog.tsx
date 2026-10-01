@@ -24,7 +24,7 @@ import {
   MAX_VIEW_NAME_LENGTH,
   toViewFilter,
   VIEW_VIOLATION_MESSAGES,
-} from "./savedViews";
+} from "./savedViewModel";
 
 /** Saving the list as a new view, or renaming a stored one. */
 export type ViewNameMode = { kind: "save" } | { kind: "rename"; view: SavedViewResponse };

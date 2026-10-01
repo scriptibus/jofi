@@ -8,7 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { getGetApplicationQueryKey } from "../../api/generated/jofi";
 import { anApplication, fakeApplicationBackend } from "../../test/fakeApplicationBackend";
 import { aContact } from "../../test/fakeCompanyBackend";
-import { linkCreatedContact, pickerChoices, withContact, withoutContact } from "./applicationContacts";
+import { linkCreatedContact, pickerChoices, withContact, withoutContact } from "./contactLinks";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
