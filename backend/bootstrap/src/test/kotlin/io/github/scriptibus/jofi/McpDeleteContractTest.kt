@@ -10,6 +10,9 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.SPRING_SESSION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.TASK
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.USER_ACCOUNT
+import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
+import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
+import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
@@ -26,6 +29,7 @@ import org.jooq.DSLContext
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.ApplicationContext
@@ -38,7 +42,12 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * The MCP delete tools and their server-enforced two-step confirmation (ADR-0039, #117), with the official MCP
@@ -46,8 +55,12 @@ import java.util.UUID
  * yes (MCP elicitation) deletes, with the AI as actor in the changelog; a no, a change of the effect between the
  * steps, a missing target or a company with applications delete nothing. The model never sees the token.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import(PostgresTestConfiguration::class)
+@SpringBootTest(
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    // Longer than the MCP SDK's 10 s default for server-to-client requests, which a person must not be held to.
+    properties = ["jofi.mcp.confirmation-timeout=PT30S"],
+)
+@Import(PostgresTestConfiguration::class, McpDeleteContractTest.TokenSpy::class)
 class McpDeleteContractTest(
     @param:LocalServerPort private val port: Int,
     @param:Autowired private val dsl: DSLContext,
@@ -150,6 +163,7 @@ class McpDeleteContractTest(
                 result.isError shouldBe true
                 text(result) shouldContain "\"code\":\"confirmation-unavailable\""
                 text(result) shouldNotContain "oken"
+                noTokenIn(text(result))
                 target.exists() shouldBe true
                 target.deletions().shouldBeEmpty()
             }
@@ -159,6 +173,7 @@ class McpDeleteContractTest(
     @Test
     fun `when the user confirms, each delete tool deletes with the AI as actor and never shows the token`() {
         val all = targets()
+        val issuedBefore = issuedTokens.size
         val questions = mutableListOf<String>()
         owner
             .mcpClient(answer = {
@@ -174,12 +189,15 @@ class McpDeleteContractTest(
                     text(result) shouldContain "\"status\":\"deleted\""
                     text(result) shouldContain target.id
                     text(result) shouldNotContain "oken"
+                    noTokenIn(text(result))
                     target.exists() shouldBe false
                     target.deletions() shouldContainExactly listOf("AI")
                 }
             }
         questions.size shouldBe all.size
         all.forEach { target -> questions.any { it.contains(target.effectName) } shouldBe true }
+        issuedTokens.size - issuedBefore shouldBe all.size
+        questions.forEach(::noTokenIn)
     }
 
     @Test
@@ -189,6 +207,7 @@ class McpDeleteContractTest(
             McpSchema.ElicitResult(McpSchema.ElicitResult.Action.DECLINE, null),
             McpSchema.ElicitResult(McpSchema.ElicitResult.Action.CANCEL, null),
             McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, mapOf("confirm" to false)),
+            McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, mapOf("confirm" to "true")),
             McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, emptyMap()),
         ).forEach { answer ->
             owner.mcpClient(answer = { answer }).use { client ->
@@ -198,6 +217,7 @@ class McpDeleteContractTest(
 
                     result.isError shouldBe false
                     text(result) shouldContain "\"status\":\"declined\""
+                    noTokenIn(text(result))
                     target.exists() shouldBe true
                     target.deletions().shouldBeEmpty()
                 }
@@ -222,6 +242,7 @@ class McpDeleteContractTest(
 
                 result.isError shouldBe true
                 text(result) shouldContain "\"code\":\"confirmation-invalid\""
+                noTokenIn(text(result))
                 application.exists() shouldBe true
                 application.deletions().shouldBeEmpty()
             }
@@ -280,6 +301,76 @@ class McpDeleteContractTest(
             result.isError shouldBe true
             text(result) shouldContain "\"code\":\"invalid-arguments\""
         }
+    }
+
+    @Test
+    fun `a person who answers after the SDK's old 10 second limit can still confirm`() {
+        val task = targets().first { it.tool == "delete_task" }
+        owner
+            .mcpClient(answer = {
+                Thread.sleep(Duration.ofSeconds(SLOWER_THAN_THE_SDK_DEFAULT_SECONDS))
+                accept()
+            })
+            .use { client ->
+                client.initialize()
+
+                val result = client.callTool(request(task.tool, task.arguments))
+
+                result.isError shouldBe false
+                text(result) shouldContain "\"status\":\"deleted\""
+                task.exists() shouldBe false
+            }
+    }
+
+    @Test
+    fun `a second delete while the first still waits for the user is pending and issues nothing`() {
+        val all = targets()
+        val first = all.first { it.tool == "delete_task" }
+        val second = all.first { it.tool == "delete_contact" }
+        val waiting = CountDownLatch(1)
+        val secondDone = CountDownLatch(1)
+        owner
+            .mcpClient(answer = {
+                waiting.countDown()
+                secondDone.await(TIMEOUT_SECONDS, TimeUnit.SECONDS) shouldBe true
+                accept()
+            })
+            .use { client ->
+                client.initialize()
+                val issuedBefore = issuedTokens.size
+                val firstCall = CompletableFuture.supplyAsync { client.callTool(request(first.tool, first.arguments)) }
+                waiting.await(TIMEOUT_SECONDS, TimeUnit.SECONDS) shouldBe true
+
+                val refused = client.callTool(request(second.tool, second.arguments))
+                secondDone.countDown()
+
+                refused.isError shouldBe true
+                text(refused) shouldContain "\"code\":\"confirmation-pending\""
+                second.exists() shouldBe true
+                second.deletions().shouldBeEmpty()
+                text(firstCall.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)) shouldContain "\"status\":\"deleted\""
+                issuedTokens.size shouldBe issuedBefore + 1
+            }
+    }
+
+    private fun noTokenIn(text: String) = issuedTokens.forEach { text shouldNotContain it }
+
+    /** Records every confirmation token the store issues, so tests can prove none ever reaches the client. */
+    class TokenSpy : BeanPostProcessor {
+        override fun postProcessAfterInitialization(
+            bean: Any,
+            beanName: String,
+        ): Any =
+            if (bean is ConfirmationStorePort) {
+                object : ConfirmationStorePort by bean {
+                    override fun issue(
+                        pending: PendingConfirmation,
+                        now: Instant,
+                    ): ConfirmationToken = bean.issue(pending, now).also { issuedTokens += it.value }
+                }
+            } else {
+                bean
+            }
     }
 
     private fun accept() = McpSchema.ElicitResult(McpSchema.ElicitResult.Action.ACCEPT, mapOf("confirm" to true))
@@ -375,7 +466,9 @@ class McpDeleteContractTest(
     private companion object {
         const val PASSWORD = "correct horse battery staple"
         const val CSRF_HEADER = "X-XSRF-TOKEN"
-        const val TIMEOUT_SECONDS = 10L
+        const val TIMEOUT_SECONDS = 40L
+        const val SLOWER_THAN_THE_SDK_DEFAULT_SECONDS = 11L
+        val issuedTokens: MutableList<String> = CopyOnWriteArrayList()
         const val INTERVIEW =
             """{"type":"PHONE_SCREEN","localStart":"2026-10-12T09:00","timeZone":"Europe/Berlin","participantIds":[]}"""
         const val TASK_BODY =

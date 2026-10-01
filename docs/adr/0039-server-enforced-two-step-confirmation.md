@@ -118,16 +118,30 @@ for export/import (pending confirmations are ephemeral, like sessions).
   `alertdialog`) keeps Confirm disabled for 300 ms after opening, so the tap that opened it cannot
   confirm it.
 
-### MCP and the built-in chat (later, #117, #122)
+### MCP and the built-in chat (#117; the chat relay follows with #122)
 
-Tools use the same feature use cases. The requester is `Actor.ExternalClient(name)` (or `Actor.Ai` for
-the built-in chat) with the client token id or MCP session as its session. A token only proves a
-second call about exactly this action, not that a human decided: an AI that holds the token can make
-both calls. So for `Actor.Ai` and `Actor.ExternalClient` the confirmation goes to the **human channel**
-(MCP elicitation answered by the user, or the chat's confirmation relay in the Jofi UI): the AI never
-receives the token and never decides to send it back; the tool result tells the AI only that
-confirmation was requested. MCP contract criterion: every destructive tool called without a token
-answers "confirmation required" and mutates nothing.
+Tools use the same feature use cases. The requester is `Actor.Ai` (the built-in chat and today's session
+callers) with the MCP session id as its session; `Actor.ExternalClient(name)` with the client token id follows
+with #125. A token only proves a second call about exactly this action, not that a human decided: an AI that holds
+the token can make both calls. So the confirmation goes to the **human channel** and the model never receives the
+token or decides to send it back. Decided in #117:
+
+- A delete tool runs the use case once without a token (nothing mutates), then asks the client through MCP
+  elicitation (form mode) and repeats the call with the token held inside the server only on an `accept` with the
+  box checked. There is no token-returning two-call fallback: a client without form elicitation cannot delete over
+  MCP (`confirmation-unavailable`) and no token is issued for it. MCP contract criterion: a destructive tool
+  without a client that can confirm mutates nothing.
+- The server guarantees that it asked through the client and acts only on an explicit yes; it cannot prove that a
+  person answered. A client that answers `accept` by itself deletes. With the session cookie that is no new power
+  (REST deletes are open to the same client); with per-client bearer tokens (#125) it is, so #125 needs its own
+  scope or UI confirmation for deletes.
+- The elicitation text is built by the server from the structured effect, in English; the stored name is
+  neutralised and on a line of its own, labelled as stored text, because titles and names may come from
+  postings. The text passes the result filter (ADR-0053) and fails closed. The structured effect itself is not
+  yet carried to the client (an option for #122: the elicitation request's `_meta`).
+- The call waits up to `jofi.mcp.confirmation-timeout` (4.5 minutes) for the answer, so a person has time to read;
+  one confirmation per MCP session may wait at a time (a waiting call holds a thread). A cap per requester in the
+  confirmation store itself is #214.
 
 ## Consequences
 

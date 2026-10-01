@@ -7,60 +7,114 @@ import io.modelcontextprotocol.server.McpSyncServerExchange
 import io.modelcontextprotocol.spec.McpSchema
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import java.util.concurrent.TimeoutException
 
-/** What the user answered when the server asked them to confirm an action. */
+/** What happened when the server asked the client to confirm an action. */
 enum class HumanAnswer {
     CONFIRMED,
     DECLINED,
 
-    /** The client cannot ask its user (no elicitation), or asking failed: nothing may run. */
+    /** The client did not answer within the confirmation timeout. */
+    TIMED_OUT,
+
+    /** This session already waits for an answer to another confirmation. */
+    BUSY,
+
+    /** Asking failed (the filter, the transport or the client): nothing may run. */
     UNAVAILABLE,
 }
 
-/**
- * Asks the human behind the client to confirm an action (ADR-0039, "MCP and the built-in chat"). The model never
- * sees the confirmation token: the tool keeps it server-side and uses it only after the human said yes.
- */
-fun interface HumanConfirmer {
-    fun ask(message: String): HumanAnswer
+/** Whether a confirmation can be asked now; checked before the first step so no unusable token is issued. */
+enum class Availability {
+    READY,
 
-    /**
-     * Whether asking can work at all. A tool checks it before the first step, so a client that cannot ask never
-     * makes the server issue a confirmation token that nobody can use.
-     */
-    val canAsk: Boolean get() = true
+    /** The client does not declare form elicitation, or there is no MCP session to ask in. */
+    UNSUPPORTED,
+
+    /** An earlier confirmation of the same session is still waiting for its answer. */
+    BUSY,
+}
+
+/**
+ * Asks the client to confirm an action (ADR-0039, "MCP and the built-in chat"). The model never sees the
+ * confirmation token: the tool keeps it server-side and uses it only after the client reported a yes. The
+ * default is unsupported; only an implementation that really can ask says otherwise.
+ */
+interface HumanConfirmer {
+    val availability: Availability get() = Availability.UNSUPPORTED
+
+    fun ask(message: String): HumanAnswer
 
     companion object {
         /** For callers that cannot reach a human: every confirmation is unavailable. */
-        val NONE =
+        val NONE: HumanConfirmer =
             object : HumanConfirmer {
-                override val canAsk = false
-
                 override fun ask(message: String) = HumanAnswer.UNAVAILABLE
+            }
+
+        /** A confirmer that is always ready and answers with [answer]; for tests of tools and helpers. */
+        fun answering(answer: (String) -> HumanAnswer): HumanConfirmer =
+            object : HumanConfirmer {
+                override val availability = Availability.READY
+
+                override fun ask(message: String) = answer(message)
             }
     }
 }
 
 /**
  * MCP elicitation (form mode) on the exchange of the running tool call: the client shows the message and one
- * checkbox, and its user answers. A client without form elicitation, a transport error or a timeout is
- * [HumanAnswer.UNAVAILABLE]; only an explicit "accept" with the box checked is [HumanAnswer.CONFIRMED].
+ * checkbox and reports the answer. The server cannot prove that a person answered, only that the client did.
+ * The message first passes [filter] (the "never send to AI" filter, ADR-0053; null means it failed, so nothing
+ * is asked). One confirmation per MCP session may wait at a time ([pending]): the tool call blocks a thread
+ * while it waits. A client without form elicitation, a transport error or a refused message is
+ * [HumanAnswer.UNAVAILABLE], a missing answer [HumanAnswer.TIMED_OUT]; only an explicit "accept" with the box
+ * checked (a real boolean) is [HumanAnswer.CONFIRMED].
  */
 class ElicitingConfirmer(
     private val exchange: McpSyncServerExchange,
+    private val pending: MutableSet<String>,
+    private val filter: (String) -> String?,
 ) : HumanConfirmer {
-    override val canAsk: Boolean get() = supportsForms()
+    override val availability: Availability
+        get() =
+            when {
+                exchange.sessionId() == null || !supportsForms() -> Availability.UNSUPPORTED
+                exchange.sessionId() in pending -> Availability.BUSY
+                else -> Availability.READY
+            }
 
     @Suppress("TooGenericExceptionCaught") // The SDK throws unchecked transport and protocol errors.
     override fun ask(message: String): HumanAnswer {
-        if (!supportsForms()) return HumanAnswer.UNAVAILABLE
-        val request = McpSchema.ElicitFormRequest.builder(message, SCHEMA).build()
-        return try {
-            answerOf(exchange.createElicitation(request))
-        } catch (failure: Exception) {
-            log.warn("MCP confirmation could not be asked: {}", failure.javaClass.name)
-            HumanAnswer.UNAVAILABLE
+        val session = exchange.sessionId()
+        val text = filter(message)
+        return when {
+            session == null || text == null || !supportsForms() -> {
+                HumanAnswer.UNAVAILABLE
+            }
+
+            !pending.add(session) -> {
+                HumanAnswer.BUSY
+            }
+
+            else -> {
+                try {
+                    answerOf(exchange.createElicitation(McpSchema.ElicitFormRequest.builder(text, SCHEMA).build()))
+                } catch (failure: Exception) {
+                    failed(failure)
+                } finally {
+                    pending.remove(session)
+                }
+            }
         }
+    }
+
+    private fun failed(failure: Exception): HumanAnswer {
+        var cause: Throwable = failure
+        while (cause.cause != null && cause.cause !== cause) cause = cause.cause as Throwable
+        // Class names only: messages may carry stored text.
+        log.warn("MCP confirmation not answered: {}", cause.javaClass.name)
+        return if (cause is TimeoutException) HumanAnswer.TIMED_OUT else HumanAnswer.UNAVAILABLE
     }
 
     private fun supportsForms(): Boolean {
@@ -69,9 +123,9 @@ class ElicitingConfirmer(
         return elicitation.form() != null || elicitation.url() == null
     }
 
-    private fun answerOf(result: McpSchema.ElicitResult): HumanAnswer =
+    private fun answerOf(result: McpSchema.ElicitResult?): HumanAnswer =
         when {
-            result.action() != McpSchema.ElicitResult.Action.ACCEPT -> HumanAnswer.DECLINED
+            result == null || result.action() != McpSchema.ElicitResult.Action.ACCEPT -> HumanAnswer.DECLINED
             result.content()?.get(FIELD) == true -> HumanAnswer.CONFIRMED
             else -> HumanAnswer.DECLINED
         }

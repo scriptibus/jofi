@@ -36,7 +36,7 @@ object TwoStepDelete {
         unconfirmed: (R) -> ConfirmationResult.Unconfirmed?,
         finish: (R) -> ToolAnswer,
     ): ToolAnswer {
-        if (!call.human.canAsk) return UNAVAILABLE
+        refusal(call)?.let { return it }
         val requester = ConfirmationRequester(call.caller, call.session)
         val first = execute(requester, null)
         return when (val gate = unconfirmed(first)) {
@@ -57,15 +57,32 @@ object TwoStepDelete {
         }
     }
 
+    /** Before the first step: with nobody to ask, no token is issued at all. */
+    private fun refusal(call: ToolCall): ToolAnswer.Error? =
+        when {
+            call.session == ToolCall.NO_SESSION -> UNAVAILABLE
+            call.human.availability == Availability.UNSUPPORTED -> UNAVAILABLE
+            call.human.availability == Availability.BUSY -> PENDING
+            else -> null
+        }
+
     private fun askThenRepeat(
         call: ToolCall,
         id: UUID,
         required: ConfirmationResult.Required,
         repeat: (ConfirmationToken) -> ToolAnswer,
     ): ToolAnswer =
-        when (call.human.ask(message(required.action.effect))) {
+        when (call.human.ask(ConfirmationMessage.of(required.action.effect))) {
             HumanAnswer.UNAVAILABLE -> {
                 UNAVAILABLE
+            }
+
+            HumanAnswer.TIMED_OUT -> {
+                TIMED_OUT
+            }
+
+            HumanAnswer.BUSY -> {
+                PENDING
             }
 
             HumanAnswer.DECLINED -> {
@@ -87,21 +104,20 @@ object TwoStepDelete {
             is ToolAnswer.Error -> answer
         }
 
-    /** Built from the server's structured effect, never from text the model wrote. */
-    private fun message(effect: ConfirmationEffect): String {
-        val counts =
-            effect.counts.entries
-                .filter { it.value > 0 }
-                .sortedBy { it.key }
-                .joinToString(", ") { "${it.key}: ${it.value}" }
-        val also = if (counts.isEmpty()) "" else " This also affects: $counts."
-        return "The assistant asks to delete the ${effect.kind} \"${effect.name}\".$also This cannot be undone."
-    }
-
     private val UNAVAILABLE =
         ToolAnswer.Error(
             "confirmation-unavailable",
             "Nothing was deleted: this client cannot ask the user to confirm. The user can delete it in Jofi.",
+        )
+    private val TIMED_OUT =
+        ToolAnswer.Error(
+            "confirmation-timeout",
+            "Nothing was deleted: the user did not answer in time. Call the tool again to ask again.",
+        )
+    private val PENDING =
+        ToolAnswer.Error(
+            "confirmation-pending",
+            "Nothing was deleted: another confirmation in this session still waits for the user's answer.",
         )
     private val INVALID =
         ToolAnswer.Error(

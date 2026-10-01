@@ -41,10 +41,15 @@ class TwoStepDeleteTest {
         second: ConfirmationResult.Unconfirmed? = null,
     ): ToolAnswer {
         val call =
-            ToolCall(ToolArguments(emptyMap()), Actor.Ai, "mcp-session", {
-                asked += it
-                answer
-            })
+            ToolCall(
+                ToolArguments(emptyMap()),
+                Actor.Ai,
+                "mcp-session",
+                HumanConfirmer.answering {
+                    asked += it
+                    answer
+                },
+            )
         return TwoStepDelete.run(
             call,
             id,
@@ -70,8 +75,9 @@ class TwoStepDeleteTest {
     fun `the question names the effect the server derived`() {
         run(HumanAnswer.CONFIRMED)
 
-        asked.single() shouldContain "application \"Backend Engineer\""
-        asked.single() shouldContain "interviews: 2"
+        asked.single() shouldContain "delete this application"
+        asked.single() shouldContain "    Backend Engineer"
+        asked.single() shouldContain "2 interviews"
         asked.single() shouldNotContain "sources"
         asked.single() shouldNotContain token.value
     }
@@ -87,6 +93,51 @@ class TwoStepDeleteTest {
     @Test
     fun `a client that cannot ask never reaches the use case, so no token is issued`() {
         val call = ToolCall(ToolArguments(emptyMap()), Actor.Ai, "mcp-session", HumanConfirmer.NONE)
+
+        val answer = TwoStepDelete.run(call, id, { _, _ -> error("must not run") }, { null }, { error("no") })
+
+        answer.shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-unavailable"
+    }
+
+    @Test
+    fun `a missing answer is a timeout, and a busy session is pending, both without deleting`() {
+        run(HumanAnswer.TIMED_OUT).shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-timeout"
+        run(HumanAnswer.BUSY).shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-pending"
+        calls.map { it.second } shouldBe listOf(null, null)
+    }
+
+    @Test
+    fun `a session that is already waiting is refused before a token is issued`() {
+        val busy =
+            object : HumanConfirmer {
+                override val availability = Availability.BUSY
+
+                override fun ask(message: String) = error("must not ask")
+            }
+        val call = ToolCall(ToolArguments(emptyMap()), Actor.Ai, "mcp-session", busy)
+
+        val answer = TwoStepDelete.run(call, id, { _, _ -> error("must not run") }, { null }, { error("no") })
+
+        answer.shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-pending"
+    }
+
+    @Test
+    fun `without an MCP session no confirmation is started`() {
+        val call =
+            ToolCall(ToolArguments(emptyMap()), Actor.Ai, human = HumanConfirmer.answering { HumanAnswer.CONFIRMED })
+
+        val answer = TwoStepDelete.run(call, id, { _, _ -> error("must not run") }, { null }, { error("no") })
+
+        answer.shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "confirmation-unavailable"
+    }
+
+    @Test
+    fun `a confirmer that does not say it can ask is treated as unsupported`() {
+        val silent =
+            object : HumanConfirmer {
+                override fun ask(message: String) = HumanAnswer.CONFIRMED
+            }
+        val call = ToolCall(ToolArguments(emptyMap()), Actor.Ai, "mcp-session", silent)
 
         val answer = TwoStepDelete.run(call, id, { _, _ -> error("must not run") }, { null }, { error("no") })
 
@@ -112,7 +163,13 @@ class TwoStepDeleteTest {
 
     @Test
     fun `an answer without a confirmation step, such as not found, goes back unasked`() {
-        val call = ToolCall(ToolArguments(emptyMap()), Actor.Ai, "mcp-session", { error("must not ask") })
+        val call =
+            ToolCall(
+                ToolArguments(emptyMap()),
+                Actor.Ai,
+                "mcp-session",
+                HumanConfirmer.answering { error("must not ask") },
+            )
 
         val answer =
             TwoStepDelete.run(

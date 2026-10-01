@@ -39,7 +39,7 @@ class ToolCall(
     val human: HumanConfirmer = HumanConfirmer.NONE,
 ) {
     companion object {
-        /** A session id that no MCP session has; a confirmation bound to it is never redeemed. */
+        /** Stands for "no MCP session"; [TwoStepDelete] refuses to start a confirmation for it. */
         const val NO_SESSION = "no-session"
     }
 }
