@@ -15,6 +15,7 @@ import { m } from "../../paraglide/messages.js";
 import { todayIn } from "../tasks/task";
 import { useConfirmation } from "../useConfirmation";
 import { DELETE_OPERATION } from "./countdowns";
+import { widgetQuery } from "./Widget";
 
 /** How often the widget looks whether the viewer's day has changed. */
 const DAY_CHECK_INTERVAL_MS = 60_000;
@@ -35,10 +36,7 @@ export function useToday(zone: string): string {
  * changes they load again, because the server leaves out deadlines that have passed.
  */
 export function useDashboardCountdowns(viewerZone: string) {
-  const list = useListDashboardCountdowns(
-    { timeZone: viewerZone },
-    { query: { meta: { errorHandledLocally: true } } },
-  );
+  const list = useListDashboardCountdowns({ timeZone: viewerZone }, { query: widgetQuery });
   const today = useToday(viewerZone);
   const shownFor = useRef(today);
   const { refetch } = list;

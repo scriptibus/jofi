@@ -5,6 +5,7 @@ import { m } from "../../paraglide/messages.js";
 import { PageHeader } from "../pages/PlaceholderPage";
 import { ActivityWidget } from "./ActivityWidget";
 import { AiCostWidget } from "./AiCostWidget";
+import { CountdownsWidget } from "./CountdownsWidget";
 import { FunnelWidget, PipelineWidget } from "./PipelineWidgets";
 import { TasksWidget } from "./TasksWidget";
 
@@ -17,7 +18,8 @@ export function DashboardPage() {
     <>
       <PageHeader title={m.dashboard_heading()} eyebrow={m.dashboard_eyebrow()} />
       <div className="grid items-start gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {/* The countdowns widget (#115) goes here, first in the grid: what is due soonest comes first. */}
+        {/* First in the grid: what is due soonest comes first. */}
+        <CountdownsWidget />
         <TasksWidget />
         <PipelineWidget />
         <FunnelWidget />

@@ -14,6 +14,7 @@ import {
   type FakeCountdownState,
   fakeCountdownBackend,
 } from "../../test/fakeCountdownBackend";
+import { fakeDashboardBackend } from "../../test/fakeDashboardBackend";
 import { App, createApp } from "../App";
 import { dismissSetupGuide } from "../ai/setupGuide";
 
@@ -45,7 +46,11 @@ const today = aDashboardCountdown({ title: "Data Engineer", targetDate: "2026-09
 function start(data: Partial<FakeCountdownState> = {}) {
   dismissSetupGuide();
   const countdowns = fakeCountdownBackend(data);
-  server.use(...countdowns.handlers, ...fakeAuthBackend({ authenticated: true }).handlers);
+  server.use(
+    ...countdowns.handlers,
+    ...fakeDashboardBackend().handlers,
+    ...fakeAuthBackend({ authenticated: true }).handlers,
+  );
   render(<App app={createApp(createMemoryHistory({ initialEntries: ["/"] }))} />);
   return { state: countdowns.state, user: userEvent.setup() };
 }
@@ -67,8 +72,8 @@ describe("countdowns widget", () => {
     expect(first).toHaveTextContent(/^TodayApplication deadlineData EngineerSep 30, 2026$/);
     expect(second).toHaveTextContent(/^TomorrowOffer answer deadlineSite Reliability EngineerOct 1, 2026$/);
     expect(third).toHaveTextContent(/^In 10 daysApplication deadlinePlatform EngineerOct 10, 2026$/);
-    expect(fourth).toHaveTextContent(/^In 92 daysYour countdownEnd of notice periodDec 31, 2026Delete$/);
-    expect(fifth).toHaveTextContent(/^ReachedYour countdownProbation endsSep 1, 2026Delete$/);
+    expect(fourth).toHaveTextContent(/^In 92 daysDeleteYour countdownEnd of notice periodDec 31, 2026$/);
+    expect(fifth).toHaveTextContent(/^ReachedDeleteYour countdownProbation endsSep 1, 2026$/);
     // A deadline opens its application; only the user's own countdowns can be deleted.
     expect(within(third as HTMLElement).getByRole("link", { name: "Platform Engineer" })).toHaveAttribute(
       "href",
@@ -134,10 +139,12 @@ describe("countdowns widget", () => {
     await user.type(within(form).getByLabelText("Date (required)"), "2026-12-31");
     await user.click(within(form).getByRole("button", { name: "Add countdown" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Countdown “End of notice period” added.");
+    expect(await screen.findByRole("status", { name: "Countdowns" })).toHaveTextContent(
+      "Countdown “End of notice period” added.",
+    );
     expect(state.creates).toEqual([{ title: "End of notice period", targetDate: "2026-12-31" }]);
     const [row] = await rows();
-    expect(row).toHaveTextContent(/^In 92 daysYour countdownEnd of notice periodDec 31, 2026Delete$/);
+    expect(row).toHaveTextContent(/^In 92 daysDeleteYour countdownEnd of notice periodDec 31, 2026$/);
     expect(within(form).getByLabelText("Counting down to (required)")).toHaveValue("");
     expect(within(form).getByLabelText("Date (required)")).toHaveValue("");
   });
@@ -202,7 +209,9 @@ describe("countdowns widget", () => {
     await waitFor(() => expect(confirm).toBeEnabled());
     await user.click(confirm);
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Countdown “End of notice period” deleted.");
+    expect(await screen.findByRole("status", { name: "Countdowns" })).toHaveTextContent(
+      "Countdown “End of notice period” deleted.",
+    );
     expect(state.deleteCalls).toEqual(["first", "first", "confirmed"]);
     expect(await within(await widget()).findByText(/^No countdowns yet\./)).toBeVisible();
     expect(screen.getByRole("heading", { level: 2, name: "Countdowns" })).toHaveFocus();

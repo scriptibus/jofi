@@ -70,7 +70,9 @@ test("add a custom countdown and delete it only after confirming", async ({ page
   await form.getByLabel("Date (required)").fill(await dayFromToday(page, 10));
   await form.getByRole("button", { name: "Add countdown" }).click();
 
-  await expect(widget(page).getByRole("status")).toHaveText(`Countdown “${title}” added.`);
+  await expect(widget(page).getByRole("status", { name: "Countdowns" })).toHaveText(
+    `Countdown “${title}” added.`,
+  );
   const countdown = row(page, title);
   await expect(countdown.getByText("Your countdown", { exact: true })).toBeVisible();
   await expect(countdown.getByText("In 10 days", { exact: true })).toBeVisible();
@@ -93,7 +95,9 @@ test("add a custom countdown and delete it only after confirming", async ({ page
 
   await page.getByRole("button", { name: `Delete countdown: ${title}` }).click();
   await dialog.getByRole("button", { name: "Delete countdown" }).click();
-  await expect(widget(page).getByRole("status")).toHaveText(`Countdown “${title}” deleted.`);
+  await expect(widget(page).getByRole("status", { name: "Countdowns" })).toHaveText(
+    `Countdown “${title}” deleted.`,
+  );
   await expect(row(page, title)).toHaveCount(0);
   await page.reload();
   await expect(widget(page).getByRole("heading", { level: 2, name: "Countdowns" })).toBeVisible();
@@ -111,7 +115,9 @@ test.describe("in German", () => {
     await form.getByLabel("Datum (Pflichtfeld)").fill(await dayFromToday(page, 1));
     await form.getByRole("button", { name: "Countdown hinzufügen" }).click();
 
-    await expect(widget(page).getByRole("status")).toHaveText(`Countdown „${title}“ hinzugefügt.`);
+    await expect(widget(page).getByRole("status", { name: "Countdowns" })).toHaveText(
+      `Countdown „${title}“ hinzugefügt.`,
+    );
     const countdown = row(page, title);
     await expect(countdown.getByText("Morgen", { exact: true })).toBeVisible();
     await expect(countdown.getByText("Dein Countdown", { exact: true })).toBeVisible();
@@ -124,7 +130,9 @@ test.describe("in German", () => {
     const dialog = page.getByRole("alertdialog", { name: "Diesen Countdown löschen?" });
     await expect(dialog).toContainText(`Der Countdown „${title}“ wird gelöscht.`);
     await dialog.getByRole("button", { name: "Countdown löschen" }).click();
-    await expect(widget(page).getByRole("status")).toHaveText(`Countdown „${title}“ gelöscht.`);
+    await expect(widget(page).getByRole("status", { name: "Countdowns" })).toHaveText(
+      `Countdown „${title}“ gelöscht.`,
+    );
     await expect(row(page, title)).toHaveCount(0);
   });
 });
