@@ -124,10 +124,13 @@ class PostingImportConfiguration {
         )
 
     companion object {
-        /** Fails the start with a clear message: a cap of zero or less would refuse every URL import. */
+        /** The most fetches a person may allow: each buffers up to 1 MiB and takes a thread for up to 20 s. */
+        const val MAX_FETCH_CAP = 50
+
+        /** Fails the start with a clear message: zero refuses every URL import, a huge value switches the cap off. */
         fun validFetchCap(maxConcurrent: Int): Int {
-            require(maxConcurrent > 0) {
-                "jofi.import.max-concurrent-fetches must be positive, but is $maxConcurrent"
+            require(maxConcurrent in 1..MAX_FETCH_CAP) {
+                "jofi.import.max-concurrent-fetches must be positive and at most $MAX_FETCH_CAP, but is $maxConcurrent"
             }
             return maxConcurrent
         }

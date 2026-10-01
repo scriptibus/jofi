@@ -151,13 +151,15 @@ pending import; 400 for the text; 409 `ai-not-configured` without an extraction 
 failure reason, the created application; never the text) and `POST /{importId}/retry` (202; 409
 `import-not-retryable` unless failed or stalled). `POST /url` (#97; 202 for a new or still-pending import, 200 with the
 existing application when the normalised link was imported before; 400 with an `originalUrl` violation
-`INVALID_URL` / `NOT_ALLOWED` / `UNREACHABLE`; 409 `ai-not-configured`): it translates and calls `StartUrlImportPort`.
+`INVALID_URL` / `NOT_ALLOWED` / `UNREACHABLE`; 409 `ai-not-configured`; 409 `import-in-progress` when another request
+holds the same link too long; 429 `import-busy` when the cap of concurrent fetches, `jofi.import.max-concurrent-fetches`,
+is used up, #224: try again shortly): it translates and calls `StartUrlImportPort`.
 
 ## Documented problem responses (ADR-0041)
 
 Annotate a handler with `@ProblemResponses(ProblemKind.INVALID_INPUT, NOT_FOUND, CONFLICT)`
 (`shared.adapter.web`); the contract renderer (`ProblemResponsesCustomizer`, test sources) adds the 400
-(`ValidationProblem`), 404 and 409 responses. Throw `ValidationProblem.of(type, violations)` for 400s.
+(`ValidationProblem`), 404 and 409 responses (`ProblemKind.TOO_MANY_REQUESTS` adds the 429 for the URL import). Throw `ValidationProblem.of(type, violations)` for 400s.
 Web adapters of every context may use `shared.adapter.web` (the one exemption from adapter
 independence for web, `AdapterRules`).
 

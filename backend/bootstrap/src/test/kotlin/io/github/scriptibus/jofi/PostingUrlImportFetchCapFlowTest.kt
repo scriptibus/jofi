@@ -154,7 +154,7 @@ class PostingUrlImportFetchCapFlowTest(
                         browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/cap$n")}"}""").response.status
                     }
                 }
-            Thread.sleep(1_000)
+            awaitFetchesStarted("/jobs/cap1", "/jobs/cap2")
 
             val again = browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/cap0")}"}""")
 
@@ -164,6 +164,61 @@ class PostingUrlImportFetchCapFlowTest(
             pool.shutdownNow()
         }
         FAKE_POSTING.findAll(getRequestedFor(urlEqualTo("/jobs/cap0"))).size shouldBe 1
+    }
+
+    /** Both slow links reached the posting server, so both hold a permit (the stub answers only after 3 s). */
+    private fun awaitFetchesStarted(vararg paths: String) {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (paths.any { FAKE_POSTING.findAll(getRequestedFor(urlEqualTo(it))).isEmpty() }) {
+            check(System.nanoTime() < deadline) { "the slow fetches never started" }
+            Thread.sleep(20)
+        }
+    }
+
+    @Test
+    fun `requests for one link whose first request was refused each get their own answer, never import in progress`() {
+        val browser = owner()
+        (0 until 2).forEach { servesSlowPosting(it, delayMillis = 3_000) }
+        servesSlowPosting(5, delayMillis = 0)
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            val slow =
+                (0 until 2).map { n ->
+                    pool.submit<Int> {
+                        browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/cap$n")}"}""").response.status
+                    }
+                }
+            awaitFetchesStarted("/jobs/cap0", "/jobs/cap1")
+
+            val waiters =
+                concurrently(4) { browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/cap5")}"}""") }
+
+            waiters.map { it.response.status } shouldBe List(4) { 429 }
+            FAKE_POSTING.findAll(getRequestedFor(urlEqualTo("/jobs/cap5"))).size shouldBe 0
+            slow.map { it.get(60, TimeUnit.SECONDS) } shouldBe listOf(202, 202)
+        } finally {
+            pool.shutdownNow()
+        }
+        browser.post("$IMPORTS/url", """{"url":"${postingUrl("/jobs/cap5")}"}""").response.status shouldBe 202
+    }
+
+    private fun <T> concurrently(
+        threads: Int,
+        call: () -> T,
+    ): List<T> {
+        val start = CyclicBarrier(threads)
+        val pool = Executors.newFixedThreadPool(threads)
+        try {
+            return (1..threads)
+                .map {
+                    pool.submit<T> {
+                        start.await()
+                        call()
+                    }
+                }.map { it.get(60, TimeUnit.SECONDS) }
+        } finally {
+            pool.shutdownNow()
+        }
     }
 
     private fun importAllAtOnce(

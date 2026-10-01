@@ -52,7 +52,9 @@ interface StartPostingImportPort {
  * of starting another (double submit, #187 finding F6). Otherwise fetched through `OutboundHttpPort`, its main text
  * extracted, then the same path as [StartPostingImportPort]: `Invalid` `SOURCE_URL`/`UNREACHABLE` for a blocked,
  * failed fetch or one with no readable text (paste the text instead); `AiNotConfigured` while no model is assigned
- * to the extraction task, before anything is fetched.
+ * to the extraction task, before anything is fetched. `ImportInProgress` when another request for the same link did
+ * not finish within the wait; `ImportBusy` when the cap of concurrent fetches is used up (#224): try again shortly;
+ * both before anything is stored.
  */
 interface StartUrlImportPort {
     fun execute(
@@ -99,7 +101,8 @@ interface RunPostingImportPort {
  * anything is fetched. `Invalid` `SOURCE_URL`: `NOT_ALLOWED` if the fetch ended on a site Jofi never scrapes (a
  * redirect or shortener into LinkedIn, StepStone or Indeed), `UNREACHABLE` for a blocked or failed fetch, a login
  * wall (an answer other than 2xx, or a redirect to a login page), the wrong content type, a body over the limit or no
- * readable text. Nothing is stored.
+ * readable text. `ImportBusy` when the cap of concurrent fetches is used up (#224), without a fetch. Nothing is
+ * stored.
  */
 interface FetchPostingTextPort {
     fun execute(address: WebAddress): ApplicationResult<DescriptionText>

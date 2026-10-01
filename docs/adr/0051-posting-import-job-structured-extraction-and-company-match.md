@@ -51,7 +51,7 @@ companies context without reaching into it.
 - **At most N fetches at once (#224).** Distinct links do not wait for each other, so a burst of them would hold a
   thread, a socket and up to 1 MiB each for up to 20 s. `FetchPostingTextUseCase` runs the fetch under a
   `ConcurrencyLimitPort` (`InProcessConcurrencyLimitAdapter`, a non-blocking semaphore; one `app` container,
-  ADR-0039) of `jofi.import.max-concurrent-fetches` (default 3, must be positive). A request over the cap is turned
+  ADR-0039) of `jofi.import.max-concurrent-fetches` (default 3, 1 to 50). A request over the cap is turned
   away at once with `429 import-busy` (`ImportBusy`), not `409 import-in-progress`, which means another request is
   importing this very link. It counts fetches only: a link answered as already imported or pending takes no permit,
   the permit is released on every path, and no connection is held meanwhile. Needed before MCP clients import (#118).

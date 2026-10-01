@@ -32,9 +32,8 @@ Rules:
   ADR-0042), `JOFI_MCP_CONFIRMATION_TIMEOUT` (how long an MCP delete call waits for the user's answer, ISO-8601,
   default `PT4M30S`; must be positive and below the 5 minute confirmation token, else the start fails) and
   `JOFI_MCP_MAX_PENDING_CONFIRMATIONS` (delete confirmations that may wait at once, default 4, one per MCP session;
-  each waiting call holds a server thread) and
-  `JOFI_IMPORT_MAX_CONCURRENT_FETCHES` (pages URL imports may fetch at once, default 3, positive or the start fails;
-  one more answers `429 import-busy`, ADR-0051). Tests get a data
+  each waiting call holds a server thread), `JOFI_IMPORT_MAX_CONCURRENT_FETCHES` (pages URL imports may fetch at once,
+  default 3, from 1 to 50 or the start fails; one more answers `429 import-busy`, ADR-0051). Tests get a data
   directory under the test task's temporary directory; `bootRun` needs `JOFI_DATA_DIR` set.
 - `system.config.AuthStartup` (a `SmartLifecycle` in the phase just before the web server's, so it
   runs after the refresh but before the port is bound; web apps only and never under the `worker`

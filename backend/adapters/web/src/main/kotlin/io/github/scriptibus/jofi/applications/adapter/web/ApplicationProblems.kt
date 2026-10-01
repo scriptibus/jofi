@@ -40,6 +40,8 @@ object ApplicationProblems {
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
     const val UNAVAILABLE = "urn:jofi:problem:applications:storage-unavailable"
 
+    private const val BUSY_DETAIL = "Other imports are fetching pages; try again shortly"
+
     fun of(failure: ApplicationResult.Failure): ErrorResponseException =
         when (failure) {
             is ApplicationResult.Invalid, is ApplicationResult.InvalidView -> {
@@ -52,16 +54,12 @@ object ApplicationProblems {
             ApplicationResult.InterviewNotFound,
             ApplicationResult.SavedViewNotFound,
             ApplicationResult.ImportNotFound,
-            -> {
-                listed(HttpStatus.NOT_FOUND, NOT_FOUND_PROBLEMS, failure)
-            }
-
             ApplicationResult.VersionConflict,
             ApplicationResult.ImportNotRetryable,
             ApplicationResult.ImportInProgress,
             ApplicationResult.AiNotConfigured,
             -> {
-                listed(HttpStatus.CONFLICT, CONFLICT_PROBLEMS, failure)
+                listed(failure)
             }
 
             is ApplicationResult.InvalidTransition -> {
@@ -72,20 +70,13 @@ object ApplicationProblems {
                 Confirmations.problem(failure.outcome)
             }
 
-            ApplicationResult.ImportBusy, is ApplicationResult.StorageFailure -> {
-                retryLater(failure)
+            ApplicationResult.ImportBusy -> {
+                problem(HttpStatus.TOO_MANY_REQUESTS, IMPORT_BUSY, BUSY_DETAIL)
             }
-        }
 
-    /**
-     * Answers that may pass shortly: `503` when storage is down, `429` when too many pages are being fetched for
-     * imports at once (#224; nothing is wrong with the request).
-     */
-    private fun retryLater(failure: ApplicationResult.Failure): ErrorResponseException =
-        if (failure == ApplicationResult.ImportBusy) {
-            problem(HttpStatus.TOO_MANY_REQUESTS, IMPORT_BUSY, "Other imports are fetching pages; try again shortly")
-        } else {
-            problem(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, "Applications cannot be stored right now")
+            is ApplicationResult.StorageFailure -> {
+                problem(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, "Applications cannot be stored right now")
+            }
         }
 
     /** The 400 for search parameters `ApplicationSearchInput.validate` refused, named as query parameters. */
@@ -195,14 +186,11 @@ object ApplicationProblems {
             ApplicationField.FOLLOW_UP_AFTER_DAYS to "followUpAfterDays",
         )
 
-    /** The problem [problems] lists for [failure], with [status]. */
-    private fun listed(
-        status: HttpStatus,
-        problems: Map<ApplicationResult.Failure, Pair<String, String>>,
-        failure: ApplicationResult.Failure,
-    ): ErrorResponseException {
-        val (type, detail) = problems.getValue(failure)
-        return problem(status, type, detail)
+    /** The 404 or 409 problem listed for [failure] in [NOT_FOUND_PROBLEMS] or [CONFLICT_PROBLEMS]. */
+    private fun listed(failure: ApplicationResult.Failure): ErrorResponseException {
+        val notFound = NOT_FOUND_PROBLEMS[failure]
+        val (type, detail) = notFound ?: CONFLICT_PROBLEMS.getValue(failure)
+        return problem(if (notFound != null) HttpStatus.NOT_FOUND else HttpStatus.CONFLICT, type, detail)
     }
 
     private fun transitionDetail(failure: ApplicationResult.InvalidTransition): String =
