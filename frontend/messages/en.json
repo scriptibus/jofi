@@ -41,7 +41,21 @@
   "dashboard_funnel_interview": "Interview",
   "dashboard_funnel_offer": "Offer",
   "dashboard_funnel_rate": "{rate} of the stage before",
-  "dashboard_funnel_response": "Response rate: {responded} of {applied} applications got an answer.",
+  "dashboard_funnel_response": [
+    {
+      "declarations": [
+        "input responded",
+        "input applied",
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Response rate: {responded} of {applied} application got an answer.",
+        "countPlural=other": "Response rate: {responded} of {applied} applications got an answer."
+      }
+    }
+  ],
   "dashboard_funnel_empty": "Once you have applied somewhere, the funnel shows how far your applications get and how many get an answer.",
   "dashboard_funnel_applied_link": "Applications you applied for",
   "dashboard_rate_none": "No rate yet",
@@ -57,7 +71,6 @@
   "dashboard_activity_failed": "The recent activity could not be loaded.",
   "dashboard_activity_created": "{entity} created",
   "dashboard_activity_added": "{entity} added",
-  "dashboard_activity_imported": "{entity} imported",
   "dashboard_activity_changed": "{entity} changed",
   "dashboard_activity_deleted": "{entity} deleted",
   "dashboard_activity_completed": "{entity} done",
@@ -66,8 +79,9 @@
   "dashboard_activity_accepted": "{entity} accepted",
   "dashboard_activity_dismissed": "{entity} dismissed",
   "dashboard_activity_frozen": "{entity} frozen",
-  "dashboard_activity_cancelled": "{entity} cancelled",
   "dashboard_activity_status_changed": "Status changed",
+  "dashboard_activity_marked_read": "Application marked as read",
+  "dashboard_activity_marked_unread": "Application marked as unread",
   "dashboard_entity_application": "Application",
   "dashboard_entity_source": "Source",
   "dashboard_entity_description": "Job description",

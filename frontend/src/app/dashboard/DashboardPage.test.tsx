@@ -119,6 +119,17 @@ describe("pipeline and funnel", () => {
       }),
     );
   });
+
+  it("speaks of one application in the singular", async () => {
+    start({
+      pipeline: aPipeline(
+        { REJECTED: 1 },
+        { applied: 1, responded: 1, interviewRate: 0, offerRate: null, responseRate: 1 },
+      ),
+    });
+    const funnel = await widget("Funnel");
+    expect(await within(funnel).findByText("Response rate: 1 of 1 application got an answer.")).toBeVisible();
+  });
 });
 
 describe("tasks", () => {

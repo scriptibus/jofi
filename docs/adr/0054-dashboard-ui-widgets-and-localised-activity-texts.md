@@ -27,7 +27,8 @@ The UI must show every string in German and English (Paraglide), so the descript
   - the description's **first word**, which becomes a localised verb (`Created` → "created", `Completed` → "done",
     `Dismissed` → "dismissed", …).
   
-  Two cases are special: an application's status change ("Status changed") and a task suggestion ("Suggestion …").
+  Some cases are special: an application's status change ("Status changed"), its read mark ("Application marked as
+  read" / "… as unread") and a task suggestion ("Suggestion …").
   An unknown verb reads as "… changed", and an unknown entity type reads as "Entry". The English description is
   never shown, and neither are field names: the application's timeline, linked from the entry, has the details.
 - No backend change: the dashboard depends only on the API contract of ADR-0052.
@@ -36,7 +37,11 @@ The UI must show every string in German and English (Paraglide), so the descript
 
 - The verb mapping (`frontend/src/app/dashboard/dashboard.ts`) relies on the code's wording of changelog
   descriptions: they start with a past-tense verb. A description with a new first verb still renders, as "… changed".
-  Unit tests pin the mapping for the descriptions in use today.
-- If this becomes fragile (more verbs, other languages of descriptions), the sturdier fix is a structured action
-  code on `ActivityEntryResponse`. Then the UI maps that code and the verb mapping goes away.
+  A table test in `dashboard.test.ts` lists every description the backend writes today for the eight activity
+  entity types, with the sentence it reads as.
+- The coupling is silent in one direction: rewording a backend description breaks no test, and the entry then reads
+  as "… changed". The sturdier fix is a structured action code on `ActivityEntryResponse` (issue #207). Then the UI
+  maps that code and the verb mapping goes away.
+- Opening an unread application marks it read, which writes an entry each time. These entries can crowd the
+  ten-entry list. Whether to leave them out of recent activity is part of #207.
 - One slow or failing endpoint never blanks the dashboard.

@@ -41,7 +41,21 @@
   "dashboard_funnel_interview": "Gespräch",
   "dashboard_funnel_offer": "Angebot",
   "dashboard_funnel_rate": "{rate} der Stufe davor",
-  "dashboard_funnel_response": "Antwortquote: {responded} von {applied} Bewerbungen bekamen eine Antwort.",
+  "dashboard_funnel_response": [
+    {
+      "declarations": [
+        "input responded",
+        "input applied",
+        "input count",
+        "local countPlural = count: plural"
+      ],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Antwortquote: {responded} von {applied} Bewerbung bekam eine Antwort.",
+        "countPlural=other": "Antwortquote: {responded} von {applied} Bewerbungen bekamen eine Antwort."
+      }
+    }
+  ],
   "dashboard_funnel_empty": "Sobald du dich irgendwo beworben hast, zeigt der Trichter, wie weit deine Bewerbungen kommen und wie viele eine Antwort bekommen.",
   "dashboard_funnel_applied_link": "Bewerbungen, die du abgeschickt hast",
   "dashboard_rate_none": "Noch keine Quote",
@@ -57,7 +71,6 @@
   "dashboard_activity_failed": "Die letzte Aktivität konnte nicht geladen werden.",
   "dashboard_activity_created": "{entity} angelegt",
   "dashboard_activity_added": "{entity} hinzugefügt",
-  "dashboard_activity_imported": "{entity} importiert",
   "dashboard_activity_changed": "{entity} geändert",
   "dashboard_activity_deleted": "{entity} gelöscht",
   "dashboard_activity_completed": "{entity} erledigt",
@@ -66,8 +79,9 @@
   "dashboard_activity_accepted": "{entity} angenommen",
   "dashboard_activity_dismissed": "{entity} verworfen",
   "dashboard_activity_frozen": "{entity} eingefroren",
-  "dashboard_activity_cancelled": "{entity} abgesagt",
   "dashboard_activity_status_changed": "Status geändert",
+  "dashboard_activity_marked_read": "Bewerbung als gelesen markiert",
+  "dashboard_activity_marked_unread": "Bewerbung als ungelesen markiert",
   "dashboard_entity_application": "Bewerbung",
   "dashboard_entity_source": "Quelle",
   "dashboard_entity_description": "Stellenbeschreibung",

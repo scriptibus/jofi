@@ -121,6 +121,7 @@ function Funnel({ funnel }: { funnel: FunnelDto }) {
           {m.dashboard_funnel_response({
             responded: formatCount(funnel.responded),
             applied: formatCount(funnel.applied),
+            count: funnel.applied,
           })}
         </span>
       </p>

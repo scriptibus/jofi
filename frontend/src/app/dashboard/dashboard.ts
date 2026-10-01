@@ -60,9 +60,10 @@ type Happening = (inputs: { entity: string }) => string;
 
 const happenings: Record<string, Happening> = {
   Created: m.dashboard_activity_created,
+  // An interview is "logged", which to the user is the same as created.
+  Logged: m.dashboard_activity_created,
   Added: m.dashboard_activity_added,
   Recorded: m.dashboard_activity_added,
-  Imported: m.dashboard_activity_imported,
   Deleted: m.dashboard_activity_deleted,
   Completed: m.dashboard_activity_completed,
   Reopened: m.dashboard_activity_reopened,
@@ -70,13 +71,21 @@ const happenings: Record<string, Happening> = {
   Accepted: m.dashboard_activity_accepted,
   Dismissed: m.dashboard_activity_dismissed,
   Froze: m.dashboard_activity_frozen,
-  Cancelled: m.dashboard_activity_cancelled,
+};
+
+/** Changes of an application that read better as a sentence of their own than as "Application changed". */
+const applicationHappenings: Record<string, () => string> = {
+  "Changed application status": m.dashboard_activity_status_changed,
+  "Marked application read": m.dashboard_activity_marked_read,
+  "Marked application unread": m.dashboard_activity_marked_unread,
 };
 
 /** What an activity entry says happened, e.g. "Application created", "Status changed", "Suggestion dismissed". */
 export function describeActivity({ entityType, description }: ActivityEntryResponse): string {
-  if (entityType === "application" && description.startsWith("Changed application status"))
-    return m.dashboard_activity_status_changed();
+  // The text before a ";" is the action; what follows only lists what else changed.
+  const action = description.split(";", 1)[0] ?? "";
+  const own = entityType === "application" ? applicationHappenings[action] : undefined;
+  if (own) return own();
   const suggestion = entityType === "task" && /\bsuggestion\b/.test(description);
   const entity = suggestion
     ? m.dashboard_entity_suggestion()

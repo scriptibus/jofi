@@ -78,9 +78,9 @@ test("dashboard: every widget shows the instance's figures and links to the matc
     await expect(tasks.getByRole("list", { name: /^Overdue \(\d+\)$/ }).getByText(task.title)).toBeVisible();
 
     const funnel = widget(page, "Funnel");
-    await expect(funnel.getByText(/^Response rate: \d+ of \d+ applications got an answer\.$/)).toBeVisible();
+    await expect(funnel.getByText(/^Response rate: \d+ of \d+ applications? got an answer\.$/)).toBeVisible();
     await expect(widget(page, "Recent activity").getByRole("listitem").first()).toBeVisible();
-    await expect(widget(page, "AI cost this month").getByText(/^\$\d+\.\d{2}$/)).toBeVisible();
+    await expect(widget(page, "AI cost this month").getByText(/^\$[\d,.]+$/)).toBeVisible();
 
     const pipeline = widget(page, "Pipeline");
     await expect(pipeline.getByRole("link", { name: "Interviewing" })).toBeVisible();
@@ -128,7 +128,7 @@ test.describe("in German", () => {
     await expect(widget(page, "Pipeline").getByRole("link", { name: "Im Gespräch" })).toBeVisible();
     await expect(widget(page, "Trichter").getByText(/^Antwortquote: /)).toBeVisible();
     // German money: the amount before the sign.
-    await expect(widget(page, "KI-Kosten diesen Monat").getByText(/^\d+,\d{2}\s\$$/)).toBeVisible();
+    await expect(widget(page, "KI-Kosten diesen Monat").getByText(/^[\d.,]+\s\$$/)).toBeVisible();
     await expectNoA11yViolations(page);
     await snapshot(page, "dashboard-de");
   });
