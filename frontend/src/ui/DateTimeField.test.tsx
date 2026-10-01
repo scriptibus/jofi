@@ -30,8 +30,12 @@ function Controlled({
   );
 }
 
-/** The field's text without the Unicode isolates React Aria puts around the time. */
-const shown = () => screen.getByRole("group", { name: "Starts" }).textContent?.replace(/[⁦-⁩]/g, "");
+/**
+ * The field's text without the Unicode isolates (U+2066 to U+2069) React Aria puts around the time. Built from
+ * code points, so the source holds no bidirectional characters.
+ */
+const ISOLATES = new RegExp(`[${String.fromCodePoint(0x2066)}-${String.fromCodePoint(0x2069)}]`, "g");
+const shown = () => screen.getByRole("group", { name: "Starts" }).textContent?.replace(ISOLATES, "");
 
 describe("DateTimeField", () => {
   it("shows a wall-clock value in the user's locale, without converting it", () => {
