@@ -28,6 +28,7 @@ export {
   CircleCheck as SuccessIcon,
   Clock as OverdueIcon,
   Download as DownloadIcon,
+  Ellipsis as MoreIcon,
   FileText as DescriptionIcon,
   Globe as WebIcon,
   GripVertical as DragHandleIcon,

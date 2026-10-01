@@ -35,6 +35,7 @@ import {
   withPage,
   withView,
 } from "./applicationsSearch";
+import { SavedViews } from "./SavedViews";
 import { TERMINAL } from "./statusMatrix";
 
 const route = getRouteApi("/_app/applications");
@@ -59,6 +60,7 @@ export function ApplicationsPage() {
         <NewApplicationLink company={search.company} />
       </div>
       <ApplicationFilters search={search} onSearch={go} text={text} onText={setText} companies={companies} />
+      <SavedViews search={search} onOpen={go} />
       <SegmentedControl<View>
         label={m.applications_view_label()}
         options={[
