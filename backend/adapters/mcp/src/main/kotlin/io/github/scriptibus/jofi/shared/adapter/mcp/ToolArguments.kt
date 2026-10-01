@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.shared.adapter.mcp
 
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendFilter
 import java.time.Instant
 import java.time.format.DateTimeParseException
 import java.util.UUID
@@ -54,6 +55,21 @@ class ToolArguments(
             } catch (_: IllegalArgumentException) {
                 invalid(name)
             }
+        }
+
+    /**
+     * The first argument that holds the redaction marker of the "never send to AI" filter, or null. Results show
+     * `[withheld]` in place of flagged values, so a replace-all update that sends a result back would store the
+     * marker over the real value; tools refuse such input instead.
+     */
+    fun withheldArgument(): String? = values.entries.firstOrNull { (_, value) -> holdsMarker(value) }?.key
+
+    private fun holdsMarker(value: Any?): Boolean =
+        when (value) {
+            is String -> NeverSendFilter.REDACTION in value
+            is Map<*, *> -> value.values.any(::holdsMarker)
+            is List<*> -> value.any(::holdsMarker)
+            else -> false
         }
 
     fun uuids(name: String): Set<UUID> =

@@ -10,6 +10,7 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.InvalidToolArgument
 import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
 import org.springframework.stereotype.Component
 import java.util.UUID
 
@@ -24,7 +25,8 @@ class UpdateCompanyTool(
         "Replace ALL details of a company: a field left out is cleared, so call get_company first, change what " +
             "you mean to change and send everything back (the fields of `company` in the answer, `null` for a " +
             "field that is not set) with the `version` you read. A stale version answers version-conflict and " +
-            "changes nothing. The preference is not changed here."
+            "changes nothing. A value that shows [withheld] is hidden from you; sending it back is refused " +
+            "(withheld-value), so such a company cannot be updated here. The preference is not changed here."
     override val inputSchema =
         """
         {
@@ -40,6 +42,7 @@ class UpdateCompanyTool(
         """.trimIndent()
 
     override fun call(call: ToolCall): ToolAnswer {
+        call.arguments.withheldArgument()?.let { return ToolProblems.withheldValue(it) }
         val id = call.arguments.uuid("id") ?: throw InvalidToolArgument("id")
         val version = call.arguments.long("version") ?: throw InvalidToolArgument("version")
         return when (val result = update(call, id, version)) {

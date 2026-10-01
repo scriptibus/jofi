@@ -127,3 +127,8 @@ returned; to unlink one, leave it out; `[]` unlinks all. There is no separate li
 use case replaces the set against one version. An unchanged set writes nothing. Result: as `get_application`.
 Errors: `invalid-arguments` (`contactIds:not-found`, `contactIds:too-many`), `not-found`, `version-conflict`,
 `unavailable`.
+
+An update that sends back a value showing `[withheld]` (a flagged value the result hid) is refused with
+`invalid-arguments` (`withheld-value`) and changes nothing, because the replace-all update would store the marker
+over the real value. A contact or company with a flagged value therefore cannot be updated through these tools
+until they get patch-style updates.

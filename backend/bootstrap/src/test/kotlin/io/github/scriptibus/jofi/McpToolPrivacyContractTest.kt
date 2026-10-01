@@ -62,6 +62,52 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
     }
 
     @Test
+    fun `a contact update that sends back a withheld value is refused and the stored value stays`() {
+        owner.mcpClient().use { client ->
+            client.initialize()
+            val phone = mapOf("kind" to "PHONE", "value" to FLAGGED_PHONE)
+            val created = client.call("create_contact", mapOf("name" to "Erika", "channels" to listOf(phone)))
+            val id = created["id"].asString()
+            client
+                .call(
+                    "get_contact",
+                    mapOf("id" to id),
+                )["contact"]
+                .untrusted()["channels"][0]["value"]
+                .asString() shouldBe
+                "[withheld]"
+
+            val shown = listOf(mapOf("kind" to "PHONE", "value" to "+49 [withheld]"))
+            val back = mapOf("id" to id, "version" to 0, "name" to "Erika", "channels" to shown)
+            client.failure("update_contact", back, "invalid-arguments").problems() shouldBe
+                listOf("channels:withheld-value")
+
+            changelog("contact", id).size shouldBe 1
+            client.call("get_contact", mapOf("id" to id))["version"].asInt() shouldBe 0
+        }
+    }
+
+    @Test
+    fun `a company update that sends back a withheld value is refused and the stored value stays`() {
+        owner.mcpClient().use { client ->
+            client.initialize()
+            val created =
+                client.call(
+                    "create_company",
+                    mapOf("name" to "ACME", "researchNotes" to "Call $FLAGGED_PHONE"),
+                )
+            val id = created["id"].asString()
+
+            val back = mapOf("id" to id, "version" to 0, "name" to "ACME", "researchNotes" to "Call [withheld]")
+            client.failure("update_company", back, "invalid-arguments").problems() shouldBe
+                listOf("researchNotes:withheld-value")
+
+            changelog("company", id).size shouldBe 1
+            client.call("get_company", mapOf("id" to id))["version"].asInt() shouldBe 0
+        }
+    }
+
+    @Test
     fun `an error answer never repeats a flagged value from the arguments`() {
         owner.mcpClient().use { client ->
             client.initialize()

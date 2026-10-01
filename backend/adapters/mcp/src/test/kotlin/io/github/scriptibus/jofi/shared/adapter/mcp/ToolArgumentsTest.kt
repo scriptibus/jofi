@@ -102,6 +102,14 @@ class ToolArgumentsTest {
     }
 
     @Test
+    fun `the redaction marker is found in nested text and names the top-level argument`() {
+        ToolArguments(mapOf("name" to "E", "channels" to listOf(mapOf("value" to "+49 [withheld]"))))
+            .withheldArgument() shouldBe "channels"
+        ToolArguments(mapOf("notes" to "see [withheld]")).withheldArgument() shouldBe "notes"
+        ToolArguments(mapOf("notes" to "fine", "n" to 1, "nothing" to null)).withheldArgument().shouldBeNull()
+    }
+
+    @Test
     fun `a long, uuid set or object list of the wrong shape names the argument`() {
         val wrong =
             ToolArguments(mapOf("version" to "7", "ids" to listOf("nope"), "items" to listOf("x"), "other" to 1))
