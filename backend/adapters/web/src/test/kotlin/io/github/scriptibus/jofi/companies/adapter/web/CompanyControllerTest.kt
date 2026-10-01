@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.companies.application.SetCompanyPreferenceUseCa
 import io.github.scriptibus.jofi.companies.application.UpdateCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.companies.domain.Company
 import io.github.scriptibus.jofi.companies.domain.CompanyDetails
@@ -71,6 +72,7 @@ class CompanyControllerTest(
         val companies = mockk<CompanyRepositoryPort>()
         val applications = mockk<ApplicationCountsPort>()
         val tasks = mockk<TaskLinksPort>()
+        val linkedApplications = mockk<LinkedApplicationsPort>()
         val changelog = mockk<ChangelogPort>()
         val events = mockk<DomainEventPort>()
         val transactions =
@@ -117,7 +119,7 @@ class CompanyControllerTest(
         fun delete(ports: Ports) =
             DeleteCompanyUseCase(
                 ports.companies,
-                FindCompanyLinksUseCase(ports.applications, ports.tasks),
+                FindCompanyLinksUseCase(ports.applications, ports.tasks, ports.linkedApplications),
                 ConfirmActionUseCase(MapStore(), clock, Duration.ofMinutes(5)),
                 ports.events,
                 ports.changelog,
@@ -149,7 +151,15 @@ class CompanyControllerTest(
 
     @BeforeEach
     fun storeAcme() {
-        clearMocks(ports.companies, ports.applications, ports.tasks, ports.changelog, ports.events)
+        clearMocks(
+            ports.companies,
+            ports.applications,
+            ports.tasks,
+            ports.linkedApplications,
+            ports.changelog,
+            ports.events,
+        )
+        every { ports.linkedApplications.linkedTo(any()) } returns LinkedApplicationsPort.Linked.Found(emptyList())
         every { ports.companies.findById(any()) } returns CompanyStoreResult.NotFound
         every { ports.companies.findById(acme.id) } returns CompanyStoreResult.Success(acme)
         every { ports.companies.add(any()) } returns CompanyStoreResult.Success(Unit)
@@ -320,7 +330,7 @@ class CompanyControllerTest(
         val problem = json.readTree(first.response.contentAsString)
         problem["type"].asString() shouldBe Confirmations.REQUIRED
         problem["effect"].toString() shouldBe
-            """{"kind":"company","name":"ACME GmbH","counts":{"contacts":2,"tasks":1}}"""
+            """{"kind":"company","name":"ACME GmbH","counts":{"applications":0,"contacts":2,"interviews":0,"tasks":1}}"""
         verify(exactly = 0) { ports.companies.delete(any(), any()) }
 
         val token = problem["confirmationToken"].asString()

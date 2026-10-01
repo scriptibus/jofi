@@ -594,6 +594,26 @@
       }
     }
   ],
+  "company_delete_confirm_applications": [
+    {
+      "declarations": ["input applications", "local applicationsPlural = applications: plural"],
+      "selectors": ["applicationsPlural"],
+      "match": {
+        "applicationsPlural=one": "Seine Kontakte werden aus {applications} Bewerbung entfernt.",
+        "applicationsPlural=other": "Seine Kontakte werden aus {applications} Bewerbungen entfernt."
+      }
+    }
+  ],
+  "company_delete_confirm_interviews": [
+    {
+      "declarations": ["input interviews", "local interviewsPlural = interviews: plural"],
+      "selectors": ["interviewsPlural"],
+      "match": {
+        "interviewsPlural=one": "Seine Kontakte werden als Teilnehmende aus {interviews} Gespräch entfernt.",
+        "interviewsPlural=other": "Seine Kontakte werden als Teilnehmende aus {interviews} Gesprächen entfernt."
+      }
+    }
+  ],
   "company_not_found_heading": "Firma nicht gefunden",
   "company_error_not_found": "Diese Firma gibt es nicht (mehr).",
   "company_error_version_conflict": "Diese Firma wurde inzwischen woanders geändert. Lade sie neu und versuche es noch einmal.",

@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.companies.application
 
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.companies.domain.Company
 import io.github.scriptibus.jofi.companies.domain.CompanyDetails
@@ -50,6 +51,11 @@ class CompanyFixtures {
     /** Tasks linked to each company or contact (by its id), as the tasks context reports them (#168). */
     val linkedTasks = linkedMapOf<UUID, List<EntityRef>>()
     var taskLinksAvailable = true
+
+    /** Applications each contact is linked to and interviews it takes part in, (applications context). */
+    val linkedApplications = linkedMapOf<ContactId, List<EntityRef>>()
+    val participations = linkedMapOf<ContactId, List<EntityRef>>()
+    var linkedApplicationsAvailable = true
     var failingChangelog = false
 
     /** An entity type whose entries the changelog refuses, to fail a use case after its first entries. */
@@ -143,6 +149,19 @@ class CompanyFixtures {
             private fun linkedTo(targets: Set<UUID>): List<TaskLinksPort.LinkedTask> =
                 targets.sorted().flatMap { target ->
                     linkedTasks[target].orEmpty().map { TaskLinksPort.LinkedTask(target, it) }
+                }
+        }
+
+    val linkedApplicationsPort =
+        object : LinkedApplicationsPort {
+            override fun linkedTo(contact: UUID): LinkedApplicationsPort.Linked =
+                if (linkedApplicationsAvailable) {
+                    LinkedApplicationsPort.Linked.Found(
+                        linkedApplications[ContactId(contact)].orEmpty(),
+                        participations[ContactId(contact)].orEmpty(),
+                    )
+                } else {
+                    LinkedApplicationsPort.Linked.Unavailable
                 }
         }
 

@@ -13,6 +13,7 @@ import io.github.scriptibus.jofi.companies.application.SetCompanyPreferenceUseCa
 import io.github.scriptibus.jofi.companies.application.UpdateCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
@@ -74,7 +75,8 @@ class CompaniesConfiguration {
     fun findCompanyLinksUseCase(
         applications: ApplicationCountsPort,
         tasks: TaskLinksPort,
-    ): FindCompanyLinksUseCase = FindCompanyLinksUseCase(applications, tasks)
+        linkedApplications: LinkedApplicationsPort,
+    ): FindCompanyLinksUseCase = FindCompanyLinksUseCase(applications, tasks, linkedApplications)
 
     @Bean
     fun deleteCompanyUseCase(

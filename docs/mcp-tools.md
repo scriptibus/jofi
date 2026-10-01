@@ -117,7 +117,8 @@ Arguments `applicationId` and `id` (UUIDs, required). Result as above with `kind
 ### `delete_company`
 
 Argument `id`. Deletes the company and its contacts; refused with `has-applications` while it has applications.
-Result with `kind: "company"`.
+The confirmation names the contacts deleted with it and, as only unlinked, the applications and interviews its contacts
+are removed from and the tasks that lose their link. Result with `kind: "company"`.
 
 ### `delete_contact`
 

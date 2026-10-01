@@ -594,6 +594,26 @@
       }
     }
   ],
+  "company_delete_confirm_applications": [
+    {
+      "declarations": ["input applications", "local applicationsPlural = applications: plural"],
+      "selectors": ["applicationsPlural"],
+      "match": {
+        "applicationsPlural=one": "Its contacts are removed from {applications} application.",
+        "applicationsPlural=other": "Its contacts are removed from {applications} applications."
+      }
+    }
+  ],
+  "company_delete_confirm_interviews": [
+    {
+      "declarations": ["input interviews", "local interviewsPlural = interviews: plural"],
+      "selectors": ["interviewsPlural"],
+      "match": {
+        "interviewsPlural=one": "Its contacts are removed as participants from {interviews} interview.",
+        "interviewsPlural=other": "Its contacts are removed as participants from {interviews} interviews."
+      }
+    }
+  ],
   "company_not_found_heading": "Company not found",
   "company_error_not_found": "This company does not exist (any more).",
   "company_error_version_conflict": "This company was changed elsewhere meanwhile. Reload it and try again.",

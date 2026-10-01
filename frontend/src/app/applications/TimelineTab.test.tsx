@@ -5,7 +5,7 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { ApplicationResponse, ChangeActorDto } from "../../api/generated/jofi";
 import { anApplication, fakeApplicationBackend } from "../../test/fakeApplicationBackend";
 import { fakeAuthBackend } from "../../test/fakeAuthBackend";
@@ -112,6 +112,23 @@ describe("timeline tab", () => {
       "Seniority: Junior → to Senior",
       "Remote share: none → to 40%",
     ]);
+  });
+
+  it("shows an entry naming several deleted contacts once, with no duplicate keys", async () => {
+    const problems = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const ids = [crypto.randomUUID(), crypto.randomUUID()].sort().join(",");
+    start(anApplication(acme.id), {
+      entries: [
+        anEntry("2026-09-01T08:00:00Z", {
+          kind: "CHANGE",
+          change: { actor: user, fields: [{ field: "contacts", before: ids, after: null }] },
+        }),
+      ],
+    });
+    const [change] = await items();
+    expect(within(change as HTMLElement).getAllByRole("listitem")).toHaveLength(1);
+    expect(problems).not.toHaveBeenCalled();
+    problems.mockRestore();
   });
 
   it("badges who made each change with words and an icon", async () => {
