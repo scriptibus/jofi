@@ -111,9 +111,10 @@ check() {
   assignments="$(sql "SELECT count(*) FROM ai_model_assignment WHERE provider_id = '${seed_provider}'")"
   [[ "${assignments}" == "9" ]] || fail "expected 9 seeded model assignments, found ${assignments}"
   changelog="$(sql "SELECT count(*) FROM changelog_entry WHERE actor_name = 'e2e-seed'")"
-  # One entry per seeded row created: the AI provider, the company and its application.
-  [[ "${changelog}" == "3" ]] || fail "seeding twice must log each seeded row once (3), found ${changelog} entries"
-  pass "seed is complete and idempotent (9 model assignments, 3 changelog entries)"
+  # One entry per seeded row created: the AI provider, the company and its application, and the description
+  # tests' company with its 12 applications (0004).
+  [[ "${changelog}" == "16" ]] || fail "seeding twice must log each seeded row once (16), found ${changelog} entries"
+  pass "seed is complete and idempotent (9 model assignments, 16 changelog entries)"
 
   expect_isolated app probe_bash fake-ai:8080
   expect_isolated worker probe_bash db:5432

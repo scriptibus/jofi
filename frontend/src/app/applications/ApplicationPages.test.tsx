@@ -144,17 +144,30 @@ describe("Application detail", () => {
 
   it("has keyboard tabs with the later sections disabled, and ignores an unknown tab in the URL", async () => {
     const application = anApplication(acme.id);
-    const { user } = start(`/applications/${application.id}?tab=timeline`, { applications: [application] });
+    const { user, router } = start(`/applications/${application.id}?tab=timeline`, {
+      applications: [application],
+    });
     const overview = await screen.findByRole("tab", { name: "Overview" });
     expect(overview).toHaveAttribute("aria-selected", "true");
-    for (const name of ["Description", "Contacts", "Timeline"])
-      expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-disabled", "true");
+    for (const name of ["Description", "Contacts"])
+      expect(screen.getByRole("tab", { name })).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
 
     await user.click(overview);
     await user.keyboard("{ArrowRight}");
+    const description = screen.getByRole("tab", { name: "Description" });
+    expect(description).toHaveFocus();
+    expect(description).toHaveAttribute("aria-selected", "true");
+    await user.keyboard("{ArrowRight}");
+    const contacts = screen.getByRole("tab", { name: "Contacts" });
+    expect(contacts).toHaveFocus();
+    expect(contacts).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("tabpanel", { name: "Contacts" })).toBeVisible();
+    expect(router.state.location.search).toEqual({ tab: "contacts" });
+    // The disabled tab is skipped: the next one is Overview again.
+    await user.keyboard("{ArrowRight}");
     expect(overview).toHaveFocus();
-    expect(overview).toHaveAttribute("aria-selected", "true");
   });
 
   it("marks an unread application read once when opened, and lets the user mark it unread again", async () => {
@@ -187,12 +200,14 @@ describe("Application detail", () => {
     const application = anApplication(acme.id, { title: "Data Engineer" });
     const { user, state, router } = start(`/applications/${application.id}`, {
       applications: [application],
-      cascade: { [application.id]: { contactLinks: 1, statusChanges: 3, sources: 2, snapshots: 0 } },
+      cascade: {
+        [application.id]: { contactLinks: 1, statusChanges: 3, sources: 2, snapshots: 0, interviews: 2 },
+      },
     });
     await user.click(await screen.findByRole("button", { name: "Delete…" }));
     const dialog = await screen.findByRole("alertdialog", { name: "Delete this application?" });
     expect(dialog).toHaveTextContent(
-      "Data Engineer will be deleted with its link to 1 contact, 3 status changes, and 2 sources. This cannot be undone.",
+      "Data Engineer will be deleted with its link to 1 contact, 3 status changes, 2 sources, and 2 interviews and calls. This cannot be undone.",
     );
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());

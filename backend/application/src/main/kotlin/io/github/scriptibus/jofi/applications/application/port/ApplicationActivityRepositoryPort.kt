@@ -4,17 +4,21 @@
 package io.github.scriptibus.jofi.applications.application.port
 
 import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import java.time.Instant
 
 /**
- * Reads when applications last had activity, for the Ghosted suggestion (#85). What counts as activity is defined on
- * [FindGhostedCandidatesPort]. Implementations never throw and never log row data.
+ * Reads when applications last had activity, for the Ghosted suggestion (#85) and the follow-up (#95). What counts as
+ * activity is defined on [FindGhostedCandidatesPort]. Implementations never throw and never log row data.
  */
 interface ApplicationActivityRepositoryPort {
     /**
-     * The `APPLIED` and `INTERVIEWING` applications whose last activity is at or before [cutoff], longest silent
-     * first (then by id).
+     * The applications in one of [statuses] whose last activity is at or before [cutoff], longest silent first (then
+     * by id).
      */
-    fun silentSince(cutoff: Instant): ApplicationStoreResult<List<FindGhostedCandidatesPort.Candidate>>
+    fun silentSince(
+        cutoff: Instant,
+        statuses: Set<ApplicationStatus>,
+    ): ApplicationStoreResult<List<FindGhostedCandidatesPort.Candidate>>
 }

@@ -4,42 +4,53 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
-import { type ApplicationPageResponse, useSearchApplications } from "../../api/generated/jofi";
+import {
+  type ApplicationPageResponse,
+  getSearchApplicationsQueryKey,
+  useSearchApplications,
+} from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
-import { AddIcon, Alert, Button, EmptyState, TextLink } from "../../ui";
-import { useCompanyChoices } from "../contacts/companyChoices";
+import { AddIcon, Alert, Button, EmptyState, SegmentedControl, TextLink } from "../../ui";
+import { type CompanyChoices, useCompanyChoices } from "../contacts/companyChoices";
 import { PageHeader } from "../pages/PlaceholderPage";
 import { describeError } from "../problems";
 import { useDebouncedValue } from "../useDebouncedValue";
+import { ApplicationBoard } from "./ApplicationBoard";
 import { ApplicationFilters } from "./ApplicationFilters";
 import { ApplicationList } from "./ApplicationList";
 import {
   type ApplicationsSearch,
   currentOrder,
+  currentView,
   isFiltered,
   PAGE_SIZE,
   type SortKey,
   sortedBy,
+  toBoardSearchParams,
   toSearchParams,
+  type View,
   withFilter,
   withOrder,
   withoutFilters,
   withPage,
+  withView,
 } from "./applicationsSearch";
+import { TERMINAL } from "./statusMatrix";
 
 const route = getRouteApi("/_app/applications");
 const SEARCH_DELAY_MS = 300;
 
-/** The applications (spec §6.3): filters, a sortable table (cards on phones), pages of 50. */
+/**
+ * The applications (spec §6.3): filters, then a sortable table (cards on phones) in pages of 50, or the
+ * Kanban board by status. Filters, order and view live in the URL, so both views share them.
+ */
 export function ApplicationsPage() {
   const search = route.useSearch();
   const navigate = route.useNavigate();
   const go = (next: ApplicationsSearch, replace = false) => void navigate({ search: next, replace });
   const [text, setText] = useSearchText(search, (q) => go(withFilter(search, "q", q || undefined), true));
   const companies = useCompanyChoices(search.company);
-  const applications = useSearchApplications(toSearchParams(search), {
-    query: { placeholderData: keepPreviousData, meta: { errorHandledLocally: true } },
-  });
+  const views = { search, onSearch: go, companies };
 
   return (
     <>
@@ -48,34 +59,95 @@ export function ApplicationsPage() {
         <NewApplicationLink company={search.company} />
       </div>
       <ApplicationFilters search={search} onSearch={go} text={text} onText={setText} companies={companies} />
-      {applications.data ? (
-        <Results
-          page={applications.data}
-          search={search}
-          onSearch={go}
-          list={
-            <ApplicationList
-              applications={applications.data.applications}
-              order={currentOrder(search)}
-              onSort={(sort: SortKey) => go(sortedBy(search, sort))}
-              onOrder={(order) => go(withOrder(search, order))}
-              companies={companies}
-            />
-          }
-        />
-      ) : applications.isError ? (
-        <Alert tone="error" title={m.applications_load_failed()}>
-          <span className="flex flex-col items-start gap-3">
-            {describeError(applications.error).message}
-            <Button variant="secondary" onPress={() => void applications.refetch()}>
-              {m.error_retry()}
-            </Button>
-          </span>
-        </Alert>
-      ) : (
-        <p role="status">{m.loading()}</p>
-      )}
+      <SegmentedControl<View>
+        label={m.applications_view_label()}
+        options={[
+          { value: "table", label: m.applications_view_table() },
+          { value: "board", label: m.applications_view_board() },
+        ]}
+        value={currentView(search)}
+        onChange={(view) => go(withView(search, view))}
+      />
+      {currentView(search) === "board" ? <BoardView {...views} /> : <TableView {...views} />}
     </>
+  );
+}
+
+interface ViewProps {
+  search: ApplicationsSearch;
+  onSearch: (next: ApplicationsSearch) => void;
+  companies: CompanyChoices;
+}
+
+function TableView({ search, onSearch, companies }: ViewProps) {
+  const applications = useSearchApplications(toSearchParams(search), {
+    query: { placeholderData: keepPreviousData, meta: { errorHandledLocally: true } },
+  });
+  if (!applications.data) return <Loading query={applications} />;
+  return (
+    <Results
+      page={applications.data}
+      search={search}
+      onSearch={onSearch}
+      list={
+        <ApplicationList
+          applications={applications.data.applications}
+          order={currentOrder(search)}
+          onSort={(sort: SortKey) => onSearch(sortedBy(search, sort))}
+          onOrder={(order) => onSearch(withOrder(search, order))}
+          companies={companies}
+        />
+      }
+    />
+  );
+}
+
+/** The board: every application matching the filters (up to the server's largest page), no paging. */
+function BoardView({ search, onSearch, companies }: ViewProps) {
+  const params = toBoardSearchParams(search);
+  const applications = useSearchApplications(params, {
+    query: { placeholderData: keepPreviousData, meta: { errorHandledLocally: true } },
+  });
+  if (!applications.data) return <Loading query={applications} />;
+  const { total, applications: shown } = applications.data;
+  return (
+    <Results
+      page={applications.data}
+      search={search}
+      onSearch={onSearch}
+      list={
+        <>
+          {total > shown.length ? (
+            <Alert tone="info">{m.applications_board_truncated({ shown: shown.length, total })}</Alert>
+          ) : null}
+          <ApplicationBoard
+            page={applications.data}
+            queryKey={getSearchApplicationsQueryKey(params)}
+            companies={companies}
+            showEnded={search.status?.some((status) => TERMINAL.includes(status)) ?? false}
+          />
+        </>
+      }
+    />
+  );
+}
+
+interface LoadingProps {
+  query: { isError: boolean; error: unknown; refetch: () => unknown };
+}
+
+/** Before the first answer: "Loading…", or why it failed with a retry. */
+function Loading({ query }: LoadingProps) {
+  if (!query.isError) return <p role="status">{m.loading()}</p>;
+  return (
+    <Alert tone="error" title={m.applications_load_failed()}>
+      <span className="flex flex-col items-start gap-3">
+        {describeError(query.error).message}
+        <Button variant="secondary" onPress={() => void query.refetch()}>
+          {m.error_retry()}
+        </Button>
+      </span>
+    </Alert>
   );
 }
 
@@ -131,7 +203,8 @@ function Results({ page: { total }, search, onSearch, list }: ResultsProps) {
       </EmptyState>
     );
   const page = search.page ?? 0;
-  const pages = Math.ceil(total / PAGE_SIZE);
+  // The board shows every match at once (up to its limit), so it has no pages.
+  const pages = search.view === "board" ? 1 : Math.ceil(total / PAGE_SIZE);
   return (
     <section aria-labelledby="applications-results" className="flex flex-col gap-4">
       <h2 id="applications-results" className="sr-only">

@@ -25,7 +25,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
 /**
- * When the open applications last had activity (#85): the latest of their last status change, their interviews' last
+ * When applications last had activity (#85, #95): the latest of their last status change, their interviews' last
  * change (`updated_at`, set on creation too) and start, and the last changelog entry that changed their contact links
  * (field `contacts`, written by the link use case and the contact delete). PostgreSQL's `GREATEST` skips the parts an
  * application does not have; every application has a status history, so the result is never null. Only ids, titles
@@ -35,14 +35,17 @@ import java.time.ZoneOffset
 class ApplicationActivityRepository(
     private val dsl: DSLContext,
 ) : ApplicationActivityRepositoryPort {
-    override fun silentSince(cutoff: Instant): ApplicationStoreResult<List<FindGhostedCandidatesPort.Candidate>> =
+    override fun silentSince(
+        cutoff: Instant,
+        statuses: Set<ApplicationStatus>,
+    ): ApplicationStoreResult<List<FindGhostedCandidatesPort.Candidate>> =
         try {
             val lastActivity = lastActivity()
             val candidates =
                 dsl
                     .select(APPLICATION.ID, APPLICATION.TITLE, lastActivity)
                     .from(APPLICATION)
-                    .where(APPLICATION.STATUS.`in`(OPEN_STATUSES))
+                    .where(APPLICATION.STATUS.`in`(statuses.map { it.name }))
                     .and(lastActivity.le(cutoff.atOffset(ZoneOffset.UTC)))
                     .orderBy(lastActivity, APPLICATION.ID)
                     .fetch { (id, title, since) -> FindGhostedCandidatesPort.Candidate(id, title, since.toInstant()) }
@@ -81,9 +84,6 @@ class ApplicationActivityRepository(
 
     private companion object {
         val log: Logger = LoggerFactory.getLogger(ApplicationActivityRepository::class.java)
-
-        /** The statuses a Ghosted suggestion is for (spec §6.2): waiting for an answer after applying. */
-        val OPEN_STATUSES = listOf(ApplicationStatus.APPLIED.name, ApplicationStatus.INTERVIEWING.name)
 
         /** Matches a `field_changes` array with a change of the field `contacts`, whatever its values. */
         val CONTACTS_CHANGE: JSONB = JSONB.jsonb("""[{"field":"contacts"}]""")

@@ -18,11 +18,13 @@ import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
 import { useConfirmation } from "../useConfirmation";
+import { ApplicationContacts } from "./ApplicationContacts";
 import { ApplicationLoadFailure } from "./ApplicationLoadFailure";
 import { ApplicationOverview, CompanyLink } from "./ApplicationOverview";
 import { DELETE_OPERATION } from "./application";
 import { forgetDeletedApplication, storeSavedApplication } from "./applicationCache";
 import { describeApplicationError } from "./applicationProblems";
+import { DescriptionTab } from "./DescriptionTab";
 import { StatusBadge } from "./StatusBadge";
 import { type ApplicationTab, TABS, tabLabels } from "./tabs";
 
@@ -34,6 +36,7 @@ const CASCADE: readonly [key: string, words: (inputs: { count: number }) => stri
   ["statusChanges", m.application_delete_status_changes],
   ["sources", m.application_delete_sources],
   ["snapshots", m.application_delete_snapshots],
+  ["interviews", m.application_delete_interviews],
 ];
 
 /** What goes with the application, e.g. "2 sources and 1 status change"; undefined for nothing. */
@@ -125,10 +128,16 @@ function ApplicationDetail({ application }: { application: ApplicationResponse }
         selected={tab ?? "overview"}
         onSelect={select}
       >
-        <ApplicationOverview application={application} />
+        <TabContent tab={tab ?? "overview"} application={application} />
       </Tabs>
     </>
   );
+}
+
+function TabContent({ tab, application }: { tab: ApplicationTab; application: ApplicationResponse }) {
+  if (tab === "description") return <DescriptionTab application={application} />;
+  if (tab === "contacts") return <ApplicationContacts application={application} />;
+  return <ApplicationOverview application={application} />;
 }
 
 /** Marks the application unread (to come back to it) or read again. */

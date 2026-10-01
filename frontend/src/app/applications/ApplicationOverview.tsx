@@ -214,7 +214,7 @@ function ScoresSection({ application }: { application: ApplicationResponse }) {
 }
 
 /** The posting's link: http(s) only (the server checks it too); anything else stays plain text. */
-function SourceLink({ url }: { url: string }) {
+export function SourceLink({ url }: { url: string }) {
   if (!isWebAddress(url)) return <span className="break-all">{url}</span>;
   return (
     <ExternalLink href={url} className="self-start break-all">

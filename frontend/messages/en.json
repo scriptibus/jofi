@@ -97,6 +97,27 @@
   "applications_source_manual": "By hand",
   "applications_mark_read": "Mark {title} as read",
   "applications_mark_unread": "Mark {title} as unread",
+  "applications_view_label": "View",
+  "applications_view_table": "Table",
+  "applications_view_board": "Board",
+  "applications_board_ended": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Ended ({count} application)",
+        "countPlural=other": "Ended ({count} applications)"
+      }
+    }
+  ],
+  "applications_board_empty_column": "Nothing here",
+  "applications_board_drag": "Drag {title}",
+  "applications_board_move": "Move {title} to…",
+  "applications_board_moved": "{title} moved to {status}.",
+  "applications_board_move_failed": "Not moved",
+  "applications_board_conflict": "{title} was changed elsewhere meanwhile, so it was not moved. The board shows the latest state again.",
+  "applications_board_invalid": "{title} cannot move from {from} to {to}. It may have been changed elsewhere; the board shows the latest state again.",
+  "applications_board_truncated": "The board shows the first {shown} of {total} applications. Narrow the filters to see the rest.",
   "companies_empty": "No companies yet. Add the first one with “New company”.",
   "tasks_empty": "Nothing to do right now. Add a task above; follow-ups and reminders show up here.",
   "chat_empty": "The chat with Jofi arrives soon. It will know your applications and help with the next step.",
@@ -784,6 +805,16 @@
       }
     }
   ],
+  "application_delete_interviews": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} interview or call",
+        "countPlural=other": "{count} interviews and calls"
+      }
+    }
+  ],
   "application_delete_snapshots": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -858,5 +889,94 @@
   "task_violation_out_of_range": "Enter a date between 2000 and 2099.",
   "task_violation_time_zone": "This time zone is unknown.",
   "task_violation_link_not_found": "This record does not exist (any more). Choose another one.",
-  "task_violation_link_required": "Choose one, or choose “Nothing”."
+  "task_violation_link_required": "Choose one, or choose “Nothing”.",
+  "application_description_no_sources_heading": "No job description yet",
+  "application_description_no_sources": "Job descriptions are kept per source, and this application has none yet. Sources come from scanners and links; adding one here follows later.",
+  "application_description_source": "Source",
+  "application_description_source_name": "{kind} ({host})",
+  "application_description_versions": "Versions",
+  "application_description_versions_empty": "No version of this source is saved yet. Record the current text below.",
+  "application_description_versions_failed": "The versions could not be loaded.",
+  "application_description_version": "Version {number}",
+  "application_description_reason_discovery": "Saved when found",
+  "application_description_reason_change_detected": "Change detected",
+  "application_description_reason_manual": "Recorded by hand",
+  "application_description_length": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} character",
+        "countPlural=other": "{shown} characters"
+      }
+    }
+  ],
+  "application_description_frozen": "Frozen when you applied",
+  "application_description_text_heading": "Text of version {number}",
+  "application_description_text_failed": "The text could not be loaded.",
+  "application_description_record": "Record the current text",
+  "application_description_record_field": "Current text of the posting",
+  "application_description_record_help": "Paste the posting's text as it is now. If it matches the latest version, nothing new is saved.",
+  "application_description_record_action": "Record text",
+  "application_description_recorded_new": "New version saved: version {number}.",
+  "application_description_recorded_unchanged": "Unchanged: this text matches the latest version, so nothing new was saved.",
+  "application_description_compare_heading": "Compare versions",
+  "application_description_compare_before": "Before",
+  "application_description_compare_after": "After",
+  "application_description_compare_choose": "Choose a version",
+  "application_description_compare_option": "{version}, {date}",
+  "application_description_compare_need_two": "Once there are two versions, you can compare them here.",
+  "application_description_compare_same": "Choose two different versions.",
+  "application_description_diff_label": "Changes from {before} to {after}",
+  "application_description_diff_counts": "Lines added: {added} · lines removed: {removed}",
+  "application_description_diff_identical": "Both versions have the same text.",
+  "application_description_diff_failed": "The comparison could not be loaded.",
+  "application_description_diff_added": "Added:",
+  "application_description_diff_removed": "Removed:",
+  "application_description_show_unchanged": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Show {shown} unchanged line",
+        "countPlural=other": "Show {shown} unchanged lines"
+      }
+    }
+  ],
+  "application_description_show_more": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Show {shown} more line",
+        "countPlural=other": "Show {shown} more lines"
+      }
+    }
+  ],
+  "application_description_source_shown": "Source shown",
+  "application_contacts_heading": "Linked contacts",
+  "application_contacts_unlink_hint": "Unlinking only removes the link to this application; the contact itself stays in your contacts.",
+  "application_contacts_link": "Link a contact",
+  "application_contacts_create": "Create a new contact",
+  "application_contacts_full": "An application links at most {max} contacts. Unlink one to link another.",
+  "application_contacts_empty": "No contacts linked yet.",
+  "application_contacts_conflict": "This application was changed elsewhere (another tab or device) after you opened it, so its contacts were not changed. Load the latest version, then try again.",
+  "application_contacts_linked": "{name} is now linked.",
+  "application_contacts_unlinked": "{name} is no longer linked. The contact itself was kept.",
+  "application_contacts_unlink": "Unlink",
+  "application_contacts_unlink_named": "Unlink {name}",
+  "application_contacts_unknown": "Unavailable contact",
+  "application_contacts_unavailable": "This contact could not be loaded.",
+  "application_contacts_error_not_found": "One of these contacts no longer exists. Reload the page and try again.",
+  "application_contacts_error_too_many": "Too many contacts: an application links at most 50.",
+  "application_contacts_picker_title": "Link a contact",
+  "application_contacts_picker_failed": "The contacts could not be loaded. Close this and try again.",
+  "application_contacts_picker_empty": "No contacts match. You can create a new one instead.",
+  "application_contacts_picker_company": "At {company}",
+  "application_contacts_picker_this_company": "At this company",
+  "application_contacts_picker_others": "Other contacts",
+  "application_contacts_picker_close": "Close",
+  "application_contacts_link_short": "Link",
+  "application_contacts_link_named": "Link {name}",
+  "contact_new_for_application": "After you create it, the new contact is linked to the application you came from."
 }

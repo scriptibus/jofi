@@ -97,6 +97,27 @@
   "applications_source_manual": "Von Hand",
   "applications_mark_read": "{title} als gelesen markieren",
   "applications_mark_unread": "{title} als ungelesen markieren",
+  "applications_view_label": "Ansicht",
+  "applications_view_table": "Tabelle",
+  "applications_view_board": "Board",
+  "applications_board_ended": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Beendet ({count} Bewerbung)",
+        "countPlural=other": "Beendet ({count} Bewerbungen)"
+      }
+    }
+  ],
+  "applications_board_empty_column": "Nichts hier",
+  "applications_board_drag": "{title} ziehen",
+  "applications_board_move": "{title} verschieben nach …",
+  "applications_board_moved": "{title} ist jetzt in {status}.",
+  "applications_board_move_failed": "Nicht verschoben",
+  "applications_board_conflict": "{title} wurde inzwischen anderswo geändert und deshalb nicht verschoben. Das Board zeigt wieder den aktuellen Stand.",
+  "applications_board_invalid": "{title} kann nicht von {from} nach {to} wechseln. Vielleicht wurde die Bewerbung anderswo geändert; das Board zeigt wieder den aktuellen Stand.",
+  "applications_board_truncated": "Das Board zeigt die ersten {shown} von {total} Bewerbungen. Grenze die Filter ein, um den Rest zu sehen.",
   "companies_empty": "Noch keine Firmen. Lege die erste mit „Neue Firma“ an.",
   "tasks_empty": "Gerade gibt es nichts zu tun. Lege oben eine Aufgabe an; Nachfassen und Erinnerungen tauchen hier auf.",
   "chat_empty": "Der Chat mit Jofi kommt bald. Er kennt deine Bewerbungen und hilft beim nächsten Schritt.",
@@ -784,6 +805,16 @@
       }
     }
   ],
+  "application_delete_interviews": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} Gespräch oder Telefonat",
+        "countPlural=other": "{count} Gespräche und Telefonate"
+      }
+    }
+  ],
   "application_delete_snapshots": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -858,5 +889,94 @@
   "task_violation_out_of_range": "Gib ein Datum zwischen 2000 und 2099 ein.",
   "task_violation_time_zone": "Diese Zeitzone ist unbekannt.",
   "task_violation_link_not_found": "Diesen Eintrag gibt es nicht (mehr). Wähle einen anderen.",
-  "task_violation_link_required": "Wähle einen aus oder wähle „Nichts“."
+  "task_violation_link_required": "Wähle einen aus oder wähle „Nichts“.",
+  "application_description_no_sources_heading": "Noch keine Stellenbeschreibung",
+  "application_description_no_sources": "Stellenbeschreibungen werden je Quelle gespeichert, und diese Bewerbung hat noch keine. Quellen kommen von Scannern und Links; sie hier hinzuzufügen, folgt später.",
+  "application_description_source": "Quelle",
+  "application_description_source_name": "{kind} ({host})",
+  "application_description_versions": "Versionen",
+  "application_description_versions_empty": "Von dieser Quelle ist noch keine Version gespeichert. Erfasse unten den aktuellen Text.",
+  "application_description_versions_failed": "Die Versionen konnten nicht geladen werden.",
+  "application_description_version": "Version {number}",
+  "application_description_reason_discovery": "Beim Finden gespeichert",
+  "application_description_reason_change_detected": "Änderung erkannt",
+  "application_description_reason_manual": "Von Hand erfasst",
+  "application_description_length": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} Zeichen",
+        "countPlural=other": "{shown} Zeichen"
+      }
+    }
+  ],
+  "application_description_frozen": "Eingefroren bei der Bewerbung",
+  "application_description_text_heading": "Text von Version {number}",
+  "application_description_text_failed": "Der Text konnte nicht geladen werden.",
+  "application_description_record": "Aktuellen Text erfassen",
+  "application_description_record_field": "Aktueller Text der Anzeige",
+  "application_description_record_help": "Füge den Text der Anzeige ein, wie er jetzt ist. Stimmt er mit der neuesten Version überein, wird nichts Neues gespeichert.",
+  "application_description_record_action": "Text erfassen",
+  "application_description_recorded_new": "Neue Version gespeichert: Version {number}.",
+  "application_description_recorded_unchanged": "Unverändert: Dieser Text stimmt mit der neuesten Version überein, daher wurde nichts Neues gespeichert.",
+  "application_description_compare_heading": "Versionen vergleichen",
+  "application_description_compare_before": "Vorher",
+  "application_description_compare_after": "Nachher",
+  "application_description_compare_choose": "Version wählen",
+  "application_description_compare_option": "{version}, {date}",
+  "application_description_compare_need_two": "Sobald es zwei Versionen gibt, kannst du sie hier vergleichen.",
+  "application_description_compare_same": "Wähle zwei verschiedene Versionen.",
+  "application_description_diff_label": "Änderungen von {before} zu {after}",
+  "application_description_diff_counts": "Hinzugefügte Zeilen: {added} · entfernte Zeilen: {removed}",
+  "application_description_diff_identical": "Beide Versionen haben denselben Text.",
+  "application_description_diff_failed": "Der Vergleich konnte nicht geladen werden.",
+  "application_description_diff_added": "Hinzugefügt:",
+  "application_description_diff_removed": "Entfernt:",
+  "application_description_show_unchanged": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} unveränderte Zeile zeigen",
+        "countPlural=other": "{shown} unveränderte Zeilen zeigen"
+      }
+    }
+  ],
+  "application_description_show_more": [
+    {
+      "declarations": ["input count", "input shown", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} weitere Zeile zeigen",
+        "countPlural=other": "{shown} weitere Zeilen zeigen"
+      }
+    }
+  ],
+  "application_description_source_shown": "Angezeigte Quelle",
+  "application_contacts_heading": "Verknüpfte Kontakte",
+  "application_contacts_unlink_hint": "Lösen entfernt nur die Verknüpfung mit dieser Bewerbung; der Kontakt selbst bleibt in deinen Kontakten.",
+  "application_contacts_link": "Kontakt verknüpfen",
+  "application_contacts_create": "Neuen Kontakt anlegen",
+  "application_contacts_full": "Eine Bewerbung verknüpft höchstens {max} Kontakte. Löse einen, um einen anderen zu verknüpfen.",
+  "application_contacts_empty": "Noch keine Kontakte verknüpft.",
+  "application_contacts_conflict": "Diese Bewerbung wurde woanders (in einem anderen Tab oder auf einem anderen Gerät) geändert, nachdem du sie geöffnet hast, deshalb wurden ihre Kontakte nicht geändert. Lade die neueste Version und versuche es dann noch einmal.",
+  "application_contacts_linked": "{name} ist jetzt verknüpft.",
+  "application_contacts_unlinked": "{name} ist nicht mehr verknüpft. Der Kontakt selbst bleibt erhalten.",
+  "application_contacts_unlink": "Lösen",
+  "application_contacts_unlink_named": "{name} lösen",
+  "application_contacts_unknown": "Nicht verfügbarer Kontakt",
+  "application_contacts_unavailable": "Dieser Kontakt konnte nicht geladen werden.",
+  "application_contacts_error_not_found": "Einer dieser Kontakte existiert nicht mehr. Lade die Seite neu und versuche es noch einmal.",
+  "application_contacts_error_too_many": "Zu viele Kontakte: Eine Bewerbung verknüpft höchstens 50.",
+  "application_contacts_picker_title": "Kontakt verknüpfen",
+  "application_contacts_picker_failed": "Die Kontakte konnten nicht geladen werden. Schließe das Fenster und versuche es noch einmal.",
+  "application_contacts_picker_empty": "Kein Kontakt passt. Du kannst stattdessen einen neuen anlegen.",
+  "application_contacts_picker_company": "Bei {company}",
+  "application_contacts_picker_this_company": "Bei dieser Firma",
+  "application_contacts_picker_others": "Weitere Kontakte",
+  "application_contacts_picker_close": "Schließen",
+  "application_contacts_link_short": "Verknüpfen",
+  "application_contacts_link_named": "{name} verknüpfen",
+  "contact_new_for_application": "Nach dem Anlegen wird der neue Kontakt mit der Bewerbung verknüpft, von der du kommst."
 }

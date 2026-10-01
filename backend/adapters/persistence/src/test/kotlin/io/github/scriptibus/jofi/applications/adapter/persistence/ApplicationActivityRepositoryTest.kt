@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.adapter.persistence.ApplicationRows.Companion.NOW
 import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.shared.adapter.persistence.ChangelogRepository
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
@@ -24,7 +25,7 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
 
-/** The "no answer since" query of the Ghosted suggestion (#85) against the real schema. */
+/** The "no answer since" query of the Ghosted suggestion (#85) and the follow-up (#95) against the real schema. */
 class ApplicationActivityRepositoryTest {
     private val dsl = PostgresTestDatabase.migratedFromZero()
     private val rows = ApplicationRows(dsl)
@@ -88,12 +89,20 @@ class ApplicationActivityRepositoryTest {
 
     @Test
     fun `a database it cannot reach is a storage failure, not an exception`() {
-        ApplicationActivityRepository(DSL.using(SQLDialect.POSTGRES)).silentSince(cutoff) shouldBe
+        ApplicationActivityRepository(DSL.using(SQLDialect.POSTGRES)).silentSince(cutoff, WAITING) shouldBe
             ApplicationStoreResult.StorageFailure("silentSince")
     }
 
-    private fun candidates(): List<FindGhostedCandidatesPort.Candidate> =
-        (repository.silentSince(cutoff) as ApplicationStoreResult.Success).value
+    @Test
+    fun `only the statuses asked for are candidates`() {
+        val waiting = application("APPLIED", applied)
+        application("INTERVIEWING", applied)
+
+        candidates(setOf(ApplicationStatus.APPLIED)) shouldBe listOf(candidate(waiting, applied))
+    }
+
+    private fun candidates(statuses: Set<ApplicationStatus> = WAITING): List<FindGhostedCandidatesPort.Candidate> =
+        (repository.silentSince(cutoff, statuses) as ApplicationStoreResult.Success).value
 
     private fun candidate(
         id: UUID,
@@ -156,5 +165,9 @@ class ApplicationActivityRepositoryTest {
         val change = ChangeSummary("Changed application", listOf(FieldChange(field, null, "x")))
         val entity = EntityRef("application", application.toString())
         changelog.append(ChangelogEntry(entity, Actor.User, at.toInstant(), change))
+    }
+
+    private companion object {
+        val WAITING = setOf(ApplicationStatus.APPLIED, ApplicationStatus.INTERVIEWING)
     }
 }

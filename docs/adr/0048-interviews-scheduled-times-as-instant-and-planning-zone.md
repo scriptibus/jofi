@@ -83,12 +83,35 @@ Under `/api/applications/{id}/interviews`: `GET` (the application's interviews i
 starting now or later, not cancelled, soonest first, at most 100, each with its application's title). An interview
 the application does not have is 404 `interview-not-found`.
 
+### Use cases (amended with #91 and #92)
+
+- Every interview use case reads the application first, so an unknown application is `404 not-found` and an
+  interview it does not have `404 interview-not-found`. An update then checks `basedOnVersion`, before the input,
+  even when nothing would change; unchanged details store nothing, write no changelog entry and publish nothing.
+- A participant that is no contact (`interview_participant_contact_fk`) is `400` on `participantIds` (`NOT_FOUND`).
+- Changelog entries (entity `interview`) carry values only for `type`, `startsAt` (the instant), `timeZone` and
+  `outcome`; changed participants, preparation notes and notes are named in the description ("also changed: …"),
+  never recorded. The log and delete entries also name the `application` id, so a deleted interview's entries still
+  say whose it was.
+- The delete's confirmation effect is `ConfirmationEffect("interview", "<TYPE> <localStart> <zone>")`, e.g.
+  `PHONE_SCREEN 2026-10-06T14:30 Europe/Berlin`, read in the delete's transaction; a reschedule between the steps
+  voids the token. The application delete's effect counts the interviews it cascades to (`interviews`).
+- The upcoming list (`GET /api/interviews/upcoming`, #92) spans all applications: interviews starting at or after
+  the current instant that are not `CANCELLED`, soonest first, at most 100, each with its application's title. An
+  interview that has begun is no longer upcoming; the start is an instant, so no zone is involved.
+- A contact delete removes the contact from every interview's participants by the foreign key's cascade. Since the
+  cascade leaves no trace to react to afterwards, the companies SPI `LinkedApplicationsPort` also names the
+  interviews the contact takes part in, read in the delete's transaction before it deletes: the contact delete's
+  effect counts them (`interviews`), and each gets a changelog entry (entity `interview`, "Removed a deleted contact
+  from the participants", `FieldChange("participants", <contact id>, null)`) with the delete's actor. The interview's
+  `version` stays, as for application links.
+
 ## Consequences
 
 - Interviews, the application and other interviews never block each other's edits; the use cases (#91, #92) keep the
   application and its interviews consistent only through the foreign key.
 - The dashboard, the timeline and task suggestions order by one exact instant and show the agreed time.
-- The application delete's confirmation effect (#82) should count the interviews it cascades to, and the contact
-  delete (#89) the interviews a contact took part in, as they do for contact links; both are follow-ups of #91/#92.
+- The application delete's confirmation effect (#82) counts the interviews it cascades to (#91), the contact delete's
+  the interviews the contact took part in (#92).
 - Other scheduled things (tasks with a time, M1 dashboard countdowns) can reuse this model: an instant plus the zone
   it was planned in.

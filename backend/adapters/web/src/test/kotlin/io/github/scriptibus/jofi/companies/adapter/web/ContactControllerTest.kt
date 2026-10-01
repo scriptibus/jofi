@@ -327,7 +327,7 @@ class ContactControllerTest(
         val problem = json.readTree(first.response.contentAsString)
         problem["type"].asString() shouldBe Confirmations.REQUIRED
         problem["effect"].toString() shouldBe
-            """{"kind":"contact","name":"Erika Mustermann","counts":{"applications":1}}"""
+            """{"kind":"contact","name":"Erika Mustermann","counts":{"applications":1,"interviews":0}}"""
         verify(exactly = 0) { ports.contacts.delete(any(), any()) }
 
         val token = problem["confirmationToken"].asString()

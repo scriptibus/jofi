@@ -182,5 +182,7 @@ describe("tabs", () => {
     expect(parseApplicationSearch({ tab: "overview" })).toEqual({ tab: undefined });
     expect(parseApplicationSearch({ tab: "timeline" })).toEqual({ tab: undefined });
     expect(parseApplicationSearch({ tab: 42 })).toEqual({ tab: undefined });
+    expect(parseApplicationSearch({ tab: "contacts" })).toEqual({ tab: "contacts" });
+    expect(parseApplicationSearch({ tab: "description" })).toEqual({ tab: "description" });
   });
 });

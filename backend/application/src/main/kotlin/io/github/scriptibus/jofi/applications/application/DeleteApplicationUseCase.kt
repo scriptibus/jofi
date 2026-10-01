@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.applications.application
 
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.inbound.DeleteApplicationPort
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDeleted
@@ -24,14 +25,15 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import java.time.Clock
 
 /**
- * Deletes an application in two steps (ADR-0039). The application, its status history and its snapshot
- * count are read in the transaction of the delete, and the confirmation effect (title, number of contact
- * links, status changes, sources and description snapshots that go with it by `ON DELETE CASCADE`) is built
- * from that read, so an edit of the title, a new link, source or snapshot or a status change between the
- * steps voids the token. After the delete it writes the changelog entry and publishes `ApplicationDeleted`.
+ * Deletes an application in two steps (ADR-0039). The application, its status history and its snapshot and
+ * interview counts are read in the transaction of the delete, and the confirmation effect (title, number of contact
+ * links, status changes, sources, description snapshots and interviews that go with it by `ON DELETE CASCADE`) is
+ * built from that read, so an edit of the title, a new link, source, snapshot or interview or a status change
+ * between the steps voids the token. After the delete it writes the changelog entry and publishes `ApplicationDeleted`.
  */
 class DeleteApplicationUseCase(
     private val applications: ApplicationRepositoryPort,
+    private val interviews: InterviewRepositoryPort,
     private val confirmation: ConfirmActionUseCase,
     private val events: DomainEventPort,
     private val changelog: ChangelogPort,
@@ -50,19 +52,22 @@ class DeleteApplicationUseCase(
         }
 
     /** What goes with [application] by `ON DELETE CASCADE`, counted from the reads of this transaction. */
-    private fun cascadeCounts(application: Application): ApplicationResult<Map<String, Int>> =
-        applications.statusHistory(application.id).toResult().then { history ->
-            applications.snapshotCount(application.id).toResult().then { snapshots ->
-                ApplicationResult.Success(
-                    mapOf(
-                        CONTACT_LINKS to application.contacts.size,
-                        STATUS_CHANGES to history.size,
-                        SOURCES to application.sources.size,
-                        SNAPSHOTS to snapshots,
-                    ),
-                )
-            }
-        }
+    private fun cascadeCounts(application: Application): ApplicationResult<Map<String, Int>> {
+        val id = application.id
+        val known = mapOf(CONTACT_LINKS to application.contacts.size, SOURCES to application.sources.size)
+        return ApplicationResult
+            .Success(known)
+            .plusCount(STATUS_CHANGES) {
+                applications.statusHistory(id).toResult().then { ApplicationResult.Success(it.size) }
+            }.plusCount(SNAPSHOTS) { applications.snapshotCount(id).toResult() }
+            .plusCount(INTERVIEWS) { interviews.countByApplication(id).toResult() }
+    }
+
+    private inline fun ApplicationResult<Map<String, Int>>.plusCount(
+        name: String,
+        count: () -> ApplicationResult<Int>,
+    ): ApplicationResult<Map<String, Int>> =
+        then { counts -> count().then { ApplicationResult.Success(counts + (name to it)) } }
 
     private fun confirmThenDelete(
         application: Application,
@@ -101,5 +106,6 @@ class DeleteApplicationUseCase(
         const val STATUS_CHANGES = "statusChanges"
         const val SOURCES = "sources"
         const val SNAPSHOTS = "snapshots"
+        const val INTERVIEWS = "interviews"
     }
 }

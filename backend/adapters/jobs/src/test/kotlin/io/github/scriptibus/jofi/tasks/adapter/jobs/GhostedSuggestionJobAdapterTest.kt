@@ -7,7 +7,7 @@ import io.github.scriptibus.jofi.shared.domain.job.FailureReason
 import io.github.scriptibus.jofi.shared.domain.job.JobOutcome
 import io.github.scriptibus.jofi.tasks.application.SuggestGhostedApplicationsUseCase
 import io.github.scriptibus.jofi.tasks.domain.GhostedSuggestion
-import io.github.scriptibus.jofi.tasks.domain.GhostedSuggestionRun
+import io.github.scriptibus.jofi.tasks.domain.SuggestionRun
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -25,7 +25,7 @@ class GhostedSuggestionJobAdapterTest {
 
     @Test
     fun `a run is done, a storage failure or a suggestion changed meanwhile is retried`() {
-        every { useCase.execute() } returns TaskResult.Success(GhostedSuggestionRun(1, 0))
+        every { useCase.execute() } returns TaskResult.Success(SuggestionRun(1, 0))
         adapter.run(emptyMap()) shouldBe JobOutcome.Done
 
         every { useCase.execute() } returns TaskResult.StorageFailure("add")

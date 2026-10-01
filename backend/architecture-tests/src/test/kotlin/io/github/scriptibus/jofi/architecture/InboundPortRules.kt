@@ -22,13 +22,6 @@ object InboundPortRules {
      */
     val AWAITING_USE_CASE: Map<String, String> =
         mapOf(
-            "LogInterviewPort" to "#91",
-            "UpdateInterviewPort" to "#91",
-            "GetInterviewPort" to "#91",
-            "ListInterviewsPort" to "#91",
-            "DeleteInterviewPort" to "#91",
-            "ListUpcomingInterviewsPort" to "#92",
-            "AcceptTaskSuggestionPort" to "#95",
             "CreateCountdownPort" to "#112",
             "UpdateCountdownPort" to "#112",
             "DeleteCountdownPort" to "#112",

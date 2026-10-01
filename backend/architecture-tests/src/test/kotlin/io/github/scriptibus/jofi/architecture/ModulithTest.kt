@@ -4,10 +4,13 @@
 package io.github.scriptibus.jofi.architecture
 
 import io.github.scriptibus.jofi.JofiApplication
+import io.github.scriptibus.jofi.applications.application.port.api.DescribeApplicationEventPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
+import io.github.scriptibus.jofi.applications.application.port.api.FindSuggestionFactsPort
 import io.github.scriptibus.jofi.applications.application.port.inbound.ChangeApplicationStatusPort
 import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
 import io.github.scriptibus.jofi.applications.domain.ApplicationSettings
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatusChanged
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
@@ -100,12 +103,15 @@ class ModulithTest {
     }
 
     @Test
-    fun `applications exposes only its API and SPI to the tasks context, which depends on it (#85, #87)`() {
+    fun `applications exposes only its API and SPI to the tasks context, which depends on it (#85, #87, #95)`() {
         val applications = module("applications")
 
         applications.namedInterfaces.getByName("api").isPresent shouldBe true
         applications.namedInterfaces.getByName("spi").isPresent shouldBe true
         applications.isExposed(FindGhostedCandidatesPort::class.java) shouldBe true
+        applications.isExposed(FindSuggestionFactsPort::class.java) shouldBe true
+        applications.isExposed(DescribeApplicationEventPort::class.java) shouldBe true
+        applications.isExposed(ApplicationStatusChanged::class.java) shouldBe false
         applications.isExposed(LinkedTasksPort::class.java) shouldBe true
         applications.isExposed(ApplicationSettings::class.java) shouldBe false
         applications.isExposed(ChangeApplicationStatusPort::class.java) shouldBe false
