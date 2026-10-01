@@ -53,3 +53,27 @@ ecosystem = "Maven"
 vulnerability.ignore = true
 effectiveUntil = 2026-12-31
 reason = "Only .pom/.module metadata is listed (anthropic-java-core 2.52.0 declares it; the security constraint on jackson-databind aligns Jackson 2 to 2.22.3 on every classpath). No 2.19.4 jar is used."
+
+[[PackageOverrides]]
+name = "com.fasterxml.jackson.core:jackson-core"
+version = "2.18.9"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Only .pom/.module metadata is listed (openai-java-core 4.49.0 declares it, via spring-ai-openai 2.0.1; the security constraint aligns Jackson 2 to 2.22.3 on every classpath). No 2.18.9 jar is used. GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89 (#211)."
+
+[[PackageOverrides]]
+name = "com.fasterxml.jackson.core:jackson-core"
+version = "2.21.5"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Only .pom/.module metadata is listed (Spring Boot 4.1.1's Jackson 2 BOM, read during resolution before the security constraint raises it to 2.22.3). No 2.21.5 jar is used. GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89 (#211)."
+
+[[PackageOverrides]]
+name = "tools.jackson.core:jackson-core"
+version = "3.1.5"
+ecosystem = "Maven"
+vulnerability.ignore = true
+effectiveUntil = 2026-12-31
+reason = "Only .pom/.module metadata is listed (Spring Boot 4.1.1's Jackson 3 BOM, read during resolution before the security constraint raises it to 3.1.7). No 3.1.5 jar is used. GHSA-7hhh-6rmp-j9qf, GHSA-p6pp-m3f8-5c89 (#211)."
