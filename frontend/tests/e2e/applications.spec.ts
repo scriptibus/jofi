@@ -75,7 +75,7 @@ test("open an unread application: the overview shows its details and it is marke
   await page.goto(`/applications/${application.id}`);
   await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByRole("tab", { name: "Timeline" })).not.toHaveAttribute("aria-disabled");
   const facts = page.getByRole("region", { name: "Details" });
   await expect(facts.getByRole("link", { name: companyName })).toBeVisible();
   await expect(facts.getByText("60%")).toBeVisible();

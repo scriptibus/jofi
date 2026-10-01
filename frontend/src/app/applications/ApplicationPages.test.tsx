@@ -13,6 +13,7 @@ import {
 } from "../../test/fakeApplicationBackend";
 import { fakeAuthBackend } from "../../test/fakeAuthBackend";
 import { aCompany, fakeCompanyBackend } from "../../test/fakeCompanyBackend";
+import { fakeTimelineBackend } from "../../test/fakeTimelineBackend";
 import { App, createApp } from "../App";
 
 const server = setupServer();
@@ -26,7 +27,8 @@ function start(path: string, data: Partial<FakeApplicationState> = {}) {
   const auth = fakeAuthBackend({ authenticated: true });
   const applications = fakeApplicationBackend(data);
   const companies = fakeCompanyBackend({ companies: [acme] });
-  server.use(...applications.handlers, ...companies.handlers, ...auth.handlers);
+  const timeline = fakeTimelineBackend();
+  server.use(...applications.handlers, ...companies.handlers, ...timeline.handlers, ...auth.handlers);
   const app = createApp(createMemoryHistory({ initialEntries: [path] }));
   render(<App app={app} />);
   return { state: applications.state, router: app.router, user: userEvent.setup() };
@@ -142,16 +144,15 @@ describe("Application detail", () => {
     expect(within(offer).getByText("30")).toBeVisible();
   });
 
-  it("has keyboard tabs with the later sections disabled, and ignores an unknown tab in the URL", async () => {
+  it("has keyboard tabs, and ignores an unknown tab in the URL", async () => {
     const application = anApplication(acme.id);
-    const { user, router } = start(`/applications/${application.id}?tab=timeline`, {
+    const { user, router } = start(`/applications/${application.id}?tab=documents`, {
       applications: [application],
     });
     const overview = await screen.findByRole("tab", { name: "Overview" });
     expect(overview).toHaveAttribute("aria-selected", "true");
-    for (const name of ["Description", "Contacts"])
+    for (const name of ["Description", "Contacts", "Timeline"])
       expect(screen.getByRole("tab", { name })).not.toHaveAttribute("aria-disabled");
-    expect(screen.getByRole("tab", { name: "Timeline" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("tabpanel", { name: "Overview" })).toBeVisible();
 
     await user.click(overview);
@@ -165,7 +166,12 @@ describe("Application detail", () => {
     expect(contacts).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("tabpanel", { name: "Contacts" })).toBeVisible();
     expect(router.state.location.search).toEqual({ tab: "contacts" });
-    // The disabled tab is skipped: the next one is Overview again.
+    await user.keyboard("{ArrowRight}");
+    const timeline = screen.getByRole("tab", { name: "Timeline" });
+    expect(timeline).toHaveFocus();
+    expect(await screen.findByRole("tabpanel", { name: "Timeline" })).toBeVisible();
+    expect(router.state.location.search).toEqual({ tab: "timeline" });
+    // The last tab wraps around to the first.
     await user.keyboard("{ArrowRight}");
     expect(overview).toHaveFocus();
   });

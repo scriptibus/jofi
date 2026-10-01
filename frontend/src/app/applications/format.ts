@@ -85,6 +85,22 @@ export function formatInstant(instant: string, locale: string = getLocale()): st
   );
 }
 
+/**
+ * A wall-clock time from the API (`2026-10-05T10:00:00`, no zone) as it reads on that clock, the same
+ * wherever the user is: an interview's agreed time in the zone it was planned in (ADR-0048).
+ */
+export function formatLocalDateTime(localDateTime: string, locale: string = getLocale()): string {
+  const [date = "", time = ""] = localDateTime.split("T");
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  if ([year, month, day, hour, minute].some((part) => part === undefined || Number.isNaN(part)))
+    return localDateTime;
+  const utc = Date.UTC(year ?? 0, (month ?? 1) - 1, day, hour, minute);
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(
+    new Date(utc),
+  );
+}
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;

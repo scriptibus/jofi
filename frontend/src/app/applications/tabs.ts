@@ -8,13 +8,13 @@ export type ApplicationTab = "overview" | "description" | "contacts" | "timeline
 
 /**
  * In order. A tab that is not `ready` shows in the bar but cannot be selected, so the page's structure is
- * visible from the start; Timeline (#106) switches its on.
+ * visible from the start; all of them are ready now, Documents (M3) will start as not ready.
  */
 export const TABS: readonly { id: ApplicationTab; ready: boolean }[] = [
   { id: "overview", ready: true },
   { id: "description", ready: true },
   { id: "contacts", ready: true },
-  { id: "timeline", ready: false },
+  { id: "timeline", ready: true },
 ];
 
 export const tabLabels: Record<ApplicationTab, () => string> = {
