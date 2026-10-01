@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.tasks.domain.Task
+import io.github.scriptibus.jofi.tasks.domain.TaskDashboard
 import io.github.scriptibus.jofi.tasks.domain.TaskGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskInput
@@ -91,6 +92,14 @@ interface DeleteTaskPort {
  */
 interface ListTaskGroupsPort {
     fun execute(zone: ZoneId): TaskResult<List<TaskGroup>>
+}
+
+/**
+ * The dashboard's open tasks (#113, ADR-0052) on the calendar of [zone] (the viewer's): the overdue ones and those due
+ * within the next seven days, today included. Reads only.
+ */
+interface GetTaskDashboardPort {
+    fun execute(zone: ZoneId): TaskResult<TaskDashboard>
 }
 
 /** The suggestions waiting for one click (#95), newest first. Reads only. */

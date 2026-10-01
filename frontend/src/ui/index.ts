@@ -19,6 +19,7 @@ export { BoardColumn, type BoardColumnProps, type DragTypesView } from "./BoardC
 export { Button, type ButtonProps, type ButtonVariant } from "./Button";
 export { Checkbox, type CheckboxProps } from "./Checkbox";
 export { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
+export { DateTimeField, type DateTimeFieldProps } from "./DateTimeField";
 export { Dialog, type DialogProps } from "./Dialog";
 export { Disclosure, type DisclosureProps } from "./Disclosure";
 export { DonkeyLogo, type DonkeyLogoProps } from "./DonkeyLogo";

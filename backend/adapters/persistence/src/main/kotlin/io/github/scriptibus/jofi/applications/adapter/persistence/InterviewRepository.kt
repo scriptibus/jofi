@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.applications.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewId
@@ -101,6 +102,7 @@ class InterviewRepository(
                     .on(APPLICATION.ID.eq(INTERVIEW.APPLICATION_ID))
                     .where(INTERVIEW.STARTS_AT.ge(from.atOffset(ZoneOffset.UTC)))
                     .and(INTERVIEW.OUTCOME.isDistinctFrom(InterviewOutcome.CANCELLED.name))
+                    .and(APPLICATION.STATUS.`in`(OPEN_STATUSES))
                     .orderBy(INTERVIEW.STARTS_AT, INTERVIEW.ID)
                     .limit(limit)
                     .fetch()
@@ -160,6 +162,12 @@ class InterviewRepository(
 
         /** `interview_participant.contact_id`: a participant is no contact (any more). */
         const val INTERVIEW_PARTICIPANT_CONTACT_FK = "interview_participant_contact_fk"
+
+        /**
+         * An interview of a closed application (a terminal status, ADR-0044) is not upcoming even if it was never
+         * marked cancelled: it would otherwise show as the next interview and get a preparation task.
+         */
+        val OPEN_STATUSES = ApplicationStatus.entries.filterNot { it.isTerminal }.map { it.name }
 
         val log: Logger = LoggerFactory.getLogger(InterviewRepository::class.java)
     }

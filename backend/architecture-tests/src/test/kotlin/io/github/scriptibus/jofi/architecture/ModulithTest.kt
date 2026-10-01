@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.architecture
 
 import io.github.scriptibus.jofi.JofiApplication
 import io.github.scriptibus.jofi.applications.application.port.api.DescribeApplicationEventPort
+import io.github.scriptibus.jofi.applications.application.port.api.FindCountdownFactsPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindSuggestionFactsPort
 import io.github.scriptibus.jofi.applications.application.port.inbound.ChangeApplicationStatusPort
@@ -107,13 +108,14 @@ class ModulithTest {
     }
 
     @Test
-    fun `applications exposes only its API and SPI to the tasks context, which depends on it (#85, #87, #95)`() {
+    fun `applications exposes only its API and SPI to the tasks context, which depends on it (#85, #87, #95, #112)`() {
         val applications = module("applications")
 
         applications.namedInterfaces.getByName("api").isPresent shouldBe true
         applications.namedInterfaces.getByName("spi").isPresent shouldBe true
         applications.isExposed(FindGhostedCandidatesPort::class.java) shouldBe true
         applications.isExposed(FindSuggestionFactsPort::class.java) shouldBe true
+        applications.isExposed(FindCountdownFactsPort::class.java) shouldBe true
         applications.isExposed(DescribeApplicationEventPort::class.java) shouldBe true
         applications.isExposed(ApplicationStatusChanged::class.java) shouldBe false
         applications.isExposed(LinkedTasksPort::class.java) shouldBe true
