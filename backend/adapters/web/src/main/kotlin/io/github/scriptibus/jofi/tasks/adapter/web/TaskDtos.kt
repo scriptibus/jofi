@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
 import io.github.scriptibus.jofi.tasks.domain.ContactRef
 import io.github.scriptibus.jofi.tasks.domain.Task
+import io.github.scriptibus.jofi.tasks.domain.TaskDashboard
 import io.github.scriptibus.jofi.tasks.domain.TaskGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskInput
 import io.github.scriptibus.jofi.tasks.domain.TaskLink
@@ -187,5 +188,22 @@ data class TaskGroupListResponse(
     companion object {
         fun from(groups: List<TaskGroup>): TaskGroupListResponse =
             TaskGroupListResponse(groups.map(TaskGroupResponse::from))
+    }
+}
+
+/**
+ * JSON body of `GET /api/dashboard/tasks` (ADR-0052): the open tasks that are [overdue], and those due today or in
+ * the six days after it ([upcoming]), each soonest first, on the viewer's calendar.
+ */
+data class TaskDashboardResponse(
+    val overdue: List<TaskResponse>,
+    val upcoming: List<TaskResponse>,
+) {
+    companion object {
+        fun from(dashboard: TaskDashboard): TaskDashboardResponse =
+            TaskDashboardResponse(
+                dashboard.overdue.map(TaskResponse::from),
+                dashboard.upcoming.map(TaskResponse::from),
+            )
     }
 }

@@ -18,13 +18,16 @@ import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
 import { useConfirmation } from "../useConfirmation";
+import { ApplicationContacts } from "./ApplicationContacts";
 import { ApplicationLoadFailure } from "./ApplicationLoadFailure";
 import { ApplicationOverview, CompanyLink } from "./ApplicationOverview";
 import { DELETE_OPERATION } from "./application";
 import { forgetDeletedApplication, storeSavedApplication } from "./applicationCache";
 import { describeApplicationError } from "./applicationProblems";
 import { DescriptionTab } from "./DescriptionTab";
+import { InterviewsTab } from "./InterviewsTab";
 import { StatusBadge } from "./StatusBadge";
+import { TimelineTab } from "./TimelineTab";
 import { type ApplicationTab, TABS, tabLabels } from "./tabs";
 
 const route = getRouteApi("/_app/applications/$applicationId");
@@ -127,14 +130,18 @@ function ApplicationDetail({ application }: { application: ApplicationResponse }
         selected={tab ?? "overview"}
         onSelect={select}
       >
-        {tab === "description" ? (
-          <DescriptionTab application={application} />
-        ) : (
-          <ApplicationOverview application={application} />
-        )}
+        <TabContent tab={tab ?? "overview"} application={application} />
       </Tabs>
     </>
   );
+}
+
+function TabContent({ tab, application }: { tab: ApplicationTab; application: ApplicationResponse }) {
+  if (tab === "description") return <DescriptionTab application={application} />;
+  if (tab === "contacts") return <ApplicationContacts application={application} />;
+  if (tab === "interviews") return <InterviewsTab application={application} />;
+  if (tab === "timeline") return <TimelineTab applicationId={application.id} />;
+  return <ApplicationOverview application={application} />;
 }
 
 /** Marks the application unread (to come back to it) or read again. */

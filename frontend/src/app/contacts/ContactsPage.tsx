@@ -36,10 +36,20 @@ export function parseContactsSearch(search: Record<string, unknown>): ContactsSe
   return result;
 }
 
-/** `?company=` for a new contact: the company to preselect. */
-export function parseNewContactSearch(search: Record<string, unknown>): { company?: string } {
+export interface NewContactSearch {
+  /** The company to preselect. */
+  company?: string;
+  /** The application to link the new contact to, and to return to (from its Contacts tab). */
+  application?: string;
+}
+
+/** `?company=…&application=…` for a new contact; only ids. */
+export function parseNewContactSearch(search: Record<string, unknown>): NewContactSearch {
   const { company } = parseContactsSearch(search);
-  return company ? { company } : {};
+  const result: NewContactSearch = company ? { company } : {};
+  if (typeof search.application === "string" && UUID.test(search.application))
+    result.application = search.application;
+  return result;
 }
 
 /** Contacts: fuzzy search by name (server-side, best match first), a company filter, pages of 50. */

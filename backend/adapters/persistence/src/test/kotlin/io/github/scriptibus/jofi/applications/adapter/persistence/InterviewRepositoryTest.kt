@@ -4,9 +4,11 @@
 package io.github.scriptibus.jofi.applications.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationValidation
 import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.DeclineCategory
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewDetails
 import io.github.scriptibus.jofi.applications.domain.InterviewEdit
@@ -23,6 +25,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIE
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIEW_PARTICIPANT
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -41,6 +44,9 @@ import java.util.UUID
 class InterviewRepositoryTest {
     private lateinit var dsl: DSLContext
     private lateinit var repository: InterviewRepository
+
+    /** The repository whose delete cascades to the interviews counts them (`interviewCount`). */
+    private lateinit var applications: ApplicationRepository
     private lateinit var rows: ApplicationRows
     private lateinit var company: UUID
     private val application = ApplicationId(UUID.randomUUID())
@@ -49,6 +55,7 @@ class InterviewRepositoryTest {
     fun migrateFromZero() {
         dsl = PostgresTestDatabase.migratedFromZero()
         repository = InterviewRepository(dsl)
+        applications = ApplicationRepository(dsl)
         rows = ApplicationRows(dsl)
         company = rows.company()
         rows.application(application.value, company)
@@ -123,7 +130,7 @@ class InterviewRepositoryTest {
         stored(of = otherApplication)
 
         repository.listByApplication(application) shouldBe ApplicationStoreResult.Success(listOf(sooner, later))
-        repository.countByApplication(application) shouldBe ApplicationStoreResult.Success(2)
+        applications.interviewCount(application) shouldBe ApplicationStoreResult.Success(2)
         repository.listByApplication(ApplicationId(UUID.randomUUID())) shouldBe
             ApplicationStoreResult.Success(emptyList())
     }
@@ -192,7 +199,7 @@ class InterviewRepositoryTest {
         repository.findById(application, interview.id) shouldBe ApplicationStoreResult.NotFound
         dsl.fetchCount(INTERVIEW_PARTICIPANT) shouldBe 0
         dsl.fetchCount(CONTACT) shouldBe 1
-        repository.countByApplication(application) shouldBe ApplicationStoreResult.Success(1)
+        applications.interviewCount(application) shouldBe ApplicationStoreResult.Success(1)
     }
 
     @Test
@@ -228,6 +235,28 @@ class InterviewRepositoryTest {
             )
         repository.upcoming(past.details.time.startsAt, 1) shouldBe
             ApplicationStoreResult.Success(listOf(UpcomingInterview(past, "Backend Engineer")))
+    }
+
+    @Test
+    fun `interviews of closed applications are not upcoming, those of every pipeline status are`() {
+        val byStatus =
+            ApplicationStatus.entries.associateWith { status ->
+                val of = ApplicationId(UUID.randomUUID())
+                rows.application(of.value, company) {
+                    this.status = status.name
+                    if (status.takesDeclineReason) declineCategory = DeclineCategory.SALARY.name
+                }
+                stored(details("2026-10-05T10:00"), of)
+            }
+
+        val upcoming =
+            repository
+                .upcoming(Instant.parse("2026-10-01T00:00:00Z"), 100)
+                .shouldBeInstanceOf<ApplicationStoreResult.Success<List<UpcomingInterview>>>()
+                .value
+                .map { it.interview }
+
+        upcoming shouldContainExactlyInAnyOrder byStatus.filterKeys { !it.isTerminal }.values
     }
 
     private fun read(id: InterviewId): Interview =

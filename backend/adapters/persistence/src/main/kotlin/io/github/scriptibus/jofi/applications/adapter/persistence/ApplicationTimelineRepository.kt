@@ -172,20 +172,20 @@ class ApplicationTimelineRepository(
             }
     }
 
-    private companion object {
-        val log: Logger = LoggerFactory.getLogger(ApplicationTimelineRepository::class.java)
+    internal companion object {
+        private val log: Logger = LoggerFactory.getLogger(ApplicationTimelineRepository::class.java)
 
-        /** The names of the changed fields, in the order of the entry. */
+        /** The names of the changed fields, in the order of the entry (also read by [DashboardRepository]). */
         val FIELD_NAMES: Field<Array<String>> = fieldChanges("change ->> 'field'")
 
         /**
          * The values before, by position: only those of `TimelineEntry.Change.VALUED_FIELDS` leave the database,
          * the others (free text) are null.
          */
-        val VALUES_BEFORE: Field<Array<String>> = fieldChanges(valued("before"))
+        private val VALUES_BEFORE: Field<Array<String>> = fieldChanges(valued("before"))
 
         /** The values after, as [VALUES_BEFORE]. */
-        val VALUES_AFTER: Field<Array<String>> = fieldChanges(valued("after"))
+        private val VALUES_AFTER: Field<Array<String>> = fieldChanges(valued("after"))
 
         private fun valued(value: String): String =
             "case when change ->> 'field' in (" +
@@ -202,7 +202,7 @@ class ApplicationTimelineRepository(
             )
 
         /** A status change writes `status` and `declineReason` only (ADR-0044); every other entry stays. */
-        val NOT_ONLY_STATUS: Condition =
+        private val NOT_ONLY_STATUS: Condition =
             DSL.condition(
                 "jsonb_array_length({0}) = 0 or exists (select 1 from jsonb_array_elements({0}) change " +
                     "where change ->> 'field' not in ({1}, {2}))",
@@ -216,7 +216,7 @@ class ApplicationTimelineRepository(
          * the same kind, older or of the same instant with a lower id; of a kind shown later in an instant, the
          * same instant too; of one shown earlier, only older ones.
          */
-        fun <T : Any> after(
+        private fun <T : Any> after(
             before: TimelinePosition?,
             kind: TimelineEntryKind,
             occurredAt: Field<OffsetDateTime>,

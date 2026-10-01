@@ -180,8 +180,10 @@ describe("form values", () => {
 describe("tabs", () => {
   it("keeps only ready tabs other than the default in the URL", () => {
     expect(parseApplicationSearch({ tab: "overview" })).toEqual({ tab: undefined });
-    expect(parseApplicationSearch({ tab: "timeline" })).toEqual({ tab: undefined });
+    expect(parseApplicationSearch({ tab: "documents" })).toEqual({ tab: undefined });
     expect(parseApplicationSearch({ tab: 42 })).toEqual({ tab: undefined });
+    expect(parseApplicationSearch({ tab: "contacts" })).toEqual({ tab: "contacts" });
+    expect(parseApplicationSearch({ tab: "timeline" })).toEqual({ tab: "timeline" });
     expect(parseApplicationSearch({ tab: "description" })).toEqual({ tab: "description" });
   });
 });

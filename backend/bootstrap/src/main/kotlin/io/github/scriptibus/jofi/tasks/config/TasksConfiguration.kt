@@ -9,6 +9,7 @@ import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.GetTaskDashboardUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
@@ -19,8 +20,8 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
 /**
- * The task use cases: create, read, edit, complete, reopen and delete (#93), the grouped list (#94); the suggestions
- * are wired in [TaskSuggestionsConfiguration].
+ * The task use cases: create, read, edit, complete, reopen and delete (#93), the grouped list (#94), the dashboard's
+ * tasks (#113); the suggestions are wired in [TaskSuggestionsConfiguration].
  */
 @Configuration(proxyBeanMethods = false)
 class TasksConfiguration {
@@ -38,6 +39,12 @@ class TasksConfiguration {
         tasks: TaskRepositoryPort,
         clock: Clock,
     ): ListTaskGroupsUseCase = ListTaskGroupsUseCase(tasks, clock)
+
+    @Bean
+    fun getTaskDashboardUseCase(
+        tasks: TaskRepositoryPort,
+        clock: Clock,
+    ): GetTaskDashboardUseCase = GetTaskDashboardUseCase(tasks, clock)
 
     @Bean
     fun updateTaskUseCase(

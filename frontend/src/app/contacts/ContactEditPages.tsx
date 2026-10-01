@@ -12,6 +12,7 @@ import {
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { Alert, Button, RefreshIcon } from "../../ui";
+import { useLinkCreatedContact } from "../applications/applicationContacts";
 import { useFieldErrors } from "../auth/useFieldErrors";
 import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { PageHeader } from "../pages/PlaceholderPage";
@@ -41,13 +42,26 @@ function useFormErrors() {
   return { fieldErrors, failure, onError, reset };
 }
 
-/** A new contact; `?company=` preselects its company (from a company's page). */
+/**
+ * A new contact; `?company=` preselects its company (from a company's page). From an application's
+ * Contacts tab, `?application=` links the new contact to it and returns there (also on cancel).
+ */
 export function NewContactPage() {
-  const { company } = newRoute.useSearch();
+  const { company, application } = newRoute.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const errors = useFormErrors();
   const create = useCreateContact({ mutation: { meta: { errorHandledLocally: true } } });
+  const linkToApplication = useLinkCreatedContact(application ?? "");
+  /** Back to the application's Contacts tab when opened from there, else to the contact (or the list). */
+  const back = (contactId?: string) => {
+    if (application) {
+      const params = { applicationId: application };
+      return navigate({ to: "/applications/$applicationId", params, search: { tab: "contacts" } });
+    }
+    if (contactId) return navigate({ to: "/contacts/$contactId", params: { contactId } });
+    return navigate({ to: "/contacts" });
+  };
 
   const submit = (values: ContactFormValues) => {
     errors.reset();
@@ -56,7 +70,9 @@ export function NewContactPage() {
       {
         onSuccess: (contact) => {
           storeSavedContact(queryClient, contact);
-          void navigate({ to: "/contacts/$contactId", params: { contactId: contact.id } });
+          // The contact is saved either way; a failed link shows as a notice on the application's page.
+          if (application) linkToApplication.mutate(contact.id, { onSettled: () => void back() });
+          else void back(contact.id);
         },
         onError: errors.onError,
       },
@@ -66,14 +82,15 @@ export function NewContactPage() {
   return (
     <>
       <PageHeader title={m.contact_new_heading()} />
+      {application ? <p className="text-muted">{m.contact_new_for_application()}</p> : null}
       <ContactForm
         initial={formValues(undefined, company)}
         fieldErrors={errors.fieldErrors}
         feedback={<FailureMessage failure={errors.failure} />}
         submitLabel={m.contact_create_submit()}
-        isPending={create.isPending}
+        isPending={create.isPending || linkToApplication.isPending}
         onSubmit={submit}
-        onCancel={() => void navigate({ to: "/contacts" })}
+        onCancel={() => void back()}
       />
     </>
   );

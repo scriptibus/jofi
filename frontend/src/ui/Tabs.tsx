@@ -55,12 +55,17 @@ export function Tabs<K extends string>({ label, tabs, selected, onSelect, childr
           </Tab>
         ))}
       </TabList>
-      <TabPanel
-        id={selected}
-        className="flex flex-col gap-6 rounded outline-none data-focus-visible:outline-2 data-focus-visible:outline-accent data-focus-visible:outline-offset-4"
-      >
-        {children}
-      </TabPanel>
+      {/* One panel per tab (React Aria renders only the selected one): a single panel whose id changes keeps
+          the first tab's id, so the selected tab's aria-controls would point at nothing. */}
+      {tabs.map((tab) => (
+        <TabPanel
+          key={tab.id}
+          id={tab.id}
+          className="flex flex-col gap-6 rounded outline-none data-focus-visible:outline-2 data-focus-visible:outline-accent data-focus-visible:outline-offset-4"
+        >
+          {tab.id === selected ? children : null}
+        </TabPanel>
+      ))}
     </AriaTabs>
   );
 }

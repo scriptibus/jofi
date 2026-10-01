@@ -8,7 +8,8 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: spec §10.1 (countdowns), §10.2 (task list), §6.1 (follow-up rules); issue #80 (M1-C2e); builds on
-  ADR-0041 and ADR-0048. Amended by #95 (M1-5c): the suggestion rules and accepting
+  ADR-0041 and ADR-0048. Amended by #95 (M1-5c): the suggestion rules and accepting; by #112 (M1-11a1): the
+  dashboard countdown query; by #168: an entry per cleared link
 
 ## Context
 
@@ -58,6 +59,22 @@ Custom countdowns count down to a `LocalDate` (`countdown.target_date`), counted
 buckets. The derived dashboard countdowns (next interview, application and offer answer deadlines; the end of
 employment in M2) are queries over the other contexts (#112) and never stored.
 
+The query (`GET /api/dashboard/countdowns?timeZone=`) reads the applications context only through its named
+interface `api` (`FindCountdownFactsPort`, plain values; applications never depends on tasks). It shows:
+
+- every custom countdown, also a past one (the dashboard shows it as reached);
+- the next interview: the soonest one that is not cancelled and starts at or after now (the instant decides,
+  ADR-0048);
+- application deadlines from the viewer's today on, only of applications not yet applied for and still in the
+  pipeline (`DISCOVERED`, `SHORTLISTED`, `PREPARING`): once the user applied, the posting's deadline no longer matters;
+- offer answer dates from the viewer's today on, of applications at `OFFER`.
+
+Deadlines and offer answers are capped at 50 each, read by a query of their own (date on or after today, soonest
+first) so that many past deadlines cannot push the coming ones out. The list is soonest first as seen from the viewer:
+a day counts from its start on the viewer's calendar, an interview at its instant; ties go by kind, then subject.
+Each entry names its subject by changelog entity type and id (`countdown`, `application`, `interview`), the types
+coming from the owning context.
+
 ### One link, cleared when its target goes
 
 A task links to at most one application, company or contact (`TaskLink`, implemented by the tasks context's own
@@ -66,14 +83,28 @@ reference types `ApplicationRef`, `CompanyRef`, `ContactRef`, ADR-0041), stored 
 target clears the link and keeps the task, its title still says what it was about. This is ADR-0041's rule for an
 optional reference to `contact`, applied to all three so that:
 
-- no delete elsewhere is blocked or grows (the application, company and contact deletes need not count tasks in
-  their confirmation effects, and the tasks context needs no named interface of theirs);
+- no delete elsewhere is blocked (the deletes only read and count the linked tasks, see below);
 - the user's own to-dos never disappear as a side effect of another delete.
 
-The row changes without a new `version`, as the link is gone rather than edited. For now (#93) the task gets no
-changelog entry of its own: the deleted entity's "Deleted …" entry is the trace. An entry per task needs the linked
-task ids before the delete (the tasks context cannot find them once `SET NULL` ran), read through an SPI port the
-tasks context implements, like `LinkedApplicationsPort`; that is #168. A suggestion whose application is deleted is obsolete and dismissed by its rule's next run (#95).
+The row changes without a new `version`, as the link is gone rather than edited, but every task whose link a
+delete clears gets a changelog entry of its own (#168), since the tasks context cannot find them once `SET NULL`
+ran (an event arrives too late):
+
+- The deleting contexts declare a port the tasks context implements, in their named interface `spi` (ADR-0041):
+  `LinkedTasksPort.linkedTo` (applications) and `TaskLinksPort` (companies, for the company and its contacts). Tasks
+  depend on them, never the reverse. Each answers the tasks' changelog references (every state, suggestions too,
+  since each row loses its link), or `Unavailable`, which fails the delete before anything is deleted.
+- The delete reads them in its transaction before it deletes and **counts them in the confirmation effect**
+  (`tasks`), like ADR-0041's application links, so a task linked between the two steps voids the token and the user
+  sees what changes. A company delete counts the tasks linked to the company and to the contacts deleted with it.
+- After the delete, one entry per task (entity `task`, "Cleared the link to a deleted application|company|contact",
+  `FieldChange("link", "<kind>:<id>", null)`, ids only) with the delete's actor, in the same transaction.
+- The application delete counts its interviews through `ApplicationRepositoryPort.interviewCount` (the repository that
+  runs the cascade, as `CompanyRepositoryPort.findContactIds`), and the company and contact deletes read the other
+  contexts through `FindCompanyLinksUseCase` and `FindContactLinksUseCase`, so each delete stays within seven
+  constructor parameters.
+
+A suggestion whose application is deleted is obsolete and dismissed by its rule's next run (#95).
 
 ### States and origins
 
@@ -124,10 +155,10 @@ goes with a task. The tasks domain defines no events yet: no other context react
 - **Follow-up**: an `APPLIED` application without activity (as the Ghosted suggestion defines it) for the settings'
   `followUpAfterDays` (default 14, ADR-0050). Key `application:<id>:<last activity>` (one silence, one suggestion),
   due on the UTC day the period ended (Jofi keeps no user zone).
-- **Interview preparation**: every interview still to come and not cancelled, due the day before it on the calendar
-  of the zone it was planned in (ADR-0048). Key `interview:<id>:<that day>`: a reschedule to another day dismisses
-  the old suggestion and makes a new one; one within the same day keeps it. Once the interview has begun, a waiting
-  preparation is obsolete.
+- **Interview preparation**: every interview still to come, not cancelled and of an open application, due the day
+  before it on the calendar of the zone it was planned in (ADR-0048). Key `interview:<id>:<that day>`: a reschedule
+  to another day dismisses the old suggestion and makes a new one; one within the same day keeps it. Once the
+  interview has begun, or its application has closed, a waiting preparation is obsolete.
 - **Offer answer**: an application at `OFFER` whose offer has `answerBy` today (UTC) or later, due the day before.
   Key `application:<id>:<answerBy>`: a new date is a new suggestion; a passed date, a removed date or a move on from
   `OFFER` makes the waiting one obsolete.
@@ -147,8 +178,8 @@ goes with a task. The tasks domain defines no events yet: no other context react
 ## Consequences
 
 - A task list is always relative to "now" in the viewer's zone, and a bucket task becomes overdue on its own.
-- Deleting applications, companies or contacts never touches the user's tasks beyond clearing a link, so those
-  deletes stay as they are.
+- Deleting applications, companies or contacts never touches the user's tasks beyond clearing a link; the deletes
+  count the linked tasks in their confirmation effects and record an entry on each.
 - #95's rules need no lookup before suggesting: the unique constraint answers "already suggested or dismissed".
 - If the spec later wants several links per task, the three columns become a link table; the API's `link` becomes a
   list (a breaking change to plan then).

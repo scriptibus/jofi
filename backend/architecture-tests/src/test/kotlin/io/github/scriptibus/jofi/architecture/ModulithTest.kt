@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.architecture
 
 import io.github.scriptibus.jofi.JofiApplication
 import io.github.scriptibus.jofi.applications.application.port.api.DescribeApplicationEventPort
+import io.github.scriptibus.jofi.applications.application.port.api.FindCountdownFactsPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindSuggestionFactsPort
 import io.github.scriptibus.jofi.applications.application.port.inbound.ChangeApplicationStatusPort
@@ -14,6 +15,7 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationStatusChanged
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.EmbeddingPort
@@ -91,25 +93,29 @@ class ModulithTest {
     }
 
     @Test
-    fun `companies exposes only its SPI to the applications context, which depends on it (ADR-0041)`() {
+    fun `companies exposes only its SPI to the applications and tasks contexts, which depend on it (ADR-0041)`() {
         val companies = module("companies")
 
         companies.namedInterfaces.getByName("spi").isPresent shouldBe true
         companies.isExposed(ApplicationCountsPort::class.java) shouldBe true
         companies.isExposed(LinkedApplicationsPort::class.java) shouldBe true
+        companies.isExposed(TaskLinksPort::class.java) shouldBe true
         companies.isExposed(CompanyRepositoryPort::class.java) shouldBe false
         module("applications").getDirectDependencies(modules).containsModuleNamed("companies") shouldBe true
+        module("tasks").getDirectDependencies(modules).containsModuleNamed("companies") shouldBe true
         companies.getDirectDependencies(modules).containsModuleNamed("applications") shouldBe false
+        companies.getDirectDependencies(modules).containsModuleNamed("tasks") shouldBe false
     }
 
     @Test
-    fun `applications exposes only its API and SPI to the tasks context, which depends on it (#85, #87, #95)`() {
+    fun `applications exposes only its API and SPI to the tasks context, which depends on it (#85, #87, #95, #112)`() {
         val applications = module("applications")
 
         applications.namedInterfaces.getByName("api").isPresent shouldBe true
         applications.namedInterfaces.getByName("spi").isPresent shouldBe true
         applications.isExposed(FindGhostedCandidatesPort::class.java) shouldBe true
         applications.isExposed(FindSuggestionFactsPort::class.java) shouldBe true
+        applications.isExposed(FindCountdownFactsPort::class.java) shouldBe true
         applications.isExposed(DescribeApplicationEventPort::class.java) shouldBe true
         applications.isExposed(ApplicationStatusChanged::class.java) shouldBe false
         applications.isExposed(LinkedTasksPort::class.java) shouldBe true

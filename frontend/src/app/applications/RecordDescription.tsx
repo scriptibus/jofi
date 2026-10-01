@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import {
   type DescriptionSnapshotRecordedResponse,
+  getGetApplicationTimelineQueryKey,
   getListDescriptionSnapshotsQueryKey,
   useRecordDescriptionSnapshot,
 } from "../../api/generated/jofi";
@@ -48,6 +49,7 @@ export function RecordDescription({
     void queryClient.invalidateQueries({
       queryKey: getListDescriptionSnapshotsQueryKey(applicationId, sourceId),
     });
+    void queryClient.invalidateQueries({ queryKey: getGetApplicationTimelineQueryKey(applicationId) });
     onRecorded(answer.snapshot.id);
   };
   const submit = () => {

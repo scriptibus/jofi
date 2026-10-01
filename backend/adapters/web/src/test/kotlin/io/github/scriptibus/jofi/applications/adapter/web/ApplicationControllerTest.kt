@@ -13,7 +13,7 @@ import io.github.scriptibus.jofi.applications.application.SetApplicationUnreadUs
 import io.github.scriptibus.jofi.applications.application.UpdateApplicationUseCase
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
-import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -29,6 +29,7 @@ import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.kotest.matchers.shouldBe
@@ -71,7 +72,7 @@ class ApplicationControllerTest(
     class Ports {
         val applications = mockk<ApplicationRepositoryPort>()
         val snapshots = mockk<DescriptionSnapshotRepositoryPort>()
-        val interviews = mockk<InterviewRepositoryPort>()
+        val tasks = mockk<LinkedTasksPort>()
         val changelog = mockk<ChangelogPort>()
         val events = mockk<DomainEventPort>()
         val transactions =
@@ -113,7 +114,7 @@ class ApplicationControllerTest(
         fun delete(ports: Ports) =
             DeleteApplicationUseCase(
                 ports.applications,
-                ports.interviews,
+                ports.tasks,
                 ConfirmActionUseCase(MapStore(), clock, Duration.ofMinutes(5)),
                 ports.events,
                 ports.changelog,
@@ -172,7 +173,7 @@ class ApplicationControllerTest(
 
     @BeforeEach
     fun storeOne() {
-        clearMocks(ports.applications, ports.snapshots, ports.interviews, ports.changelog, ports.events)
+        clearMocks(ports.applications, ports.snapshots, ports.tasks, ports.changelog, ports.events)
         every { ports.applications.findById(any()) } returns ApplicationStoreResult.NotFound
         every { ports.applications.findById(stored.id) } returns ApplicationStoreResult.Success(stored)
         every { ports.applications.add(any(), any()) } returns ApplicationStoreResult.Success(Unit)
@@ -181,7 +182,9 @@ class ApplicationControllerTest(
         every { ports.applications.statusHistory(stored.id) } returns
             ApplicationStoreResult.Success(listOf(StatusChange.initial(stored, Actor.User)))
         every { ports.applications.snapshotCount(stored.id) } returns ApplicationStoreResult.Success(2)
-        every { ports.interviews.countByApplication(stored.id) } returns ApplicationStoreResult.Success(3)
+        every { ports.applications.interviewCount(stored.id) } returns ApplicationStoreResult.Success(3)
+        every { ports.tasks.linkedTo(stored.id.value) } returns
+            LinkedTasksPort.Linked.Found(listOf(EntityRef("task", UUID.randomUUID().toString())))
         every { ports.applications.delete(any(), any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.changelog.append(any()) } returns ChangelogResult.Success(Unit)
         every { ports.events.publish(any()) } returns true
@@ -287,7 +290,7 @@ class ApplicationControllerTest(
         problem["type"].asString() shouldBe Confirmations.REQUIRED
         problem["effect"].toString() shouldBe
             """{"kind":"application","name":"Backend Engineer","counts":""" +
-            """{"contactLinks":1,"interviews":3,"snapshots":2,"sources":0,"statusChanges":1}}"""
+            """{"contactLinks":1,"interviews":3,"snapshots":2,"sources":0,"statusChanges":1,"tasks":1}}"""
         verify(exactly = 0) { ports.applications.delete(any(), any()) }
 
         val token = problem["confirmationToken"].asString()

@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.applications.application
 import io.github.scriptibus.jofi.applications.application.port.ApplicationRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.DescriptionSnapshotRepositoryPort
 import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
+import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
@@ -59,6 +60,9 @@ class ApplicationFixtures {
     val entries = mutableListOf<ChangelogEntry>()
     val events = mutableListOf<DomainEvent>()
     var failingChangelog = false
+
+    /** An entity type whose entries the changelog refuses, to fail a use case after its first entries. */
+    var failingChangelogFor: String? = null
     var failingEvents = false
     var failingStore = false
 
@@ -195,6 +199,9 @@ class ApplicationFixtures {
                     ApplicationStoreResult.NotFound
                 }
 
+            override fun interviewCount(id: ApplicationId): ApplicationStoreResult<Int> =
+                ApplicationStoreResult.Success(interviews.values.count { it.application == id })
+
             override fun delete(
                 id: ApplicationId,
                 proof: ConfirmationResult.Confirmed,
@@ -211,9 +218,30 @@ class ApplicationFixtures {
                     else -> {
                         history.removeAll { it.application == id }
                         interviews.values.removeAll { it.application == id }
+                        linkedTasks.remove(id)
                         ApplicationStoreResult.Success(Unit)
                     }
                 }
+        }
+
+    /** Tasks linked to each application, as the tasks context reports them; the delete clears the links (#168). */
+    val linkedTasks = mutableMapOf<ApplicationId, List<EntityRef>>()
+    var linkedTasksAvailable = true
+
+    val linkedTaskPort =
+        object : LinkedTasksPort {
+            override fun linkedTo(application: UUID): LinkedTasksPort.Linked =
+                if (linkedTasksAvailable) {
+                    LinkedTasksPort.Linked.Found(linkedTasks[ApplicationId(application)].orEmpty())
+                } else {
+                    LinkedTasksPort.Linked.Unavailable
+                }
+
+            override fun linkedTasks(
+                application: UUID,
+                before: LinkedTasksPort.Before?,
+                count: Int,
+            ): LinkedTasksPort.Tasks = error("Not used by these use cases")
         }
 
     /** The stored interviews (#91); like the database, they go with their application. */
@@ -279,9 +307,6 @@ class ApplicationFixtures {
                         .filter { it.application == application }
                         .sortedWith(compareBy({ it.details.time.startsAt }, { it.id.value })),
                 )
-
-            override fun countByApplication(application: ApplicationId): ApplicationStoreResult<Int> =
-                ApplicationStoreResult.Success(interviews.values.count { it.application == application })
 
             override fun upcoming(
                 from: Instant,
@@ -355,7 +380,9 @@ class ApplicationFixtures {
     val changelog =
         object : ChangelogPort {
             override fun append(entry: ChangelogEntry): ChangelogResult<Unit> {
-                if (failingChangelog) return ChangelogResult.StorageFailure("append")
+                if (failingChangelog || entry.entity.type == failingChangelogFor) {
+                    return ChangelogResult.StorageFailure("append")
+                }
                 entries += entry
                 return ChangelogResult.Success(Unit)
             }
@@ -390,6 +417,7 @@ class ApplicationFixtures {
                 val frozenBefore = frozenAt.toMap()
                 val descriptionsBefore = descriptions.toList()
                 val interviewsBefore = interviews.toMap()
+                val linkedTasksBefore = linkedTasks.toMap()
                 val result = work()
                 if (!commitIf(result)) {
                     applications.clear()
@@ -406,6 +434,8 @@ class ApplicationFixtures {
                     descriptions.addAll(descriptionsBefore)
                     interviews.clear()
                     interviews.putAll(interviewsBefore)
+                    linkedTasks.clear()
+                    linkedTasks.putAll(linkedTasksBefore)
                 }
                 return result
             }
