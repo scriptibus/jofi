@@ -21,6 +21,7 @@ import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.companies.application.port.api.MatchCompanyPort
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
+import io.github.scriptibus.jofi.shared.application.port.ConcurrencyLimitPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
@@ -193,11 +194,35 @@ class PostingImportFixtures {
             }
         }
 
+    /** The fetch cap: `full` turns every fetch away; `heldAtFetch` counts the permits held while a page is fetched. */
+    var fetchCapFull = false
+    var permitsHeld = 0
+    var permitsTaken = 0
+    val permitsHeldAtFetch = mutableListOf<Int>()
+
+    val fetchLimit =
+        object : ConcurrencyLimitPort {
+            override fun <T> runIfFree(
+                onFull: () -> T,
+                work: () -> T,
+            ): T {
+                if (fetchCapFull) return onFull()
+                permitsHeld++
+                permitsTaken++
+                try {
+                    return work()
+                } finally {
+                    permitsHeld--
+                }
+            }
+        }
+
     val http =
         object : OutboundHttpPort {
             override fun fetch(request: OutboundRequest): FetchResult {
                 fetchRequests += request
                 transactionsOpenAtFetch += openTransactions
+                permitsHeldAtFetch += permitsHeld
                 duringFetch()
                 return fetched
             }
@@ -269,7 +294,7 @@ class PostingImportFixtures {
             }
         }
 
-    val fetchPosting = FetchPostingTextUseCase(ai, http)
+    val fetchPosting = FetchPostingTextUseCase(ai, http, fetchLimit)
     val resolveUrl = ResolveUrlImportUseCase(importPort, sources, fetchPosting, base.changelog, transactions, CLOCK)
 
     val discovered = AddDiscoveredApplicationUseCase(base.repository, sources, base.changelog, transactions, CLOCK)

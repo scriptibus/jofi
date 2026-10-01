@@ -48,6 +48,13 @@ companies context without reaching into it.
   is fetched with no transaction open; the short store transaction takes a Postgres advisory lock on the link
   (`lockForStart`) and looks once more for a pending import and an imported application, so a second instance would
   at worst fetch twice, never store twice. A failed fetch stores nothing.
+- **At most N fetches at once (#224).** Distinct links do not wait for each other, so a burst of them would hold a
+  thread, a socket and up to 1 MiB each for up to 20 s. `FetchPostingTextUseCase` runs the fetch under a
+  `ConcurrencyLimitPort` (`InProcessConcurrencyLimitAdapter`, a non-blocking semaphore; one `app` container,
+  ADR-0039) of `jofi.import.max-concurrent-fetches` (default 3, must be positive). A request over the cap is turned
+  away at once with `429 import-busy` (`ImportBusy`), not `409 import-in-progress`, which means another request is
+  importing this very link. It counts fetches only: a link answered as already imported or pending takes no permit,
+  the permit is released on every path, and no connection is held meanwhile. Needed before MCP clients import (#118).
 - **Structured extraction.** `LlmRequest` gets an optional `outputSchema` (JSON Schema text, Jofi's own constant,
   never user data), passed to Spring AI 2.0.1's `StructuredOutputChatOptions.outputSchema` (OpenAI and compatible
   endpoints: `response_format` `json_schema`; Anthropic: `output_config.format`). The extraction request has no tools,

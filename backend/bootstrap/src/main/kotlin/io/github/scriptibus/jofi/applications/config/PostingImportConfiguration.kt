@@ -19,9 +19,12 @@ import io.github.scriptibus.jofi.applications.application.port.PostingImportRepo
 import io.github.scriptibus.jofi.applications.config.ApplicationsConfiguration.ApplicationAudit
 import io.github.scriptibus.jofi.companies.application.port.api.MatchCompanyPort
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
+import io.github.scriptibus.jofi.shared.adapter.lock.InProcessConcurrencyLimitAdapter
+import io.github.scriptibus.jofi.shared.application.port.ConcurrencyLimitPort
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.shared.application.port.KeyedLockPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
@@ -57,11 +60,18 @@ class PostingImportConfiguration {
     ): StartPostingImportUseCase =
         StartPostingImportUseCase(imports, ai, jobs, audit.changelog, audit.transactions, audit.clock)
 
+    /** How many pages URL imports may fetch at once (#224); a low default for a single-user app. */
+    @Bean
+    fun importFetchLimit(
+        @Value("\${jofi.import.max-concurrent-fetches:3}") maxConcurrent: Int,
+    ): ConcurrencyLimitPort = InProcessConcurrencyLimitAdapter(validFetchCap(maxConcurrent))
+
     @Bean
     fun fetchPostingTextUseCase(
         ai: CheckAiTaskAssignedPort,
         http: OutboundHttpPort,
-    ): FetchPostingTextUseCase = FetchPostingTextUseCase(ai, http)
+        importFetchLimit: ConcurrencyLimitPort,
+    ): FetchPostingTextUseCase = FetchPostingTextUseCase(ai, http, importFetchLimit)
 
     @Bean
     fun resolveUrlImportUseCase(
@@ -112,4 +122,14 @@ class PostingImportConfiguration {
             audit.transactions,
             audit.clock,
         )
+
+    companion object {
+        /** Fails the start with a clear message: a cap of zero or less would refuse every URL import. */
+        fun validFetchCap(maxConcurrent: Int): Int {
+            require(maxConcurrent > 0) {
+                "jofi.import.max-concurrent-fetches must be positive, but is $maxConcurrent"
+            }
+            return maxConcurrent
+        }
+    }
 }

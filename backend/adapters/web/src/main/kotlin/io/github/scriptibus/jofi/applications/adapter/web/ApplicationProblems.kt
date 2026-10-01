@@ -34,6 +34,7 @@ object ApplicationProblems {
     const val IMPORT_NOT_FOUND = "urn:jofi:problem:applications:import-not-found"
     const val IMPORT_NOT_RETRYABLE = "urn:jofi:problem:applications:import-not-retryable"
     const val IMPORT_IN_PROGRESS = "urn:jofi:problem:applications:import-in-progress"
+    const val IMPORT_BUSY = "urn:jofi:problem:applications:import-busy"
     const val AI_NOT_CONFIGURED = "urn:jofi:problem:applications:ai-not-configured"
     const val VERSION_CONFLICT = "urn:jofi:problem:applications:version-conflict"
     const val INVALID_TRANSITION = "urn:jofi:problem:applications:invalid-transition"
@@ -71,9 +72,20 @@ object ApplicationProblems {
                 Confirmations.problem(failure.outcome)
             }
 
-            is ApplicationResult.StorageFailure -> {
-                problem(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, "Applications cannot be stored right now")
+            ApplicationResult.ImportBusy, is ApplicationResult.StorageFailure -> {
+                retryLater(failure)
             }
+        }
+
+    /**
+     * Answers that may pass shortly: `503` when storage is down, `429` when too many pages are being fetched for
+     * imports at once (#224; nothing is wrong with the request).
+     */
+    private fun retryLater(failure: ApplicationResult.Failure): ErrorResponseException =
+        if (failure == ApplicationResult.ImportBusy) {
+            problem(HttpStatus.TOO_MANY_REQUESTS, IMPORT_BUSY, "Other imports are fetching pages; try again shortly")
+        } else {
+            problem(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, "Applications cannot be stored right now")
         }
 
     /** The 400 for search parameters `ApplicationSearchInput.validate` refused, named as query parameters. */

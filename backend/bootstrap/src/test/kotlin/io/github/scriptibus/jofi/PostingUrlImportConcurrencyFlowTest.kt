@@ -88,9 +88,15 @@ import com.github.tomakehurst.wiremock.client.WireMock.get as wireMockGet
 /**
  * Concurrent URL and text imports (#97, #187 finding F6) through the wired app, with a connection pool of two: a
  * double submit fetches once and imports once, and slow fetches hold no database connection. Servers and the
- * allowlisting configuration are those of [PostingUrlImportFlowTest].
+ * allowlisting configuration are those of [PostingUrlImportFlowTest]. The fetch cap (#224) is raised to the six
+ * links the pool test submits; [PostingUrlImportFetchCapFlowTest] covers the cap itself.
  */
-@SpringBootTest(properties = ["spring.datasource.hikari.maximum-pool-size=2"])
+@SpringBootTest(
+    properties = [
+        "spring.datasource.hikari.maximum-pool-size=2",
+        "jofi.import.max-concurrent-fetches=6",
+    ],
+)
 @ExtendWith(OutputCaptureExtension::class)
 @AutoConfigureMockMvc
 @Import(PostgresTestConfiguration::class, PostingUrlImportFlowTest.HttpTestConfig::class)

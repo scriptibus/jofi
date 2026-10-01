@@ -63,6 +63,10 @@ jofi:
   secrets:
     # `true` accepts that a lost or different master keyset makes the stored secrets unreadable.
     accept-loss: ${JOFI_ACCEPT_SECRET_LOSS:false}
+  # URL import (ADR-0051): how many pages may be fetched at once, however many links are submitted. Each fetch can
+  # buffer 1 MiB and take 20 s; a request over the cap answers 429 import-busy at once. Must be positive.
+  import:
+    max-concurrent-fetches: ${JOFI_IMPORT_MAX_CONCURRENT_FETCHES:3}
   # Backup and restore (ADR-0042). Limits for an uploaded backup: the upload itself, everything it
   # unpacks to (zip bombs) and its number of entries. Unpacking needs that much free space in the data volume.
   backup:

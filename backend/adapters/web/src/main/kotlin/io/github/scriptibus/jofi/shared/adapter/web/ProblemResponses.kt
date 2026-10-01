@@ -38,6 +38,7 @@ enum class ProblemKind(
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "The input breaks the rules; `violations` names each field and problem"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "Nothing with this id"),
     CONFLICT(HttpStatus.CONFLICT, "Conflicts with the current state; the problem `type` says how"),
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "The server is busy with similar requests; try again shortly"),
 }
 
 /** One broken rule of a request: the request [field] as clients name it, and the [problem] with it. */

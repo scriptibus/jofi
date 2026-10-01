@@ -187,6 +187,12 @@ sealed interface ApplicationResult<out T> {
      */
     data object ImportInProgress : Failure
 
+    /**
+     * Too many pages are being fetched for imports right now (#224), whatever their links: try again shortly. Not
+     * [ImportInProgress]: nothing is wrong with this link, and no other request is importing it.
+     */
+    data object ImportBusy : Failure
+
     /** No AI model is assigned to the task the operation needs; the user sets one up first (spec §3.2). */
     data object AiNotConfigured : Failure
 

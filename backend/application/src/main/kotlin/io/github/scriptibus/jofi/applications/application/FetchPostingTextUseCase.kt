@@ -16,6 +16,7 @@ import io.github.scriptibus.jofi.applications.domain.PostingCharset
 import io.github.scriptibus.jofi.applications.domain.PostingHtmlText
 import io.github.scriptibus.jofi.applications.domain.SnapshotReason
 import io.github.scriptibus.jofi.setup.application.port.api.CheckAiTaskAssignedPort
+import io.github.scriptibus.jofi.shared.application.port.ConcurrencyLimitPort
 import io.github.scriptibus.jofi.shared.application.port.OutboundHttpPort
 import io.github.scriptibus.jofi.shared.domain.http.FetchLimits
 import io.github.scriptibus.jofi.shared.domain.http.FetchResult
@@ -30,14 +31,20 @@ import java.net.URI
  * decoded with its declared character set ([PostingCharset]), turned into text by the linear [PostingHtmlText] and
  * never interpreted. Where the fetch ended counts, not only where it started: a redirect or shortener into a site Jofi
  * never scrapes is refused after the fact (nothing stored, nothing sent to the AI). Stopping before that hop would
- * need a per-hop check in `adapters/net`, which this context does not own.
+ * need a per-hop check in `adapters/net`, which this context does not own. At most the configured number of fetches
+ * run at once ([ConcurrencyLimitPort], #224): each may buffer a megabyte and take 20 seconds, so one more answers
+ * `ImportBusy` at once. The permit covers the fetch and the text extraction (the buffered body), not the AI check
+ * before it, and a link answered without a fetch never gets here.
  */
 class FetchPostingTextUseCase(
     private val ai: CheckAiTaskAssignedPort,
     private val http: OutboundHttpPort,
+    private val fetches: ConcurrencyLimitPort,
 ) : FetchPostingTextPort {
     override fun execute(address: WebAddress): ApplicationResult<DescriptionText> =
-        ai.extractionAssigned().then { fetch(address) }
+        ai.extractionAssigned().then {
+            fetches.runIfFree(onFull = { ApplicationResult.ImportBusy }) { fetch(address) }
+        }
 
     private fun fetch(address: WebAddress): ApplicationResult<DescriptionText> {
         val uri = address.toUriOrNull() ?: return invalid(ApplicationProblem.INVALID_URL)
