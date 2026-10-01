@@ -155,7 +155,7 @@ CV / Lebenslauf, cover letter / Anschreiben, certificates, Arbeitszeugnisse / re
 | **Bundesagentur für Arbeit API** | BA Jobbörse | Official public Jobsuche API. Pre-configured default scanner. |
 | **ATS feed** | Company career pages on Personio, Greenhouse, Lever, SmartRecruiters, Workday, Recruitee, join.com, … | Public job feeds/APIs; one adapter per ATS. The user adds a company, and Jofi detects its ATS. |
 | **Page watcher** | Custom company career pages | Generic fetch + AI extraction; fragile, fallback only; respects robots.txt. |
-| **URL / text import** | Anything, including LinkedIn, StepStone, Indeed | User pastes a link or text in chat or via the PWA share sheet; Jofi extracts the posting. |
+| **URL / text import** | Any page that may be fetched; for LinkedIn, StepStone and Indeed only pasted text | User pastes a link or text in chat or via the PWA share sheet; Jofi extracts the posting. A link to LinkedIn, StepStone or Indeed (or a redirect into them) is refused: the user pastes the posting's text instead. |
 | **Email alerts (IMAP)** | Job-alert mails from LinkedIn, StepStone, Indeed, etc. | Late milestone, optional (section 12). |
 
 No direct scraping of LinkedIn, StepStone or Indeed.
