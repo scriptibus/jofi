@@ -14,6 +14,7 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationStatusChanged
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
 import io.github.scriptibus.jofi.companies.application.port.spi.LinkedApplicationsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.setup.domain.ModelAssignment
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.EmbeddingPort
@@ -91,15 +92,18 @@ class ModulithTest {
     }
 
     @Test
-    fun `companies exposes only its SPI to the applications context, which depends on it (ADR-0041)`() {
+    fun `companies exposes only its SPI to the applications and tasks contexts, which depend on it (ADR-0041)`() {
         val companies = module("companies")
 
         companies.namedInterfaces.getByName("spi").isPresent shouldBe true
         companies.isExposed(ApplicationCountsPort::class.java) shouldBe true
         companies.isExposed(LinkedApplicationsPort::class.java) shouldBe true
+        companies.isExposed(TaskLinksPort::class.java) shouldBe true
         companies.isExposed(CompanyRepositoryPort::class.java) shouldBe false
         module("applications").getDirectDependencies(modules).containsModuleNamed("companies") shouldBe true
+        module("tasks").getDirectDependencies(modules).containsModuleNamed("companies") shouldBe true
         companies.getDirectDependencies(modules).containsModuleNamed("applications") shouldBe false
+        companies.getDirectDependencies(modules).containsModuleNamed("tasks") shouldBe false
     }
 
     @Test

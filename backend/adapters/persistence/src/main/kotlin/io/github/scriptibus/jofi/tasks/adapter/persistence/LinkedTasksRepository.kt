@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.tasks.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.application.port.spi.LinkedTasksPort
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.TASK
+import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskState
 import org.jooq.Condition
 import org.jooq.DSLContext
@@ -16,10 +17,10 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * The tasks context answers the applications context which tasks are linked to an application, for its timeline
- * (#87; tasks depend on applications' named interface `spi`, never the reverse, ADR-0041). The paged form of
- * `TaskRepositoryPort.listByLink`: one keyset query served by `task_application_idx`. Only the user's tasks (open or
- * done) count; titles are never logged.
+ * The tasks context answers the applications context which tasks are linked to an application (tasks depend on
+ * applications' named interface `spi`, never the reverse, ADR-0041), both served by `task_application_idx`: for its
+ * timeline (#87) the paged form of `TaskRepositoryPort.listByLink`, one keyset query over the user's tasks (open or
+ * done); for its delete (#168) the ids of every linked task. Titles are never logged.
  */
 @Component
 class LinkedTasksRepository(
@@ -52,6 +53,21 @@ class LinkedTasksRepository(
         } catch (exception: RuntimeException) {
             log.error("Reading the tasks of an application failed: {}", exception.javaClass.name)
             LinkedTasksPort.Tasks.Unavailable
+        }
+
+    override fun linkedTo(application: UUID): LinkedTasksPort.Linked =
+        try {
+            val tasks =
+                dsl
+                    .select(TASK.ID)
+                    .from(TASK)
+                    .where(TASK.APPLICATION_ID.eq(application))
+                    .orderBy(TASK.ID)
+                    .fetch { row -> TaskId(row[TASK.ID]).toEntityRef() }
+            LinkedTasksPort.Linked.Found(tasks)
+        } catch (exception: RuntimeException) {
+            log.error("Reading the tasks linked to an application failed: {}", exception.javaClass.name)
+            LinkedTasksPort.Linked.Unavailable
         }
 
     private fun after(before: LinkedTasksPort.Before?): Condition {

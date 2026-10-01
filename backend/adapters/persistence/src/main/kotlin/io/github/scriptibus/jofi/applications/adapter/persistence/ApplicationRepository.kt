@@ -11,6 +11,7 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationSearch
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIEW
 import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import org.jooq.DSLContext
@@ -132,6 +133,11 @@ class ApplicationRepository(
             } else {
                 ApplicationStoreResult.NotFound
             }
+        }
+
+    override fun interviewCount(id: ApplicationId): ApplicationStoreResult<Int> =
+        storeCall("interviewCount") {
+            ApplicationStoreResult.Success(dsl.fetchCount(INTERVIEW, INTERVIEW.APPLICATION_ID.eq(id.value)))
         }
 
     override fun delete(

@@ -20,6 +20,7 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -31,7 +32,7 @@ class DeleteContactUseCaseTest {
     private val delete =
         DeleteContactUseCase(
             fixtures.contactPort,
-            fixtures.linkedApplications,
+            fixtures.findLinks,
             fixtures.confirmation,
             fixtures.eventPort,
             fixtures.changelog,
@@ -65,7 +66,11 @@ class DeleteContactUseCaseTest {
         required.action.operation shouldBe Contact.DELETE_OPERATION
         required.action.targets shouldBe listOf(contact.id.value.toString())
         required.action.effect shouldBe
-            ConfirmationEffect("contact", "Erika Mustermann", mapOf("applications" to 2, "interviews" to 0))
+            ConfirmationEffect(
+                "contact",
+                "Erika Mustermann",
+                mapOf("applications" to 2, "interviews" to 0, "tasks" to 0),
+            )
         fixtures.contacts.size shouldBe 1
         fixtures.entries.shouldBeEmpty()
         fixtures.events.shouldBeEmpty()
@@ -104,7 +109,8 @@ class DeleteContactUseCaseTest {
         fixtures.participations[contact.id] = interviews
         val client = ConfirmationRequester(Actor.ExternalClient("claude-desktop"), "mcp-1")
 
-        firstStep(contact.id, client).action.effect.counts shouldBe mapOf("applications" to 1, "interviews" to 2)
+        firstStep(contact.id, client).action.effect.counts shouldBe
+            mapOf("applications" to 1, "interviews" to 2, "tasks" to 0)
         delete.execute(contact.id, client, firstStep(contact.id, client).token) shouldBe ContactResult.Success(Unit)
 
         fixtures.participations.size shouldBe 0
@@ -116,6 +122,65 @@ class DeleteContactUseCaseTest {
                 listOf(FieldChange("participants", contact.id.value.toString(), null))
             it.change.toString() shouldNotContain "Erika"
         }
+    }
+
+    private fun tasksOf(
+        contact: Contact,
+        count: Int,
+    ): List<EntityRef> =
+        List(count) { EntityRef("task", UUID.randomUUID().toString()) }
+            .also { fixtures.linkedTasks[contact.id.value] = it }
+
+    @Test
+    fun `the confirmed repeat records each task whose link it clears, by id only, as the deleting actor`() {
+        val contact = fixtures.contact("Erika Mustermann")
+        val applications = linksOf(contact, 1)
+        val tasks = tasksOf(contact, 2)
+        val client = ConfirmationRequester(Actor.ExternalClient("claude-desktop"), "mcp-1")
+
+        firstStep(contact.id, client).action.effect.counts shouldBe
+            mapOf("applications" to 1, "interviews" to 0, "tasks" to 2)
+        delete.execute(contact.id, client, firstStep(contact.id, client).token) shouldBe ContactResult.Success(Unit)
+
+        fixtures.linkedTasks.shouldBeEmpty()
+        fixtures.entries.map { it.entity } shouldContainExactly listOf(contact.id.toEntityRef()) + applications + tasks
+        fixtures.entries.map { it.actor }.toSet() shouldBe setOf(Actor.ExternalClient("claude-desktop"))
+        fixtures.entries.takeLast(2).forEach {
+            it.change.description shouldBe "Cleared the link to a deleted contact"
+            it.change.fieldChanges shouldContainExactly
+                listOf(FieldChange("link", "contact:${contact.id.value}", null))
+            it.change.toString() shouldNotContain "Erika"
+        }
+    }
+
+    @Test
+    fun `a new task link between the steps voids the token`() {
+        val contact = fixtures.contact()
+        val token = firstStep(contact.id).token
+        tasksOf(contact, 1)
+
+        delete.execute(contact.id, user, token) shouldBe
+            ContactResult.Unconfirmed(ConfirmationResult.Rejected(ConfirmationRejection.MISMATCH))
+        fixtures.contacts.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `unreadable task links or a failing task entry delete nothing`() {
+        val contact = fixtures.contact()
+        tasksOf(contact, 1)
+        fixtures.taskLinksAvailable = false
+        delete.execute(contact.id, user, ConfirmationToken("any")) shouldBe
+            ContactResult.StorageFailure("read linked tasks")
+
+        fixtures.taskLinksAvailable = true
+        fixtures.failingChangelogFor = "task"
+        delete.execute(contact.id, user, firstStep(contact.id).token) shouldBe ContactResult.StorageFailure("changelog")
+
+        fixtures.contacts.size shouldBe 1
+        fixtures.linkedTasks.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
+        fixtures.events.shouldBeEmpty()
     }
 
     @Test

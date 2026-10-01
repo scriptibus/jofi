@@ -30,6 +30,20 @@ internal fun ChangelogPort.record(
 ): Boolean = append(ChangelogEntry(entity, actor, at, ChangeSummary(description, fields))) is ChangelogResult.Success
 
 /**
+ * The entry of a [task] whose link to the deleted [target] the delete clears (ADR-0049): ids only, the link as the
+ * tasks context records it (`company:<id>`, `contact:<id>`). False if the store refused it.
+ */
+internal fun ChangelogPort.recordClearedLink(
+    task: EntityRef,
+    target: EntityRef,
+    actor: Actor,
+    at: Instant,
+): Boolean {
+    val cleared = listOf(FieldChange("link", "${target.type}:${target.id}", null))
+    return record(task, actor, at, "Cleared the link to a deleted ${target.type}", cleared)
+}
+
+/**
  * What changed between two versions of the details. Research notes are free text that may hold
  * personal data, so only the description says they changed ([describe]), never their text.
  */

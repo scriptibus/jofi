@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 - Status: accepted
 - Date: 2026-09-30
 - Source: spec §10.1 (countdowns), §10.2 (task list), §6.1 (follow-up rules); issue #80 (M1-C2e); builds on
-  ADR-0041 and ADR-0048. Amended by #95 (M1-5c): the suggestion rules and accepting
+  ADR-0041 and ADR-0048. Amended by #95 (M1-5c): the suggestion rules and accepting; by #168: an entry per cleared link
 
 ## Context
 
@@ -66,14 +66,28 @@ reference types `ApplicationRef`, `CompanyRef`, `ContactRef`, ADR-0041), stored 
 target clears the link and keeps the task, its title still says what it was about. This is ADR-0041's rule for an
 optional reference to `contact`, applied to all three so that:
 
-- no delete elsewhere is blocked or grows (the application, company and contact deletes need not count tasks in
-  their confirmation effects, and the tasks context needs no named interface of theirs);
+- no delete elsewhere is blocked (the deletes only read and count the linked tasks, see below);
 - the user's own to-dos never disappear as a side effect of another delete.
 
-The row changes without a new `version`, as the link is gone rather than edited. For now (#93) the task gets no
-changelog entry of its own: the deleted entity's "Deleted …" entry is the trace. An entry per task needs the linked
-task ids before the delete (the tasks context cannot find them once `SET NULL` ran), read through an SPI port the
-tasks context implements, like `LinkedApplicationsPort`; that is #168. A suggestion whose application is deleted is obsolete and dismissed by its rule's next run (#95).
+The row changes without a new `version`, as the link is gone rather than edited, but every task whose link a
+delete clears gets a changelog entry of its own (#168), since the tasks context cannot find them once `SET NULL`
+ran (an event arrives too late):
+
+- The deleting contexts declare a port the tasks context implements, in their named interface `spi` (ADR-0041):
+  `LinkedTasksPort.linkedTo` (applications) and `TaskLinksPort` (companies, for the company and its contacts). Tasks
+  depend on them, never the reverse. Each answers the tasks' changelog references (every state, suggestions too,
+  since each row loses its link), or `Unavailable`, which fails the delete before anything is deleted.
+- The delete reads them in its transaction before it deletes and **counts them in the confirmation effect**
+  (`tasks`), like ADR-0041's application links, so a task linked between the two steps voids the token and the user
+  sees what changes. A company delete counts the tasks linked to the company and to the contacts deleted with it.
+- After the delete, one entry per task (entity `task`, "Cleared the link to a deleted application|company|contact",
+  `FieldChange("link", "<kind>:<id>", null)`, ids only) with the delete's actor, in the same transaction.
+- The application delete counts its interviews through `ApplicationRepositoryPort.interviewCount` (the repository that
+  runs the cascade, as `CompanyRepositoryPort.findContactIds`), and the company and contact deletes read the other
+  contexts through `FindCompanyLinksUseCase` and `FindContactLinksUseCase`, so each delete stays within seven
+  constructor parameters.
+
+A suggestion whose application is deleted is obsolete and dismissed by its rule's next run (#95).
 
 ### States and origins
 
@@ -147,8 +161,8 @@ goes with a task. The tasks domain defines no events yet: no other context react
 ## Consequences
 
 - A task list is always relative to "now" in the viewer's zone, and a bucket task becomes overdue on its own.
-- Deleting applications, companies or contacts never touches the user's tasks beyond clearing a link, so those
-  deletes stay as they are.
+- Deleting applications, companies or contacts never touches the user's tasks beyond clearing a link; the deletes
+  count the linked tasks in their confirmation effects and record an entry on each.
 - #95's rules need no lookup before suggesting: the unique constraint answers "already suggested or dismissed".
 - If the spec later wants several links per task, the three columns become a link table; the API's `link` becomes a
   list (a breaking change to plan then).

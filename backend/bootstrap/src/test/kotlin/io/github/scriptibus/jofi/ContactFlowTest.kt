@@ -167,7 +167,7 @@ class ContactFlowTest(
         val first = browser.delete("/api/contacts/$id")
         first.response.status shouldBe 428
         first.body()["effect"].toString() shouldBe
-            """{"kind":"contact","name":"Erika Mustermann","counts":{"applications":1,"interviews":0}}"""
+            """{"kind":"contact","name":"Erika Mustermann","counts":{"applications":1,"interviews":0,"tasks":0}}"""
         val token = first.body()["confirmationToken"].asString()
         browser.delete("/api/contacts/$id", mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
     }

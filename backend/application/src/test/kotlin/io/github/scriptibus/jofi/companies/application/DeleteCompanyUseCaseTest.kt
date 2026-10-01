@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.companies.domain.CompanyResult
 import io.github.scriptibus.jofi.companies.domain.ContactDeleted
 import io.github.scriptibus.jofi.companies.domain.ContactId
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.FieldChange
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationEffect
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRejection
@@ -31,7 +32,7 @@ class DeleteCompanyUseCaseTest {
     private val delete =
         DeleteCompanyUseCase(
             fixtures.companyPort,
-            fixtures.applicationPort,
+            FindCompanyLinksUseCase(fixtures.applicationPort, fixtures.taskLinkPort),
             fixtures.confirmation,
             fixtures.eventPort,
             fixtures.changelog,
@@ -63,7 +64,7 @@ class DeleteCompanyUseCaseTest {
 
         required.action.operation shouldBe Company.DELETE_OPERATION
         required.action.targets shouldBe listOf(company.id.value.toString())
-        required.action.effect shouldBe ConfirmationEffect("company", "ACME GmbH", mapOf("contacts" to 2))
+        required.action.effect shouldBe ConfirmationEffect("company", "ACME GmbH", mapOf("contacts" to 2, "tasks" to 0))
         fixtures.companies.size shouldBe 1
         fixtures.entries.shouldBeEmpty()
         fixtures.events.shouldBeEmpty()
@@ -88,6 +89,76 @@ class DeleteCompanyUseCaseTest {
             listOf(FieldChange("name", "ACME GmbH", null))
         fixtures.entries.drop(1).forEach { it.change.fieldChanges.shouldBeEmpty() }
         fixtures.events shouldContainExactly contacts.map { ContactDeleted(it, Actor.Ai, NOW) }
+    }
+
+    private fun tasksOf(
+        target: UUID,
+        count: Int,
+    ): List<EntityRef> =
+        List(count) { EntityRef("task", UUID.randomUUID().toString()) }.also { fixtures.linkedTasks[target] = it }
+
+    @Test
+    fun `the confirmed repeat records each task linked to the company or one of its contacts, as the deleting actor`() {
+        val company = fixtures.company("ACME GmbH")
+        val contact = contactsOf(company, 1).single()
+        val companyTasks = tasksOf(company.id.value, 2)
+        val contactTasks = tasksOf(contact.value, 1)
+        val unrelated = tasksOf(UUID.randomUUID(), 1)
+        val client = ConfirmationRequester(Actor.ExternalClient("claude-desktop"), "mcp-1")
+
+        firstStep(company.id, client).action.effect.counts shouldBe mapOf("contacts" to 1, "tasks" to 3)
+        delete.execute(company.id, client, firstStep(company.id, client).token) shouldBe CompanyResult.Success(Unit)
+
+        fixtures.linkedTasks.values.toList() shouldContainExactly listOf(unrelated)
+        fixtures.entries.map { it.entity } shouldContainExactly
+            listOf(company.id.toEntityRef(), contact.toEntityRef()) + companyTasks + contactTasks
+        fixtures.entries.map { it.actor }.toSet() shouldBe setOf(Actor.ExternalClient("claude-desktop"))
+        fixtures.entries.map { it.occurredAt }.toSet() shouldBe setOf(NOW)
+        fixtures.entries.slice(2..3).forEach {
+            it.change.description shouldBe "Cleared the link to a deleted company"
+            it.change.fieldChanges shouldContainExactly listOf(FieldChange("link", "company:${company.id.value}", null))
+        }
+        fixtures.entries
+            .last()
+            .change.description shouldBe "Cleared the link to a deleted contact"
+        fixtures.entries
+            .last()
+            .change.fieldChanges shouldContainExactly
+            listOf(FieldChange("link", "contact:${contact.value}", null))
+    }
+
+    @Test
+    fun `a new task link to the company or one of its contacts between the steps voids the token`() {
+        val company = fixtures.company()
+        val contact = contactsOf(company, 1).single()
+        val beforeCompanyLink = firstStep(company.id).token
+        tasksOf(company.id.value, 1)
+        delete.execute(company.id, user, beforeCompanyLink) shouldBe
+            CompanyResult.Unconfirmed(ConfirmationResult.Rejected(ConfirmationRejection.MISMATCH))
+
+        val beforeContactLink = firstStep(company.id).token
+        tasksOf(contact.value, 1)
+        delete.execute(company.id, user, beforeContactLink) shouldBe
+            CompanyResult.Unconfirmed(ConfirmationResult.Rejected(ConfirmationRejection.MISMATCH))
+        fixtures.companies.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `unreadable task links or a failing task entry delete nothing`() {
+        val company = fixtures.company()
+        tasksOf(company.id.value, 1)
+        fixtures.taskLinksAvailable = false
+        delete.execute(company.id, user, ConfirmationToken("any")) shouldBe
+            CompanyResult.StorageFailure("read linked tasks")
+
+        fixtures.taskLinksAvailable = true
+        fixtures.failingChangelogFor = "task"
+        delete.execute(company.id, user, firstStep(company.id).token) shouldBe CompanyResult.StorageFailure("changelog")
+
+        fixtures.companies.size shouldBe 1
+        fixtures.linkedTasks.size shouldBe 1
+        fixtures.entries.shouldBeEmpty()
     }
 
     @Test
@@ -188,7 +259,7 @@ class DeleteCompanyUseCaseTest {
     fun `without contacts the effect counts zero`() {
         val company = fixtures.company()
 
-        firstStep(company.id).action.effect.counts shouldBe mapOf("contacts" to 0)
+        firstStep(company.id).action.effect.counts shouldBe mapOf("contacts" to 0, "tasks" to 0)
         fixtures.contacts.shouldBeEmpty()
     }
 }

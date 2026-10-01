@@ -39,7 +39,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * The task API behind the real filter chain and database (#93, #94): create with a bucket resolved in the user's zone,
  * complete, reopen, edit to an exact time and the two-step delete, each recorded with the user as actor and without
  * the title; the open tasks grouped in the viewer's zone; a link to nothing is a 400 found by its foreign key through
- * Spring's exception translation; no session is 401, no CSRF token 403.
+ * Spring's exception translation; deleting what a task links to clears the link with an entry on the task (#168); no
+ * session is 401, no CSRF token 403.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -150,6 +151,84 @@ class TaskFlowTest(
         edited["link"].isNull shouldBe true
         edited["version"].asInt() shouldBe 3
     }
+
+    @Test
+    fun `deleting what a task links to clears the link and records it on the task as the deleting user`() {
+        val browser = owner()
+        val acme = browser.post("/api/companies", """{"name":"ACME GmbH"}""").ok(201)["id"].asString()
+        val globex = browser.post("/api/companies", """{"name":"Globex"}""").ok(201)["id"].asString()
+        val application =
+            browser
+                .post("/api/applications", """{"title":"Backend Engineer","companyId":"$acme"}""")
+                .ok(201)["id"]
+                .asString()
+        val erika = contact(browser, "Erika Mustermann", globex)
+        val max = contact(browser, "Max Mustermann", globex)
+        val onApplication = linkedTask(browser, "APPLICATION", application)
+        val onErika = linkedTask(browser, "CONTACT", erika)
+        val onMax = linkedTask(browser, "CONTACT", max)
+        val onGlobex = linkedTask(browser, "COMPANY", globex)
+
+        confirmedDelete(browser, "/api/applications/$application")["tasks"].asInt() shouldBe 1
+        confirmedDelete(browser, "/api/contacts/$erika")["tasks"].asInt() shouldBe 1
+        confirmedDelete(browser, "/api/companies/$globex").toString() shouldBe """{"contacts":1,"tasks":2}"""
+
+        listOf(onApplication, onErika, onMax, onGlobex).forEach { task ->
+            val kept = browser.get("/api/tasks/$task").ok()
+            kept["link"].isNull shouldBe true
+            kept["version"].asInt() shouldBe 0
+        }
+        clearedLinks(onApplication) shouldContainExactly listOf("USER" to "application:$application")
+        clearedLinks(onErika) shouldContainExactly listOf("USER" to "contact:$erika")
+        clearedLinks(onMax) shouldContainExactly listOf("USER" to "contact:$max")
+        clearedLinks(onGlobex) shouldContainExactly listOf("USER" to "company:$globex")
+    }
+
+    private fun contact(
+        browser: Browser,
+        name: String,
+        company: String,
+    ): String = browser.post("/api/contacts", """{"name":"$name","companyId":"$company"}""").ok(201)["id"].asString()
+
+    private fun linkedTask(
+        browser: Browser,
+        type: String,
+        target: String,
+    ): String {
+        val request =
+            """
+            {"title":"Follow up","timing":{"timeZone":"UTC","bucket":"SOMEDAY"},"link":{"type":"$type","id":"$target"}}
+            """.trimIndent()
+        return browser.post("/api/tasks", request).ok(201)["id"].asString()
+    }
+
+    /** Deletes in two steps and answers the counts of the confirmation effect. */
+    private fun confirmedDelete(
+        browser: Browser,
+        path: String,
+    ): JsonNode {
+        val first = browser.delete(path)
+        first.response.status shouldBe 428
+        val token = first.body()["confirmationToken"].asString()
+        browser.delete(path, mapOf(Confirmations.HEADER to token)).response.status shouldBe 204
+        return first.body()["effect"]["counts"]
+    }
+
+    /** The task's entries for a cleared link: the actor and the link it names (the after value is always null). */
+    private fun clearedLinks(task: String): List<Pair<String, String>> =
+        dsl
+            .select(CHANGELOG_ENTRY.ACTOR_KIND, CHANGELOG_ENTRY.FIELD_CHANGES)
+            .from(CHANGELOG_ENTRY)
+            .where(CHANGELOG_ENTRY.ENTITY_TYPE.eq("task"))
+            .and(CHANGELOG_ENTRY.ENTITY_ID.eq(task))
+            .and(CHANGELOG_ENTRY.DESCRIPTION.startsWith("Cleared the link to a deleted "))
+            .fetch()
+            .map { row ->
+                val change = json.readTree(row.value2().data())[0]
+                change["field"].asString() shouldBe "link"
+                change["after"]?.takeUnless { it.isNull } shouldBe null
+                row.value1() to change["before"].asString()
+            }
 
     @Test
     fun `the open tasks are grouped in the viewer's zone, an unknown zone is a 400`() {

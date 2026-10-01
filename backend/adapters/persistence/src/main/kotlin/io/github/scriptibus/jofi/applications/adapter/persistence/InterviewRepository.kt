@@ -88,11 +88,6 @@ class InterviewRepository(
             ApplicationStoreResult.Success(participants.interviewsOf(records))
         }
 
-    override fun countByApplication(application: ApplicationId): ApplicationStoreResult<Int> =
-        storeCall("count interviews") {
-            ApplicationStoreResult.Success(dsl.fetchCount(INTERVIEW, INTERVIEW.APPLICATION_ID.eq(application.value)))
-        }
-
     override fun upcoming(
         from: Instant,
         limit: Int,

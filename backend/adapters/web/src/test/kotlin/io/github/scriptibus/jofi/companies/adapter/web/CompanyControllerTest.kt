@@ -5,12 +5,14 @@ package io.github.scriptibus.jofi.companies.adapter.web
 
 import io.github.scriptibus.jofi.companies.application.CreateCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.DeleteCompanyUseCase
+import io.github.scriptibus.jofi.companies.application.FindCompanyLinksUseCase
 import io.github.scriptibus.jofi.companies.application.GetCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.SearchCompaniesUseCase
 import io.github.scriptibus.jofi.companies.application.SetCompanyPreferenceUseCase
 import io.github.scriptibus.jofi.companies.application.UpdateCompanyUseCase
 import io.github.scriptibus.jofi.companies.application.port.CompanyRepositoryPort
 import io.github.scriptibus.jofi.companies.application.port.spi.ApplicationCountsPort
+import io.github.scriptibus.jofi.companies.application.port.spi.TaskLinksPort
 import io.github.scriptibus.jofi.companies.domain.Company
 import io.github.scriptibus.jofi.companies.domain.CompanyDetails
 import io.github.scriptibus.jofi.companies.domain.CompanyId
@@ -27,6 +29,7 @@ import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.kotest.matchers.shouldBe
@@ -67,6 +70,7 @@ class CompanyControllerTest(
     class Ports {
         val companies = mockk<CompanyRepositoryPort>()
         val applications = mockk<ApplicationCountsPort>()
+        val tasks = mockk<TaskLinksPort>()
         val changelog = mockk<ChangelogPort>()
         val events = mockk<DomainEventPort>()
         val transactions =
@@ -113,7 +117,7 @@ class CompanyControllerTest(
         fun delete(ports: Ports) =
             DeleteCompanyUseCase(
                 ports.companies,
-                ports.applications,
+                FindCompanyLinksUseCase(ports.applications, ports.tasks),
                 ConfirmActionUseCase(MapStore(), clock, Duration.ofMinutes(5)),
                 ports.events,
                 ports.changelog,
@@ -145,7 +149,7 @@ class CompanyControllerTest(
 
     @BeforeEach
     fun storeAcme() {
-        clearMocks(ports.companies, ports.applications, ports.changelog, ports.events)
+        clearMocks(ports.companies, ports.applications, ports.tasks, ports.changelog, ports.events)
         every { ports.companies.findById(any()) } returns CompanyStoreResult.NotFound
         every { ports.companies.findById(acme.id) } returns CompanyStoreResult.Success(acme)
         every { ports.companies.add(any()) } returns CompanyStoreResult.Success(Unit)
@@ -154,6 +158,11 @@ class CompanyControllerTest(
             CompanyStoreResult.Success(listOf(ContactId(UUID.randomUUID()), ContactId(UUID.randomUUID())))
         every { ports.companies.delete(any(), any()) } returns CompanyStoreResult.Success(Unit)
         every { ports.applications.countByCompany(any()) } returns ApplicationCountsPort.Counts.Counted(emptyMap())
+        every { ports.tasks.linkedTo(setOf(acme.id.value), any()) } returns
+            TaskLinksPort.Links.Found(
+                listOf(TaskLinksPort.LinkedTask(acme.id.value, EntityRef("task", UUID.randomUUID().toString()))),
+                emptyList(),
+            )
         every { ports.changelog.append(any()) } returns ChangelogResult.Success(Unit)
         every { ports.events.publish(any()) } returns true
     }
@@ -303,14 +312,15 @@ class CompanyControllerTest(
     }
 
     @Test
-    fun `deleting takes two steps and the effect counts the contacts`() {
+    fun `deleting takes two steps and the effect counts the contacts and linked tasks`() {
         val session = MockHttpSession()
 
         val first = deleteAcme(session)
         first.response.status shouldBe 428
         val problem = json.readTree(first.response.contentAsString)
         problem["type"].asString() shouldBe Confirmations.REQUIRED
-        problem["effect"].toString() shouldBe """{"kind":"company","name":"ACME GmbH","counts":{"contacts":2}}"""
+        problem["effect"].toString() shouldBe
+            """{"kind":"company","name":"ACME GmbH","counts":{"contacts":2,"tasks":1}}"""
         verify(exactly = 0) { ports.companies.delete(any(), any()) }
 
         val token = problem["confirmationToken"].asString()
