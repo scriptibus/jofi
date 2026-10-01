@@ -8,6 +8,7 @@ import {
   type ModelPriceResponse,
   type ProviderResponse,
   useClearModelPrice,
+  useGetCostSummary,
   useListModelPrices,
   useListProviders,
 } from "../../api/generated/jofi";
@@ -41,11 +42,23 @@ export function ModelPrices() {
 
 function ProviderPrices({ provider }: { provider: ProviderResponse }) {
   const prices = useListModelPrices(provider.id);
+  const costs = useGetCostSummary(undefined, { query: { meta: { errorHandledLocally: true } } });
   const [editing, setEditing] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [failure, setFailure] = useState<ErrorDescription | null>(null);
   const list = prices.data ?? [];
   const headingId = `prices-${provider.id}`;
+  // The cost report groups by provider kind and model, not by provider: with several OpenAI-compatible providers
+  // a name is only a hint, offered under each of them.
+  const priced = new Set(list.map((price) => price.model));
+  const suggestions = (costs.data?.byModel ?? [])
+    .filter(
+      (line) =>
+        line.providerKind === "OPENAI_COMPATIBLE" &&
+        line.totals.unknownCostCalls > 0 &&
+        !priced.has(line.model),
+    )
+    .map((line) => line.model);
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3 rounded border border-line p-4">
@@ -94,6 +107,7 @@ function ProviderPrices({ provider }: { provider: ProviderResponse }) {
       ) : null}
       <ModelPriceForm
         providerId={provider.id}
+        suggestions={suggestions}
         onSaved={(saved) => {
           setFailure(null);
           setStatus(m.ai_price_saved({ model: saved.model }));

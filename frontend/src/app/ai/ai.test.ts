@@ -43,6 +43,20 @@ describe("formatUsd", () => {
     expect(plain(formatUsdPrice(micros, locale))).toBe(expected);
   });
 
+  it.each([
+    [0.15, 150_000],
+    [0.1 + 0.2, 300_000],
+    [1.005, 1_005_000],
+    [0.000001, 1],
+    [0.125, 125_000],
+    [0.6, 600_000],
+    [10_000, 10_000_000_000],
+    [0, 0],
+  ])("turns the dollar amount %d into exactly %d micros", (usd, micros) => {
+    expect(usdToMicros(usd)).toBe(micros);
+    expect(Number.isInteger(usdToMicros(usd))).toBe(true);
+  });
+
   it("turns dollars into whole micros", () => {
     expect(usdToMicros(12.34)).toBe(12_340_000);
     expect(usdToMicros(0.1 + 0.2)).toBe(300_000);

@@ -32,10 +32,18 @@ export interface ModelPriceFormProps {
   price?: ModelPriceResponse;
   onSaved: (price: ModelPriceResponse) => void;
   onCancel?: () => void;
+  /** Model names of calls this month that had no price (from the cost report), offered as a start. */
+  suggestions?: readonly string[];
 }
 
 /** One price of a model of an OpenAI-compatible provider; prices are entered as US dollars per million tokens. */
-export function ModelPriceForm({ providerId, price, onSaved, onCancel }: ModelPriceFormProps) {
+export function ModelPriceForm({
+  providerId,
+  price,
+  onSaved,
+  onCancel,
+  suggestions = [],
+}: ModelPriceFormProps) {
   const queryClient = useQueryClient();
   const [model, setModel] = useState(price?.model ?? "");
   const [input, setInput] = useState(price ? microsToUsd(price.inputMicrosPerMillion) : Number.NaN);
@@ -83,6 +91,24 @@ export function ModelPriceForm({ providerId, price, onSaved, onCancel }: ModelPr
         {price ? m.ai_price_edit_heading({ model: price.model }) : m.ai_price_add_heading()}
       </h4>
       <FailureAlert failure={failure} />
+      {price === undefined && suggestions.length > 0 ? (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="font-semibold">{m.ai_price_suggestions_label()}</legend>
+          <p className="text-muted">{m.ai_price_suggestions_hint()}</p>
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((name) => (
+              <Button
+                key={name}
+                variant="secondary"
+                aria-label={m.ai_price_suggestion_use({ model: name })}
+                onPress={() => setModel(name)}
+              >
+                <span className="font-data">{name}</span>
+              </Button>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
       <Form onSubmit={submit} validationErrors={fields.errors} className="flex max-w-md flex-col gap-4">
         <TextField
           name="model"

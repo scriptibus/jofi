@@ -8,7 +8,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { fakeAuthBackend } from "../../test/fakeAuthBackend";
-import { type FakeSetupState, fakeSetupBackend } from "../../test/fakeSetupBackend";
+import { type FakeSetupState, fakeSetupBackend, totals } from "../../test/fakeSetupBackend";
 import { App, createApp } from "../App";
 
 const server = setupServer();
@@ -185,6 +185,54 @@ describe("Settings > AI: prices for your own models", () => {
     expect(model).toHaveAccessibleDescription(/This is too long./);
     expect(within(form).getByLabelText(OUTPUT)).toHaveAttribute("aria-invalid", "true");
     expect(within(form).getByLabelText(OUTPUT)).toHaveAccessibleDescription(/This value is out of range./);
+  });
+
+  it("offers the models with unpriced calls this month as a start, but not priced or cloud ones", async () => {
+    const { user, setup } = start({
+      prices: new Map([[local.id, [price("priced", 1, 1)]]]),
+      costs: {
+        "2026-09": {
+          total: totals(9, 0, 9),
+          byTask: [],
+          byProviderKind: [],
+          byModel: [
+            { model: "llama3.1:8b", providerKind: "OPENAI_COMPATIBLE", totals: totals(4, 0, 4) },
+            { model: "priced", providerKind: "OPENAI_COMPATIBLE", totals: totals(3, 0, 3) },
+            { model: "known", providerKind: "OPENAI_COMPATIBLE", totals: totals(1, 5, 0) },
+            { model: "gpt-5-mini", providerKind: "OPENAI", totals: totals(1, 0, 1) },
+          ],
+        },
+      },
+    });
+    const card = await priceCard();
+    const suggestions = await within(card).findByRole("group", { name: "Models without a price" });
+    expect(within(suggestions).getAllByRole("button")).toHaveLength(1);
+
+    await user.click(within(suggestions).getByRole("button", { name: "Use the model name llama3.1:8b" }));
+    const form = within(card).getByRole("region", { name: "Add a price" });
+    expect(within(form).getByLabelText("Model name")).toHaveValue("llama3.1:8b");
+    await fillPrice(user, form, null, "0", "0");
+    await user.click(within(form).getByRole("button", { name: "Save price" }));
+    expect(await within(card).findByText("Price of llama3.1:8b saved.")).toBeVisible();
+    expect(setup.priceBodies).toHaveLength(1);
+  });
+
+  it("says the name must match exactly and what stays without a cost", async () => {
+    start();
+    const card = await priceCard();
+    expect(within(card).getByLabelText("Model name")).toHaveAccessibleDescription(/must match exactly/);
+    expect(screen.getByText(/the provider reports no token usage/)).toBeVisible();
+  });
+
+  it("encodes the model name in the removal request", async () => {
+    const odd = "meta/llama+3 & #1%";
+    const { user, setup } = start({ prices: new Map([[local.id, [price(odd, 1, 1)]]]) });
+    const card = await priceCard();
+
+    await user.click(within(card).getByRole("button", { name: `Remove the price of ${odd}` }));
+
+    expect(await within(card).findByText(/removed. Its next calls have no price./)).toBeVisible();
+    expect(setup.prices.get(local.id)).toEqual([]);
   });
 
   it("explains a refused price of a provider that is not OpenAI-compatible", async () => {
