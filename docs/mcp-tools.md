@@ -25,7 +25,8 @@ the PR that adds or changes a tool.
   `{"code": "...", "message": "...", "problems": [{"argument": "...", "problem": "..."}]}`.
   Codes: `invalid-arguments`, `not-found`, `unavailable`, `failed`, `internal-error`, `unauthenticated`,
   `privacy-filter-failed` (the "never send to AI" flags could not be read, so nothing was returned),
-  `version-conflict` (a write based on an older version of the entity: read it again and retry).
+  `version-conflict` (a write based on an older version of the entity: read it again and retry),
+  `invalid-transition` (a task cannot move from its state to the requested one).
 - Arguments that break a tool's schema (wrong type, a missing required argument, a value out of range) are
   refused by the MCP SDK as a tool error with a plain-text message before the tool runs. That message is not
   filtered; it names the properties the client sent and the schema's enum values, never argument values.
@@ -132,6 +133,56 @@ An update that sends back a value showing `[withheld]` (a flagged value the resu
 `invalid-arguments` (`withheld-value`) and changes nothing, because the replace-all update would store the marker
 over the real value. A contact or company with a flagged value therefore cannot be updated through these tools
 until they get patch-style updates.
+
+## Tasks (#119)
+
+Like the companies and contacts above, the task tools create or change data without confirmation (spec §9) and
+are logged in the changelog with the AI as actor (`Created task`, `Completed task`, `Accepted suggestion`).
+Completing a task and accepting a suggestion are edits: nothing is deleted and nothing leaves the app. A task
+result is `{id, version, status (OPEN, DONE, SUGGESTED, DISMISSED), origin (MANUAL, CHAT, SUGGESTED),
+suggestionRule, timing: {dueAt, localDue, timeZone} or {span, startsOn, endsBefore}, link: {type, id}, completedAt,
+createdAt, updatedAt, task: untrusted {title, notes}}`. Title and notes are untrusted for the reasons given above
+(a suggestion's title is made from an application's); ids, versions, status, timing and the link stay plain.
+Problems are named like `title:required`, `timeZone:invalid-time-zone`, `timing:required` (neither `bucket` nor
+`localDue`), `timing:ambiguous` (both), `localDue:out-of-range`, `link:not-found`.
+
+### `list_tasks` (read only)
+
+`timeZone` (required, the user's zone: an IANA id such as `Europe/Berlin` or an offset such as `+02:00`).
+Result: `{groups: [{group, tasks}]}` with the OPEN tasks only, grouped on the calendar of `timeZone` with weeks
+from Monday, as the Tasks page does (`ListTaskGroupsUseCase`, ADR-0049). Every group is always present, in this
+order, empty ones included: `OVERDUE` (an exact time that has passed, or a day, week or month that has ended),
+`TODAY`, `THIS_WEEK`, `NEXT_WEEK`, `THIS_MONTH`, `LATER`, `SOMEDAY`; each soonest first. An exact time that has
+not passed is grouped by its day in `timeZone`; a day, week or month that is running now counts as `TODAY`,
+`THIS_WEEK` or `THIS_MONTH`. Done tasks and suggestions are not in it. There is no paging: the answer holds every
+open task. Errors: `invalid-arguments` (`timeZone:invalid-time-zone`), `unavailable`.
+
+### `list_task_suggestions` (read only)
+
+No arguments. The suggested tasks waiting for a yes (for example a follow-up after applying), newest first, as
+`{tasks: [...]}`. It exists so `accept_task_suggestion` has ids and versions; the use case behind it is the one of
+`GET /api/tasks/suggestions`.
+
+### `create_task`
+
+`title` and `timeZone` (required), and when it is due as exactly one of `bucket` (`TODAY`, `THIS_WEEK`,
+`NEXT_WEEK`, `THIS_MONTH`, `SOMEDAY`, resolved on today's date in `timeZone`) or `localDue` (an exact wall-clock
+time in `timeZone`, `2026-10-05T10:00`); `link` (`{type: APPLICATION|COMPANY|CONTACT, id}`, must exist) and
+`notes` (Markdown); `null` for an optional argument is accepted. The task is open with origin `CHAT`. There is no
+update tool for tasks yet, so nothing takes a task back whole and the `[withheld]` refusal of the updates above
+does not apply. Result: the task. Errors: `invalid-arguments`, `unavailable`.
+
+### `complete_task`
+
+`id` and `version` (from `list_tasks`), both required. Marks an OPEN task done. A done task is returned unchanged
+and writes nothing; a suggestion or dismissed task answers `invalid-transition`. Result: the task. Errors:
+`not-found`, `version-conflict`, `invalid-transition`, `unavailable`.
+
+### `accept_task_suggestion`
+
+`id` and `version` (from `list_task_suggestions`), both required. Turns a suggestion into an open task (it keeps
+its origin, so its rule does not suggest it again). An open task is returned unchanged and writes nothing; a done
+or dismissed one answers `invalid-transition`. Result: the task. Errors: as `complete_task`.
 
 ## Deleting (two-step confirmation)
 

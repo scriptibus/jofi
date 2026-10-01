@@ -121,4 +121,20 @@ class ToolArgumentsTest {
             { wrong.objects("other") },
         ).forEach { read -> shouldThrow<InvalidToolArgument> { read() } }
     }
+
+    @Test
+    fun `a single object and a local date time are read, and wrong shapes name the argument`() {
+        val values =
+            ToolArguments(
+                mapOf("link" to mapOf("id" to "x"), "due" to "2026-10-05T10:00", "bad" to "tomorrow", "n" to 1),
+            )
+
+        values.obj("link")?.text("id") shouldBe "x"
+        values.obj("missing").shouldBeNull()
+        values.localDateTime("due") shouldBe java.time.LocalDateTime.of(2026, 10, 5, 10, 0)
+        values.localDateTime("missing").shouldBeNull()
+        listOf<() -> Any?>({ values.obj("n") }, { values.localDateTime("bad") }).forEach { read ->
+            shouldThrow<InvalidToolArgument> { read() }
+        }
+    }
 }
