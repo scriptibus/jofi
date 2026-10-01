@@ -51,30 +51,19 @@ class ListDashboardCountdownsUseCaseTest {
             ),
         )
 
+        val offer = onDay(CountdownKind.OFFER_ANSWER_DEADLINE, "Architect", "2026-10-06", offered)
+        val next =
+            DashboardCountdown(
+                CountdownKind.NEXT_INTERVIEW,
+                "Engineer",
+                CountdownTarget.At(startsAt, tokyo),
+                EntityRef("interview", interview.toString()),
+            )
+        val deadline = onDay(CountdownKind.APPLICATION_DEADLINE, "Engineer", "2026-10-20", applied)
+
         dashboard.execute(berlin) shouldBe
             TaskResult.Success(
-                listOf(
-                    DashboardCountdown.of(past),
-                    DashboardCountdown.of(custom),
-                    DashboardCountdown(
-                        CountdownKind.OFFER_ANSWER_DEADLINE,
-                        "Architect",
-                        CountdownTarget.OnDay(LocalDate.parse("2026-10-06")),
-                        EntityRef("application", offered.toString()),
-                    ),
-                    DashboardCountdown(
-                        CountdownKind.NEXT_INTERVIEW,
-                        "Engineer",
-                        CountdownTarget.At(startsAt, tokyo),
-                        EntityRef("interview", interview.toString()),
-                    ),
-                    DashboardCountdown(
-                        CountdownKind.APPLICATION_DEADLINE,
-                        "Engineer",
-                        CountdownTarget.OnDay(LocalDate.parse("2026-10-20")),
-                        EntityRef("application", applied.toString()),
-                    ),
-                ),
+                listOf(DashboardCountdown.of(past), DashboardCountdown.of(custom), offer, next, deadline),
             )
     }
 
@@ -97,4 +86,16 @@ class ListDashboardCountdownsUseCaseTest {
         fixtures.failingStore = true
         dashboard.execute(berlin) shouldBe TaskResult.StorageFailure("list")
     }
+
+    private fun onDay(
+        kind: CountdownKind,
+        title: String,
+        date: String,
+        application: UUID,
+    ) = DashboardCountdown(
+        kind,
+        title,
+        CountdownTarget.OnDay(LocalDate.parse(date)),
+        EntityRef("application", application.toString()),
+    )
 }

@@ -77,12 +77,13 @@ class CountdownFlowTest(
         val browser = owner()
         val request = """{"title":"Notice ends at Erika's firm","targetDate":"${today.plusDays(3)}"}"""
         val id = browser.post("/api/countdowns", request).ok(201)["id"].asString()
-        browser.get("/api/countdowns").ok()["countdowns"].toList().map { it["id"].asString() } shouldBe listOf(id)
+        browser
+            .get("/api/countdowns")
+            .ok()["countdowns"]
+            .toList()
+            .map { it["id"].asString() } shouldBe listOf(id)
 
-        val moved = """{"title":"Notice ends at Erika's firm","targetDate":"${today.plusDays(7)}"}"""
-        val edited = browser.put("/api/countdowns/$id", """{"details":$moved,"basedOnVersion":0}""").ok()
-        edited["version"].asInt() shouldBe 1
-        browser.put("/api/countdowns/$id", """{"details":$moved,"basedOnVersion":0}""").response.status shouldBe 409
+        moveToNextWeek(browser, id)
 
         val subjects = seedApplications(browser)
         dashboard(browser) shouldContainExactly
@@ -97,6 +98,35 @@ class CountdownFlowTest(
         dashboard(browser).map { it.first } shouldBe
             listOf("OFFER_ANSWER_DEADLINE", "APPLICATION_DEADLINE", "NEXT_INTERVIEW")
 
+        recordedByUserWithoutTitle(id)
+    }
+
+    @Test
+    fun `an unknown zone is a 400 and no session is a 401`() {
+        val browser = owner()
+
+        val refused = browser.get("/api/dashboard/countdowns?timeZone=Mars/Olympus")
+        refused.response.status shouldBe 400
+        refused.body()["violations"].toString() shouldBe """[{"field":"timeZone","problem":"INVALID_TIME_ZONE"}]"""
+
+        val anonymous = Browser(mvc, "192.0.2.${addresses.incrementAndGet()}").open()
+        anonymous.get("/api/countdowns").response.status shouldBe 401
+        anonymous.get("/api/dashboard/countdowns?timeZone=UTC").response.status shouldBe 401
+    }
+
+    /** Moves the countdown to a week from today; repeating it on the old version is a 409. */
+    private fun moveToNextWeek(
+        browser: Browser,
+        id: String,
+    ) {
+        val moved = """{"title":"Notice ends at Erika's firm","targetDate":"${today.plusDays(7)}"}"""
+        val edited = browser.put("/api/countdowns/$id", """{"details":$moved,"basedOnVersion":0}""").ok()
+        edited["version"].asInt() shouldBe 1
+        browser.put("/api/countdowns/$id", """{"details":$moved,"basedOnVersion":0}""").response.status shouldBe 409
+    }
+
+    /** Created, edited and deleted, each by the user; neither field changes nor descriptions quote the title. */
+    private fun recordedByUserWithoutTitle(id: String) {
         val entries =
             dsl
                 .selectFrom(CHANGELOG_ENTRY)
@@ -111,19 +141,6 @@ class CountdownFlowTest(
             it.fieldChanges.data() shouldNotContain "Erika"
             it.description shouldNotContain "Erika"
         }
-    }
-
-    @Test
-    fun `an unknown zone is a 400 and no session is a 401`() {
-        val browser = owner()
-
-        val refused = browser.get("/api/dashboard/countdowns?timeZone=Mars/Olympus")
-        refused.response.status shouldBe 400
-        refused.body()["violations"].toString() shouldBe """[{"field":"timeZone","problem":"INVALID_TIME_ZONE"}]"""
-
-        val anonymous = Browser(mvc, "192.0.2.${addresses.incrementAndGet()}").open()
-        anonymous.get("/api/countdowns").response.status shouldBe 401
-        anonymous.get("/api/dashboard/countdowns?timeZone=UTC").response.status shouldBe 401
     }
 
     /** The first call asks, naming the countdown; the repeat with the token deletes it. */
