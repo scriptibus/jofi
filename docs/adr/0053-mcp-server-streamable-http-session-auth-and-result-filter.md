@@ -107,3 +107,17 @@ the app's CSRF rules, where tools live given that adapters may not depend on eac
   human-in-the-loop lens should trigger on it (spec §4.8b). That is a reviewer change for Lucas, not part
   of this feature PR.
 - A future public host name setting could turn the Origin rule into an allowlist and add a Host check.
+
+## Amendment (#119): fields writable through tools are `Untrusted`
+
+Added with the company and contact tools; nothing above is withdrawn except the last sentence of the
+`Untrusted` bullet ("The user's own fields … stay plain") for fields a tool can write.
+
+- Once a tool lets the model write a field without confirmation, that field can hold text from a prompt-injected
+  session (threat model T2), and every later session or client would read it as the user's own words. So every
+  field an MCP tool can write is returned wrapped as `Untrusted`: the company name, website, industry, size,
+  locations, careers page and research notes, and a contact's name, role, channels and relationship notes.
+- Fields no tool can write stay plain (the company preference and its reason, ids, versions, timestamps). A tool
+  that starts writing such a field wraps it in the same change.
+- This is the conservative choice. A second trust mark ("may be AI-written") or provenance taken from the
+  changelog actor would let clients tell the user's own text from the model's; that is open for the maintainer.
