@@ -4,9 +4,11 @@
 package io.github.scriptibus.jofi.applications.adapter.persistence
 
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
+import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationValidation
 import io.github.scriptibus.jofi.applications.domain.ContactRef
+import io.github.scriptibus.jofi.applications.domain.DeclineCategory
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewDetails
 import io.github.scriptibus.jofi.applications.domain.InterviewEdit
@@ -23,6 +25,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIE
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIEW_PARTICIPANT
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.kotest.matchers.collections.shouldContainExactly
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -228,6 +231,28 @@ class InterviewRepositoryTest {
             )
         repository.upcoming(past.details.time.startsAt, 1) shouldBe
             ApplicationStoreResult.Success(listOf(UpcomingInterview(past, "Backend Engineer")))
+    }
+
+    @Test
+    fun `interviews of closed applications are not upcoming, those of every pipeline status are`() {
+        val byStatus =
+            ApplicationStatus.entries.associateWith { status ->
+                val of = ApplicationId(UUID.randomUUID())
+                rows.application(of.value, company) {
+                    this.status = status.name
+                    if (status.takesDeclineReason) declineCategory = DeclineCategory.SALARY.name
+                }
+                stored(details("2026-10-05T10:00"), of)
+            }
+
+        val upcoming =
+            repository
+                .upcoming(Instant.parse("2026-10-01T00:00:00Z"), 100)
+                .shouldBeInstanceOf<ApplicationStoreResult.Success<List<UpcomingInterview>>>()
+                .value
+                .map { it.interview }
+
+        upcoming shouldContainExactlyInAnyOrder byStatus.filterKeys { !it.isTerminal }.values
     }
 
     private fun read(id: InterviewId): Interview =

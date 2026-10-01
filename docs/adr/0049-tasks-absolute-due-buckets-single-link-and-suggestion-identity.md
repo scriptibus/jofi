@@ -124,10 +124,10 @@ goes with a task. The tasks domain defines no events yet: no other context react
 - **Follow-up**: an `APPLIED` application without activity (as the Ghosted suggestion defines it) for the settings'
   `followUpAfterDays` (default 14, ADR-0050). Key `application:<id>:<last activity>` (one silence, one suggestion),
   due on the UTC day the period ended (Jofi keeps no user zone).
-- **Interview preparation**: every interview still to come and not cancelled, due the day before it on the calendar
-  of the zone it was planned in (ADR-0048). Key `interview:<id>:<that day>`: a reschedule to another day dismisses
-  the old suggestion and makes a new one; one within the same day keeps it. Once the interview has begun, a waiting
-  preparation is obsolete.
+- **Interview preparation**: every interview still to come, not cancelled and of an open application, due the day
+  before it on the calendar of the zone it was planned in (ADR-0048). Key `interview:<id>:<that day>`: a reschedule
+  to another day dismisses the old suggestion and makes a new one; one within the same day keeps it. Once the
+  interview has begun, or its application has closed, a waiting preparation is obsolete.
 - **Offer answer**: an application at `OFFER` whose offer has `answerBy` today (UTC) or later, due the day before.
   Key `application:<id>:<answerBy>`: a new date is a new suggestion; a passed date, a removed date or a move on from
   `OFFER` makes the waiting one obsolete.
