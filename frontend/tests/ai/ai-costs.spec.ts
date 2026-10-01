@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Settings > AI > Costs against the real backend and the fake AI provider, in the `ai-setup` project
-// (playwright.config.ts): a posting import makes one EXTRACTION call through the seeded provider, and the
+// Settings > AI > Costs against the real backend and the fake AI provider, in the `ai-costs` project, after
+// `ai-setup` (playwright.config.ts): a posting import makes one EXTRACTION call through the seeded provider, and the
 // month's costs show it per task, provider and model. Other tests spend on the same instance, so the
 // assertions work from the API's own figures before and after, never from absolute counts.
 

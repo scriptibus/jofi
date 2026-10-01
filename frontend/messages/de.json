@@ -382,6 +382,7 @@
   "ai_costs_budget_text": "{spent} von {cap} ({percent})",
   "ai_costs_spent": "Ausgegeben im {month}: {spent}",
   "ai_costs_no_cap": "Es ist keine Monatsobergrenze gesetzt.",
+  "ai_costs_cap": "Monatsobergrenze: {cap}",
   "ai_costs_unknown": "Kein Preis",
   "ai_costs_unpriced": [
     {

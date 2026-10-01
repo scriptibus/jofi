@@ -128,6 +128,7 @@ export function totals(
 }
 
 const FIRST_YEAR = 2000;
+const MAX_HISTORY_MONTHS = 24;
 const MONTHS_A_YEAR = 12;
 const MONTH_FORMAT = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
@@ -238,10 +239,11 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
     if (state.costsFail?.summary) return problem(state.costsFail.summary, "about:blank");
     const month = requested ?? state.currentMonth;
     const year = Number(month.slice(0, 4));
-    if (!MONTH_FORMAT.test(month) || month > state.currentMonth || year < FIRST_YEAR)
-      return invalid([
-        { field: "month", problem: month > state.currentMonth ? "OUT_OF_RANGE" : "INVALID_FORMAT" },
-      ]);
+    // The backend (`BillingMonth`): a malformed value is INVALID_FORMAT, a well-formed one before 2000 or
+    // after the current month is OUT_OF_RANGE.
+    if (!MONTH_FORMAT.test(month)) return invalid([{ field: "month", problem: "INVALID_FORMAT" }]);
+    if (month > state.currentMonth || year < FIRST_YEAR)
+      return invalid([{ field: "month", problem: "OUT_OF_RANGE" }]);
     const isCurrent = month === state.currentMonth;
     return json({
       month,
@@ -252,9 +254,14 @@ export function fakeSetupBackend(initial: Partial<FakeSetupState> = {}) {
   };
 
   const history = (url: URL) => {
-    const count = Number(url.searchParams.get("months") ?? 12);
-    state.costCalls.push(`history:${count}`);
+    const requested = url.searchParams.get("months") ?? "12";
+    const count = Number(requested);
+    state.costCalls.push(`history:${requested}`);
     if (state.costsFail?.history) return problem(state.costsFail.history, "about:blank");
+    // The backend (`CostReport.MAX_MONTHS`): 1 to 24, anything else is refused; a non-number is a plain 400.
+    if (!Number.isInteger(count)) return problem(400, "about:blank");
+    if (count < 1 || count > MAX_HISTORY_MONTHS)
+      return invalid([{ field: "months", problem: "OUT_OF_RANGE" }]);
     return json(
       Array.from({ length: count }, (_, index) => {
         const month = shiftMonth(state.currentMonth, index + 1 - count);

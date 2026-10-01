@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -15,6 +15,7 @@ import {
   NO_CALLS,
   totals,
 } from "../../test/fakeSetupBackend";
+import { BudgetForm } from "./BudgetForm";
 import { CostsCard } from "./CostsCard";
 
 const server = setupServer();
@@ -42,12 +43,16 @@ const SEPTEMBER: Breakdown = {
   ],
 };
 
-function start(setup: Partial<FakeSetupState> = {}) {
+function start(setup: Partial<FakeSetupState> = {}, withBudgetForm = false) {
   const fake = fakeSetupBackend(setup);
   server.use(...fake.handlers);
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // With the app's staleTime (30 s) a card that is not invalidated never asks again; only the tests of two
+  // cards together need that.
+  const staleTime = withBudgetForm ? 30_000 : 0;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime } } });
   render(
     <QueryClientProvider client={client}>
+      {withBudgetForm ? <BudgetForm /> : null}
       <CostsCard />
     </QueryClientProvider>,
   );
@@ -84,6 +89,29 @@ describe("Costs card: the month's costs", () => {
     start({ costs: { "2026-09": SEPTEMBER }, capMicros: 3_200_000, spentMicros: 3_200_000 });
     expect(await screen.findByText("Budget reached")).toBeVisible();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+  });
+
+  it("shows the real percent above the cap, with the bar full", async () => {
+    start({ costs: { "2026-09": SEPTEMBER }, capMicros: 10_000_000, spentMicros: 25_000_000 });
+    const bar = await screen.findByRole("progressbar", { name: "Spent against the monthly cap" });
+    expect(bar).toHaveAttribute("aria-valuetext", "$25.00 of $10.00 (250%)");
+    expect(bar).toHaveAttribute("aria-valuenow", "100");
+    expect(screen.getByText("$25.00 of $10.00 (250%)", { selector: "p" })).toBeVisible();
+    expect(screen.getByText("Budget reached")).toBeVisible();
+  });
+
+  it("treats a cap with only unpriced calls like no cap: no price, never $0", async () => {
+    const unpriced: Breakdown = {
+      total: totals(2, 0, 2),
+      byTask: [{ task: "CHAT", totals: totals(2, 0, 2) }],
+      byProviderKind: [{ providerKind: "OPENAI_COMPATIBLE", totals: totals(2, 0, 2) }],
+      byModel: [{ providerKind: "OPENAI_COMPATIBLE", model: "llama-home", totals: totals(2, 0, 2) }],
+    };
+    start({ costs: { "2026-09": unpriced }, capMicros: 10_000_000, spentMicros: 0 });
+    expect(await screen.findByText("Spent in September 2026: No price")).toBeVisible();
+    expect(screen.getByText("Monthly cap: $10.00")).toBeVisible();
+    expect(screen.queryByText(/\$0\.00 of/)).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
   });
 
   it("shows only the sum when no cap is set", async () => {
@@ -141,6 +169,53 @@ describe("Costs card: the month's costs", () => {
     expect(await screen.findByText("No AI calls yet in September 2026.")).toBeVisible();
     expect(screen.queryByRole("table", { name: "Costs by task" })).toBeNull();
     expect(screen.queryByText(/\$0\.00 of/)).toBeNull();
+  });
+});
+
+describe("Costs card next to the budget card", () => {
+  const capField = () => screen.findByLabelText("Monthly cap in US dollars");
+
+  it("follows a changed cap", async () => {
+    const { user } = start(
+      { costs: { "2026-09": SEPTEMBER }, capMicros: 10_000_000, spentMicros: 3_200_000 },
+      true,
+    );
+    expect(await screen.findByRole("progressbar")).toHaveAttribute("aria-valuetext", "$3.20 of $10.00 (32%)");
+    const field = await capField();
+    await user.clear(field);
+    await user.type(field, "20");
+    await user.click(screen.getByRole("button", { name: "Save cap" }));
+    await waitFor(() =>
+      expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "$3.20 of $20.00 (16%)"),
+    );
+  });
+
+  it("drops the bar when the cap is removed", async () => {
+    const { user } = start(
+      { costs: { "2026-09": SEPTEMBER }, capMicros: 10_000_000, spentMicros: 3_200_000 },
+      true,
+    );
+    await screen.findByRole("progressbar");
+    await user.click(screen.getByRole("button", { name: "Remove cap" }));
+    expect(await screen.findByText("No monthly cap is set.")).toBeVisible();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("says the budget is reached when the cap drops below the spending", async () => {
+    const { user } = start(
+      { costs: { "2026-09": SEPTEMBER }, capMicros: 10_000_000, spentMicros: 3_200_000 },
+      true,
+    );
+    await screen.findByRole("progressbar");
+    expect(screen.queryByText("Budget reached")).toBeNull();
+    const field = await capField();
+    await user.clear(field);
+    await user.type(field, "2");
+    await user.click(screen.getByRole("button", { name: "Save cap" }));
+    await waitFor(() =>
+      expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "$3.20 of $2.00 (160%)"),
+    );
+    expect(screen.getAllByText("Budget reached").length).toBeGreaterThan(0);
   });
 });
 
@@ -246,6 +321,38 @@ describe("Costs card: errors", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await table("AI costs per month")).toBeVisible();
     expect(screen.getByRole("button", { name: /Month/ })).toBeVisible();
+  });
+});
+
+describe("the fake cost API answers like the backend", () => {
+  const get = (path: string) => fetch(`${window.location.origin}${path}`);
+  const violation = async (response: Response) =>
+    ((await response.json()) as { violations: { field: string; problem: string }[] }).violations[0];
+
+  it("refuses a month before 2000, a later month and a malformed month", async () => {
+    server.use(...fakeSetupBackend().handlers);
+    const early = await get("/api/setup/costs?month=1999-12");
+    expect(early.status).toBe(400);
+    expect(await violation(early)).toEqual({ field: "month", problem: "OUT_OF_RANGE" });
+    expect(await violation(await get("/api/setup/costs?month=2026-10"))).toEqual({
+      field: "month",
+      problem: "OUT_OF_RANGE",
+    });
+    expect(await violation(await get("/api/setup/costs?month=2026-13"))).toEqual({
+      field: "month",
+      problem: "INVALID_FORMAT",
+    });
+  });
+
+  it("refuses a history of less than 1 or more than 24 months", async () => {
+    server.use(...fakeSetupBackend().handlers);
+    for (const months of ["0", "25"]) {
+      const response = await get(`/api/setup/costs/history?months=${months}`);
+      expect(response.status).toBe(400);
+      expect(await violation(response)).toEqual({ field: "months", problem: "OUT_OF_RANGE" });
+    }
+    expect((await get("/api/setup/costs/history?months=many")).status).toBe(400);
+    expect((await get("/api/setup/costs/history?months=24")).status).toBe(200);
   });
 });
 

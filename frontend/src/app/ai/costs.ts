@@ -17,18 +17,14 @@ export function formatMonth(month: string, locale: string = getLocale()): string
 }
 
 /**
- * How much of the cap is used, as a whole percent from 0 to 100. Rounded down, so a month just below the
- * cap never reads "100%" (that is what the reached state says); no cap left to measure against counts
+ * How much of the cap is used, as a whole percent (not clamped: the cap is soft, so spending above it,
+ * 250%, is normal and the text must say so; a bar clamps for itself). Rounded down, so a month just below
+ * the cap never reads "100%" (that is what the reached state says); no cap left to measure against counts
  * as full as soon as anything is spent.
  */
 export function budgetPercent(spentMicros: number, capMicros: number): number {
   if (capMicros <= 0) return spentMicros > 0 ? PERCENT_FULL : 0;
-  return Math.min(PERCENT_FULL, Math.max(0, Math.floor((spentMicros / capMicros) * PERCENT_FULL)));
-}
-
-/** A whole percent in the user's locale ("30%" / "30 %"). */
-export function formatPercent(percent: number, locale: string = getLocale()): string {
-  return new Intl.NumberFormat(locale, { style: "percent" }).format(percent / PERCENT_FULL);
+  return Math.max(0, Math.floor((spentMicros / capMicros) * PERCENT_FULL));
 }
 
 export interface CostFigure {

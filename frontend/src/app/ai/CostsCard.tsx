@@ -5,9 +5,10 @@ import { useState } from "react";
 import { type CostSummaryResponse, useGetCostHistory, useGetCostSummary } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { Alert, Button, Form, ProgressBar, Select } from "../../ui";
+import { formatPercent } from "../applications/format";
 import { formatCount } from "../backup/files";
 import { CostBreakdowns, CostHistoryTable, unpricedText } from "./CostTables";
-import { budgetPercent, costFigure, formatMonth, formatPercent } from "./costs";
+import { budgetPercent, costFigure, formatMonth } from "./costs";
 import { formatUsd } from "./money";
 import { describeSetupError, fieldErrorsOf } from "./setupProblems";
 
@@ -122,7 +123,9 @@ function Summary({ summary }: { summary: CostSummaryResponse }) {
 /** Progress with text (never colour alone) against the cap; without a cap, or for a past month, just the sum. */
 function SpentAgainstCap({ summary, month }: { summary: CostSummaryResponse; month: string }) {
   const { budget } = summary;
-  if (budget?.capMicros != null) {
+  const { knownMicros } = costFigure(summary.total);
+  // Only unpriced calls: nothing to measure against the cap, and "$0.00 of ..." would be the $0 the issue forbids.
+  if (budget?.capMicros != null && knownMicros !== null) {
     const percent = budgetPercent(budget.spentMicros, budget.capMicros);
     const text = m.ai_costs_budget_text({
       spent: formatUsd(budget.spentMicros),
@@ -143,7 +146,6 @@ function SpentAgainstCap({ summary, month }: { summary: CostSummaryResponse; mon
       </>
     );
   }
-  const { knownMicros } = costFigure(summary.total);
   return (
     <>
       <p className="text-h3">
@@ -152,7 +154,10 @@ function SpentAgainstCap({ summary, month }: { summary: CostSummaryResponse; mon
           spent: knownMicros === null ? m.ai_costs_unknown() : formatUsd(knownMicros),
         })}
       </p>
-      {budget ? <p className="text-muted">{m.ai_costs_no_cap()}</p> : null}
+      {budget?.capMicros != null ? (
+        <p className="text-muted">{m.ai_costs_cap({ cap: formatUsd(budget.capMicros) })}</p>
+      ) : null}
+      {budget && budget.capMicros == null ? <p className="text-muted">{m.ai_costs_no_cap()}</p> : null}
     </>
   );
 }

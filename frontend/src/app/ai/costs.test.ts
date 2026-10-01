@@ -3,10 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { totals } from "../../test/fakeSetupBackend";
-import { budgetPercent, costFigure, formatMonth, formatPercent } from "./costs";
-
-// Intl puts no-break spaces into some German formats.
-const plain = (text: string) => text.replace(/\s/g, " ");
+import { budgetPercent, costFigure, formatMonth } from "./costs";
 
 describe("formatMonth", () => {
   it.each([
@@ -27,18 +24,11 @@ describe("budgetPercent", () => {
     [3_200_000, 10_000_000, 32],
     [9_999_999, 10_000_000, 99],
     [10_000_000, 10_000_000, 100],
-    [12_000_000, 10_000_000, 100],
+    [25_000_000, 10_000_000, 250],
     [1, 0, 100],
     [0, 0, 0],
   ])("%d micros of a cap of %d is %d percent", (spent, cap, expected) => {
     expect(budgetPercent(spent, cap)).toBe(expected);
-  });
-});
-
-describe("formatPercent", () => {
-  it("follows the locale", () => {
-    expect(plain(formatPercent(32, "en"))).toBe("32%");
-    expect(plain(formatPercent(32, "de"))).toBe("32 %");
   });
 });
 
