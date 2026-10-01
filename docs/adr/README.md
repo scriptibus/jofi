@@ -62,3 +62,4 @@ New ADR: copy `template.md` to the next free number. Supersede instead of rewrit
 | [0051](0051-posting-import-job-structured-extraction-and-company-match.md) | Posting import as a job with kept text, structured AI extraction and a strict company match | accepted |
 | [0052](0052-dashboard-figures-funnel-response-rate-and-recent-activity.md) | Dashboard figures: funnel and response rate over the status history, upcoming tasks, recent activity | accepted |
 | [0053](0053-mcp-server-streamable-http-session-auth-and-result-filter.md) | The MCP server: Streamable HTTP, session auth, one use case per tool, filtered results | accepted |
+| [0054](0054-dashboard-ui-widgets-and-localised-activity-texts.md) | Dashboard UI: one widget per figure, activity texts localised from type and verb | accepted |
