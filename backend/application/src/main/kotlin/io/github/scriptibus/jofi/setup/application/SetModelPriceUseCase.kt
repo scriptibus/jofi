@@ -46,7 +46,7 @@ class SetModelPriceUseCase(
                             valid.outputMicrosPerMillion,
                             clock.storedNow(),
                         )
-                    // The old price is read in the transaction that replaces it, so the changelog shows what was replaced.
+                    // The old price is read in the transaction that replaces it, so the log shows what it replaced.
                     transactions.whenSuccessful {
                         prices.find(id, valid.model).orNull().then { before -> change(before, price, actor) }
                     }
@@ -67,7 +67,7 @@ class SetModelPriceUseCase(
         actor: Actor,
     ): SetupResult<ModelPriceOverride> {
         val description = "Set the price of model ${price.model.value}"
-        return when (val saved = prices.save(price)) {
+        return when (prices.save(price)) {
             is SetupStoreResult.Success -> {
                 val recorded =
                     changelog.record(

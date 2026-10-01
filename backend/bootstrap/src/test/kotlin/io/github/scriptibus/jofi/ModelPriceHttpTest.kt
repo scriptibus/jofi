@@ -82,11 +82,13 @@ class ModelPriceHttpTest(
                         HttpResponse.BodyHandlers.ofString(),
                     )
                 }
-            response.headers().allValues("Set-Cookie").forEach { header ->
-                val (name, value) = header.substringBefore(';').split("=", limit = 2)
-                if (value.isEmpty() || header.contains("Max-Age=0")) cookies.remove(name) else cookies[name] = value
-            }
+            response.headers().allValues("Set-Cookie").forEach(::remember)
             return Answer(response.statusCode(), response.body())
+        }
+
+        private fun remember(header: String) {
+            val (name, value) = header.substringBefore(';').split("=", limit = 2)
+            if (value.isEmpty() || header.contains("Max-Age=0")) cookies.remove(name) else cookies[name] = value
         }
 
         fun owner(): Client =
