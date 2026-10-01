@@ -61,7 +61,7 @@ class StartPostingImportUseCase(
         actor: Actor,
     ): ApplicationResult<Pair<PostingImport, Boolean>> =
         imports.lockForStart("text:${description.value}").toResult().then {
-            imports.findPendingByText(description).toResult().then { duplicate ->
+            stillPending(description).then { duplicate ->
                 if (duplicate != null) {
                     ApplicationResult.Success(duplicate to false)
                 } else {
@@ -70,6 +70,14 @@ class StartPostingImportUseCase(
                 }
             }
         }
+
+    /** The import pending for [description], unless it stalled (its job is gone): then a resubmit starts a new one. */
+    private fun stillPending(description: DescriptionText): ApplicationResult<PostingImport?> {
+        val now = clock.storedNow()
+        return imports.findPendingByText(description).toResult().then { found ->
+            ApplicationResult.Success(found?.takeUnless { it.stalled(now) })
+        }
+    }
 
     private fun notQueued(
         pending: PostingImport,

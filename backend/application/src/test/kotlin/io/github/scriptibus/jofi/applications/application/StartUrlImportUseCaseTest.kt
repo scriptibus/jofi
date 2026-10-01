@@ -24,6 +24,7 @@ import io.github.scriptibus.jofi.shared.domain.http.ResponseBody
 import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.net.URI
@@ -90,6 +91,21 @@ class StartUrlImportUseCaseTest {
         second.value.shouldBeInstanceOf<UrlImportOutcome.AlreadyPending>()
         second.value.import shouldBe first
         fixtures.fetchRequests shouldHaveSize 1
+    }
+
+    @Test
+    fun `a pending import for the link that stalled has no job any more, so a resubmit starts a new one`() {
+        val first = started()
+        fixtures.imports[first.id] =
+            first.copy(
+                createdAt = first.createdAt.minus(PostingImport.STALLED_AFTER),
+                updatedAt = first.updatedAt.minus(PostingImport.STALLED_AFTER),
+            )
+
+        val second = started()
+
+        second.id shouldNotBe first.id
+        fixtures.queued shouldHaveSize 2
     }
 
     @Test

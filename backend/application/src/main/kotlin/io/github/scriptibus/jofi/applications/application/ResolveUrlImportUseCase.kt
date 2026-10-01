@@ -50,7 +50,7 @@ class ResolveUrlImportUseCase(
         address: WebAddress,
         actor: Actor,
     ): ApplicationResult<UrlImportOutcome?> =
-        imports.findPendingBySourceUrl(address).toResult().then { pending ->
+        stillPending(address).then { pending ->
             if (pending != null) {
                 ApplicationResult.Success(UrlImportOutcome.AlreadyPending(pending))
             } else {
@@ -60,6 +60,14 @@ class ResolveUrlImportUseCase(
                 }
             }
         }
+
+    /** The import pending for [address], unless it stalled (its job is gone): then a resubmit starts a new one. */
+    private fun stillPending(address: WebAddress): ApplicationResult<PostingImport?> {
+        val now = clock.storedNow()
+        return imports.findPendingBySourceUrl(address).toResult().then { found ->
+            ApplicationResult.Success(found?.takeUnless { it.stalled(now) })
+        }
+    }
 
     private fun recordAlreadyImported(
         application: ApplicationId,
@@ -86,7 +94,7 @@ class ResolveUrlImportUseCase(
         actor: Actor,
     ): ApplicationResult<UrlImportOutcome> =
         imports.lockForStart("url:${address.value}").toResult().then {
-            imports.findPendingBySourceUrl(address).toResult().then { pending ->
+            stillPending(address).then { pending ->
                 if (pending != null) {
                     ApplicationResult.Success(UrlImportOutcome.AlreadyPending(pending))
                 } else {

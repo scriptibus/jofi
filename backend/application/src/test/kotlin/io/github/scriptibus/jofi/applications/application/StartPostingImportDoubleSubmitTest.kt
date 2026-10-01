@@ -63,6 +63,21 @@ class StartPostingImportDoubleSubmitTest {
         fixtures.imports.size shouldBe 2
     }
 
+    @Test
+    fun `a pending import that stalled has no job any more, so a resubmit starts a new one and queues it`() {
+        val first = started()
+        fixtures.imports[first.id] =
+            first.copy(
+                createdAt = first.createdAt.minus(PostingImport.STALLED_AFTER),
+                updatedAt = first.updatedAt.minus(PostingImport.STALLED_AFTER),
+            )
+
+        val second = started()
+
+        second.id shouldNotBe first.id
+        fixtures.queued shouldHaveSize 2
+    }
+
     private companion object {
         const val POSTING = "# Senior Kotlin Developer\n\nACME Robotics AG, Berlin."
     }
