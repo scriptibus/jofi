@@ -66,4 +66,16 @@ class WebAddressTest {
         WebAddress.parse(longest + "x").shouldBeNull()
         shouldThrow<IllegalArgumentException> { WebAddress("ftp://acme.example") }
     }
+
+    @Test
+    fun `toUri keeps the scheme, port, path, query and fragment, and resolves an internationalised host`() {
+        WebAddress("http://jobs.example:8080/list?q=kotlin&page=2#top").toUri().toString() shouldBe
+            "http://jobs.example:8080/list?q=kotlin&page=2#top"
+        WebAddress("https://bücher.example/jobs").toUri().host shouldBe "xn--bcher-kva.example"
+    }
+
+    @Test
+    fun `toUri answers no host for one URI itself cannot parse as a server authority, such as an underscore`() {
+        WebAddress("https://my_team.example/careers").toUri().host.shouldBeNull()
+    }
 }

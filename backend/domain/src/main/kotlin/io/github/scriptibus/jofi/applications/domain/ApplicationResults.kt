@@ -114,6 +114,12 @@ enum class ApplicationProblem {
     /** Not an absolute http(s) URL with a host and without user info. */
     INVALID_URL,
 
+    /** A link to a site Jofi never scrapes (#97, spec §8.1: no LinkedIn, StepStone or Indeed); paste the text. */
+    NOT_ALLOWED,
+
+    /** The link could not be fetched (blocked, timed out, too large, the wrong content type, or no readable text). */
+    UNREACHABLE,
+
     /** Not a time zone Java knows: an IANA id such as `Europe/Berlin`, or an offset such as `+02:00`. */
     INVALID_TIME_ZONE,
 
@@ -174,6 +180,12 @@ sealed interface ApplicationResult<out T> {
 
     /** Only a failed or stalled posting import can be retried; this one is done, or pending and not stalled. */
     data object ImportNotRetryable : Failure
+
+    /**
+     * The same link is being imported by another request that did not finish within the wait (#97): try again
+     * shortly; by then its import or its failure is known.
+     */
+    data object ImportInProgress : Failure
 
     /** No AI model is assigned to the task the operation needs; the user sets one up first (spec §3.2). */
     data object AiNotConfigured : Failure

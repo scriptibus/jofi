@@ -26,6 +26,25 @@ value class WebAddress(
     /** The host as entered, without port, path, query or fragment. */
     val host: String get() = checkNotNull(SHAPE.matchEntire(value)?.groups?.get(1)).value.replace(PORT, "")
 
+    /**
+     * This address as a [URI], ready for `OutboundHttpPort`: the host in its ASCII form ([IDN.toASCII]), since
+     * `URI` alone does not resolve an internationalised host. A host [value] accepts but `URI` cannot parse as a
+     * server authority at all (an underscore) still becomes a `URI`, just one whose `host` answers `null`; the net
+     * adapter then cannot resolve a destination for it, so such a link is reported unreachable, never fetched.
+     */
+    fun toUri(): URI {
+        val authority = checkNotNull(SHAPE.matchEntire(value)?.groups?.get(1))
+        val asciiAuthority = authority.value.replace(host, IDN.toASCII(host))
+        val rest = value.substring(authority.range.last + 1)
+        return URI("${value.substringBefore("://")}://$asciiAuthority$rest")
+    }
+
+    /**
+     * [toUri], or null for a value `java.net.URI` rejects (`https://[abc/x`, a malformed escape, a character no
+     * authority may contain). No exception escapes: its message would carry the whole link into a log.
+     */
+    fun toUriOrNull(): URI? = runCatching(::toUri).getOrNull()
+
     override fun toString(): String = "WebAddress(host=$host)"
 
     companion object {

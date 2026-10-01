@@ -18,6 +18,16 @@ data class StartPostingImportRequest(
 }
 
 /**
+ * Body of `POST /api/applications/imports/url`: a link to a job posting. [toString] leaves it out, since it may
+ * carry personal tracking parameters.
+ */
+data class StartUrlImportRequest(
+    val url: String,
+) {
+    override fun toString(): String = "StartUrlImportRequest()"
+}
+
+/**
  * A posting import, for polling: `PENDING` until the worker has read the posting, then `SUCCEEDED` with the new
  * application's [applicationId], or `FAILED` with a [failure] reason, after which it can be retried. The pasted text
  * is not part of it.

@@ -6,10 +6,13 @@ package io.github.scriptibus.jofi.applications.application.port.inbound
 import io.github.scriptibus.jofi.applications.domain.Application
 import io.github.scriptibus.jofi.applications.domain.ApplicationInput
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
+import io.github.scriptibus.jofi.applications.domain.DescriptionText
 import io.github.scriptibus.jofi.applications.domain.ImportId
 import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.applications.domain.SourceInput
+import io.github.scriptibus.jofi.applications.domain.UrlImportOutcome
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.text.WebAddress
 
 // Inbound ports of the posting import (spec §8.1, #96): the user pastes a posting, a worker job reads its fields with
 // AI and creates a `DISCOVERED` application. The posting is untrusted data, never instructions, and never goes into a
@@ -39,6 +42,23 @@ interface StartPostingImportPort {
         text: String,
         actor: Actor,
     ): ApplicationResult<PostingImport>
+}
+
+/**
+ * Starts importing a posting fetched from a [url] (spec §8.1, #97): normalised first (tracking parameters
+ * stripped); `Invalid` `SOURCE_URL`/`INVALID_URL` if it is not an absolute http(s) URL, `NOT_ALLOWED` for a site
+ * Jofi never scrapes (LinkedIn, StepStone, Indeed). A URL already imported successfully answers at once with its
+ * existing application ([UrlImportOutcome.AlreadyImported]); one already pending answers with that import instead
+ * of starting another (double submit, #187 finding F6). Otherwise fetched through `OutboundHttpPort`, its main text
+ * extracted, then the same path as [StartPostingImportPort]: `Invalid` `SOURCE_URL`/`UNREACHABLE` for a blocked,
+ * failed fetch or one with no readable text (paste the text instead); `AiNotConfigured` while no model is assigned
+ * to the extraction task, before anything is fetched.
+ */
+interface StartUrlImportPort {
+    fun execute(
+        url: String,
+        actor: Actor,
+    ): ApplicationResult<UrlImportOutcome>
 }
 
 /** The import's status, for polling: pending, failed with a reason, or done with its application. */
@@ -71,4 +91,28 @@ interface RunPostingImportPort {
         id: ImportId,
         actor: Actor,
     ): ApplicationResult<PostingImport>
+}
+
+/**
+ * Fetches the posting at [address] and answers its main text (spec §8.1, #97), the step [StartUrlImportPort] runs once
+ * it knows nothing is pending or imported. `AiNotConfigured` while no model is assigned to the extraction task, before
+ * anything is fetched. `Invalid` `SOURCE_URL`: `NOT_ALLOWED` if the fetch ended on a site Jofi never scrapes (a
+ * redirect or shortener into LinkedIn, StepStone or Indeed), `UNREACHABLE` for a blocked or failed fetch, a login
+ * wall (an answer other than 2xx, or a redirect to a login page), the wrong content type, a body over the limit or no
+ * readable text. Nothing is stored.
+ */
+interface FetchPostingTextPort {
+    fun execute(address: WebAddress): ApplicationResult<DescriptionText>
+}
+
+/**
+ * What a URL import of the normalised, allowed link [address] comes to (spec §8.1, #97), the step [StartUrlImportPort]
+ * runs once per link at a time: the pending import already there, the existing application, or the fetched text stored
+ * as a new pending import. No database connection is held while the page is fetched. Failures as [FetchPostingTextPort].
+ */
+interface ResolveUrlImportPort {
+    fun execute(
+        address: WebAddress,
+        actor: Actor,
+    ): ApplicationResult<UrlImportOutcome>
 }

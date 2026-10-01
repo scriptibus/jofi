@@ -95,6 +95,7 @@ Use these instead of reaching for a framework; each returns a sealed result and 
 | `JobLogPort` | the job log the user sees (status, attempts, failure reason code) | `JobRunrJobLogAdapter` (`adapters/jobs`) |
 | `SecretStorePort` | encrypted secrets such as API keys; owners keep a `SecretId` | `SecretRepository` (`adapters/persistence`) over `SecretCipherPort` (Tink, `adapters/crypto`), ADR-0035 |
 | `SecretCipherPort` | AES-GCM under the master keyset; **only secret stores use it** | `adapters/crypto` |
+| `KeyedLockPort` | one caller at a time per key for slow work (fetching one link), holding no database connection while it waits | `InProcessKeyedLockAdapter` (`bootstrap`), only the `app` container serves requests |
 | `TransactionPort` | one transaction around a mutation and its changelog entry; commit only accepted results | `adapters/persistence` |
 | `ConfirmationStorePort` | pending two-step confirmations; features call `ConfirmActionUseCase`, never the port | `InMemoryConfirmationStoreAdapter` (`bootstrap`), ADR-0039 |
 | `DomainEventPort` | domain events (`shared.domain.DomainEvent`, ids and states, no third-party personal data) to other contexts; publish inside the mutation's transaction, false = roll back | `SpringDomainEventAdapter` (`bootstrap`), ADR-0041 |
