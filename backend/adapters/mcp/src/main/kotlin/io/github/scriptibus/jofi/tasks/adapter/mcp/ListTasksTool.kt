@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.PageArguments
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.domain.TaskField
@@ -63,5 +64,5 @@ class ListTasksTool(
     private fun list(
         zone: ZoneId,
         page: PageInput,
-    ) = listTaskGroups.execute(zone, page)
+    ) = listTaskGroups.execute(zone, page, NotesAudience.AI)
 }

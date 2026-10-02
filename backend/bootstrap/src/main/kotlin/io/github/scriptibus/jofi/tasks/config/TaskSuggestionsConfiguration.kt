@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.tasks.config
 import io.github.scriptibus.jofi.applications.application.port.api.DescribeApplicationEventPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCandidatesPort
 import io.github.scriptibus.jofi.applications.application.port.api.FindSuggestionFactsPort
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.tasks.adapter.events.TaskSuggestionEventListener
 import io.github.scriptibus.jofi.tasks.application.AcceptTaskSuggestionUseCase
@@ -30,8 +31,10 @@ import org.springframework.context.annotation.Profile
 @Configuration(proxyBeanMethods = false)
 class TaskSuggestionsConfiguration {
     @Bean
-    fun listSuggestedTasksUseCase(tasks: TaskRepositoryPort): ListSuggestedTasksUseCase =
-        ListSuggestedTasksUseCase(tasks)
+    fun listSuggestedTasksUseCase(
+        tasks: TaskRepositoryPort,
+        redaction: RedactForAiUseCase,
+    ): ListSuggestedTasksUseCase = ListSuggestedTasksUseCase(tasks, redaction)
 
     @Bean
     fun acceptTaskSuggestionUseCase(

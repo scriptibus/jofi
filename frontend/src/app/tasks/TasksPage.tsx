@@ -72,9 +72,9 @@ export function TasksPage() {
   // A complete or reopen changes which tasks are open: the next page's offset no longer fits the loaded ones.
   const [changed, setChanged] = useState(false);
   const showMore = async () => {
-    const current = changed ? await list.refetch() : list;
+    const loaded = changed ? (await list.refetch()).data : list.data;
     setChanged(false);
-    if (current.hasNextPage) await list.fetchNextPage();
+    if (loaded?.pages.at(-1)?.page.hasMore) await list.fetchNextPage();
   };
   const fail = (error: unknown) => setFeedback({ kind: "failure", failure: describeTaskError(error) });
 

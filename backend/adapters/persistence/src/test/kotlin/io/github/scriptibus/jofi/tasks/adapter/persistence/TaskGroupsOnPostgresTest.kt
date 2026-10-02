@@ -4,6 +4,12 @@
 package io.github.scriptibus.jofi.tasks.adapter.persistence
 
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
@@ -138,8 +144,8 @@ class TaskGroupsOnPostgresTest {
         zone: ZoneId,
     ): Map<TaskGroupKind, List<TaskSummary>> {
         val result =
-            ListTaskGroupsUseCase(repository, Clock.fixed(now, ZoneOffset.UTC))
-                .execute(zone, PageInput(0, PageRequest.MAX_SIZE))
+            ListTaskGroupsUseCase(repository, Clock.fixed(now, ZoneOffset.UTC), UNFLAGGED)
+                .execute(zone, PageInput(0, PageRequest.MAX_SIZE), NotesAudience.USER)
         return result
             .shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
             .value
@@ -175,6 +181,13 @@ class TaskGroupsOnPostgresTest {
     private fun newId() = TaskId(UUID.randomUUID())
 
     private companion object {
+        val UNFLAGGED =
+            RedactForAiUseCase(
+                object : AiVisibilityPort {
+                    override fun rulesFor(sources: Set<ContentSource>) = AiVisibilityResult.Known(NeverSendRules.NONE)
+                },
+            )
+
         val BERLIN: ZoneId = ZoneId.of("Europe/Berlin")
         val CREATED: Instant = Instant.parse("2026-09-01T08:00:00Z")
 

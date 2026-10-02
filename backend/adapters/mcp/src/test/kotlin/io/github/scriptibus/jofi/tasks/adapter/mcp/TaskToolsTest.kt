@@ -66,8 +66,8 @@ class TaskToolsTest {
     private val completeTask = CompleteTaskTool(CompleteTaskUseCase(tasks, changelog, transactions, clock))
     private val acceptSuggestion =
         AcceptTaskSuggestionTool(AcceptTaskSuggestionUseCase(tasks, changelog, transactions, clock))
-    private val listTasks = ListTasksTool(ListTaskGroupsUseCase(tasks, clock))
-    private val listSuggestions = ListTaskSuggestionsTool(ListSuggestedTasksUseCase(tasks))
+    private val listTasks = ListTasksTool(ListTaskGroupsUseCase(tasks, clock, ToolTestPorts.redaction))
+    private val listSuggestions = ListTaskSuggestionsTool(ListSuggestedTasksUseCase(tasks, ToolTestPorts.redaction))
     private val getTask = GetTaskTool(GetTaskUseCase(tasks))
 
     @Test

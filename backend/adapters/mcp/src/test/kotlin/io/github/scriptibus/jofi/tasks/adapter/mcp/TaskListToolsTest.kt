@@ -52,8 +52,8 @@ class TaskListToolsTest {
     private val suggestion =
         Task.suggest(TaskId(taskId), TaskDetails("Follow up", bucket), TaskOrigin.Suggested("follow-up", "a:1"), at)
 
-    private val listTasks = ListTasksTool(ListTaskGroupsUseCase(tasks, clock))
-    private val listSuggestions = ListTaskSuggestionsTool(ListSuggestedTasksUseCase(tasks))
+    private val listTasks = ListTasksTool(ListTaskGroupsUseCase(tasks, clock, ToolTestPorts.redaction))
+    private val listSuggestions = ListTaskSuggestionsTool(ListSuggestedTasksUseCase(tasks, ToolTestPorts.redaction))
     private val getTask = GetTaskTool(GetTaskUseCase(tasks))
 
     @Test
