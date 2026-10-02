@@ -122,6 +122,23 @@ describe("paging", () => {
     expect(screen.queryByRole("button", { name: "Show more tasks" })).toBeNull();
   });
 
+  it("loads the list again before the next page once a task was completed, so none is skipped", async () => {
+    const { user, state } = start("/tasks", { tasks: many(60) });
+    await screen.findAllByRole("checkbox");
+    await user.click(screen.getByRole("checkbox", { name: "Task 1" }));
+    await screen.findByText("“Task 1” is done.");
+
+    await user.click(screen.getByRole("button", { name: "Show more tasks" }));
+
+    // Task 1 left the open list, so task 51 moved up into the first 50 and the second page holds the rest.
+    expect(await screen.findByRole("checkbox", { name: "Task 60" })).toBeVisible();
+    expect(screen.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label") ?? "")).not.toContain(
+      "Task 1",
+    );
+    expect(screen.getAllByRole("checkbox")).toHaveLength(59);
+    expect(state.listPages.at(-1)).toEqual({ page: 1, size: 50 });
+  });
+
   it("completes a task that came with a later page", async () => {
     const { user, state } = start("/tasks", { tasks: many(60) });
     await screen.findAllByRole("checkbox");

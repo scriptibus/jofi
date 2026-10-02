@@ -69,6 +69,13 @@ export function TasksPage() {
   const listKey = taskGroupPagesKey(viewerZone);
   const list = useTaskGroupPages(viewerZone);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // A complete or reopen changes which tasks are open: the next page's offset no longer fits the loaded ones.
+  const [changed, setChanged] = useState(false);
+  const showMore = async () => {
+    const current = changed ? await list.refetch() : list;
+    setChanged(false);
+    if (current.hasNextPage) await list.fetchNextPage();
+  };
   const fail = (error: unknown) => setFeedback({ kind: "failure", failure: describeTaskError(error) });
 
   return (
@@ -89,9 +96,13 @@ export function TasksPage() {
       {list.data ? (
         <TaskGroups
           pages={list}
+          onShowMore={() => void showMore()}
           listKey={listKey}
           viewerZone={viewerZone}
-          onDone={(task) => setFeedback(task.status === "DONE" ? { kind: "done", task } : null)}
+          onDone={(task) => {
+            setChanged(true);
+            setFeedback(task.status === "DONE" ? { kind: "done", task } : null);
+          }}
           onDeleted={(task) => setFeedback({ kind: "deleted", title: taskTitle(task) })}
           onFailure={fail}
         />
@@ -218,6 +229,7 @@ function QuickAdd({ viewerZone, onAdded }: { viewerZone: string; onAdded: (task:
 
 interface TaskGroupsProps {
   pages: ReturnType<typeof useTaskGroupPages>;
+  onShowMore: () => void;
   listKey: QueryKey;
   viewerZone: string;
   onDone: (task: TaskResponse) => void;
@@ -230,7 +242,7 @@ interface TaskGroupsProps {
  * run through the groups in order, so only the last group shown can have more tasks on the next page: its count says
  * "50+" until they are loaded.
  */
-function TaskGroups({ pages, ...rowProps }: TaskGroupsProps) {
+function TaskGroups({ pages, onShowMore, ...rowProps }: TaskGroupsProps) {
   const groups = mergeGroups(pages.data?.pages ?? []);
   const shown = groups.filter((group) => group.tasks.length > 0);
   if (shown.length === 0) return <EmptyState title={m.tasks_empty_heading()}>{m.tasks_empty()}</EmptyState>;
@@ -248,11 +260,7 @@ function TaskGroups({ pages, ...rowProps }: TaskGroupsProps) {
       ))}
       {pages.hasNextPage ? (
         <div className="flex flex-wrap items-center gap-4">
-          <Button
-            variant="secondary"
-            onPress={() => void pages.fetchNextPage()}
-            isDisabled={pages.isFetchingNextPage}
-          >
+          <Button variant="secondary" onPress={onShowMore} isDisabled={pages.isFetchingNextPage}>
             {m.tasks_show_more()}
           </Button>
           <span className="text-muted" role="status">
@@ -268,7 +276,7 @@ function TaskGroupSection({
   group: { group, tasks },
   partial,
   ...rowProps
-}: { group: TaskGroupResponse; partial: boolean } & Omit<TaskGroupsProps, "pages">) {
+}: { group: TaskGroupResponse; partial: boolean } & Omit<TaskGroupsProps, "pages" | "onShowMore">) {
   const headingId = `task-group-${group.toLowerCase()}`;
   const open = tasks.filter((task) => task.status !== "DONE").length;
   const overdue = group === "OVERDUE";
