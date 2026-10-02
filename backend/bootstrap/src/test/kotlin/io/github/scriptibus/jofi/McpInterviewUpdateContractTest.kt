@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi
 
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.modelcontextprotocol.client.McpSyncClient
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.JsonNode
 import java.util.Locale
@@ -25,23 +26,7 @@ class McpInterviewUpdateContractTest : McpInterviewContractSupport() {
                 )
             val full = logged.asUpdate() + ("localStart" to "2099-01-06T10:00")
 
-            listOf(
-                "applicationId",
-                "id",
-                "localStart",
-                "participantIds",
-                "outcome",
-                "interview",
-                "timeZone",
-                "type",
-                "version",
-            ).forEach { key ->
-                client.refused("update_interview", full - key)
-            }
-            val notes = full["interview"] as Map<*, *>
-            listOf("preparationNotes", "notes").forEach { key ->
-                client.refused("update_interview", full + ("interview" to (notes - key)))
-            }
+            refuseEachOmission(client, full)
             client.refused("update_interview", full + ("readOnly" to mapOf("startsAt" to "2099-01-01T00:00:00Z")))
 
             assertUntouched(client, application, logged["id"].asString())
@@ -75,8 +60,26 @@ class McpInterviewUpdateContractTest : McpInterviewContractSupport() {
         }
     }
 
+    /** Leaving out any of the required properties, nested ones included, is refused. */
+    private fun refuseEachOmission(
+        client: McpSyncClient,
+        full: Map<String, Any?>,
+    ) {
+        val required = listOf("applicationId", "id", "localStart", "participantIds", "outcome", "interview")
+        (required + listOf("timeZone", "type", "version")).forEach { key ->
+            client.refused(
+                "update_interview",
+                full - key,
+            )
+        }
+        val notes = full["interview"] as Map<*, *>
+        listOf("preparationNotes", "notes").forEach { key ->
+            client.refused("update_interview", full + ("interview" to (notes - key)))
+        }
+    }
+
     private fun assertUntouched(
-        client: io.modelcontextprotocol.client.McpSyncClient,
+        client: McpSyncClient,
         application: String,
         id: String,
     ) {
