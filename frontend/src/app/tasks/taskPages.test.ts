@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "vitest";
-import type { TaskGroupListResponse } from "../../api/generated/jofi";
+import type { TaskGroupListResponse, TaskListResponse } from "../../api/generated/jofi";
 import { aTask, summaryOfTask } from "../../test/fakeTaskBackend";
-import { mergeGroups } from "./taskPages";
+import { mergeGroups, mergeSuggestions } from "./taskPages";
 
 const page = (
   index: number,
@@ -46,5 +46,21 @@ describe("mergeGroups", () => {
     const merged = mergeGroups([page(0, { TODAY: [again] }), page(1, { TODAY: [again] })]);
 
     expect(merged.flatMap((group) => group.tasks)).toHaveLength(1);
+  });
+});
+
+describe("mergeSuggestions", () => {
+  const suggestions = (index: number, ...tasks: ReturnType<typeof summaryOfTask>[]): TaskListResponse => ({
+    tasks,
+    page: { page: index, size: 50, total: 3, hasMore: false },
+  });
+
+  it("lists every suggestion of the loaded pages in order, a repeated one once", () => {
+    const [a, b, c] = ["A", "B", "C"].map((title) => summaryOfTask(aTask({ title })));
+    if (!(a && b && c)) throw new Error("three suggestions expected");
+
+    const merged = mergeSuggestions([suggestions(0, a, b), suggestions(1, b, c)]);
+
+    expect(merged.map((task) => task.title)).toEqual(["A", "B", "C"]);
   });
 });

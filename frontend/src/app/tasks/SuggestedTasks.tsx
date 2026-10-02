@@ -16,7 +16,7 @@ import { Alert, Button, CheckIcon, CloseIcon } from "../../ui";
 import { sectionCard } from "../companies/RelatedRecords";
 import { describeTiming, taskTitle } from "./task";
 import { TaskLinkChip } from "./taskLinks";
-import { type SuggestionPages, suggestionPagesKey, useSuggestionPages } from "./taskPages";
+import { mergeSuggestions, type SuggestionPages, suggestionPagesKey, useSuggestionPages } from "./taskPages";
 
 type Decision = "accept" | "dismiss";
 
@@ -84,7 +84,7 @@ export function SuggestedTasks({ viewerZone, onDecided, onFailure }: SuggestedTa
       },
     );
 
-  const tasks = suggestions.data?.pages.flatMap((page) => page.tasks);
+  const tasks = suggestions.data ? mergeSuggestions(suggestions.data.pages) : undefined;
   return (
     <section aria-labelledby="task-suggestions-heading" className={sectionCard}>
       <h2 id="task-suggestions-heading" ref={heading} tabIndex={-1} className="text-h2">
