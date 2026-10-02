@@ -1,10 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import {
   type DoneTaskPageResponse,
+  getGetTaskDashboardQueryKey,
   getGetTaskQueryKey,
   getListDoneTasksQueryKey,
   getListTaskGroupsQueryKey,
@@ -14,7 +15,7 @@ import {
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { Alert, Button, EmptyState, UndoIcon } from "../../ui";
-import { formatInstantDate } from "../applications/format";
+import { formatInstant } from "../applications/format";
 import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { sectionCard } from "../companies/RelatedRecords";
 import type { ErrorDescription } from "../problems";
@@ -36,10 +37,12 @@ function useReopenDoneTask() {
   return useMutation({
     meta: { errorHandledLocally: true },
     mutationFn: (task: TaskResponse) => reopenTask(task.id, { basedOnVersion: task.version }),
-    onSuccess: (saved) => {
+    // Returned, so the mutation stays pending (the row stays disabled) until the done list no longer has the task.
+    onSuccess: async (saved) => {
       queryClient.setQueryData(getGetTaskQueryKey(saved.id), saved);
-      void queryClient.invalidateQueries({ queryKey: doneKey });
       void queryClient.invalidateQueries({ queryKey: getListTaskGroupsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getGetTaskDashboardQueryKey() });
+      await queryClient.invalidateQueries({ queryKey: doneKey });
     },
     onError: () => void queryClient.invalidateQueries({ queryKey: doneKey }),
   });
@@ -57,7 +60,7 @@ export function DoneTasks() {
   const heading = useRef<HTMLHeadingElement>(null);
   const done = useListDoneTasks(
     { page, size: DONE_PAGE_SIZE },
-    { query: { meta: { errorHandledLocally: true } } },
+    { query: { meta: { errorHandledLocally: true }, placeholderData: keepPreviousData } },
   );
   const reopen = useReopenDoneTask();
 
@@ -124,7 +127,7 @@ function DoneList({ data, failed, retrying, onRetry, page, pages, busy, onPage, 
         </Button>
       </Alert>
     );
-  if (data === undefined) return <p>{m.loading()}</p>;
+  if (data === undefined) return <p role="status">{m.loading()}</p>;
   if (data.total === 0)
     return <EmptyState title={m.tasks_done_empty_heading()}>{m.tasks_done_empty()}</EmptyState>;
   return (
@@ -165,7 +168,7 @@ function DoneRow({ task, busy, onReopen }: DoneRowProps) {
         <span className="font-semibold">{title}</span>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-muted">
           {task.completedAt ? (
-            <span>{m.task_completed_on({ date: formatInstantDate(task.completedAt) })}</span>
+            <span>{m.task_completed_on({ date: formatInstant(task.completedAt) })}</span>
           ) : null}
           {task.link ? <TaskLinkChip link={task.link} /> : null}
         </div>

@@ -224,7 +224,11 @@ test.describe("in German", () => {
   test("find a done task and reopen it in German", async ({ page }) => {
     const task = await createTask(page, "Anruf bei Erika", { bucket: "TODAY" });
     const { request, headers } = await api(page);
-    await request.post(`/api/tasks/${task.id}/complete`, { data: { basedOnVersion: 0 }, headers });
+    const completed = await request.post(`/api/tasks/${task.id}/complete`, {
+      data: { basedOnVersion: 0 },
+      headers,
+    });
+    expect(completed.status()).toBe(200);
 
     await page.goto("/tasks");
     await page.getByRole("tab", { name: "Erledigt" }).click();
@@ -235,5 +239,7 @@ test.describe("in German", () => {
     await snapshot(page, "tasks-done-de");
     await row.getByRole("button", { name: `Aufgabe wieder öffnen: ${task.title}` }).click();
     await expect(said(page, `„${task.title}“ ist wieder offen.`)).toBeVisible();
+    await page.getByRole("tab", { name: "Offen" }).click();
+    await expect(group(page, "Heute").getByRole("checkbox", { name: task.title })).not.toBeChecked();
   });
 });

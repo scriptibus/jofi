@@ -1147,7 +1147,7 @@
   "tasks_view_open": "Open",
   "tasks_view_done": "Done",
   "tasks_done_heading": "Done tasks",
-  "tasks_done_intro": "Completed tasks, the most recent first. Reopen one to put it back on your list.",
+  "tasks_done_intro": "Completed tasks, the most recent first. Reopen one to put it back on your list; it keeps its original due date, so an old task shows as overdue.",
   "tasks_done_empty_heading": "No done tasks",
   "tasks_done_empty": "Tasks you complete show up here, so you can reopen them.",
   "tasks_done_failed": "The done tasks could not be loaded.",

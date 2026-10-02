@@ -1146,7 +1146,7 @@
   "tasks_view_open": "Offen",
   "tasks_view_done": "Erledigt",
   "tasks_done_heading": "Erledigte Aufgaben",
-  "tasks_done_intro": "Erledigte Aufgaben, die zuletzt erledigte zuerst. Öffne eine wieder, um sie zurück auf deine Liste zu holen.",
+  "tasks_done_intro": "Erledigte Aufgaben, die zuletzt erledigte zuerst. Öffne eine wieder, um sie zurück auf deine Liste zu holen; sie behält ihr ursprüngliches Fälligkeitsdatum, eine alte Aufgabe erscheint also als überfällig.",
   "tasks_done_empty_heading": "Keine erledigten Aufgaben",
   "tasks_done_empty": "Aufgaben, die du erledigst, erscheinen hier und lassen sich wieder öffnen.",
   "tasks_done_failed": "Die erledigten Aufgaben konnten nicht geladen werden.",

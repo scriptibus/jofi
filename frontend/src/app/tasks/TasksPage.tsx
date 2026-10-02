@@ -82,7 +82,11 @@ export function TasksPage() {
           { id: "done", label: m.tasks_view_done() },
         ]}
         selected={view}
-        onSelect={setView}
+        onSelect={(next) => {
+          // What the Open view last said ("is done", Undo) must not outlive a visit to the other view.
+          setView(next);
+          setFeedback(null);
+        }}
       >
         {view === "open" ? (
           <>

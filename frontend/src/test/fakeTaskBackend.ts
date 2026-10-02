@@ -75,6 +75,8 @@ export interface FakeTaskState {
   doneRequests: { page: number; size: number }[];
   /** While true, the done tasks list answers 503 `storage-unavailable`. */
   doneUnavailable: boolean;
+  /** Held until resolved: lets a test look at the page while the done list is on its way. */
+  doneGate?: Promise<void>;
   /** Delete calls seen: `first` without token, `confirmed` with it. */
   deleteCalls: ("first" | "confirmed")[];
   /** Held until resolved: lets a test look at the page while a complete is on its way. */
@@ -183,11 +185,12 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
       const suggested = state.tasks.filter((task) => task.status === "SUGGESTED");
       return HttpResponse.json({ tasks: suggested.toReversed() });
     }),
-    http.get(`${origin()}/api/tasks/done`, ({ request }) => {
+    http.get(`${origin()}/api/tasks/done`, async ({ request }) => {
       const query = new URL(request.url).searchParams;
       const page = Number(query.get("page") ?? 0);
       const size = Number(query.get("size") ?? 20);
       state.doneRequests.push({ page, size });
+      if (state.doneGate) await state.doneGate;
       if (state.doneUnavailable) return problem(503, "storage-unavailable");
       const done = state.tasks
         .filter((task) => task.status === "DONE")

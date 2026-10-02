@@ -6,6 +6,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { getGetTaskDashboardQueryKey } from "../../api/generated/jofi";
 import { fakeApplicationBackend } from "../../test/fakeApplicationBackend";
 import { aListedApplication, fakeApplicationListBackend } from "../../test/fakeApplicationListBackend";
 import { fakeAuthBackend } from "../../test/fakeAuthBackend";
@@ -37,7 +38,7 @@ function start(data: Partial<FakeTaskState> = {}) {
   );
   const app = createApp(createMemoryHistory({ initialEntries: ["/tasks"] }));
   render(<App app={app} />);
-  return { state: tasks.state, user: userEvent.setup() };
+  return { state: tasks.state, user: userEvent.setup(), queryClient: app.queryClient };
 }
 
 const done = (title: string, completedAt: string, overrides = {}) =>
@@ -172,5 +173,85 @@ describe("the done view", () => {
     await user.click(await within(region).findByRole("button", { name: "Reopen task: Call Anna" }));
     expect(await screen.findByText("“Call Anna” is open again.")).toBeVisible();
     expect(state.stateChanges).toEqual([{ done: false, basedOnVersion: 5 }]);
+  });
+
+  it('does not keep the Open view\'s "is done" message and Undo after the task was reopened from Done', async () => {
+    const { user } = start({ tasks: [aTask({ title: "Call Anna" })] });
+    await user.click(await screen.findByText("Call Anna"));
+    expect(await screen.findByRole("button", { name: "Undo" })).toBeVisible();
+
+    const region = await openDoneView(user);
+    await user.click(await within(region).findByRole("button", { name: "Reopen task: Call Anna" }));
+    await within(region).findByRole("heading", { name: "No done tasks" });
+    await user.click(screen.getByRole("tab", { name: "Open" }));
+
+    expect(await screen.findByRole("checkbox", { name: "Call Anna" })).not.toBeChecked();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(screen.queryByText("“Call Anna” is done.")).toBeNull();
+  });
+
+  it("keeps keyboard focus on the paging button while the next page loads", async () => {
+    const tasks = Array.from({ length: DONE_PAGE_SIZE * 2 + 5 }, (_, index) =>
+      done(`Task ${String(index).padStart(2, "0")}`, `2026-09-01T09:${String(index).padStart(2, "0")}:00Z`),
+    );
+    const { user, state } = start({ tasks });
+    const region = await openDoneView(user);
+    const next = await within(region).findByRole("button", { name: "Next page" });
+    next.focus();
+
+    await user.keyboard("{Enter}");
+
+    expect(await within(region).findByText("Page 2 of 3")).toBeVisible();
+    expect(state.doneRequests.at(-1)).toEqual({ page: 1, size: DONE_PAGE_SIZE });
+    expect(next).toBeInTheDocument();
+    expect(next).toHaveFocus();
+  });
+
+  it("explains a task that was deleted elsewhere (404) and reloads the list", async () => {
+    const { user, state } = start({ tasks: [done("Call Anna", "2026-09-02T09:00:00Z")] });
+    const region = await openDoneView(user);
+    await within(region).findByText("Call Anna");
+    state.tasks = [];
+
+    await user.click(within(region).getByRole("button", { name: "Reopen task: Call Anna" }));
+
+    expect(await screen.findByText("This task does not exist (any more).")).toBeVisible();
+    expect(await within(region).findByRole("heading", { name: "No done tasks" })).toBeVisible();
+  });
+
+  it("keeps the row disabled until the reloaded list no longer has the task, so a second press cannot conflict", async () => {
+    const { user, state } = start({ tasks: [done("Call Anna", "2026-09-02T09:00:00Z")] });
+    const region = await openDoneView(user);
+    const button = await within(region).findByRole("button", { name: "Reopen task: Call Anna" });
+    let release = () => {};
+    state.doneGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await user.click(button);
+    await waitFor(() => expect(state.stateChanges).toHaveLength(1));
+    await waitFor(() => expect(state.doneRequests.length).toBeGreaterThan(1));
+    expect(button).toBeDisabled();
+    release();
+
+    expect(await within(region).findByRole("heading", { name: "No done tasks" })).toBeVisible();
+    expect(state.stateChanges).toHaveLength(1);
+  });
+
+  it("refreshes the dashboard's tasks when a task is reopened here or completed on the Open view", async () => {
+    const dashboardKey = getGetTaskDashboardQueryKey({ timeZone: "UTC" });
+    const { user, queryClient } = start({
+      tasks: [done("Call Anna", "2026-09-02T09:00:00Z"), aTask({ title: "Read the report" })],
+    });
+    queryClient.setQueryData(dashboardKey, { overdue: [], upcoming: [] });
+    await user.click(await screen.findByText("Read the report"));
+    await screen.findByText("“Read the report” is done.");
+    await waitFor(() => expect(queryClient.getQueryState(dashboardKey)?.isInvalidated).toBe(true));
+
+    queryClient.setQueryData(dashboardKey, { overdue: [], upcoming: [] });
+    const region = await openDoneView(user);
+    await user.click(await within(region).findByRole("button", { name: "Reopen task: Call Anna" }));
+
+    await waitFor(() => expect(queryClient.getQueryState(dashboardKey)?.isInvalidated).toBe(true));
   });
 });
