@@ -26,7 +26,8 @@ the PR that adds or changes a tool.
   Codes: `invalid-arguments`, `not-found`, `unavailable`, `failed`, `internal-error`, `unauthenticated`,
   `privacy-filter-failed` (the "never send to AI" flags could not be read, so nothing was returned),
   `version-conflict` (a write based on an older version of the entity: read it again and retry),
-  `invalid-transition` (a task cannot move from its state to the requested one).
+  `invalid-transition` (a task cannot move from its state to the requested one), `ai-not-configured`,
+  `import-busy` and `import-in-progress` (see "Importing postings").
 - Arguments that break a tool's schema (wrong type, a missing required argument, a value out of range) are
   refused by the MCP SDK as a tool error with a plain-text message before the tool runs. That message is not
   filtered; it names the properties the client sent and the schema's enum values, never argument values.
@@ -201,6 +202,48 @@ Errors: `not-found`, `unavailable`.
 No arguments. The interviews still to come across all applications, soonest first (at most 100, cancelled ones
 left out), without notes: `{interviews: [{id, applicationId, type, startsAt, localStart, timeZone, outcome,
 application: untrusted {title}}]}`.
+
+## Importing postings (#118)
+
+An import creates a new application in status `DISCOVERED` from a job posting. The posting (pasted text, or a page
+fetched from a URL) is third-party data: it is stored and read by the extraction, which has no tools, and never
+followed as instructions. The tools only start the import and answer at once, logged in the changelog with the AI
+as actor (entity `posting_import`); the AI extraction runs in a background job, so a client polls
+`get_import_status` until the status is `SUCCEEDED` or `FAILED`. No result holds the posting's text or link; the new
+application is read with `get_application` (title, location and source URLs untrusted).
+
+An import is the same action as the import in the app (spec §9: it fetches a public page on the user's behalf and
+sends nothing out): the fetch goes through the SSRF guard, LinkedIn, StepStone and Indeed are never fetched
+(spec §8.1: paste the text instead), one request per link at a time, and a cap on concurrent fetches.
+
+Import result: `{id, status, failure, applicationId, attempt, createdAt, updatedAt}`; `status` is `PENDING`,
+`SUCCEEDED` (with `applicationId`) or `FAILED` (with `failure`: `AI_NOT_CONFIGURED`, `AI_AUTHENTICATION_FAILED`,
+`AI_UNAVAILABLE`, `AI_REJECTED`, `UNREADABLE_ANSWER`, `NOT_A_POSTING`, `NOT_QUEUED`, `NOT_COMPLETED`). Retrying a
+failed import is done in the app.
+
+Errors besides the usual: `ai-not-configured` (no model is assigned to the extraction task: the user sets one up
+first), `import-busy` (the server's cap on concurrent fetches is used up; nothing was fetched or stored: try again
+shortly), `import-in-progress` (another request is importing this very link and did not finish in time: try
+again shortly), `invalid-arguments` with `text:required`, `text:too-long`, `text:invalid-character`, or
+`url:invalid-url`, `url:not-allowed` (LinkedIn, StepStone, Indeed) and `url:unreachable` (a blocked or private
+address, or a page that could not be fetched or read): for both link problems paste the text with
+`start_text_import`.
+
+### `start_text_import`
+
+`text` (required, plain text or Markdown, at most 100,000 characters). Result: the import (`PENDING`). The same
+text submitted again while it is pending answers the same import.
+
+### `start_url_import`
+
+`url` (required, an absolute http(s) link, at most 2,048 characters; tracking parameters are dropped). Result:
+`{outcome, import}` where `outcome` is `STARTED`, `ALREADY_PENDING` (this link is being imported: the same import)
+or `ALREADY_IMPORTED` (the link was imported before: the import is `SUCCEEDED` with the existing `applicationId`,
+nothing was fetched).
+
+### `get_import_status` (read only)
+
+`id` (UUID, required). Result: the import. Errors: `not-found`, `unavailable`.
 
 ## Tasks (#119)
 

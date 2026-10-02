@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.applications.adapter.mcp
 
 import io.github.scriptibus.jofi.applications.domain.ApplicationField
+import io.github.scriptibus.jofi.applications.domain.ApplicationProblem
 import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationViolation
 import io.github.scriptibus.jofi.applications.domain.SearchViolation
@@ -23,6 +24,7 @@ internal object ApplicationToolErrors {
         )
 
     /** Every outcome of the application use cases; a new one breaks this `when` instead of becoming a vague code. */
+    @Suppress("CyclomaticComplexMethod") // One branch per outcome of a sealed result, no `else`.
     fun failure(failure: ApplicationResult.Failure): ToolAnswer.Error =
         when (failure) {
             is ApplicationResult.Invalid -> invalid(failure)
@@ -37,22 +39,54 @@ internal object ApplicationToolErrors {
 
             is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", "Applications cannot be used now.")
 
-            // Sources, snapshots, saved views and imports have no tool of this kind (yet): none of these can happen.
+            ApplicationResult.ImportNotFound -> ToolAnswer.Error("not-found", "No import has this id.")
+
+            ApplicationResult.AiNotConfigured -> aiNotConfigured()
+
+            ApplicationResult.ImportInProgress -> importInProgress()
+
+            ApplicationResult.ImportBusy -> importBusy()
+
+            // Sources, snapshots, saved views and retries have no tool (yet): none of these can happen.
             ApplicationResult.SourceNotFound,
             ApplicationResult.SnapshotNotFound,
             ApplicationResult.SavedViewNotFound,
             is ApplicationResult.InvalidView,
-            ApplicationResult.ImportNotFound,
             ApplicationResult.ImportNotRetryable,
-            ApplicationResult.ImportInProgress,
-            ApplicationResult.ImportBusy,
-            ApplicationResult.AiNotConfigured,
             is ApplicationResult.Unconfirmed,
             -> ToolAnswer.Error("failed", "The request could not be completed.")
         }
 
+    private fun aiNotConfigured() =
+        ToolAnswer.Error(
+            "ai-not-configured",
+            "No AI model is set up for reading postings. The user sets one up in the settings first.",
+        )
+
+    private fun importInProgress() =
+        ToolAnswer.Error(
+            "import-in-progress",
+            "Another request is importing this very link. Try again shortly: by then its import is known.",
+        )
+
+    private fun importBusy() =
+        ToolAnswer.Error(
+            "import-busy",
+            "The server is fetching as many pages as it allows. Try again shortly; nothing was fetched or stored.",
+        )
+
     private fun invalid(failure: ApplicationResult.Invalid) =
-        ToolAnswer.Error("invalid-arguments", "The arguments are invalid.", failure.violations.map(::problemOf))
+        ToolAnswer.Error("invalid-arguments", messageOf(failure), failure.violations.map(::problemOf))
+
+    /** A link that cannot be imported says what to do instead: paste the text. */
+    private fun messageOf(failure: ApplicationResult.Invalid): String {
+        val problems = failure.violations.filter { it.field == ApplicationField.SOURCE_URL }.map { it.problem }
+        return when {
+            ApplicationProblem.NOT_ALLOWED in problems -> NOT_ALLOWED_LINK
+            ApplicationProblem.UNREACHABLE in problems -> UNREACHABLE_LINK
+            else -> "The arguments are invalid."
+        }
+    }
 
     private fun invalidTransition(failure: ApplicationResult.InvalidTransition) =
         ToolAnswer.Error(
@@ -72,6 +106,13 @@ internal object ApplicationToolErrors {
 
     /** The argument of the application and interview tools a field belongs to. */
     fun argumentOf(field: ApplicationField): String = ARGUMENTS.getValue(field)
+
+    private const val NOT_ALLOWED_LINK =
+        "Jofi never fetches LinkedIn, StepStone or Indeed (their terms forbid it). Ask the user to paste the " +
+            "posting's text and use start_text_import instead."
+    private const val UNREACHABLE_LINK =
+        "The page could not be fetched (blocked address, unreachable, too large or not readable). Ask the user to " +
+            "paste the posting's text and use start_text_import instead."
 
     // A map, not a `when`, to keep the function short; ApplicationToolErrorsTest checks that every field is in it.
     private val ARGUMENTS =

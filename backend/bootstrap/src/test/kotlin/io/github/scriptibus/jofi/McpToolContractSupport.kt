@@ -8,6 +8,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICAT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CHANGELOG_ENTRY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.POSTING_IMPORT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.SPRING_SESSION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.TASK
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.USER_ACCOUNT
@@ -70,6 +71,7 @@ open class McpToolContractSupport {
     fun startWithAnOwner() {
         dsl.deleteFrom(TASK).execute()
         dsl.deleteFrom(CONTACT).execute()
+        dsl.deleteFrom(POSTING_IMPORT).execute()
         dsl.deleteFrom(APPLICATION).execute()
         dsl.deleteFrom(COMPANY).execute()
         dsl.deleteFrom(SPRING_SESSION).execute()
@@ -113,6 +115,15 @@ open class McpToolContractSupport {
         val answer = json.readTree(text(result))
         answer["code"].asString() shouldBe code
         return answer
+    }
+
+    /** A call that may succeed or fail: whether it failed as a tool error, and the JSON answer. */
+    protected fun McpSyncClient.outcome(
+        name: String,
+        arguments: Map<String, Any?>,
+    ): Pair<Boolean, JsonNode> {
+        val result = callTool(request(name, arguments))
+        return (result.isError == true) to json.readTree(text(result))
     }
 
     /**

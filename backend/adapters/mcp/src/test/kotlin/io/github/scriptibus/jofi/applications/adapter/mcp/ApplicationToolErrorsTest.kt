@@ -23,6 +23,10 @@ class ApplicationToolErrorsTest {
                 ApplicationResult.InterviewNotFound to "not-found",
                 ApplicationResult.VersionConflict to "version-conflict",
                 ApplicationResult.StorageFailure("secret operation") to "unavailable",
+                ApplicationResult.ImportNotFound to "not-found",
+                ApplicationResult.AiNotConfigured to "ai-not-configured",
+                ApplicationResult.ImportInProgress to "import-in-progress",
+                ApplicationResult.ImportBusy to "import-busy",
                 ApplicationResult.InvalidTransition(ApplicationStatus.APPLIED, ApplicationStatus.DISCOVERED) to
                     "invalid-transition",
             )
