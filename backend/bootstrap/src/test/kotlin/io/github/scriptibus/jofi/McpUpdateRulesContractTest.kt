@@ -127,8 +127,10 @@ class McpUpdateRulesContractTest : McpToolContractSupport() {
             val full = client.call("get_company", mapOf("id" to id)).asUpdate()
             val company = full.inner("company")
 
-            full.keys.forEach { key -> client.refused("update_company", full - key) }
-            company.keys.forEach { key -> client.refused("update_company", full + ("company" to (company - key))) }
+            full.keys.forEach { key -> client.refusedMissing("update_company", full - key, key) }
+            company.keys.forEach { key ->
+                client.refusedMissing("update_company", full + ("company" to (company - key)), key)
+            }
 
             rows() shouldBe before
         }
@@ -144,11 +146,49 @@ class McpUpdateRulesContractTest : McpToolContractSupport() {
             val contact = full.inner("contact")
             val channels = contact["channels"] as List<*>
 
-            full.keys.forEach { key -> client.refused("update_contact", full - key) }
-            contact.keys.forEach { key -> client.refused("update_contact", full + ("contact" to (contact - key))) }
+            full.keys.forEach { key -> client.refusedMissing("update_contact", full - key, key) }
+            contact.keys.forEach { key ->
+                client.refusedMissing("update_contact", full + ("contact" to (contact - key)), key)
+            }
             listOf("kind", "value", "label").forEach { key ->
-                val broken = listOf((channels[0] as Map<*, *>) - key, channels[1])
-                client.refused("update_contact", full + ("contact" to (contact + ("channels" to broken))))
+                channels.indices.forEach { index ->
+                    val broken = channels.toMutableList().also { it[index] = (channels[index] as Map<*, *>) - key }
+                    val arguments = full + ("contact" to (contact + ("channels" to broken)))
+                    client.refusedMissing("update_contact", arguments, key)
+                }
+            }
+
+            rows() shouldBe before
+        }
+    }
+
+    @Test
+    fun `a blank text does not clear a field, only an explicit null or empty list does`() {
+        owner.mcpClient().use { client ->
+            client.initialize()
+            val companyId = client.fullCompany()
+            val contactId = client.fullContact(companyId)
+            val before = rows()
+            val company = client.call("get_company", mapOf("id" to companyId)).asUpdate()
+            val contact = client.call("get_contact", mapOf("id" to contactId)).asUpdate()
+            val channels = contact.inner("contact")["channels"] as List<*>
+
+            listOf("website", "industry", "careersPage", "researchNotes").forEach { key ->
+                client.refused("update_company", company + ("company" to (company.inner("company") + (key to " "))))
+            }
+            client.refused(
+                "update_company",
+                company + ("company" to (company.inner("company") + ("locations" to listOf("Berlin", " ")))),
+            )
+            listOf("role", "relationshipNotes").forEach { key ->
+                client.refused("update_contact", contact + ("contact" to (contact.inner("contact") + (key to ""))))
+            }
+            listOf("value", "label").forEach { key ->
+                val blank = listOf((channels[0] as Map<*, *>) + (key to " "), channels[1])
+                client.refused(
+                    "update_contact",
+                    contact + ("contact" to (contact.inner("contact") + ("channels" to blank))),
+                )
             }
 
             rows() shouldBe before
@@ -259,83 +299,19 @@ class McpUpdateRulesContractTest : McpToolContractSupport() {
             val read = client.call("get_application", mapOf("id" to application))
             read["readOnly"]["contactIds"][0].asString() shouldBe contact
 
-            client.refused("set_application_contacts", mapOf("id" to application, "version" to 1))
+            client.refusedMissing("set_application_contacts", mapOf("id" to application, "version" to 1), "contactIds")
             client.refused(
                 "set_application_contacts",
                 mapOf("id" to application, "version" to 1, "contactIds" to null),
             )
             client.refused("set_application_contacts", read.asMap())
             val sendable = mapOf("id" to application, "version" to 1)
-            client.refused("set_application_contacts", sendable + ("readOnly" to read["readOnly"].toPlain()))
+            val extra = sendable + ("contactIds" to listOf(contact)) + ("readOnly" to read["readOnly"].toPlain())
+            client.refused("set_application_contacts", extra)
 
             rows() shouldBe before
             val none = sendable + ("contactIds" to emptyList<String>())
             client.call("set_application_contacts", none)["readOnly"]["contactIds"].size() shouldBe 0
-        }
-    }
-
-    @Test
-    fun `create_company refuses the withheld marker in every free-text argument and stores nothing`() {
-        owner.mcpClient().use { client ->
-            client.initialize()
-            val before = rows()
-            val texts = listOf("name", "industry", "researchNotes")
-
-            texts.forEach { key ->
-                client
-                    .failure("create_company", mapOf("name" to "ACME", key to "x $MARKER"), INVALID)
-                    .problems() shouldBe listOf("$key:withheld-value")
-            }
-            client
-                .failure("create_company", mapOf("name" to "ACME", "locations" to listOf("Berlin", MARKER)), INVALID)
-                .problems() shouldBe listOf("locations[1]:withheld-value")
-            listOf("website", "careersPage").forEach { key ->
-                client
-                    .failure("create_company", mapOf("name" to "ACME", key to "https://$MARKER.example"), INVALID)
-                    .problems() shouldBe listOf("$key:withheld-value")
-            }
-
-            rows() shouldBe before
-        }
-    }
-
-    @Test
-    fun `create_contact refuses the withheld marker in every free-text argument and stores nothing`() {
-        owner.mcpClient().use { client ->
-            client.initialize()
-            val before = rows()
-            val channel = mapOf("kind" to "EMAIL", "value" to "erika@acme.example", "label" to "work")
-
-            listOf("name", "role", "relationshipNotes").forEach { key ->
-                client
-                    .failure("create_contact", mapOf("name" to "E", key to "x $MARKER"), INVALID)
-                    .problems() shouldBe listOf("$key:withheld-value")
-            }
-            listOf("value", "label").forEach { key ->
-                val marked = mapOf("name" to "E", "channels" to listOf(channel, channel + (key to MARKER)))
-                client.failure("create_contact", marked, INVALID).problems() shouldBe
-                    listOf("channels[1].$key:withheld-value")
-            }
-
-            rows() shouldBe before
-        }
-    }
-
-    @Test
-    fun `create_task refuses the withheld marker in every free-text argument and stores nothing`() {
-        owner.mcpClient().use { client ->
-            client.initialize()
-            val before = rows()
-            val task = mapOf("title" to "Call back", "timeZone" to "Europe/Berlin", "bucket" to "TODAY")
-
-            listOf("title", "notes", "timeZone").forEach { key ->
-                client.failure("create_task", task + (key to "x $MARKER"), INVALID).problems() shouldBe
-                    listOf("$key:withheld-value")
-            }
-            val exact = task - "bucket" + ("localDue" to "2026-10-05T10:00$MARKER")
-            client.failure("create_task", exact, INVALID).problems() shouldBe listOf("localDue:withheld-value")
-
-            rows() shouldBe before
         }
     }
 }

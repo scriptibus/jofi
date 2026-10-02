@@ -95,8 +95,12 @@ version answers `version-conflict` and changes nothing.
 Every free-text field a tool can write is returned as untrusted, notes included: it can come from postings and pages, or
 from a model that was prompt-injected and stored instructions for later sessions (ADR-0053, amendment of #119).
 Only fields no tool writes, and typed values that cannot carry text, stay plain: the company preference and its reason, ids, versions and timestamps.
-Problems of a domain violation are named like `name:required`, `website:invalid-url`,
-`channels[0].value:invalid-email`, `companyId:not-found`, `contactIds:not-found`.
+Problems of a domain violation are named by the argument path: flat for the create tools and searches
+(`name:required`, `website:invalid-url`, `channels[0].value:invalid-email`, `companyId:not-found`,
+`contactIds:not-found`), and with the object's key in front for the two update tools (`company.name:required`,
+`contact.channels[0].value:invalid-email`; `companyId` and `contactIds` stay top level).
+In the update tools a blank text is refused by the schema too (it would clear like `null`): a text is `null` or has a
+visible character.
 
 ### `search_companies` (read only)
 

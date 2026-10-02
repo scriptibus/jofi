@@ -37,36 +37,49 @@ internal object ContactToolInput {
 
     private val KINDS = enumValues<ChannelKind>().joinToString(", ", "[", "]") { "\"${it.name}\"" }
 
-    /** A channel: in an update `label` is required too, `null` for none. */
-    private fun channels(update: Boolean) =
-        """
-        "channels": {
-          "type": ["array", "null"],
-          "description": "Ways to reach the contact; null or [] removes them all.",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ${if (update) """["kind", "value", "label"]""" else """["kind", "value"]"""},
-            "properties": {
-              "kind": {"enum": $KINDS},
-              "value": {"type": "string"},
-              "label": {"type": ["string", "null"], "description": "For example work or mobile."}
+    /**
+     * A channel: in an update `label` is required too, `null` for none. A blank text would clear like `null` (the
+     * domain drops a channel without a value), so an update's texts must hold a visible character.
+     */
+    private fun channels(update: Boolean): String {
+        val text = if (update) CompanyToolInput.NOT_BLANK else ""
+        val description = "Ways to reach the contact." + if (update) " null or [] removes them all." else ""
+        return """
+            "channels": {
+              "type": ["array", "null"],
+              "description": "$description",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ${if (update) """["kind", "value", "label"]""" else """["kind", "value"]"""},
+                "properties": {
+                  "kind": {"enum": $KINDS},
+                  "value": {"type": "string"$text},
+                  "label": {"type": ["string", "null"]$text, "description": "For example work or mobile."}
+                }
+              }
             }
-          }
-        }
-        """.trimIndent()
+            """.trimIndent()
+    }
+
+    private fun role(update: Boolean) =
+        """"role": {"type": ["string", "null"]${notBlank(update)}, "description": "For example Recruiter."}"""
+
+    private fun notes(update: Boolean) =
+        """"relationshipNotes": {"type": ["string", "null"]${notBlank(
+            update,
+        )}, "description": "Notes on the relationship, Markdown."}"""
+
+    private fun notBlank(update: Boolean) = if (update) CompanyToolInput.NOT_BLANK else ""
 
     private const val NAME = """"name": {"type": "string", "description": "The contact's name."}"""
-    private const val ROLE = """"role": {"type": ["string", "null"], "description": "For example Recruiter."}"""
-    private const val NOTES =
-        """"relationshipNotes": {"type": ["string", "null"], "description": "Notes on the relationship, Markdown."}"""
 
     /** The company link, a property of `create_contact` and, beside `contact`, of `update_contact`. */
     const val COMPANY_PROPERTY =
         """"companyId": {"type": ["string", "null"], "format": "uuid", "description": "The company the contact works for."}"""
 
     /** The JSON Schema properties of `create_contact`. */
-    val PROPERTIES = listOf(NAME, ROLE, COMPANY_PROPERTY, channels(false), NOTES).joinToString(",\n")
+    val PROPERTIES = listOf(NAME, role(false), COMPANY_PROPERTY, channels(false), notes(false)).joinToString(",\n")
 
     /** The `contact` object of `update_contact`: every field required, `null` (or `[]`) clears it. */
     val UPDATE_OBJECT =
@@ -76,7 +89,7 @@ internal object ContactToolInput {
           "additionalProperties": false,
           "required": ["name", "role", "channels", "relationshipNotes"],
           "description": "The `content` of get_contact's `contact` (not the wrapper around it), changed as meant.",
-          "properties": {${listOf(NAME, ROLE, channels(true), NOTES).joinToString(",\n")}}
+          "properties": {${listOf(NAME, role(true), channels(true), notes(true)).joinToString(",\n")}}
         }
         """.trimIndent()
 }
