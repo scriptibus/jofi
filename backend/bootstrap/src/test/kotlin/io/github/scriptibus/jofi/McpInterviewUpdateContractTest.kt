@@ -25,7 +25,17 @@ class McpInterviewUpdateContractTest : McpInterviewContractSupport() {
                 )
             val full = logged.asUpdate() + ("localStart" to "2099-01-06T10:00")
 
-            listOf("participantIds", "outcome", "interview", "timeZone", "type", "version").forEach { key ->
+            listOf(
+                "applicationId",
+                "id",
+                "localStart",
+                "participantIds",
+                "outcome",
+                "interview",
+                "timeZone",
+                "type",
+                "version",
+            ).forEach { key ->
                 client.refused("update_interview", full - key)
             }
             val notes = full["interview"] as Map<*, *>
