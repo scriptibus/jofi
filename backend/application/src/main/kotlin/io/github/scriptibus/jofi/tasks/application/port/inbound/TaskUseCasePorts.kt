@@ -6,6 +6,8 @@ package io.github.scriptibus.jofi.tasks.application.port.inbound
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDashboard
 import io.github.scriptibus.jofi.tasks.domain.TaskGroup
@@ -100,6 +102,14 @@ interface ListTaskGroupsPort {
  */
 interface GetTaskDashboardPort {
     fun execute(zone: ZoneId): TaskResult<TaskDashboard>
+}
+
+/**
+ * One page of the done tasks, the newest completion first (#235): the way back to a task that was completed, by the
+ * user or by an AI client, since no other list shows it. Reopen it with [ReopenTaskPort]. Reads only.
+ */
+interface ListDoneTasksPort {
+    fun execute(query: DoneTaskQuery): TaskResult<DoneTaskPage>
 }
 
 /** The suggestions waiting for one click (#95), newest first. Reads only. */

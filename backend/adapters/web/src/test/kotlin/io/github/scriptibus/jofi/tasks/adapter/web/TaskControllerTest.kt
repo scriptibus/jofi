@@ -18,6 +18,7 @@ import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DismissTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.ListDoneTasksUseCase
 import io.github.scriptibus.jofi.tasks.application.ListSuggestedTasksUseCase
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
@@ -103,6 +104,9 @@ class TaskControllerTest(
 
         @Bean
         fun reopen(ports: Ports) = ReopenTaskUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
+
+        @Bean
+        fun listDone(ports: Ports) = ListDoneTasksUseCase(ports.tasks)
 
         @Bean
         fun listSuggestions(ports: Ports) = ListSuggestedTasksUseCase(ports.tasks)

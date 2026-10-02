@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.tasks.adapter.web
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.FieldViolation
 import io.github.scriptibus.jofi.shared.adapter.web.ValidationProblem
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.TaskField
 import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
@@ -74,6 +75,23 @@ object TaskProblems {
     /** The viewer's zone of a list (query parameter `timeZone`) is not one Java knows. */
     fun invalidViewerZone(): ErrorResponseException =
         ValidationProblem.of(INVALID, listOf(FieldViolation(VIEWER_ZONE, TaskProblem.INVALID_TIME_ZONE.name)))
+
+    /** The 400 for the `page` or `size` of the done tasks that `DoneTaskQuery.of` refused. */
+    fun invalidDonePage(
+        page: Int,
+        size: Int,
+    ): ErrorResponseException =
+        ValidationProblem.of(
+            INVALID,
+            listOfNotNull(
+                FieldViolation("page", TaskProblem.OUT_OF_RANGE.name).takeIf { page < 0 },
+                FieldViolation("size", TaskProblem.OUT_OF_RANGE.name).takeIf { size !in 1..DoneTaskQuery.MAX_SIZE },
+            ),
+        )
+
+    /** `page` or `size` of the done tasks is not a whole number (400 in the documented shape, naming it). */
+    fun notANumber(parameter: String): ErrorResponseException =
+        ValidationProblem.of(INVALID, listOf(FieldViolation(parameter, "INVALID")))
 
     /** The request field a violation belongs to, e.g. `timing.localDue`, so clients can show it there. */
     fun apiName(field: TaskField): String =

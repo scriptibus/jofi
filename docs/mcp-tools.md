@@ -299,9 +299,8 @@ createdAt, updatedAt, task: untrusted {title, notes}}`. Title and notes are untr
 Problems are named like `title:required`, `timeZone:invalid-time-zone`, `bucket:required` and
 `localDue:required` (neither given), `bucket:ambiguous` and `localDue:ambiguous` (both given),
 `localDue:out-of-range`, `link:not-found`. Ids and versions of the wrong shape answer `id:invalid` or `version:invalid`.
-The tools have no count limit; a write budget is #217. Follow-ups: #235 (a view of done tasks and `reopen_task`,
-before the chat uses these tools, #121), #236 (bound the two list tools, before #121 and #125) and #237 (accepting
-a task that never was a suggestion answers success, a use-case bug).
+The tools have no count limit; a write budget is #217. Follow-ups: #236 (bound the two list tools, before #121 and
+#125). Completed tasks are listed by `list_done_tasks` (#235) and brought back by `reopen_task`.
 
 ### `list_tasks` (read only)
 
@@ -338,6 +337,27 @@ the `localDue` in the answer. The task is open with origin `CHAT`. Result: the t
 `id` and `version` (from `list_tasks`), both required. Marks an OPEN task done. A done task is returned unchanged
 and writes nothing; a suggestion or dismissed task answers `invalid-transition`. Result: the task. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `invalid-transition`, `unavailable`.
+A completed task is no longer in `list_tasks` (nor in the dashboard or the Tasks page's open list): find it with
+`list_done_tasks` and open it again with `reopen_task`. Completing needs no confirmation, so this is the way back.
+
+### `list_done_tasks` (read only)
+
+`page` (from 0, default 0) and `size` (1 to 50, default 20), both optional. One page of the DONE tasks, the most
+recently completed first: `{total, page, size, tasks: [{id, version, origin, link, completedAt, createdAt, task:
+untrusted {title}}]}`. `total` counts all done tasks; the answer never holds more than `size` of them. The entries
+carry the title but **not the notes** (a page of long notes would fill a context, and `reopen_task` needs only the id
+and the version). Use it to find a task that was completed by mistake. Errors: `invalid-arguments`
+(`page:out-of-range`, `size:out-of-range`; `page:invalid` for a value that is no `int`, such as `1.0` or `2147483648`; a `size` out of
+range is refused by the schema), `unavailable`. To read a done task's notes, reopen it
+(`reopen_task` answers the whole task): there is no `get_task` for done tasks yet.
+
+### `reopen_task`
+
+`id` and `version` (from `list_done_tasks`), both required. Opens a DONE task again: the completion time is cleared
+and the task is back in `list_tasks`. An open task is returned unchanged and writes nothing; a suggestion or a
+dismissed task answers `invalid-transition`. Reopening is an edit, so there is no confirmation (spec §9); it is
+logged as `Reopened task` with the AI as actor. Result: the task. Errors: `invalid-arguments`, `not-found`,
+`version-conflict`, `invalid-transition`, `unavailable`.
 
 ### `accept_task_suggestion`
 

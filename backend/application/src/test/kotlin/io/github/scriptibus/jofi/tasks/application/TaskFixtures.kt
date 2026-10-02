@@ -16,6 +16,8 @@ import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
@@ -87,6 +89,19 @@ class TaskFixtures {
                     failingStore -> TaskStoreResult.StorageFailure("listByState")
                     else -> TaskStoreResult.Success(tasks.values.filter { it.state == state }.sortedBy { it.createdAt })
                 }
+
+            override fun listDone(query: DoneTaskQuery): TaskStoreResult<DoneTaskPage> {
+                if (failingStore) return TaskStoreResult.StorageFailure("listDone")
+                val done =
+                    tasks.values
+                        .filter { it.state == TaskState.DONE }
+                        .sortedWith(
+                            compareByDescending<Task> { it.completedAt }.thenByDescending { it.id.value.toString() },
+                        )
+                return TaskStoreResult.Success(
+                    DoneTaskPage(done.drop(query.offset.toInt()).take(query.size), done.size.toLong()),
+                )
+            }
 
             override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> = error("Not used by these use cases")
 
