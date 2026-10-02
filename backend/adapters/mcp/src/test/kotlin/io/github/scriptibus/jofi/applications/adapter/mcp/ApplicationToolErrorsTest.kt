@@ -23,6 +23,10 @@ class ApplicationToolErrorsTest {
                 ApplicationResult.InterviewNotFound to "not-found",
                 ApplicationResult.VersionConflict to "version-conflict",
                 ApplicationResult.StorageFailure("secret operation") to "unavailable",
+                ApplicationResult.ImportNotFound to "not-found",
+                ApplicationResult.AiNotConfigured to "ai-not-configured",
+                ApplicationResult.ImportInProgress to "import-in-progress",
+                ApplicationResult.ImportBusy to "import-busy",
                 ApplicationResult.InvalidTransition(ApplicationStatus.APPLIED, ApplicationStatus.DISCOVERED) to
                     "invalid-transition",
             )
@@ -46,6 +50,18 @@ class ApplicationToolErrorsTest {
 
         answer.problems shouldBe
             listOf(ArgumentProblem("companyId", "not-found"), ArgumentProblem("localStart", "out-of-range"))
+    }
+
+    @Test
+    fun `a link that cannot be imported says to paste the text, for the day a URL import exists`() {
+        fun message(problem: ApplicationProblem) =
+            ApplicationToolErrors
+                .failure(ApplicationResult.Invalid(listOf(ApplicationViolation(ApplicationField.SOURCE_URL, problem))))
+                .message
+
+        message(ApplicationProblem.NOT_ALLOWED).contains("LinkedIn, StepStone or Indeed") shouldBe true
+        message(ApplicationProblem.UNREACHABLE).contains("start_text_import") shouldBe true
+        message(ApplicationProblem.INVALID_URL) shouldBe "The arguments are invalid."
     }
 
     @Test

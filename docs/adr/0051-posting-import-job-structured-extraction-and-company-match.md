@@ -76,8 +76,9 @@ companies context without reaching into it.
   for "Foo SE") are ambiguous. Without a match a company with that name is created through `CreateCompanyPort`, and
   only after the rest of the answer passed the checks, so an answer that is no posting creates no company. Deliberately strict: a wrong match files the job under another
   company, a missed one only adds a company the user can see. Creation is not destructive, so it needs no confirmation.
-- **Actors.** Starting and retrying are the user's (`USER`). Everything the run creates, including a new company, is
-  recorded as `AI`: the values come from the model's reading.
+- **Actors.** Starting and retrying are the user's (`USER`), except that an MCP client may start a text import (`AI`);
+  URL imports through MCP wait for #242, which asks the user first. Everything the run creates, including a new company,
+  is recorded as `AI`: the values come from the model's reading.
 
 ## Consequences
 

@@ -26,7 +26,8 @@ the PR that adds or changes a tool.
   Codes: `invalid-arguments`, `not-found`, `unavailable`, `failed`, `internal-error`, `unauthenticated`,
   `privacy-filter-failed` (the "never send to AI" flags could not be read, so nothing was returned),
   `version-conflict` (a write based on an older version of the entity: read it again and retry),
-  `invalid-transition` (a task cannot move from its state to the requested one).
+  `invalid-transition` (a task cannot move from its state to the requested one), `ai-not-configured`
+  (see "Importing postings").
 - Arguments that break a tool's schema (wrong type, a missing required argument, a value out of range) are
   refused by the MCP SDK as a tool error with a plain-text message before the tool runs. That message is not
   filtered; it names the properties the client sent and the schema's enum values, never argument values.
@@ -235,6 +236,40 @@ No arguments. The interviews still to come across all applications, soonest firs
 those of closed applications are left out. No notes, and not enough for `update_interview`:
 `{interviews: [{id, applicationId, type, startsAt, localStart, timeZone, outcome, application: untrusted {title}}]}`.
 Errors: `unavailable`.
+
+## Importing postings (#118)
+
+An import creates a new application in status `DISCOVERED` from a pasted job posting. The posting is third-party
+data: it is stored and read by the extraction, which has no tools, and never followed as instructions. The tools only
+start the import and return without waiting for the AI, logged in the changelog with the AI as actor (entity
+`posting_import`); the extraction runs in a background job, so a client polls `get_import_status` until the status is
+`SUCCEEDED` or `FAILED`. No result holds the posting's text; the new application is read with `get_application`.
+
+**Importing a link is not available through MCP yet (#242).** A fetch of a URL the model chooses is an outward action,
+so it will come with a confirmation by the user first. Until then the model should ask the user for the posting's
+text, or let the user import the link in the app.
+
+There is no write budget and no cost cap for imports yet (#217): every `start_text_import` queues an AI extraction
+(up to 100,000 characters in), and the monthly cap does not apply to extractions the user starts. #217 also covers
+import cost and lands before the chat (#121) and external clients (#125).
+
+Import result: `{id, status, failure, applicationId, attempt, createdAt, updatedAt}`; `status` is `PENDING`,
+`SUCCEEDED` (with `applicationId`) or `FAILED` (with `failure`: `AI_NOT_CONFIGURED`, `AI_AUTHENTICATION_FAILED`,
+`AI_UNAVAILABLE`, `AI_REJECTED`, `UNREADABLE_ANSWER`, `NOT_A_POSTING`, `NOT_QUEUED`, `NOT_COMPLETED`). Retrying a
+failed import is done in the app. A text submitted again after its import succeeded starts a new import (one pending
+import at most per text, however often it is submitted).
+
+Errors besides the usual: `ai-not-configured` (no model is assigned to the extraction task: the user sets one up
+first) and `invalid-arguments` with `text:required`, `text:too-long`, `text:invalid-character`.
+
+### `start_text_import`
+
+`text` (required, plain text or Markdown, at most 100,000 characters). Result: the import (`PENDING`). The same
+text submitted again while it is pending answers the same import.
+
+### `get_import_status` (read only)
+
+`id` (UUID, required). Result: the import. Errors: `invalid-arguments` (`id:invalid`), `not-found`, `unavailable`.
 
 ## Tasks (#119)
 
