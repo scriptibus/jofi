@@ -98,7 +98,10 @@ class DoneTaskControllerTest(
             .hasStatus(400)
             .bodyJson()
             .isLenientlyEqualTo(
-                """{"violations":[{"field":"page","problem":"OUT_OF_RANGE"},{"field":"size","problem":"OUT_OF_RANGE"}]}""",
+                """
+                {"violations":[{"field":"page","problem":"OUT_OF_RANGE"},
+                               {"field":"size","problem":"OUT_OF_RANGE"}]}
+                """.trimIndent(),
             )
         verify(exactly = 0) { ports.tasks.listDone(any()) }
     }
