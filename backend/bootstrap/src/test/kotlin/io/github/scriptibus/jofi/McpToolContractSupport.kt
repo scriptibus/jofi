@@ -21,6 +21,7 @@ import io.github.scriptibus.jofi.system.application.port.LoginThrottlePort
 import io.github.scriptibus.jofi.system.application.port.SetupTokenPort
 import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.McpSyncClient
@@ -138,6 +139,17 @@ open class McpToolContractSupport {
         result.isError shouldBe true
         // The tool's own errors are JSON with a code; the SDK's schema refusals are plain text.
         text(result) shouldNotContain "\"code\""
+    }
+
+    /** A call refused by the schema because the required property [key] is missing (and not for another reason). */
+    protected fun McpSyncClient.refusedMissing(
+        name: String,
+        arguments: Map<String, Any?>,
+        key: String,
+    ) {
+        val result = callTool(request(name, arguments))
+        result.isError shouldBe true
+        text(result) shouldContain "required property '$key' not found"
     }
 
     /** The problems of an error answer as `argument:problem`. */
