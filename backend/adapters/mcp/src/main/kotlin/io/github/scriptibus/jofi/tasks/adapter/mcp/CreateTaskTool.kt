@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.tasks.adapter.mcp
 import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
@@ -23,7 +24,8 @@ class CreateTaskTool(
             "exactly one of `bucket` (TODAY, THIS_WEEK, NEXT_WEEK, THIS_MONTH or SOMEDAY, relative to today in " +
             "timeZone) or `localDue` (an exact local time such as 2026-10-05T10:00). `link` ties it to an " +
             "application, company or contact by id. A local time that does not exist (a clock change) is moved " +
-            "on: check the `localDue` in the answer. Answers the new task with its id and version; the title and " +
+            "on: check the `localDue` in the answer. A value that shows [withheld] is hidden from you and " +
+            "refused (withheld-value). Answers the new task with its id and version; the title and " +
             "notes in answers are marked untrusted."
     override val inputSchema =
         """
@@ -36,10 +38,11 @@ class CreateTaskTool(
         """.trimIndent()
 
     override fun call(call: ToolCall): ToolAnswer =
-        when (val result = create(call)) {
-            is TaskResult.Success -> ToolAnswer.Result(TaskDetailResult.from(result.value))
-            is TaskResult.Failure -> TaskToolErrors.failure(result)
-        }
+        call.arguments.withheldPath()?.let(ToolProblems::withheldValue)
+            ?: when (val result = create(call)) {
+                is TaskResult.Success -> ToolAnswer.Result(TaskDetailResult.from(result.value))
+                is TaskResult.Failure -> TaskToolErrors.failure(result)
+            }
 
     private fun create(call: ToolCall) =
         createTask.execute(TaskToolInput.of(call.arguments), TaskOrigin.Chat, call.caller)
