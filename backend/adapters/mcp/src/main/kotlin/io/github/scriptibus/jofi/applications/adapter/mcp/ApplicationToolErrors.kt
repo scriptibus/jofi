@@ -97,6 +97,15 @@ internal object ApplicationToolErrors {
             "An application cannot move from ${failure.from} to ${failure.to}. Read it again for its status.",
         )
 
+    /** Arguments that contradict each other, see [ApplicationToolInput.conflicts]. */
+    fun contradiction(problems: List<ArgumentProblem>) =
+        ToolAnswer.Error(
+            "invalid-arguments",
+            "The arguments contradict each other: a pay estimate basis needs an ESTIMATED pay band, and `offer` " +
+                "and `notes.offer` must both be set or both be null. Nothing was changed.",
+            problems,
+        )
+
     /** The answer of a delete once the gate is passed: success, or the failure. */
     fun deleted(result: ApplicationResult<Unit>): ToolAnswer =
         when (result) {

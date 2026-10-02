@@ -34,6 +34,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Test
+import tools.jackson.databind.json.JsonMapper
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -231,6 +232,50 @@ class ApplicationWriteToolsTest {
         }
         verify(exactly = 0) { applications.findById(any()) }
         verify(exactly = 0) { applications.add(any(), any<StatusChange>()) }
+    }
+
+    @Test
+    fun `an offer cleared in one place only and a basis without an estimated band are refused, storing nothing`() {
+        val identity = arrayOf("id" to "$id", "version" to 0, "companyId" to "$company")
+        val texts = mapOf("portalNotes" to null, "payEstimateBasis" to null, "offer" to mapOf("bonus" to "10 %"))
+        val onlyTexts = update.call(call(*identity, *staff(), "notes" to texts))
+        val onlyDetails =
+            update.call(
+                call(*identity, *staff(), "offer" to mapOf("vacationDays" to 30), "notes" to texts + ("offer" to null)),
+            )
+        val basis = mapOf("portalNotes" to null, "payEstimateBasis" to "levels.fyi", "offer" to null)
+        val band = mapOf("currency" to "EUR", "period" to "YEAR", "source" to "POSTING", "min" to 1)
+        val unestimated = update.call(call(*identity, *staff(), "payBand" to band, "notes" to basis))
+        val noBand = create.call(call("companyId" to "$company", "posting" to mapOf("title" to "T"), "notes" to basis))
+
+        onlyTexts.problemsOf() shouldBe
+            listOf(ArgumentProblem("offer", "inconsistent"), ArgumentProblem("notes.offer", "inconsistent"))
+        onlyDetails.problemsOf() shouldBe onlyTexts.problemsOf()
+        unestimated.problemsOf() shouldBe listOf(ArgumentProblem("notes.payEstimateBasis", "not-applicable"))
+        noBand.problemsOf() shouldBe listOf(ArgumentProblem("notes.payEstimateBasis", "not-applicable"))
+        verify(exactly = 0) { applications.findById(any()) }
+        verify(exactly = 0) { applications.add(any(), any<StatusChange>()) }
+    }
+
+    @Test
+    fun `create_application accepts null for notes and languageAndTone, the schema says so`() {
+        every { applications.add(any(), any()) } returns ApplicationStoreResult.Success(Unit)
+
+        create
+            .call(
+                call(
+                    "companyId" to "$company",
+                    "posting" to mapOf("title" to "T"),
+                    "notes" to null,
+                    "languageAndTone" to null,
+                ),
+            ).shouldBeInstanceOf<ToolAnswer.Result>()
+
+        val json = JsonMapper.builder().build()
+        listOf("notes", "languageAndTone").forEach { key ->
+            json.readTree(create.inputSchema)["properties"][key]["type"].toString() shouldBe "[\"object\",\"null\"]"
+            json.readTree(update.inputSchema)["properties"][key]["type"].toString() shouldBe "\"object\""
+        }
     }
 
     @Test

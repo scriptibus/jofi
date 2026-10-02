@@ -42,7 +42,7 @@ class UpdateContactTool(
         """.trimIndent()
 
     override fun call(call: ToolCall): ToolAnswer {
-        call.arguments.withheldArgument()?.let { return ToolProblems.withheldValue(it) }
+        call.arguments.withheldPath()?.let { return ToolProblems.withheldValue(it) }
         val id = call.arguments.uuid("id") ?: throw InvalidToolArgument("id")
         val version = call.arguments.long("version") ?: throw InvalidToolArgument("version")
         return when (val result = update(call, id, version)) {

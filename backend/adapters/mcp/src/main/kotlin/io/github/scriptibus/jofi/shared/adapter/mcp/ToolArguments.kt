@@ -77,15 +77,10 @@ class ToolArguments(
         }
 
     /**
-     * The first argument that holds the redaction marker of the "never send to AI" filter, or null. Results show
-     * `[withheld]` in place of flagged values, so a replace-all update that sends a result back would store the
-     * marker over the real value; tools refuse such input instead.
-     */
-    fun withheldArgument(): String? = values.entries.firstOrNull { (_, value) -> holdsMarker(value) }?.key
-
-    /**
-     * Like [withheldArgument], but names the nested argument that holds the marker, such as `notes.offer.benefits` or
-     * `participantIds[0]`, so the model learns which value to leave alone.
+     * The first argument that holds the redaction marker of the "never send to AI" filter, named by its path (such
+     * as `notes.offer.benefits` or `channels[0].value`), or null. Results show `[withheld]` in place of flagged
+     * values, so an update that sends a result back would store the marker over the real value, and a create call
+     * that copies one would store the marker as text; tools refuse such input and name the value to leave alone.
      */
     fun withheldPath(): String? = values.entries.firstNotNullOfOrNull { (key, value) -> markerPath(key, value) }
 
@@ -98,14 +93,6 @@ class ToolArguments(
             is Map<*, *> -> value.entries.firstNotNullOfOrNull { (key, item) -> markerPath("$path.$key", item) }
             is List<*> -> value.withIndex().firstNotNullOfOrNull { (index, item) -> markerPath("$path[$index]", item) }
             else -> null
-        }
-
-    private fun holdsMarker(value: Any?): Boolean =
-        when (value) {
-            is String -> NeverSendFilter.REDACTION in value
-            is Map<*, *> -> value.values.any(::holdsMarker)
-            is List<*> -> value.any(::holdsMarker)
-            else -> false
         }
 
     fun uuids(name: String): Set<UUID> =

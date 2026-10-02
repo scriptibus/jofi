@@ -16,12 +16,12 @@ object ToolProblems {
     /** `TOO_LONG` becomes `too-long`. */
     fun problemCode(problem: String): String = problem.lowercase().replace('_', '-')
 
-    /** The refusal of an update that carries the redaction marker back, see [ToolArguments.withheldArgument]. */
+    /** The refusal of input that carries the redaction marker, see [ToolArguments.withheldPath]. */
     fun withheldValue(argument: String): ToolAnswer.Error =
         ToolAnswer.Error(
             "invalid-arguments",
-            "A value shows [withheld]: it is hidden from you and not stored. The update would overwrite the real " +
-                "value with the marker, so nothing was changed.",
+            "A value shows [withheld]: it is hidden from you and cannot be stored or sent back. " +
+                "Nothing was changed.",
             listOf(ArgumentProblem(argument, "withheld-value")),
         )
 

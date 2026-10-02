@@ -37,15 +37,16 @@ the PR that adds or changes a tool.
 
 ## Replace-style updates
 
-Every update tool that replaces all fields of an entity (`update_application`, and the ones for interviews and for
-companies and contacts) follows one rule: **every updatable property is required in the schema but may be `null`,
+Every new update tool that replaces all fields of an entity (`update_application` and `update_interview`) follows one
+rule (`update_company`, `update_contact` and `set_application_contacts` predate it, see below): **every updatable property is required in the schema but may be `null`,
 at the top level and inside nested objects.** A missing key is a schema refusal (nothing is stored); only an
 explicit `null` clears. This keeps a model that did not read a field from deleting it: the changelog records which
 fields changed, never their texts, so a wiped note cannot be recovered. A tool's update arguments take the shape of
 its read tool's answer (the `content` of untrusted objects under the same keys), and what a tool cannot change is
-shown apart from it (`readOnly`) and not sent back. Create and log tools keep their optional properties optional.
-(`update_company`, `update_contact` and `set_application_contacts` predate the rule; bringing them in line is a
-follow-up.)
+shown apart from it (`readOnly`) and not sent back. Create and log tools keep their optional properties optional, and a new or changed one refuses a
+`[withheld]` marker. The company, contact and task tools predate the rule: `update_company` and `update_contact`
+still clear what is left out, `set_application_contacts` replaces the set, and `create_company`, `create_contact` and
+`create_task` still accept the marker; bringing them in line is #241.
 
 ## Tools
 
@@ -171,15 +172,18 @@ Changing the status is not a tool yet: moving to Applied freezes the job descrip
 `howApplied`, `payBand` (`{min, max, currency, period, source, estimateConfidence}`; at least one of min and max;
 confidence and `notes.payEstimateBasis` belong to `ESTIMATED`), `offer` (typed details) and `languageAndTone`, and
 `notes` (`portalNotes`, `payEstimateBasis`, `offer: {bonus, benefits, noticePeriod}`). An offer needs at least one
-detail; its typed details come from `offer` and its texts from `notes.offer`, so clearing an offer means `null` for
-both. The application starts as `DISCOVERED`. Result: as `get_application`. Errors: `invalid-arguments`,
+detail; its typed details come from `offer` and its texts from `notes.offer`. `notes.payEstimateBasis` is for an
+`ESTIMATED` pay band only (`notes.payEstimateBasis:not-applicable` otherwise), and `notes` and `languageAndTone` may
+be `null`. The application starts as `DISCOVERED`. Result: as `get_application`. Errors: `invalid-arguments`,
 `unavailable`.
 
 ### `update_application`
 
 The arguments of `get_application`'s answer without `readOnly`: send back what it returned, changed, with the
 `content` of `posting`, `notes` and `languageAndTone` under their keys. Every property is required (the rule for
-replace-style updates above); only an explicit `null` clears. The status, contacts, scores and unread flag are not
+replace-style updates above); only an explicit `null` clears. An offer is cleared by `null` for both `offer` and
+`notes.offer`: one without the other is refused (`offer:inconsistent`, `notes.offer:inconsistent`), as is a
+`notes.payEstimateBasis` unless the pay band is `ESTIMATED` (`notes.payEstimateBasis:not-applicable`). The status, contacts, scores and unread flag are not
 changed here; an update that changes nothing stores nothing and logs nothing. An application with a withheld value
 cannot be updated through this tool (the refusal protects the real value). Result: as `get_application`. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
@@ -214,7 +218,9 @@ The arguments of `list_interviews`' entries without `readOnly`: `applicationId`,
 property is required** (the rule for replace-style updates above): leaving one out is refused and stores nothing,
 only an explicit `null` clears (`participantIds`: `null` or `[]` for none). The entries of
 `list_upcoming_interviews` are not enough (no version, notes or participants): read the interview with
-`list_interviews` first. Unchanged details store nothing and log nothing. Result: the interview. Errors:
+`list_interviews` first, in this session, and send what it returned: a model that writes the nulls itself and guesses
+the version can still blind-update and delete the notes (a `get_interview` tool is #236, a blocker before #121).
+Unchanged details store nothing and log nothing. Result: the interview. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
 ### `list_interviews` (read only)

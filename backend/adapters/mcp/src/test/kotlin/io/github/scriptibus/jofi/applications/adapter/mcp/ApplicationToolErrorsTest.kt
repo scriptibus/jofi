@@ -65,6 +65,14 @@ class ApplicationToolErrorsTest {
     }
 
     @Test
+    fun `every failure that is an object maps to an answer, found from the sealed hierarchy`() {
+        val objects = ApplicationResult.Failure::class.sealedSubclasses.mapNotNull { it.objectInstance }
+
+        objects.size shouldBe objects.map { ApplicationToolErrors.failure(it).code }.size
+        (objects.size >= 10) shouldBe true
+    }
+
+    @Test
     fun `every application field has an argument name`() {
         ApplicationField.entries.map(ApplicationToolErrors::argumentOf).toSet() shouldHaveSize
             ApplicationField.entries.size
