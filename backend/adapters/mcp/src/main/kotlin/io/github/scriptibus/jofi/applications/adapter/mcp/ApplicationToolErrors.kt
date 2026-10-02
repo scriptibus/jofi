@@ -104,7 +104,7 @@ internal object ApplicationToolErrors {
             ApplicationField.DESCRIPTION to "text",
             ApplicationField.INTERVIEW_START to "localStart",
             ApplicationField.TIME_ZONE to "timeZone",
-            ApplicationField.PARTICIPANTS to "participants",
+            ApplicationField.PARTICIPANTS to "participantIds",
             ApplicationField.PREPARATION_NOTES to "preparationNotes",
             ApplicationField.INTERVIEW_NOTES to "notes",
             ApplicationField.GHOSTED_AFTER_WEEKS to "ghostedAfterWeeks",

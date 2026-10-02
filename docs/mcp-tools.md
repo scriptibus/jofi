@@ -165,6 +165,43 @@ details, so send back what `get_application` returned (title and location from `
 stores nothing and logs nothing. Result: as `get_application`. Errors: `invalid-arguments`, `not-found`,
 `version-conflict`, `unavailable`.
 
+## Interviews (#118)
+
+Logging and editing need no confirmation (spec §9) and are logged with the AI as actor; deleting is
+`delete_interview`. An update replaces all fields, a stale `version` (the interview's own, not the application's)
+answers `version-conflict`, a `[withheld]` value sent back is refused, `null` is accepted for every optional
+argument. The notes come back untrusted (`interview: {preparationNotes, notes}`), and so does an application's
+title in the upcoming list. Problems are named like `timeZone:invalid-time-zone`, `localStart:out-of-range`,
+`participantIds:not-found`, `participantIds:too-many`.
+
+Interview result: `{id, applicationId, version, type, startsAt, localStart, timeZone, participantIds, outcome,
+createdAt, updatedAt, interview: untrusted {preparationNotes, notes}}`. `localStart` is the agreed wall-clock time
+in `timeZone` (a local time a clock change skips is moved on: check it in the answer), `startsAt` the instant.
+
+### `log_interview`
+
+`applicationId`, `type` (`PHONE_SCREEN`, `HR`, `TECHNICAL`, `CASE`, `ON_SITE`, `FINAL`, `OTHER`), `localStart`
+(`2026-10-05T10:00`) and `timeZone` (`Europe/Berlin` or `+02:00`), all required, and optional `participantIds`
+(contacts, at most 20), `preparationNotes`, `notes` (Markdown), `outcome` (`PASSED`, `REJECTED`, `WITHDRAWN`,
+`CANCELLED`). Result: the interview. Errors: `invalid-arguments`, `not-found` (application), `unavailable`.
+
+### `update_interview`
+
+`applicationId`, `id`, `version` and the arguments of `log_interview` (required: the same four). Replaces all
+details; unchanged details store nothing and log nothing. Result: the interview. Errors: `invalid-arguments`,
+`not-found`, `version-conflict`, `unavailable`.
+
+### `list_interviews` (read only)
+
+`applicationId` (required). Result: `{total, interviews: [interview]}` in the order they start, at most 50.
+Errors: `not-found`, `unavailable`.
+
+### `list_upcoming_interviews` (read only)
+
+No arguments. The interviews still to come across all applications, soonest first (at most 100, cancelled ones
+left out), without notes: `{interviews: [{id, applicationId, type, startsAt, localStart, timeZone, outcome,
+application: untrusted {title}}]}`.
+
 ## Tasks (#119)
 
 Like the companies and contacts above, the task tools create or change data without confirmation (spec §9) and
