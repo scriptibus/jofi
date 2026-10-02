@@ -85,9 +85,7 @@ export function DoneTasks() {
       <h2 id="task-done-heading" ref={heading} tabIndex={-1} className="text-h2">
         {m.tasks_done_heading()}
       </h2>
-      <div role="status" className="flex min-h-10 items-center">
-        {reopened ? <span>{m.task_reopened_message({ title: reopened })}</span> : null}
-      </div>
+      <div role="status">{reopened ? <span>{m.task_reopened_message({ title: reopened })}</span> : null}</div>
       <FailureMessage failure={failure} />
       <DoneList
         data={done.data}
