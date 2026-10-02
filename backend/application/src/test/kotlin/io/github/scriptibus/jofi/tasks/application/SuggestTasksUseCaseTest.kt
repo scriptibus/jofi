@@ -183,7 +183,7 @@ class SuggestTasksUseCaseTest {
         accept.execute(offer.id, 0, Actor.User) shouldBe TaskResult.VersionConflict
         fixtures.entries shouldHaveSize 2
         val manual = fixtures.task()
-        accept.execute(manual.id, 0, Actor.User) shouldBe TaskResult.Success(manual)
+        accept.execute(manual.id, 0, Actor.User) shouldBe TaskResult.InvalidTransition(TaskState.OPEN, TaskState.OPEN)
         val dismissed =
             (offer.copy(id = TaskId(UUID.randomUUID())).apply(TaskTransition.DISMISS, NOW) as TaskStateChange.Changed)
                 .task

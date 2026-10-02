@@ -115,6 +115,15 @@ interface GetTaskDashboardPort {
 }
 
 /**
+ * One page of the done tasks, the newest completion first (#235, ADR-0056): the way back to a task that was
+ * completed, by the user or by an AI client, since no other list shows it. Reopen it with [ReopenTaskPort]. A [page]
+ * out of range is `Invalid` (PAGE, SIZE). Reads only. Entries are whole [Task]s; the MCP tool leaves the notes out.
+ */
+interface ListDoneTasksPort {
+    fun execute(page: PageInput): TaskResult<Paged<Task>>
+}
+
+/**
  * One page of the suggestions waiting for one click (#95, ADR-0056), newest first, as [TaskSummary]s (an excerpt of
  * the notes). A [page] out of range is `Invalid` (PAGE, SIZE). Reads only.
  */
@@ -126,8 +135,8 @@ interface ListSuggestedTasksPort {
 }
 
 /**
- * Accepts a suggestion (#95, `TaskTransition.ACCEPT`): it becomes an open task of the user. An open task is
- * unchanged; a done or dismissed one is `InvalidTransition`.
+ * Accepts a suggestion (#95, `TaskTransition.ACCEPT`): it becomes an open task of the user. An accepted suggestion is
+ * unchanged; a done or dismissed one, and a task that never was a suggestion, is `InvalidTransition` (#237).
  */
 interface AcceptTaskSuggestionPort {
     fun execute(

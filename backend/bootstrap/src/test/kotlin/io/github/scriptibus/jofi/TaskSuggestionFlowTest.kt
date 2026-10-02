@@ -16,6 +16,7 @@ import io.github.scriptibus.jofi.system.domain.ThrottleKey
 import io.github.scriptibus.jofi.tasks.adapter.jobs.TaskSuggestionsJobAdapter
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import org.jooq.DSLContext
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -192,6 +193,21 @@ class TaskSuggestionFlowTest(
         anonymous.get("/api/tasks/suggestions").response.status shouldBe 401
         browser.post(path, """{"basedOnVersion":0}""", csrf = null).response.status shouldBe 403
         browser.post(path, """{"basedOnVersion":0}""").response.status shouldBe 404
+    }
+
+    @Test
+    fun `accepting a task the user created is 409, and the task stays open`() {
+        val browser = owner()
+        val manual =
+            browser
+                .post("/api/tasks", """{"title":"Mine","timing":{"timeZone":"UTC","bucket":"TODAY"}}""")
+                .ok(201)["id"]
+                .asString()
+
+        browser.post("/api/tasks/$manual/accept", """{"basedOnVersion":0}""").ok(409)["type"].asString() shouldContain
+            "invalid-transition"
+        browser.get("/api/tasks/$manual").ok()["version"].asInt() shouldBe 0
+        actorsOf(manual) shouldContainExactly listOf("USER null Created task")
     }
 
     private companion object {

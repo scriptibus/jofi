@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskDashboardUseCase
 import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.ListDoneTasksUseCase
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.ReopenTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.UpdateTaskUseCase
@@ -41,6 +42,9 @@ class TasksConfiguration {
         clock: Clock,
         redaction: RedactForAiUseCase,
     ): ListTaskGroupsUseCase = ListTaskGroupsUseCase(tasks, clock, redaction)
+
+    @Bean
+    fun listDoneTasksUseCase(tasks: TaskRepositoryPort): ListDoneTasksUseCase = ListDoneTasksUseCase(tasks)
 
     @Bean
     fun getTaskDashboardUseCase(

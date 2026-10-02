@@ -38,6 +38,6 @@ class PagingBoundsCustomizer : OperationCustomizer {
     ) = IntegerSchema().format("int32").minimum(BigDecimal(min)).maximum(BigDecimal(max))
 
     private companion object {
-        val PAGED_OPERATIONS = setOf("listTaskGroups", "listSuggestedTasks", "listInterviews")
+        val PAGED_OPERATIONS = setOf("listTaskGroups", "listSuggestedTasks", "listDoneTasks", "listInterviews")
     }
 }

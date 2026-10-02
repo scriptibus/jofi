@@ -6,7 +6,9 @@ import { useState } from "react";
 import {
   completeTask,
   deleteTask,
+  getGetTaskDashboardQueryKey,
   getGetTaskQueryKey,
+  getListDoneTasksQueryKey,
   getListTaskGroupsQueryKey,
   reopenTask,
   type TaskResponse,
@@ -71,6 +73,9 @@ export function useSetTaskDone(listKey: QueryKey) {
         void queryClient.invalidateQueries({ queryKey: listKey });
       else updateListed(queryClient, listKey, saved.id, (listed) => summaryOf(saved, listed));
       queryClient.setQueryData(getGetTaskQueryKey(saved.id), saved);
+      // The done view lists what was just completed (or no longer lists what was reopened).
+      void queryClient.invalidateQueries({ queryKey: getListDoneTasksQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getGetTaskDashboardQueryKey() });
     },
   });
 }

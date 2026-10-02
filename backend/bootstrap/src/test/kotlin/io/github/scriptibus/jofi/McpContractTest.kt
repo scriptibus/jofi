@@ -309,6 +309,8 @@ class McpContractTest(
                 "create_task" to false,
                 "complete_task" to false,
                 "accept_task_suggestion" to false,
+                "list_done_tasks" to true,
+                "reopen_task" to false,
                 "delete_application" to false,
                 "delete_interview" to false,
                 "delete_company" to false,

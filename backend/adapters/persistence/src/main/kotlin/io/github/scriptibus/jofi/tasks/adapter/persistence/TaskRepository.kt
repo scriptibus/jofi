@@ -20,6 +20,7 @@ import io.github.scriptibus.jofi.tasks.domain.TaskState
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -84,6 +85,31 @@ class TaskRepository(
                     .fetch()
                     .map(TaskRecords::toDomain)
             TaskStoreResult.Success(Paged(items, PageInfo.of(request, total)))
+        }
+
+    /**
+     * One page of the done tasks, the newest completion first (then by id). The page and the total come from one
+     * statement (`count(*) OVER ()`), so a task completed or reopened by someone else meanwhile cannot make the total
+     * smaller than the page. Only a page past the end has no row to carry the total; it is empty, so a count of its
+     * own cannot contradict it.
+     */
+    override fun listDone(request: PageRequest): TaskStoreResult<Paged<Task>> =
+        storeCall("listDone") {
+            val done = TASK.STATE.eq(TaskState.DONE.name)
+            val total = DSL.count().over().`as`("done_total")
+            val rows =
+                dsl
+                    .select(TASK.asterisk(), total)
+                    .from(TASK)
+                    .where(done)
+                    .orderBy(TASK.COMPLETED_AT.desc(), TASK.ID.desc())
+                    .limit(request.size)
+                    .offset(request.offset)
+                    .fetch()
+            val count = rows.firstOrNull()?.get(total) ?: dsl.fetchCount(TASK, done)
+            TaskStoreResult.Success(
+                Paged(rows.map { TaskRecords.toDomain(it.into(TASK)) }, PageInfo.of(request, count)),
+            )
         }
 
     override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> =

@@ -43,6 +43,12 @@ interface TaskRepositoryPort {
         request: PageRequest,
     ): TaskStoreResult<Paged<Task>>
 
+    /**
+     * One page of the done tasks, the newest completion first (then by id, so the order is stable), with the number
+     * of all done tasks. Reads only the page, never every done task.
+     */
+    fun listDone(request: PageRequest): TaskStoreResult<Paged<Task>>
+
     /** The tasks linked to [link] in any state, oldest first (then by id), for its timeline (#94). */
     fun listByLink(link: TaskLink): TaskStoreResult<List<Task>>
 
