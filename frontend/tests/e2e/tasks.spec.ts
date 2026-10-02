@@ -116,6 +116,54 @@ test("complete a task and undo it; a completed task leaves the list", async ({ p
   await expect(box).toHaveCount(0);
 });
 
+test("a completed task is found under Done and reopened from there", async ({ page }) => {
+  const task = await createTask(page, "Call Erika", { bucket: "TODAY" });
+  await page.goto("/tasks");
+  await page.getByText(task.title, { exact: true }).click();
+  await expect(said(page, `“${task.title}” is done.`)).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("checkbox", { name: task.title })).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Done" }).click();
+  const done = page.getByRole("region", { name: "Done tasks" });
+  const row = done.getByRole("listitem").filter({ hasText: task.title });
+  await expect(row.getByText(/^Completed /)).toBeVisible();
+  await expectNoA11yViolations(page);
+  await snapshot(page, "tasks-done");
+
+  await row.getByRole("button", { name: `Reopen task: ${task.title}` }).click();
+  await expect(said(page, `“${task.title}” is open again.`)).toBeVisible();
+  await expect(row).toHaveCount(0);
+  await page.getByRole("tab", { name: "Open" }).click();
+  await expect(group(page, "Today").getByRole("checkbox", { name: task.title })).not.toBeChecked();
+});
+
+test("a task completed elsewhere, as the AI could, is listed under Done and can be reopened", async ({
+  page,
+}) => {
+  const task = await createTask(page, "Cancel the newsletter", { bucket: "THIS_MONTH" });
+  const { request, headers } = await api(page);
+  const completed = await request.post(`/api/tasks/${task.id}/complete`, {
+    data: { basedOnVersion: 0 },
+    headers,
+  });
+  expect(completed.status()).toBe(200);
+
+  await page.goto("/tasks");
+  await expect(page.getByRole("checkbox", { name: task.title })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Done" }).click();
+  const row = page
+    .getByRole("region", { name: "Done tasks" })
+    .getByRole("listitem")
+    .filter({ hasText: task.title });
+  await expect(row).toBeVisible();
+  await row.getByRole("button", { name: `Reopen task: ${task.title}` }).click();
+  await expect(said(page, `“${task.title}” is open again.`)).toBeVisible();
+
+  const reopened = await request.get(`/api/tasks/${task.id}`);
+  expect(await reopened.json()).toMatchObject({ status: "OPEN", completedAt: null, version: 2 });
+});
+
 test("edit a task: the new title and bucket show in the list", async ({ page }) => {
   const task = await createTask(page, "Research ACME", { bucket: "SOMEDAY" });
   const title = uniqueName("Research ACME properly");
@@ -171,5 +219,27 @@ test.describe("in German", () => {
     await expect(group(page, "Heute").getByRole("checkbox", { name: title })).toBeVisible();
     await expectNoA11yViolations(page);
     await snapshot(page, "tasks-de");
+  });
+
+  test("find a done task and reopen it in German", async ({ page }) => {
+    const task = await createTask(page, "Anruf bei Erika", { bucket: "TODAY" });
+    const { request, headers } = await api(page);
+    const completed = await request.post(`/api/tasks/${task.id}/complete`, {
+      data: { basedOnVersion: 0 },
+      headers,
+    });
+    expect(completed.status()).toBe(200);
+
+    await page.goto("/tasks");
+    await page.getByRole("tab", { name: "Erledigt" }).click();
+    const done = page.getByRole("region", { name: "Erledigte Aufgaben" });
+    const row = done.getByRole("listitem").filter({ hasText: task.title });
+    await expect(row.getByText(/^Erledigt am /)).toBeVisible();
+    await expectNoA11yViolations(page);
+    await snapshot(page, "tasks-done-de");
+    await row.getByRole("button", { name: `Aufgabe wieder öffnen: ${task.title}` }).click();
+    await expect(said(page, `„${task.title}“ ist wieder offen.`)).toBeVisible();
+    await page.getByRole("tab", { name: "Offen" }).click();
+    await expect(group(page, "Heute").getByRole("checkbox", { name: task.title })).not.toBeChecked();
   });
 });

@@ -5,7 +5,9 @@ import { type QueryClient, type QueryKey, useMutation, useQueryClient } from "@t
 import {
   completeTask,
   deleteTask,
+  getGetTaskDashboardQueryKey,
   getGetTaskQueryKey,
+  getListDoneTasksQueryKey,
   getListTaskGroupsQueryKey,
   reopenTask,
   type TaskGroupListResponse,
@@ -80,6 +82,9 @@ export function useSetTaskDone(listKey: QueryKey) {
         void queryClient.invalidateQueries({ queryKey: listKey });
       else patchList(queryClient, listKey, saved);
       queryClient.setQueryData(getGetTaskQueryKey(saved.id), saved);
+      // The done view lists what was just completed (or no longer lists what was reopened).
+      void queryClient.invalidateQueries({ queryKey: getListDoneTasksQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getGetTaskDashboardQueryKey() });
     },
   });
 }
