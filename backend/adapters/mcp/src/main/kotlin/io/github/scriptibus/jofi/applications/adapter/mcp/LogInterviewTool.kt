@@ -11,6 +11,7 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.InvalidToolArgument
 import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
 import org.springframework.stereotype.Component
 
 /** `log_interview`: logs an interview or call of an application; the changelog records the caller as the actor. */
@@ -23,27 +24,19 @@ class LogInterviewTool(
     override val description =
         "Log an interview or call of a job application: `applicationId`, `type`, `localStart` (the agreed " +
             "wall-clock time such as 2026-10-05T10:00) and `timeZone` (such as Europe/Berlin) are required. " +
-            "`participantIds` are contacts that took part; `preparationNotes` and `notes` are Markdown; " +
+            "`participantIds` are contacts that took part; `interview` {preparationNotes, notes} holds Markdown; " +
             "`outcome` once known. A local time a clock change skips is moved on: check `localStart` in the " +
-            "answer. Answers the interview with its id and version; the notes in answers are marked untrusted."
-    override val inputSchema =
-        """
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["applicationId", "type", "localStart", "timeZone"],
-          "properties": {
-            "applicationId": {"type": "string", "format": "uuid"},
-            ${InterviewToolInput.PROPERTIES}
-          }
-        }
-        """.trimIndent()
+            "answer. A value that shows [withheld] is hidden from you and refused (withheld-value). Answers the " +
+            "interview with its id and version; the notes in answers are marked untrusted."
+    override val inputSchema = InterviewToolInput.schema(update = false)
 
-    override fun call(call: ToolCall): ToolAnswer =
-        when (val result = log(call)) {
+    override fun call(call: ToolCall): ToolAnswer {
+        call.arguments.withheldPath()?.let { return ToolProblems.withheldValue(it) }
+        return when (val result = log(call)) {
             is ApplicationResult.Success -> ToolAnswer.Result(InterviewResult.from(result.value))
             is ApplicationResult.Failure -> ApplicationToolErrors.failure(result)
         }
+    }
 
     // A named method, not a lambda: the architecture rule sees the one use case call here.
     private fun log(call: ToolCall): ApplicationResult<Interview> {

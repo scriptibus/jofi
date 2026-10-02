@@ -192,7 +192,11 @@ open class McpToolContractSupport {
                     .newBuilder(URI.create(base + path))
                     .header("Accept", "application/json, text/event-stream")
             if (body != null) {
-                request.header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body))
+                request
+                    .header(
+                        "Content-Type",
+                        "application/json",
+                    ).method(method, HttpRequest.BodyPublishers.ofString(body))
             }
             if (method == "GET") request.GET()
             csrfToken()?.let { request.header(CSRF_HEADER, it) }

@@ -46,7 +46,7 @@ class SearchApplicationsTool(
                     }
 
                     is ApplicationResult.Failure -> {
-                        ApplicationToolErrors.failure(result)
+                        ApplicationToolErrors.failure(result, "Applications cannot be read now.")
                     }
                 }
             }

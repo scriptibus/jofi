@@ -82,13 +82,13 @@ class McpContactToolsContractTest : McpToolContractSupport() {
 
             val link = mapOf("id" to application, "version" to 0, "contactIds" to listOf(contact))
             val linked = client.call("set_application_contacts", link)
-            linked["contactIds"][0].asString() shouldBe contact
+            linked["readOnly"]["contactIds"][0].asString() shouldBe contact
             linked["version"].asInt() shouldBe 1
             client.call("search_applications", mapOf("contactId" to contact))["total"].asInt() shouldBe 1
             changelog("application", application).last() shouldBe ("Changed linked contacts" to "AI")
 
             val unlink = mapOf("id" to application, "version" to 1, "contactIds" to emptyList<String>())
-            client.call("set_application_contacts", unlink)["contactIds"].size() shouldBe 0
+            client.call("set_application_contacts", unlink)["readOnly"]["contactIds"].size() shouldBe 0
             val links = changelog("application", application).filter { it.first == "Changed linked contacts" }
             links.map { it.second } shouldContainExactly listOf("AI", "AI")
         }
@@ -114,7 +114,7 @@ class McpContactToolsContractTest : McpToolContractSupport() {
             client.failure("set_application_contacts", missing, "not-found")
             val bad = mapOf("id" to application, "version" to 0, "contactIds" to listOf("nope"))
             client.failure("set_application_contacts", bad, "invalid-arguments")
-            client.call("get_application", mapOf("id" to application))["contactIds"].size() shouldBe 0
+            client.call("get_application", mapOf("id" to application))["readOnly"]["contactIds"].size() shouldBe 0
             changelog("application", application).none { it.first == "Changed linked contacts" } shouldBe true
         }
     }

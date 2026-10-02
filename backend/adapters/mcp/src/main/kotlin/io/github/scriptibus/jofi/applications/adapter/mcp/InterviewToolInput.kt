@@ -13,7 +13,9 @@ import java.util.UUID
 
 /**
  * The interview fields `log_interview` and `update_interview` share: arguments in, the domain's input out. The names
- * are those of the interview results (its notes are in `interview` there), so a result can be sent back.
+ * and nesting are those of the interview results (the content of `interview` under the same key), so a result
+ * goes back without reshaping. In `update_interview` every property is required, `null` for "not set" (only an
+ * explicit `null` clears); in `log_interview` the optional ones may be left out.
  */
 internal object InterviewToolInput {
     /** The time zone is validated by the domain (an IANA id or an offset), the start by [ToolArguments]. */
@@ -23,8 +25,8 @@ internal object InterviewToolInput {
             localStart = arguments.localDateTime("localStart") ?: throw InvalidToolArgument("localStart"),
             timeZone = arguments.text("timeZone").orEmpty(),
             participants = arguments.uuids("participantIds").map(::ContactRef).toSet(),
-            preparationNotes = arguments.text("preparationNotes"),
-            notes = arguments.text("notes"),
+            preparationNotes = arguments.obj("interview")?.text("preparationNotes"),
+            notes = arguments.obj("interview")?.text("notes"),
             outcome = arguments.enum("outcome", InterviewOutcome::class.java),
         )
 
@@ -45,9 +47,29 @@ internal object InterviewToolInput {
     private inline fun <reified E : Enum<E>> names(nullable: Boolean): String =
         enumValues<E>().joinToString(", ", "[", if (nullable) ", null]" else "]") { "\"${it.name}\"" }
 
-    /** The JSON Schema properties of the fields above; optional ones accept `null` as "not set". */
-    val PROPERTIES =
+    /** The JSON Schema of `log_interview` ([update] false) or `update_interview` (true). */
+    fun schema(update: Boolean): String {
+        val common = listOf("type", "localStart", "timeZone")
+        val required =
+            if (update) {
+                listOf("applicationId", "id", "version") + common + listOf("participantIds", "outcome", "interview")
+            } else {
+                listOf("applicationId") + common
+            }
+        return """
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [${required.joinToString(", ") { "\"$it\"" }}],
+              "properties": {${properties(update)}}
+            }
+            """.trimIndent()
+    }
+
+    private fun properties(update: Boolean): String =
         """
+        "applicationId": {"type": "string", "format": "uuid"},
+        ${if (update) IDENTITY else ""}
         "type": {"enum": ${names<InterviewType>(nullable = false)}},
         "localStart": {
           "type": "string",
@@ -63,10 +85,25 @@ internal object InterviewToolInput {
           "type": ["array", "null"],
           "maxItems": $MAX_PARTICIPANTS,
           "items": {"type": "string", "format": "uuid"},
-          "description": "Contacts who took part, at most 20."
+          "description": "Contacts who took part, at most 20; an empty list or null for none."
         },
-        "preparationNotes": {"type": ["string", "null"], "maxLength": $MAX_NOTES, "description": "Markdown."},
-        "notes": {"type": ["string", "null"], "maxLength": $MAX_NOTES, "description": "The user's notes afterwards."},
-        "outcome": {"enum": ${names<InterviewOutcome>(nullable = true)}}
+        "outcome": {"enum": ${names<InterviewOutcome>(nullable = true)}},
+        "interview": ${interview(update)}
         """.trimIndent()
+
+    private fun interview(update: Boolean): String =
+        """
+        {
+          "type": ${if (update) "\"object\"" else "[\"object\", \"null\"]"},
+          "additionalProperties": false,
+          ${if (update) """"required": ["preparationNotes", "notes"],""" else ""}
+          "properties": {
+            "preparationNotes": {"type": ["string", "null"], "maxLength": $MAX_NOTES, "description": "Markdown."},
+            "notes": {"type": ["string", "null"], "maxLength": $MAX_NOTES, "description": "The user's notes afterwards."}
+          }
+        }
+        """.trimIndent()
+
+    private const val IDENTITY =
+        """"id": {"type": "string", "format": "uuid"}, "version": {"type": "integer", "minimum": 0},"""
 }

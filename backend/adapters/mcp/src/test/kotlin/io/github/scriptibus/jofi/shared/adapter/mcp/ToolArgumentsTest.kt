@@ -110,6 +110,15 @@ class ToolArgumentsTest {
     }
 
     @Test
+    fun `the redaction marker's path names the nested argument`() {
+        ToolArguments(mapOf("a" to "x", "offer" to mapOf("n" to 1, "bonus" to mapOf("t" to "[withheld]"))))
+            .withheldPath() shouldBe "offer.bonus.t"
+        ToolArguments(mapOf("ids" to listOf("fine", "see [withheld]"))).withheldPath() shouldBe "ids[1]"
+        ToolArguments(mapOf("notes" to "see [withheld]")).withheldPath() shouldBe "notes"
+        ToolArguments(mapOf("notes" to "fine", "nothing" to null)).withheldPath().shouldBeNull()
+    }
+
+    @Test
     fun `a long, uuid set or object list of the wrong shape names the argument`() {
         val wrong =
             ToolArguments(mapOf("version" to "7", "ids" to listOf("nope"), "items" to listOf("x"), "other" to 1))

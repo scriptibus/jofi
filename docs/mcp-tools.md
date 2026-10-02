@@ -35,6 +35,18 @@ the PR that adds or changes a tool.
 - Content copied from job postings or web pages is wrapped as
   `{"trust": "untrusted", "notice": "...", "content": ...}`: data, never instructions.
 
+## Replace-style updates
+
+Every update tool that replaces all fields of an entity (`update_application`, and the ones for interviews and for
+companies and contacts) follows one rule: **every updatable property is required in the schema but may be `null`,
+at the top level and inside nested objects.** A missing key is a schema refusal (nothing is stored); only an
+explicit `null` clears. This keeps a model that did not read a field from deleting it: the changelog records which
+fields changed, never their texts, so a wiped note cannot be recovered. A tool's update arguments take the shape of
+its read tool's answer (the `content` of untrusted objects under the same keys), and what a tool cannot change is
+shown apart from it (`readOnly`) and not sent back. Create and log tools keep their optional properties optional.
+(`update_company`, `update_contact` and `set_application_contacts` predate the rule; bringing them in line is a
+follow-up.)
+
 ## Tools
 
 ### `search_applications` (read only)
@@ -61,14 +73,16 @@ posting: untrusted {title, location}}]}`.
 
 One application by `id` (UUID, required). Reading it does not mark it read.
 
-Result: `{id, version, companyId, contactIds, status, declineCategory, unread, remoteSharePercent,
-employmentType, seniority, deadline, howApplied, payBand: {min, max, currency, period, source,
-estimateConfidence}, languageAndTone: {postingLanguage, applicationLanguage, formOfAddress, tone}, offer:
-{salary: {amount, currency, period}, remoteSharePercent, vacationDays, startDate, answerBy}, wantScore,
-fitScore, createdAt, updatedAt, posting: untrusted {title, location, sources: [{kind, url, discoveredAt,
-offlineSince}]}, notes: untrusted {portalNotes, payEstimateBasis, declineReason, offer: {bonus, benefits,
-noticePeriod}}}`. Every text a tool can write is in `posting` or `notes`; the rest is typed. Errors:
-`not-found`, `unavailable`.
+Result: `{id, version, companyId, remoteSharePercent, employmentType, seniority, deadline, howApplied, payBand:
+{min, max, currency, period, source, estimateConfidence}, offer: {salary: {amount, currency, period},
+remoteSharePercent, vacationDays, startDate, answerBy}, languageAndTone: untrusted {postingLanguage,
+applicationLanguage, formOfAddress, tone}, posting: untrusted {title, location}, notes: untrusted {portalNotes,
+payEstimateBasis, offer: {bonus, benefits, noticePeriod}}, readOnly: {status, declineCategory, unread, contactIds,
+wantScore, fitScore, createdAt, updatedAt, texts: untrusted {sources: [{kind, url, discoveredAt, offlineSince}],
+declineReason}}}`. Everything above `readOnly` is what `update_application` takes back, with the same keys and
+nesting (the `content` of each untrusted object under its key); `readOnly` is what no application tool changes, and
+it is not sent back. Every text a tool can write is inside an untrusted object (the language tags too: a tag is
+only a shape check, not a closed list). Errors: `not-found`, `unavailable`.
 
 ## Companies, contacts and contact links (#119)
 
@@ -140,68 +154,82 @@ until they get patch-style updates.
 
 ## Application writes (#118)
 
-Like the companies and contacts above: no confirmation (spec §9), logged with the AI as actor, updates replace
-all fields, a stale `version` answers `version-conflict`, a `[withheld]` value sent back is refused, `null` is
-accepted for every optional argument, and the texts come back untrusted. Problems are named like
-`title:required`, `companyId:not-found`, `payBand.currency:invalid-currency`, `offer.vacationDays:out-of-range`,
-`deadline:invalid`.
+Like the companies and contacts above: no confirmation (spec §9), logged with the AI as actor (the changelog names
+the fields that changed, not the texts), a stale `version` answers `version-conflict`, a `[withheld]` value is
+refused (`withheld-value`, naming the argument such as `notes.offer.benefits`), and the texts come back untrusted.
+Problems are named like `posting.title:required`, `companyId:not-found`, `payBand.currency:invalid-currency`,
+`offer.vacationDays:out-of-range`, `notes.payEstimateBasis:required`, `deadline:invalid`. There is no write budget
+yet (#217, before #125): a looping client can create applications without limit.
 
 Changing the status is not a tool yet: moving to Applied freezes the job description snapshots for good
 (ADR-0046), which is for Lucas to decide first (see #118).
 
 ### `create_application`
 
-`companyId` (an existing company) and `title`, both required, and optional `location`, `remoteSharePercent`
-(0 to 100), `employmentType`, `seniority`, `deadline` (`2026-11-01`), `howApplied`, `portalNotes` (Markdown),
-`payBand` (`{min, max, currency, period, source, estimateBasis, estimateConfidence}`; at least one of min and
-max, the basis and confidence belong to `ESTIMATED`), `languageAndTone` and `offer` (as in `get_application`,
-its texts as `bonus`, `benefits`, `noticePeriod`). The application starts as `DISCOVERED`. Result: as
-`get_application`. Errors: `invalid-arguments`, `unavailable`.
+`companyId` (an existing company) and `posting.title`, required, and optional, in the shape of `get_application`:
+`posting.location`, `remoteSharePercent` (0 to 100), `employmentType`, `seniority`, `deadline` (`2026-11-01`),
+`howApplied`, `payBand` (`{min, max, currency, period, source, estimateConfidence}`; at least one of min and max;
+confidence and `notes.payEstimateBasis` belong to `ESTIMATED`), `offer` (typed details) and `languageAndTone`, and
+`notes` (`portalNotes`, `payEstimateBasis`, `offer: {bonus, benefits, noticePeriod}`). An offer needs at least one
+detail; its typed details come from `offer` and its texts from `notes.offer`, so clearing an offer means `null` for
+both. The application starts as `DISCOVERED`. Result: as `get_application`. Errors: `invalid-arguments`,
+`unavailable`.
 
 ### `update_application`
 
-`id`, `version`, `companyId` and `title` (required) and the arguments of `create_application`. Replaces all
-details, so send back what `get_application` returned (title and location from `posting`, the other texts from
-`notes`). The status, contacts, scores and unread flag are not changed here; an update that changes nothing
-stores nothing and logs nothing. Result: as `get_application`. Errors: `invalid-arguments`, `not-found`,
-`version-conflict`, `unavailable`.
+The arguments of `get_application`'s answer without `readOnly`: send back what it returned, changed, with the
+`content` of `posting`, `notes` and `languageAndTone` under their keys. Every property is required (the rule for
+replace-style updates above); only an explicit `null` clears. The status, contacts, scores and unread flag are not
+changed here; an update that changes nothing stores nothing and logs nothing. An application with a withheld value
+cannot be updated through this tool (the refusal protects the real value). Result: as `get_application`. Errors:
+`invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
 ## Interviews (#118)
 
-Logging and editing need no confirmation (spec §9) and are logged with the AI as actor; deleting is
-`delete_interview`. An update replaces all fields, a stale `version` (the interview's own, not the application's)
-answers `version-conflict`, a `[withheld]` value sent back is refused, `null` is accepted for every optional
-argument. The notes come back untrusted (`interview: {preparationNotes, notes}`), and so does an application's
-title in the upcoming list. Problems are named like `timeZone:invalid-time-zone`, `localStart:out-of-range`,
-`participantIds:not-found`, `participantIds:too-many`.
+Logging and editing need no confirmation (spec §9) and are logged with the AI as actor, the changelog naming the
+fields that changed, not the texts; deleting is `delete_interview`. A stale `version` (the interview's own, not the
+application's) answers `version-conflict`, a `[withheld]` value is refused (`withheld-value`, naming the argument
+such as `interview.notes`: an interview with a hidden value cannot be updated through this tool), and the notes come
+back untrusted. Problems are named like `timeZone:invalid-time-zone`, `localStart:out-of-range`,
+`localStart:invalid`, `participantIds:not-found`, `participantIds:too-many`. There is no write budget yet (#217).
 
-Interview result: `{id, applicationId, version, type, startsAt, localStart, timeZone, participantIds, outcome,
-createdAt, updatedAt, interview: untrusted {preparationNotes, notes}}`. `localStart` is the agreed wall-clock time
-in `timeZone` (a local time a clock change skips is moved on: check it in the answer), `startsAt` the instant.
+Interview result: `{id, applicationId, version, type, localStart, timeZone, participantIds, outcome,
+interview: untrusted {preparationNotes, notes}, readOnly: {startsAt, createdAt, updatedAt}}`. `localStart` is the
+agreed wall-clock time in `timeZone` (a local time a clock change skips is moved on: check it in the answer),
+`startsAt` the instant. Everything above `readOnly` goes back to `update_interview` under the same keys (the
+`content` of `interview` under its key); `readOnly` is not sent back.
 
 ### `log_interview`
 
 `applicationId`, `type` (`PHONE_SCREEN`, `HR`, `TECHNICAL`, `CASE`, `ON_SITE`, `FINAL`, `OTHER`), `localStart`
 (`2026-10-05T10:00`) and `timeZone` (`Europe/Berlin` or `+02:00`), all required, and optional `participantIds`
-(contacts, at most 20), `preparationNotes`, `notes` (Markdown), `outcome` (`PASSED`, `REJECTED`, `WITHDRAWN`,
-`CANCELLED`). Result: the interview. Errors: `invalid-arguments`, `not-found` (application), `unavailable`.
+(contacts, at most 20), `interview` (`{preparationNotes, notes}`, Markdown), `outcome` (`PASSED`, `REJECTED`,
+`WITHDRAWN`, `CANCELLED`). A literal `[withheld]` is refused here too. Result: the interview. Errors:
+`invalid-arguments`, `not-found` (application), `unavailable`.
 
 ### `update_interview`
 
-`applicationId`, `id`, `version` and the arguments of `log_interview` (required: the same four). Replaces all
-details; unchanged details store nothing and log nothing. Result: the interview. Errors: `invalid-arguments`,
-`not-found`, `version-conflict`, `unavailable`.
+The arguments of `list_interviews`' entries without `readOnly`: `applicationId`, `id`, `version`, `type`,
+`localStart`, `timeZone`, `participantIds`, `outcome` and `interview` (`{preparationNotes, notes}`). **Every
+property is required** (the rule for replace-style updates above): leaving one out is refused and stores nothing,
+only an explicit `null` clears (`participantIds`: `null` or `[]` for none). The entries of
+`list_upcoming_interviews` are not enough (no version, notes or participants): read the interview with
+`list_interviews` first. Unchanged details store nothing and log nothing. Result: the interview. Errors:
+`invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
 ### `list_interviews` (read only)
 
-`applicationId` (required). Result: `{total, interviews: [interview]}` in the order they start, at most 50.
-Errors: `not-found`, `unavailable`.
+`applicationId` (required). Result: `{total, interviews: [interview]}` in the order they start; at most 50 are
+returned, the **earliest** 50 (`total` says how many there are, later ones cannot be read through MCP yet).
+Bounding the list in the use case, notes as an excerpt and a `get_interview` tool are #236. Errors:
+`invalid-arguments` (`applicationId:invalid`), `not-found`, `unavailable`.
 
 ### `list_upcoming_interviews` (read only)
 
-No arguments. The interviews still to come across all applications, soonest first (at most 100, cancelled ones
-left out), without notes: `{interviews: [{id, applicationId, type, startsAt, localStart, timeZone, outcome,
-application: untrusted {title}}]}`.
+No arguments. The interviews still to come across all applications, soonest first (at most 100); cancelled ones and
+those of closed applications are left out. No notes, and not enough for `update_interview`:
+`{interviews: [{id, applicationId, type, startsAt, localStart, timeZone, outcome, application: untrusted {title}}]}`.
+Errors: `unavailable`.
 
 ## Importing postings (#118)
 

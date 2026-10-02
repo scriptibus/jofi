@@ -22,37 +22,44 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.ToolArguments
 
 /**
  * The application fields `create_application` and `update_application` share: arguments in, the domain's input
- * out. The names are those of `get_application`'s answer (its texts are in `posting` and `notes` there), so an
- * answer can be sent back with `null` for what is not set.
+ * out. They have the shape of `get_application`'s answer (the `content` of its untrusted objects `posting`, `notes`
+ * and `languageAndTone` under the same keys), so an answer goes back without reshaping. In `update_application` every
+ * property is required, `null` for "not set" (a replace-style update: only an explicit `null` clears); in
+ * `create_application` the optional ones may be left out.
  */
 internal object ApplicationToolInput {
     /** A missing title is an empty one, which the domain's validation reports as `required`. */
-    fun of(arguments: ToolArguments) =
-        ApplicationInput(
-            title = arguments.text("title").orEmpty(),
+    fun of(arguments: ToolArguments): ApplicationInput {
+        val posting = arguments.obj("posting") ?: throw InvalidToolArgument("posting")
+        val notes = arguments.obj("notes")
+        return ApplicationInput(
+            title = posting.text("title").orEmpty(),
             company = CompanyRef(arguments.uuid("companyId") ?: throw InvalidToolArgument("companyId")),
-            location = arguments.text("location"),
+            location = posting.text("location"),
             remoteShare = arguments.int("remoteSharePercent"),
             employmentType = arguments.enum("employmentType", EmploymentType::class.java),
             seniority = arguments.enum("seniority", Seniority::class.java),
             deadline = arguments.date("deadline"),
             howApplied = arguments.enum("howApplied", HowApplied::class.java),
-            portalNotes = arguments.text("portalNotes"),
-            payBand = arguments.obj("payBand")?.let(::payBandOf),
+            portalNotes = notes?.text("portalNotes"),
+            payBand = arguments.obj("payBand")?.let { payBandOf(it, notes?.text("payEstimateBasis")) },
             languageAndTone = arguments.obj("languageAndTone")?.let(::languageAndToneOf),
-            offer = arguments.obj("offer")?.let(::offerOf),
+            offer = offerOf(arguments.obj("offer"), notes?.obj("offer")),
         )
+    }
 
-    private fun payBandOf(band: ToolArguments) =
-        PayBandInput(
-            min = band.decimal("min"),
-            max = band.decimal("max"),
-            currency = band.text("currency").orEmpty(),
-            period = band.enum("period", PayPeriod::class.java) ?: throw InvalidToolArgument("payBand"),
-            source = band.enum("source", PaySourceKind::class.java) ?: throw InvalidToolArgument("payBand"),
-            estimateBasis = band.text("estimateBasis"),
-            estimateConfidence = band.enum("estimateConfidence", EstimateConfidence::class.java),
-        )
+    private fun payBandOf(
+        band: ToolArguments,
+        basis: String?,
+    ) = PayBandInput(
+        min = band.decimal("min"),
+        max = band.decimal("max"),
+        currency = band.text("currency").orEmpty(),
+        period = band.enum("period", PayPeriod::class.java) ?: throw InvalidToolArgument("payBand"),
+        source = band.enum("source", PaySourceKind::class.java) ?: throw InvalidToolArgument("payBand"),
+        estimateBasis = basis,
+        estimateConfidence = band.enum("estimateConfidence", EstimateConfidence::class.java),
+    )
 
     private fun languageAndToneOf(values: ToolArguments) =
         LanguageAndToneInput(
@@ -62,17 +69,25 @@ internal object ApplicationToolInput {
             tone = values.enum("tone", Tone::class.java),
         )
 
-    private fun offerOf(offer: ToolArguments) =
-        OfferInput(
-            salary = offer.obj("salary")?.let(::salaryOf),
-            bonus = offer.text("bonus"),
-            benefits = offer.text("benefits"),
-            remoteShare = offer.int("remoteSharePercent"),
-            vacationDays = offer.int("vacationDays"),
-            noticePeriod = offer.text("noticePeriod"),
-            startDate = offer.date("startDate"),
-            answerBy = offer.date("answerBy"),
-        )
+    /** The offer is split in the answer: typed details in `offer`, its texts in `notes.offer`. Neither: no offer. */
+    private fun offerOf(
+        offer: ToolArguments?,
+        texts: ToolArguments?,
+    ): OfferInput? =
+        if (offer == null && texts == null) {
+            null
+        } else {
+            OfferInput(
+                salary = offer?.obj("salary")?.let(::salaryOf),
+                bonus = texts?.text("bonus"),
+                benefits = texts?.text("benefits"),
+                remoteShare = offer?.int("remoteSharePercent"),
+                vacationDays = offer?.int("vacationDays"),
+                noticePeriod = texts?.text("noticePeriod"),
+                startDate = offer?.date("startDate"),
+                answerBy = offer?.date("answerBy"),
+            )
+        }
 
     private fun salaryOf(salary: ToolArguments) =
         PayInput(
@@ -80,102 +95,4 @@ internal object ApplicationToolInput {
             currency = salary.text("currency").orEmpty(),
             period = salary.enum("period", PayPeriod::class.java) ?: throw InvalidToolArgument("offer"),
         )
-
-    // Bounds against oversized payloads, twice what the domain accepts: the domain reports its own limits.
-    private const val MAX_TITLE = 600
-    private const val MAX_LOCATION = 400
-    private const val MAX_NOTES = 100_000
-    private const val MAX_BASIS = 4_000
-    private const val MAX_OFFER_TEXT = 10_000
-    private const val MAX_NOTICE = 400
-    private const val MAX_TAG = 40
-    private const val MAX_DATE = 10
-
-    private inline fun <reified E : Enum<E>> names(): String =
-        enumValues<E>().joinToString(", ", "[", ", null]") { "\"${it.name}\"" }
-
-    private inline fun <reified E : Enum<E>> required(): String =
-        enumValues<E>().joinToString(", ", "[", "]") { "\"${it.name}\"" }
-
-    private val DATE =
-        """{"type": ["string", "null"], "maxLength": $MAX_DATE, "description": "A date such as 2026-10-05."}"""
-
-    private val PAY_BAND =
-        """
-        {
-          "type": ["object", "null"],
-          "additionalProperties": false,
-          "required": ["currency", "period", "source"],
-          "description": "Gross pay named by the posting, a recruiter or an estimate; give min, max or both.",
-          "properties": {
-            "min": {"type": ["number", "null"]},
-            "max": {"type": ["number", "null"]},
-            "currency": {"type": "string", "maxLength": 16, "description": "ISO 4217, such as EUR."},
-            "period": {"enum": ${required<PayPeriod>()}},
-            "source": {"enum": ${required<PaySourceKind>()}},
-            "estimateBasis": {"type": ["string", "null"], "maxLength": $MAX_BASIS,
-              "description": "What an ESTIMATED band rests on; required then."},
-            "estimateConfidence": {"enum": ${names<EstimateConfidence>()}, "description": "Required for ESTIMATED."}
-          }
-        }
-        """.trimIndent()
-
-    private val LANGUAGE_AND_TONE =
-        """
-        {
-          "type": ["object", "null"],
-          "additionalProperties": false,
-          "properties": {
-            "postingLanguage": {"type": ["string", "null"], "maxLength": $MAX_TAG, "description": "BCP 47, such as de."},
-            "applicationLanguage": {"type": ["string", "null"], "maxLength": $MAX_TAG},
-            "formOfAddress": {"enum": ${names<FormOfAddress>()}},
-            "tone": {"enum": ${names<Tone>()}}
-          }
-        }
-        """.trimIndent()
-
-    private val OFFER =
-        """
-        {
-          "type": ["object", "null"],
-          "additionalProperties": false,
-          "description": "What the company offered; at least one detail, or null for no offer.",
-          "properties": {
-            "salary": {
-              "type": ["object", "null"],
-              "additionalProperties": false,
-              "required": ["amount", "currency", "period"],
-              "properties": {
-                "amount": {"type": "number"},
-                "currency": {"type": "string", "maxLength": 16},
-                "period": {"enum": ${required<PayPeriod>()}}
-              }
-            },
-            "bonus": {"type": ["string", "null"], "maxLength": $MAX_OFFER_TEXT},
-            "benefits": {"type": ["string", "null"], "maxLength": $MAX_OFFER_TEXT},
-            "remoteSharePercent": {"type": ["integer", "null"]},
-            "vacationDays": {"type": ["integer", "null"]},
-            "noticePeriod": {"type": ["string", "null"], "maxLength": $MAX_NOTICE},
-            "startDate": $DATE,
-            "answerBy": $DATE
-          }
-        }
-        """.trimIndent()
-
-    /** The JSON Schema properties of the fields above; optional ones accept `null` as "not set". */
-    val PROPERTIES =
-        """
-        "companyId": {"type": "string", "format": "uuid", "description": "The company the job is at."},
-        "title": {"type": "string", "maxLength": $MAX_TITLE, "description": "The job title."},
-        "location": {"type": ["string", "null"], "maxLength": $MAX_LOCATION},
-        "remoteSharePercent": {"type": ["integer", "null"], "description": "0 on-site only to 100 fully remote."},
-        "employmentType": {"enum": ${names<EmploymentType>()}},
-        "seniority": {"enum": ${names<Seniority>()}},
-        "deadline": $DATE,
-        "howApplied": {"enum": ${names<HowApplied>()}},
-        "portalNotes": {"type": ["string", "null"], "maxLength": $MAX_NOTES, "description": "Portal notes, Markdown."},
-        "payBand": $PAY_BAND,
-        "languageAndTone": $LANGUAGE_AND_TONE,
-        "offer": $OFFER
-        """.trimIndent()
 }

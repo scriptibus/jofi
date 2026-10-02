@@ -22,20 +22,21 @@ data class InterviewNotes(
     val notes: String?,
 )
 
-/** One interview in full; [version] is what `update_interview` needs to be based on. */
+/**
+ * One interview in full; [version] is what `update_interview` needs to be based on. Everything above [readOnly] goes
+ * back to `update_interview` under the same keys (the content of `interview` under its key); [readOnly] does not.
+ */
 data class InterviewResult(
     val id: UUID,
     val applicationId: UUID,
     val version: Long,
     val type: InterviewType,
-    val startsAt: Instant,
     val localStart: LocalDateTime,
     val timeZone: String,
     val participantIds: List<UUID>,
     val outcome: InterviewOutcome?,
-    val createdAt: Instant,
-    val updatedAt: Instant,
     val interview: Untrusted<InterviewNotes>,
+    val readOnly: InterviewReadOnly,
 ) {
     companion object {
         fun from(interview: Interview): InterviewResult {
@@ -45,18 +46,23 @@ data class InterviewResult(
                 interview.application.value,
                 interview.version,
                 details.type,
-                details.time.startsAt,
                 details.time.localStart,
                 details.time.zone.id,
                 details.participants.map { it.value }.sorted(),
                 details.outcome,
-                interview.createdAt,
-                interview.updatedAt,
                 Untrusted(InterviewNotes(details.preparationNotes, details.notes)),
+                InterviewReadOnly(details.time.startsAt, interview.createdAt, interview.updatedAt),
             )
         }
     }
 }
+
+/** What no tool sets: the instant the interview starts (derived from the local time and the zone) and the stamps. */
+data class InterviewReadOnly(
+    val startsAt: Instant,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+)
 
 /** The interviews of one application in the order they start; [total] is their number, [interviews] at most 50. */
 data class InterviewListResult(

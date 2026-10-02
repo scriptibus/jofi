@@ -83,6 +83,23 @@ class ToolArguments(
      */
     fun withheldArgument(): String? = values.entries.firstOrNull { (_, value) -> holdsMarker(value) }?.key
 
+    /**
+     * Like [withheldArgument], but names the nested argument that holds the marker, such as `notes.offer.benefits` or
+     * `participantIds[0]`, so the model learns which value to leave alone.
+     */
+    fun withheldPath(): String? = values.entries.firstNotNullOfOrNull { (key, value) -> markerPath(key, value) }
+
+    private fun markerPath(
+        path: String,
+        value: Any?,
+    ): String? =
+        when (value) {
+            is String -> path.takeIf { NeverSendFilter.REDACTION in value }
+            is Map<*, *> -> value.entries.firstNotNullOfOrNull { (key, item) -> markerPath("$path.$key", item) }
+            is List<*> -> value.withIndex().firstNotNullOfOrNull { (index, item) -> markerPath("$path[$index]", item) }
+            else -> null
+        }
+
     private fun holdsMarker(value: Any?): Boolean =
         when (value) {
             is String -> NeverSendFilter.REDACTION in value
