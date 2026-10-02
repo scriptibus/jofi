@@ -38,10 +38,19 @@ send it back as an update and store a shortened note over the real one.
 ## Consequences
 
 - REST `GET /api/tasks` and `GET /api/tasks/suggestions` take optional `page` and `size`; the Tasks page loads 50 at
-  a time and has "Show more". The response gains `page`; list entries lose `notes` for the excerpt keys.
+  a time and has "Show more". The response gains `page`; list entries lose `notes` for the excerpt keys. A call
+  without `page`/`size` now answers the first 20, not everything; the contract check does not see that, and the
+  frontend is the only client. A `page` or `size` that is no number answers the `ValidationProblem` naming it.
 - The "never send to AI" values (ADR-0053) go out of the **whole** notes before an excerpt is cut, for every list an
   AI reads (`NotesAudience.AI`, `RedactForAiUseCase`): the value filter of the MCP server matches whole values only
   and would no longer recognise one that a cut left half in. The user's own lists (`NotesAudience.USER`) show the
-  notes as they are. If the flags cannot be read, an AI's list fails (`unavailable`), as every tool result does.
+  notes as they are. If the flags cannot be read, an AI's list fails closed: the answer is `privacy-filter-failed`, the
+  code every tool uses when the flags cannot be read, and carries no data. An excerpt is cut from the redacted text,
+  never inside a redaction marker (it ends before one that does not fit), and a marker is never scanned twice.
+  `NotesAudience` is a required parameter and `TaskSummary.of` has no default text, so no caller takes the unfiltered
+  notes by omission; nothing yet stops an AI-facing caller from passing `USER` (follow-up #251).
+- The done-tasks list (#248) has its own paging shape (`DoneTaskQuery`, no `hasMore`). "Every new list follows
+  this" means `PageInput`/`PageInfo`: the done list is aligned to it by whichever of the two pull requests merges
+  second.
 - Every new list tool follows this: a `page`/`size` pair, the use case limits, excerpts for long text (for an AI,
   cut from filtered text), a `get_*` tool.

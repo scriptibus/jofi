@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.tasks.adapter.web
 
+import io.github.scriptibus.jofi.shared.adapter.web.InvalidParameterAdvice
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
@@ -40,7 +41,7 @@ import java.util.UUID
  */
 @WebMvcTest(TaskSuggestionController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
-@Import(TaskControllerTest.UseCases::class)
+@Import(TaskControllerTest.UseCases::class, InvalidParameterAdvice::class)
 class TaskSuggestionControllerTest(
     @param:Autowired private val mvc: MockMvcTester,
     @param:Autowired private val ports: TaskControllerTest.Ports,
@@ -107,6 +108,18 @@ class TaskSuggestionControllerTest(
         body.extractingPath("tasks[0].notesExcerpt").isEqualTo("n".repeat(TextExcerpt.MAX_LENGTH))
         body.extractingPath("tasks[0].notesTruncated").isEqualTo(true)
         body.extractingPath("tasks[0]").asMap().doesNotContainKey("notes")
+    }
+
+    @Test
+    fun `a page that is no number is a 400 with the documented violations, reading nothing`() {
+        mvc
+            .get()
+            .uri("/api/tasks/suggestions?page=abc")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo("""{"violations":[{"field":"page","problem":"INVALID"}]}""")
+        verify(exactly = 0) { ports.tasks.pageByStateNewestFirst(any(), any()) }
     }
 
     @Test

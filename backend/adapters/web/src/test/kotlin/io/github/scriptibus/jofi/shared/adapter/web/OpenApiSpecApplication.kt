@@ -56,6 +56,7 @@ import java.time.LocalDateTime
     OpenApiSpecApplication.UseCaseStubs::class,
     OpenApiSpecApplication.ContractCustomizer::class,
     ProblemResponsesCustomizer::class,
+    PagingBoundsCustomizer::class,
     OpenApiSpecApplication.BinaryBodies::class,
     WriteOnlySecretCustomizer::class,
 )

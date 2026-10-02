@@ -72,7 +72,7 @@ internal fun summariesOf(
 ): TaskResult<List<TaskSummary>> =
     when (audience) {
         NotesAudience.USER -> {
-            TaskResult.Success(tasks.map { TaskSummary.of(it) })
+            TaskResult.Success(tasks.map { TaskSummary.of(it, it.details.notes) })
         }
 
         NotesAudience.AI -> {

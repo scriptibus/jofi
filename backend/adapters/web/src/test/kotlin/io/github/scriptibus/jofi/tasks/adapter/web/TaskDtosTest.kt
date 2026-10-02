@@ -139,7 +139,7 @@ class TaskDtosTest {
 
     @Test
     fun `lists and groups keep their order and carry where the page sits`() {
-        val summary = TaskSummary.of(task)
+        val summary = TaskSummary.of(task, task.details.notes)
         val info = PageInfo(1, 2, 5, true)
 
         TaskListResponse
@@ -168,9 +168,9 @@ class TaskDtosTest {
     @Test
     fun `a summary shows the excerpt and whether notes were cut, never the notes`() {
         val long = "n".repeat(TextExcerpt.MAX_LENGTH + 1)
-        val cut = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = long))))
-        val short = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = "hi"))))
-        val none = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = null))))
+        val cut = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = long)), long))
+        val short = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = "hi")), "hi"))
+        val none = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = null)), null))
 
         cut.notesExcerpt shouldBe "n".repeat(TextExcerpt.MAX_LENGTH)
         cut.notesTruncated shouldBe true

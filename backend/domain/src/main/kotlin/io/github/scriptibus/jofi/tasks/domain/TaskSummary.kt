@@ -30,10 +30,13 @@ data class TaskSummary(
     override fun toString(): String = "TaskSummary(id=${id.value}, origin=$origin, state=$state, version=$version)"
 
     companion object {
-        /** [notes] are what the excerpt is cut from: the task's own, or them after the AI's filter (ADR-0056). */
+        /**
+         * [notes] are what the excerpt is cut from, given on purpose: the task's own for the user, the text after the
+         * AI's filter for an AI (ADR-0056). There is no default, so no caller takes the unfiltered text by omission.
+         */
         fun of(
             task: Task,
-            notes: String? = task.details.notes,
+            notes: String?,
         ): TaskSummary =
             TaskSummary(
                 task.id,

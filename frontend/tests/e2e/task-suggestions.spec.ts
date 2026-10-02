@@ -54,9 +54,19 @@ async function applicationsWithInterviews(page: Page, prefix: string) {
     applications.push({ id, title, suggestion: "" });
   }
 
+  // The list is paged (50 at most): look through every page for the application's suggestion.
   const suggestionFor = async (applicationId: string) => {
-    const { tasks } = (await (await request.get("/api/tasks/suggestions")).json()) as { tasks: Task[] };
-    return tasks.find((task) => task.link?.id === applicationId)?.id ?? "";
+    for (let pageNumber = 0; ; pageNumber++) {
+      const answer = (await (
+        await request.get(`/api/tasks/suggestions?page=${pageNumber}&size=50`)
+      ).json()) as {
+        tasks: Task[];
+        page: { hasMore: boolean };
+      };
+      const found = answer.tasks.find((task) => task.link?.id === applicationId);
+      if (found) return found.id;
+      if (!answer.page.hasMore) return "";
+    }
   };
   for (const application of applications) {
     await expect.poll(() => suggestionFor(application.id), SUGGESTION_WAIT).not.toBe("");
@@ -72,6 +82,18 @@ const statusOf = async (page: Page, id: string) => {
   return ((await (await request.get(`/api/tasks/${id}`)).json()) as Task).status;
 };
 
+/** Loads every page of the suggestions: the tests running in parallel share one list, which may exceed one page. */
+async function showAllSuggestions(page: Page, region: string) {
+  const section = page.getByRole("region", { name: region });
+  const more = section.getByRole("button", { name: /^(Show more suggestions|Weitere Vorschläge anzeigen)$/ });
+  await expect(section.getByRole("listitem").first()).toBeVisible();
+  while (await more.isVisible()) {
+    const loaded = await section.getByRole("listitem").count();
+    await more.click();
+    await expect.poll(() => section.getByRole("listitem").count()).toBeGreaterThan(loaded);
+  }
+}
+
 /** The page's announcement of what just happened. */
 const said = (page: Page, text: string) => page.getByRole("status").filter({ hasText: text });
 
@@ -81,6 +103,7 @@ test("accept one suggestion and dismiss another, each with one click", async ({ 
   const dismissedTitle = `Prepare for the interview: ${dismissed.title}`;
 
   await page.goto("/tasks");
+  await showAllSuggestions(page, "Suggested tasks");
   const section = page.getByRole("region", { name: "Suggested tasks" });
   const row = section.getByRole("listitem").filter({ hasText: acceptedTitle });
   await expect(row.getByRole("link", { name: `Application: ${accepted.title}` })).toBeVisible();
@@ -109,6 +132,46 @@ test("accept one suggestion and dismiss another, each with one click", async ({ 
   await expect(section.getByText(dismissedTitle, { exact: true })).toHaveCount(0);
 });
 
+test("more than 50 suggestions load a page at a time", async ({ page }, testInfo) => {
+  // 51 applications with an interview each are many writes and as many worker jobs: one project is enough.
+  test.skip(testInfo.project.name !== "desktop-light", "One run is enough: it makes 51 suggestions.");
+  test.setTimeout(300_000);
+  await page.goto("/tasks");
+  const { request, headers } = await api(page);
+  const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const company = await (
+    await request.post("/api/companies", { data: { name: uniqueName("Paged Suggestions") }, headers })
+  ).json();
+  for (let from = 0; from < 51; from += 5) {
+    await Promise.all(
+      Array.from({ length: Math.min(5, 51 - from) }, async () => {
+        const created = await request.post("/api/applications", {
+          data: { title: uniqueName("Paged Engineer"), companyId: company.id },
+          headers,
+        });
+        const { id } = await created.json();
+        const interview = { type: "TECHNICAL", localStart: inFiveDays(), timeZone: zone, participantIds: [] };
+        expect(
+          (await request.post(`/api/applications/${id}/interviews`, { data: interview, headers })).status(),
+        ).toBe(201);
+      }),
+    );
+  }
+  const total = async () =>
+    ((await (await request.get("/api/tasks/suggestions?size=1")).json()) as { page: { total: number } }).page
+      .total;
+  await expect.poll(total, SUGGESTION_WAIT).toBeGreaterThanOrEqual(51);
+
+  await page.goto("/tasks");
+  const section = page.getByRole("region", { name: "Suggested tasks" });
+  await expect(section.getByRole("listitem")).toHaveCount(50);
+  await expectNoA11yViolations(page);
+  await section.getByRole("button", { name: "Show more suggestions" }).click();
+  await expect.poll(() => section.getByRole("listitem").count()).toBeGreaterThan(50);
+  await expect(section.getByRole("button", { name: "Show more suggestions" })).toHaveCount(0);
+  await snapshot(page, "task-suggestions-paged");
+});
+
 test.describe("in German", () => {
   test.use({ locale: "de-DE" });
 
@@ -118,6 +181,7 @@ test.describe("in German", () => {
     const dismissedTitle = `Auf das Vorstellungsgespräch vorbereiten: ${dismissed.title}`;
 
     await page.goto("/tasks");
+    await showAllSuggestions(page, "Vorgeschlagene Aufgaben");
     const section = page.getByRole("region", { name: "Vorgeschlagene Aufgaben" });
     await expect(section.getByText(acceptedTitle, { exact: true })).toBeVisible();
     await expectNoA11yViolations(page);
