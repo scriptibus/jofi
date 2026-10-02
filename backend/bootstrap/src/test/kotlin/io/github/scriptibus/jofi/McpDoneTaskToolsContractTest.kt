@@ -132,6 +132,20 @@ class McpDoneTaskToolsContractTest : McpToolContractSupport() {
     }
 
     @Test
+    fun `list_done_tasks answers a page that is no int as page-invalid, as documented`() {
+        owner.mcpClient().use { client ->
+            client.initialize()
+
+            client
+                .failure("list_done_tasks", mapOf("page" to 2_147_483_648L), "invalid-arguments")
+                .problems() shouldContainExactly listOf("page:invalid")
+            client
+                .failure("list_done_tasks", mapOf("page" to 1.0), "invalid-arguments")
+                .problems() shouldContainExactly listOf("page:invalid")
+        }
+    }
+
+    @Test
     fun `reopen_task answers stale versions, wrong states and missing tasks by code and changes nothing`() {
         val done = create("Done")
         val open = create("Open")

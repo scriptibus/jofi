@@ -29,6 +29,10 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
+import org.jooq.ExecuteContext
+import org.jooq.ExecuteListener
+import org.jooq.impl.DSL
+import org.jooq.impl.DefaultExecuteListenerProvider
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -166,6 +170,38 @@ class TaskRepositoryTest {
         repository.add(open(details()))
 
         repository.listDone(DoneTaskQuery()) shouldBe TaskStoreResult.Success(DoneTaskPage(emptyList(), 0))
+    }
+
+    @Test
+    fun `a task reopened while the page is read cannot make the total smaller than the page`() {
+        val doneTasks = (1L..3L).map { doneAt(open(details()), LATER.plusSeconds(it)) }
+        doneTasks.forEach { repository.add(it) }
+        var reopened = false
+        val reopenAfterTheFirstSelect =
+            object : ExecuteListener {
+                override fun executeEnd(ctx: ExecuteContext) {
+                    if (reopened || ctx.sql()?.startsWith("select") != true) return
+                    reopened = true
+                    dsl.execute(
+                        "UPDATE task SET state = 'OPEN', completed_at = NULL WHERE id = ?::uuid",
+                        doneTasks
+                            .first()
+                            .id.value
+                            .toString(),
+                    )
+                }
+            }
+        val racing =
+            TaskRepository(
+                DSL.using(dsl.configuration().derive(DefaultExecuteListenerProvider(reopenAfterTheFirstSelect))),
+            )
+
+        val page = racing.listDone(DoneTaskQuery(0, 10))
+
+        reopened shouldBe true
+        page shouldBe TaskStoreResult.Success(DoneTaskPage(doneTasks.reversed(), 3))
+        repository.listDone(DoneTaskQuery(0, 10)) shouldBe
+            TaskStoreResult.Success(DoneTaskPage(doneTasks.drop(1).reversed(), 2))
     }
 
     @Test

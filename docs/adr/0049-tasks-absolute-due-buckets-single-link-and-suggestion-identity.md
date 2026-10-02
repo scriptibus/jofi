@@ -126,7 +126,8 @@ rescheduled) uses a new key. Direct tasks have neither, and `NULL`s never collid
 
 ### API shape
 
-`/api/tasks`: `GET ?timeZone=` (groups), `GET /suggestions`, `GET /done?page=&size=` (#235), `POST`, `GET|PUT|DELETE /{id}` (two steps,
+`/api/tasks`: `GET ?timeZone=` (groups), `GET /suggestions`, `GET /done?page=&size=` (#235), `POST`,
+`GET|PUT|DELETE /{id}` (two steps,
 `tasks.delete`), and `POST /{id}/complete|reopen|accept|dismiss` with `basedOnVersion` (separate operations, since
 "to open" means reopen or accept depending on the stored state, which the controller must not decide).
 `/api/countdowns`: `GET`, `POST`, `PUT|DELETE /{id}` (two steps, `countdowns.delete`); `GET
@@ -135,7 +136,7 @@ never titles or notes.
 
 ### Done tasks (#235)
 
-Every list shows open tasks only, so a completed task, by the user or by an AI client, would be gone. `GET
+The task lists and the dashboard show open tasks only, so a completed task, by the user or by an AI client, would be gone. `GET
 /api/tasks/done` (`ListDoneTasksUseCase`, `TaskRepositoryPort.listDone`) answers one page of the done tasks, the
 newest completion first (then id), with the total. `page` counts from 0 and `size` is 1 to 50 (default 20), so the
 answer stays bounded however many tasks were ever completed; the open list is untouched. Reopening is the existing

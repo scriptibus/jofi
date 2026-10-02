@@ -37,16 +37,14 @@ the PR that adds or changes a tool.
 
 ## Replace-style updates
 
-Every new update tool that replaces all fields of an entity (`update_application` and `update_interview`) follows one
-rule (`update_company`, `update_contact` and `set_application_contacts` predate it, see below): **every updatable property is required in the schema but may be `null`,
-at the top level and inside nested objects.** A missing key is a schema refusal (nothing is stored); only an
+Every update tool that replaces all fields of an entity (`update_application`, `update_interview`, `update_company`,
+`update_contact`, and `set_application_contacts` for its one list) follows one rule: **every updatable property is
+required in the schema but may be `null`, at the top level and inside nested objects.** A missing key is a schema refusal (nothing is stored); only an
 explicit `null` clears. This keeps a model that did not read a field from deleting it: the changelog records which
 fields changed, never their texts, so a wiped note cannot be recovered. A tool's update arguments take the shape of
 its read tool's answer (the `content` of untrusted objects under the same keys), and what a tool cannot change is
-shown apart from it (`readOnly`) and not sent back. Create and log tools keep their optional properties optional, and a new or changed one refuses a
-`[withheld]` marker. The company, contact and task tools predate the rule: `update_company` and `update_contact`
-still clear what is left out, `set_application_contacts` replaces the set, and `create_company`, `create_contact` and
-`create_task` still accept the marker; bringing them in line is #241.
+shown apart from it (`readOnly`) and not sent back. Create and log tools keep their optional properties optional, and
+every one of them refuses a `[withheld]` marker.
 
 ## Tools
 
@@ -89,14 +87,20 @@ only a shape check, not a closed list). Errors: `not-found`, `unavailable`.
 
 The writes below create or change data and need no confirmation (spec §9: the chat may create and edit freely;
 only deletes and outward actions are confirmed). Each is logged in the changelog with the AI as actor. Updates
-replace ALL fields (a PUT, not a patch): a field left out is cleared. Call `get_*` first, change what you mean to
-change and send everything back with the `version` you read (the fields of `company` or `contact` in the answer;
-`null` means not set and is accepted); a stale version answers `version-conflict` and changes nothing.
+replace ALL fields (a PUT, not a patch) under the rule for replace-style updates above: every property is required,
+a missing one is refused by the schema and stores nothing, only an explicit `null` (or `[]`) clears. Call `get_*`
+first, change what you mean to change and send it back with the `version` you read: the answer's keys, with the
+`content` of `company` or `contact` under that key (not the untrusted wrapper) and without `readOnly`; a stale
+version answers `version-conflict` and changes nothing.
 Every free-text field a tool can write is returned as untrusted, notes included: it can come from postings and pages, or
 from a model that was prompt-injected and stored instructions for later sessions (ADR-0053, amendment of #119).
 Only fields no tool writes, and typed values that cannot carry text, stay plain: the company preference and its reason, ids, versions and timestamps.
-Problems of a domain violation are named like `name:required`, `website:invalid-url`,
-`channels[0].value:invalid-email`, `companyId:not-found`, `contactIds:not-found`.
+Problems of a domain violation are named by the argument path: flat for the create tools and searches
+(`name:required`, `website:invalid-url`, `channels[0].value:invalid-email`, `companyId:not-found`,
+`contactIds:not-found`), and with the object's key in front for the two update tools (`company.name:required`,
+`contact.channels[0].value:invalid-email`; `companyId` and `contactIds` stay top level).
+In the update tools a blank text is refused by the schema too (it would clear like `null`): a text is `null` or has a
+visible character.
 
 ### `search_companies` (read only)
 
@@ -106,18 +110,23 @@ preference, company: untrusted {name, website, industry, size, locations, career
 
 ### `get_company` (read only)
 
-`id` (UUID, required). Result: `{id, version, applicationCount, preference, preferenceReason, createdAt,
-updatedAt, company: untrusted {name, website, industry, size, locations, careersPage, researchNotes}}`. Errors: `not-found`, `unavailable`.
+`id` (UUID, required). Result: `{id, version, company: untrusted {name, website, industry, size, locations,
+careersPage, researchNotes}, readOnly: {applicationCount, preference, preferenceReason, createdAt, updatedAt}}`.
+`readOnly` is what no tool here changes and is not sendable to `update_company`. Errors: `not-found`, `unavailable`.
 
 ### `create_company`
 
 `name` (required), `website`, `industry`, `size` (`MICRO`, `SMALL`, `MEDIUM`, `LARGE`, `ENTERPRISE`), `locations`
-(list), `careersPage`, `researchNotes`. Result: as `get_company`. Errors: `invalid-arguments`, `unavailable`.
+(list), `careersPage`, `researchNotes`. A literal `[withheld]` in any of them is refused (`withheld-value`, naming
+the argument, such as `locations[1]`). Result: as `get_company`. Errors: `invalid-arguments`, `unavailable`.
 
 ### `update_company`
 
-`id`, `version` (both required) and the arguments of `create_company`. Replaces all details; the preference is not
-changed. Result: as `get_company`. Errors: `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
+`id`, `version` and `company` (all required): `company` holds all seven fields of `create_company`, each required,
+`null` (or `[]` for `locations`) for none. Replaces all details; the preference is not changed. Do not send
+`readOnly`. Problems are named by their path, such as `company.name:required` and
+`company.researchNotes:withheld-value`. Result: as `get_company`. Errors: `invalid-arguments`, `not-found`,
+`version-conflict`, `unavailable`.
 
 ### `search_contacts` (read only)
 
@@ -126,24 +135,31 @@ contacts: [{id, companyId, contact: untrusted {name, role}}]}`.
 
 ### `get_contact` (read only)
 
-`id` (UUID, required). Result: `{id, version, companyId, createdAt, updatedAt, contact: untrusted {name, role,
-channels: [{kind, value, label}], relationshipNotes}}`. Errors: `not-found`, `unavailable`.
+`id` (UUID, required). Result: `{id, version, companyId, contact: untrusted {name, role, channels: [{kind, value,
+label}], relationshipNotes}, readOnly: {createdAt, updatedAt}}`. `readOnly` is not sendable to `update_contact`.
+Errors: `not-found`, `unavailable`.
 
 ### `create_contact`
 
 `name` (required), `role`, `companyId` (must exist), `channels` (list of `{kind: EMAIL|PHONE|WEB|OTHER, value,
-label}`), `relationshipNotes`. Result: as `get_contact`. Errors: `invalid-arguments`, `unavailable`.
+label}`), `relationshipNotes`. A literal `[withheld]` in any of them is refused (`withheld-value`, naming the
+argument, such as `channels[0].value`). Result: as `get_contact`. Errors: `invalid-arguments`, `unavailable`.
 
 ### `update_contact`
 
-`id`, `version` (both required) and the arguments of `create_contact`. Replaces all details, channels included.
-Result: as `get_contact`. Errors: `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
+`id`, `version`, `companyId` and `contact` (all required): `contact` holds `name`, `role`, `channels` and
+`relationshipNotes`, each required, and every channel `kind`, `value` and `label`; `null` (or `[]` for `channels`)
+for none. Replaces all details, channels included. Do not send `readOnly`. Problems are named by their path, such as
+`contact.channels[0].value:invalid-email`. Result: as `get_contact`. Errors: `invalid-arguments`, `not-found`,
+`version-conflict`, `unavailable`.
 
 ### `set_application_contacts`
 
 `id` (the application), `version` (from `get_application`) and `contactIds`, all required. The list becomes
 exactly the set of linked contacts (at most 50): to link a contact, add its id to the ids `get_application`
-returned; to unlink one, leave it out; `[]` unlinks all. There is no separate link and unlink tool because the
+returned in `readOnly.contactIds`; to unlink one, leave it out. `contactIds` follows the rule for replace-style
+updates: it is required, leaving it out (or `null`) is refused and stores nothing, and only an explicit `[]` unlinks
+all. Nothing else of the application is sent, so there is nothing more to leave out. There is no separate link and unlink tool because the
 use case replaces the set against one version. An unchanged set writes nothing. Result: as `get_application`.
 Errors: `invalid-arguments` (`contactIds:not-found`, `contactIds:too-many`), `not-found`, `version-conflict`,
 `unavailable`.
@@ -310,12 +326,11 @@ No arguments. The suggested tasks waiting for a yes (for example a follow-up aft
 `title` and `timeZone` (required), and when it is due as exactly one of `bucket` (`TODAY`, `THIS_WEEK`,
 `NEXT_WEEK`, `THIS_MONTH`, `SOMEDAY`, resolved on today's date in `timeZone`) or `localDue` (an exact wall-clock
 time in `timeZone`, `2026-10-05T10:00`); `link` (`{type: APPLICATION|COMPANY|CONTACT, id}`, must exist) and
-`notes` (Markdown); `null` for an optional argument is accepted. A `localDue` that does not exist because the
+`notes` (Markdown); `null` for an optional argument is accepted. A literal `[withheld]` in any argument is refused
+(`withheld-value`, naming the argument). A `localDue` that does not exist because the
 clocks change (a gap) is moved on as `java.time` does (ADR-0048): `2026-03-29T02:30` in `Europe/Berlin` is stored and
 answered as `03:30`; in an overlap the earlier offset is taken. The use case has no way to refuse it, so check
-the `localDue` in the answer. The task is open with origin `CHAT`. There is no
-update tool for tasks yet, so nothing takes a task back whole and the `[withheld]` refusal of the updates above
-does not apply. Result: the task. Errors: `invalid-arguments`, `unavailable`.
+the `localDue` in the answer. The task is open with origin `CHAT`. Result: the task. Errors: `invalid-arguments`, `unavailable`.
 
 ### `complete_task`
 
@@ -332,7 +347,9 @@ recently completed first: `{total, page, size, tasks: [{id, version, origin, lin
 untrusted {title}}]}`. `total` counts all done tasks; the answer never holds more than `size` of them. The entries
 carry the title but **not the notes** (a page of long notes would fill a context, and `reopen_task` needs only the id
 and the version). Use it to find a task that was completed by mistake. Errors: `invalid-arguments`
-(`page:out-of-range`, `size:out-of-range`), `unavailable`.
+(`page:out-of-range`, `size:out-of-range`; `page:invalid` for a value that is no `int`, such as `1.0` or `2147483648`; a `size` out of
+range is refused by the schema), `unavailable`. To read a done task's notes, reopen it
+(`reopen_task` answers the whole task): there is no `get_task` for done tasks yet.
 
 ### `reopen_task`
 
