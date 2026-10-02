@@ -70,6 +70,15 @@ export function mergeGroups(pages: readonly TaskGroupListResponse[]): TaskGroupR
   return [...merged.values()];
 }
 
+/**
+ * The suggestions of all loaded pages in order, each once: offset paging over a list that others add to (the worker
+ * suggests meanwhile) can answer an entry on two pages.
+ */
+export function mergeSuggestions(pages: readonly TaskListResponse[]): TaskSummaryResponse[] {
+  const seen = new Set<string>();
+  return pages.flatMap((page) => page.tasks).filter((task) => !seen.has(task.id) && seen.add(task.id));
+}
+
 export function listedTasks(data: TaskGroupPages | undefined): TaskSummaryResponse[] {
   return data?.pages.flatMap((page) => page.groups.flatMap((group) => group.tasks)) ?? [];
 }

@@ -111,7 +111,8 @@ A suggestion whose application is deleted is obsolete and dismissed by its rule'
 `TaskState`: `SUGGESTED` → `OPEN` (accept) or `DISMISSED`; `OPEN` → `DONE` (complete); `DONE` → `OPEN` (reopen).
 Each is a `TaskTransition` with exactly one source state (`ACCEPT`, `DISMISS`, `COMPLETE`, `REOPEN`), applied with
 `Task.apply`: a task already in the target state is unchanged, one in any other state is not allowed, so reopening
-never accepts a suggestion and accepting never reopens a done task.
+never accepts a suggestion and accepting never reopens a done task. Accepting and dismissing are for suggestions
+only: a task that never was one (`Manual`, `Chat`) is not allowed, even "already open" (#237).
 Nothing leaves `DISMISSED`. `completed_at` is set exactly while `DONE`. `TaskOrigin` is `Manual` (the app), `Chat`
 (the built-in chat or an MCP client) or `Suggested(rule, key)`; only suggestions are ever `SUGGESTED` or
 `DISMISSED`. Every change, a state change too, is a new `version` with `basedOnVersion` (ADR-0041).
@@ -126,12 +127,22 @@ rescheduled) uses a new key. Direct tasks have neither, and `NULL`s never collid
 
 ### API shape
 
-`/api/tasks`: `GET ?timeZone=` (groups), `GET /suggestions`, `POST`, `GET|PUT|DELETE /{id}` (two steps,
+`/api/tasks`: `GET ?timeZone=` (groups), `GET /suggestions`, `GET /done?page=&size=` (#235), `POST`,
+`GET|PUT|DELETE /{id}` (two steps,
 `tasks.delete`), and `POST /{id}/complete|reopen|accept|dismiss` with `basedOnVersion` (separate operations, since
 "to open" means reopen or accept depending on the stored state, which the controller must not decide).
 `/api/countdowns`: `GET`, `POST`, `PUT|DELETE /{id}` (two steps, `countdowns.delete`); `GET
 /api/dashboard/countdowns?timeZone=`. Changelog entity types `task` and `countdown`; entries name changed fields,
 never titles or notes.
+
+### Done tasks (#235)
+
+The task lists and the dashboard show open tasks only, so a completed task, by the user or by an AI client, would be gone. `GET
+/api/tasks/done` (`ListDoneTasksUseCase`, `TaskRepositoryPort.listDone`) answers one page of the done tasks, the
+newest completion first (then id), with the total. `page` counts from 0 and `size` is 1 to 50 (default 20), so the
+answer stays bounded however many tasks were ever completed; the open list is untouched. Reopening is the existing
+`POST /{id}/reopen`, an edit like completing (spec §9: no confirmation). The MCP tools `list_done_tasks` and
+`reopen_task` call the same use cases; the tool's entries carry the id, version and the title but not the notes.
 
 ### Use cases (#93)
 

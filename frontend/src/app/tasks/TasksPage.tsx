@@ -17,6 +17,7 @@ import {
   Form,
   OverdueIcon,
   SegmentedControl,
+  Tabs,
   TextField,
   TextLink,
   UndoIcon,
@@ -26,6 +27,7 @@ import { FailureMessage } from "../companies/CompanyLoadFailure";
 import { sectionCard } from "../companies/RelatedRecords";
 import { PageHeader } from "../pages/PlaceholderPage";
 import type { ErrorDescription } from "../problems";
+import { DoneTasks } from "./DoneTasks";
 import { SuggestedTasks } from "./SuggestedTasks";
 import { storeSavedTask } from "./TaskEditPages";
 import { TaskRow, useSetTaskDone } from "./TaskRow";
@@ -59,15 +61,18 @@ type Feedback =
   | { kind: "done"; task: TaskResponse }
   | { kind: "failure"; failure: ErrorDescription };
 
+type TasksView = "open" | "done";
+
 /**
- * Tasks (spec §10.2): a quick add, the suggested tasks to accept or dismiss, then the open tasks grouped by when
+ * Tasks (spec §10.2), in two views: the open tasks and the done ones (#235). Open: a quick add, the suggested tasks to accept or dismiss, then the open tasks grouped by when
  * they are due on the viewer's calendar (the browser's zone goes to the server). Complete with a checkbox (undo
- * reopens), edit, delete with confirmation.
+ * reopens), edit, delete with confirmation. Done: the completed tasks, each with Reopen.
  */
 export function TasksPage() {
   const [viewerZone] = useState(viewerTimeZone);
   const listKey = taskGroupPagesKey(viewerZone);
   const list = useTaskGroupPages(viewerZone);
+  const [view, setView] = useState<TasksView>("open");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   // A complete or reopen changes which tasks are open: the next page's offset no longer fits the loaded ones.
   const queryClient = useQueryClient();
@@ -91,32 +96,55 @@ export function TasksPage() {
   return (
     <>
       <PageHeader title={m.nav_tasks()} />
-      <QuickAdd
-        viewerZone={viewerZone}
-        onAdded={(task) => setFeedback({ kind: "added", title: task.title })}
-      />
-      <FeedbackMessage feedback={feedback} listKey={listKey} onChange={setFeedback} onFailure={fail} />
-      <SuggestedTasks
-        viewerZone={viewerZone}
-        onDecided={(task, decision) =>
-          setFeedback({ kind: decision === "accept" ? "accepted" : "dismissed", title: taskTitle(task) })
-        }
-        onFailure={fail}
-      />
-      {list.data ? (
-        <TaskGroups
-          pages={list}
-          onShowMore={() => void showMore()}
-          busy={mutating > 0 || list.isFetching}
-          listKey={listKey}
-          viewerZone={viewerZone}
-          onDone={(task) => setFeedback(task.status === "DONE" ? { kind: "done", task } : null)}
-          onDeleted={(task) => setFeedback({ kind: "deleted", title: taskTitle(task) })}
-          onFailure={fail}
-        />
-      ) : list.isPending ? (
-        <p role="status">{m.loading()}</p>
-      ) : null}
+      <Tabs<TasksView>
+        label={m.tasks_views_label()}
+        tabs={[
+          { id: "open", label: m.tasks_view_open() },
+          { id: "done", label: m.tasks_view_done() },
+        ]}
+        selected={view}
+        onSelect={(next) => {
+          // What the Open view last said ("is done", Undo) must not outlive a visit to the other view.
+          setView(next);
+          setFeedback(null);
+        }}
+      >
+        {view === "open" ? (
+          <>
+            <QuickAdd
+              viewerZone={viewerZone}
+              onAdded={(task) => setFeedback({ kind: "added", title: task.title })}
+            />
+            <FeedbackMessage feedback={feedback} listKey={listKey} onChange={setFeedback} onFailure={fail} />
+            <SuggestedTasks
+              viewerZone={viewerZone}
+              onDecided={(task, decision) =>
+                setFeedback({
+                  kind: decision === "accept" ? "accepted" : "dismissed",
+                  title: taskTitle(task),
+                })
+              }
+              onFailure={fail}
+            />
+            {list.data ? (
+              <TaskGroups
+                pages={list}
+                onShowMore={() => void showMore()}
+                busy={mutating > 0 || list.isFetching}
+                listKey={listKey}
+                viewerZone={viewerZone}
+                onDone={(task) => setFeedback(task.status === "DONE" ? { kind: "done", task } : null)}
+                onDeleted={(task) => setFeedback({ kind: "deleted", title: taskTitle(task) })}
+                onFailure={fail}
+              />
+            ) : list.isPending ? (
+              <p role="status">{m.loading()}</p>
+            ) : null}
+          </>
+        ) : (
+          <DoneTasks />
+        )}
+      </Tabs>
     </>
   );
 }

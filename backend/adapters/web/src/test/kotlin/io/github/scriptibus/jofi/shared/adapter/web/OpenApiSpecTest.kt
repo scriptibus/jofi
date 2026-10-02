@@ -53,6 +53,7 @@ class OpenApiSpecTest(
             listOf(
                 "/api/tasks" to "get",
                 "/api/tasks/suggestions" to "get",
+                "/api/tasks/done" to "get",
                 "/api/applications/{id}/interviews" to "get",
             )
 

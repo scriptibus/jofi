@@ -128,6 +128,17 @@ class TaskFixtures {
                     }
                 }
 
+            override fun listDone(request: PageRequest): TaskStoreResult<Paged<Task>> {
+                if (failingStore) return TaskStoreResult.StorageFailure("listDone")
+                val done =
+                    tasks.values
+                        .filter { it.state == TaskState.DONE }
+                        .sortedWith(
+                            compareByDescending<Task> { it.completedAt }.thenByDescending { it.id.value.toString() },
+                        )
+                return TaskStoreResult.Success(Paged.slice(done, request))
+            }
+
             override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> = error("Not used by these use cases")
 
             override fun delete(

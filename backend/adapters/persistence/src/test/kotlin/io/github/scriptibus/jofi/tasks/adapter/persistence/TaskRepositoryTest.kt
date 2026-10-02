@@ -9,6 +9,7 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
 import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
@@ -29,6 +30,10 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
+import org.jooq.ExecuteContext
+import org.jooq.ExecuteListener
+import org.jooq.impl.DSL
+import org.jooq.impl.DefaultExecuteListenerProvider
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -199,6 +204,73 @@ class TaskRepositoryTest {
             .value
 
     @Test
+    fun `lists one page of the done tasks, the newest completion first, with the total and no other state`() {
+        val completions = listOf(LATER, LATER.plusSeconds(60), LATER.plusSeconds(120), LATER.plusSeconds(180))
+        val doneTasks = completions.map { doneAt(open(details()), it) }
+        val sameInstant = doneAt(open(details()), LATER)
+        val others = listOf(open(details()), Task.suggest(newId(), details(), SUGGESTION, CREATED))
+        (doneTasks + sameInstant + others).forEach { repository.add(it) }
+        val newestFirst = doneTasks.reversed()
+        // PostgreSQL orders uuids bytewise; java.util.UUID compares signed longs, so compare the text.
+        val oldest = listOf(doneTasks.first(), sameInstant).sortedByDescending { it.id.value.toString() }
+
+        donePage(0, 2) shouldBe Paged(newestFirst.take(2), PageInfo(0, 2, 5, true))
+        donePage(1, 2) shouldBe Paged(newestFirst.drop(2).take(1) + oldest.take(1), PageInfo(1, 2, 5, true))
+        donePage(2, 2) shouldBe Paged(oldest.drop(1), PageInfo(2, 2, 5, false))
+        donePage(3, 2) shouldBe Paged(emptyList(), PageInfo(3, 2, 5, false))
+        donePage(0, PageRequest.MAX_SIZE) shouldBe
+            Paged(newestFirst.dropLast(1) + oldest, PageInfo(0, PageRequest.MAX_SIZE, 5, false))
+    }
+
+    @Test
+    fun `without done tasks the page is empty with a total of zero`() {
+        repository.add(open(details()))
+
+        donePage(0, PageRequest.DEFAULT_SIZE) shouldBe
+            Paged(emptyList(), PageInfo(0, PageRequest.DEFAULT_SIZE, 0, false))
+    }
+
+    @Test
+    fun `a task reopened while the page is read cannot make the total smaller than the page`() {
+        val doneTasks = (1L..3L).map { doneAt(open(details()), LATER.plusSeconds(it)) }
+        doneTasks.forEach { repository.add(it) }
+        var reopened = false
+        val reopenAfterTheFirstSelect =
+            object : ExecuteListener {
+                override fun executeEnd(ctx: ExecuteContext) {
+                    if (reopened || ctx.sql()?.startsWith("select") != true) return
+                    reopened = true
+                    dsl.execute(
+                        "UPDATE task SET state = 'OPEN', completed_at = NULL WHERE id = ?::uuid",
+                        doneTasks
+                            .first()
+                            .id.value
+                            .toString(),
+                    )
+                }
+            }
+        val racing =
+            TaskRepository(
+                DSL.using(dsl.configuration().derive(DefaultExecuteListenerProvider(reopenAfterTheFirstSelect))),
+            )
+
+        val page = racing.listDone(PageRequest(0, 10))
+
+        reopened shouldBe true
+        page shouldBe TaskStoreResult.Success(Paged(doneTasks.reversed(), PageInfo(0, 10, 3, false)))
+        donePage(0, 10) shouldBe Paged(doneTasks.drop(1).reversed(), PageInfo(0, 10, 2, false))
+    }
+
+    private fun donePage(
+        page: Int,
+        size: Int,
+    ): Paged<Task> =
+        repository
+            .listDone(PageRequest(page, size))
+            .shouldBeInstanceOf<TaskStoreResult.Success<Paged<Task>>>()
+            .value
+
+    @Test
     fun `deleting needs the proof for exactly this task`() {
         val task = open(details())
         val other = open(details())
@@ -247,9 +319,14 @@ class TaskRepositoryTest {
 
     private fun open(details: TaskDetails): Task = Task.create(newId(), details, TaskOrigin.Manual, CREATED)
 
-    private fun done(task: Task): Task =
+    private fun done(task: Task): Task = doneAt(task, LATER)
+
+    private fun doneAt(
+        task: Task,
+        at: Instant,
+    ): Task =
         task
-            .apply(TaskTransition.COMPLETE, LATER)
+            .apply(TaskTransition.COMPLETE, at)
             .shouldBeInstanceOf<TaskStateChange.Changed>()
             .task
 
@@ -260,5 +337,6 @@ class TaskRepositoryTest {
     private companion object {
         val CREATED: Instant = Instant.parse("2026-09-30T08:00:00.123456Z")
         val LATER: Instant = Instant.parse("2026-09-30T09:30:00Z")
+        val SUGGESTION = TaskOrigin.Suggested("follow-up", "application:page")
     }
 }

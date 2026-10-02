@@ -196,6 +196,26 @@ class McpTaskToolsContractTest : McpToolContractSupport() {
     }
 
     @Test
+    fun `accept_task_suggestion on an open task that never was a suggestion is an invalid transition`() {
+        val manual = owner.create("/api/tasks", """{"title":"Mine","timing":{"timeZone":"UTC","bucket":"TODAY"}}""")
+        owner.mcpClient().use { client ->
+            client.initialize()
+
+            val refused =
+                client.failure(
+                    "accept_task_suggestion",
+                    mapOf("id" to manual, "version" to 0),
+                    "invalid-transition",
+                )
+
+            refused["message"].asString() shouldBe
+                "This task is not a suggestion: only suggestions can be accepted or dismissed."
+            changelog("task", manual) shouldContainExactly listOf("Created task" to "USER")
+            dsl.fetchCount(TASK, TASK.VERSION.ne(0L)) shouldBe 0
+        }
+    }
+
+    @Test
     fun `arguments that break the schema are refused before any tool runs`() {
         val open = owner.create("/api/tasks", """{"title":"Mine","timing":{"timeZone":"UTC","bucket":"TODAY"}}""")
         owner.mcpClient().use { client ->

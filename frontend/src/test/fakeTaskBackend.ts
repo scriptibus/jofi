@@ -4,8 +4,10 @@
 // An in-memory stand-in for the task endpoints (#93, #94, #95), as MSW handlers. It mirrors the backend's status
 // codes and problem types: 400 violations, 409 `version-conflict` for a stale `basedOnVersion`, 409
 // `invalid-transition` for accepting or dismissing what is no suggestion, a 428 before a delete, the grouped list
-// of open tasks only, and the suggestions (state `SUGGESTED`) newest first. Both lists are paged like the server's
-// (ADR-0056: `page` from 0, `size` up to 50, default 20) and show an excerpt of the notes, never the notes. The group of each task is given by the test (`groups`),
+// of open tasks only, the done tasks, newest completion first (#235), and the suggestions (state `SUGGESTED`) newest
+// first. All three lists are paged like the server's (ADR-0056: `page` from 0, `size` up to 50, default 20); the open
+// and suggested ones show an excerpt of the notes, never the notes, the done ones carry none. The group of each task
+// is given by the test (`groups`),
 // or follows the bucket it was created with; the real calendar runs in the backend's tests and in e2e.
 
 import { HttpResponse, http } from "msw";
@@ -102,6 +104,12 @@ export interface FakeTaskState {
   decisions: { decision: "accept" | "dismiss"; id: string; basedOnVersion: number }[];
   /** While true, the suggestions list answers 503 `storage-unavailable`. */
   suggestionsUnavailable: boolean;
+  /** The `page` and `size` of every done-tasks request, in order. */
+  doneRequests: { page: number; size: number }[];
+  /** While true, the done tasks list answers 503 `storage-unavailable`. */
+  doneUnavailable: boolean;
+  /** Held until resolved: lets a test look at the page while the done list is on its way. */
+  doneGate?: Promise<void>;
   /** Delete calls seen: `first` without token, `confirmed` with it. */
   deleteCalls: ("first" | "confirmed")[];
   /** Held until resolved: lets a test look at the page while a complete is on its way. */
@@ -159,6 +167,8 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
     stateChanges: [],
     decisions: [],
     suggestionsUnavailable: false,
+    doneRequests: [],
+    doneUnavailable: false,
     deleteCalls: [],
     ...initial,
   };
@@ -204,13 +214,27 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
     };
 
   const handlers = [
-    // Before `/api/tasks/:id`, which would take "suggestions" for an id.
+    // Before `/api/tasks/:id`, which would take "suggestions" or "done" for an id.
     http.get(`${origin()}/api/tasks/suggestions`, ({ request }) => {
       if (state.suggestionsUnavailable) return problem(503, "storage-unavailable");
       const suggested = state.tasks.filter((task) => task.status === "SUGGESTED").toReversed();
       const { items, info } = pageOf(suggested, request.url);
       state.suggestionPages.push({ page: info.page, size: info.size });
       return HttpResponse.json({ tasks: items.map(summaryOfTask), page: info });
+    }),
+    http.get(`${origin()}/api/tasks/done`, async ({ request }) => {
+      const query = new URL(request.url).searchParams;
+      state.doneRequests.push({
+        page: Number(query.get("page") ?? 0),
+        size: Number(query.get("size") ?? DEFAULT_PAGE_SIZE),
+      });
+      if (state.doneGate) await state.doneGate;
+      if (state.doneUnavailable) return problem(503, "storage-unavailable");
+      const done = state.tasks
+        .filter((task) => task.status === "DONE")
+        .toSorted((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+      const { items, info } = pageOf(done, request.url);
+      return HttpResponse.json({ tasks: items, page: info });
     }),
     http.post(`${origin()}/api/tasks/:id/accept`, decide("accept")),
     http.post(`${origin()}/api/tasks/:id/dismiss`, decide("dismiss")),

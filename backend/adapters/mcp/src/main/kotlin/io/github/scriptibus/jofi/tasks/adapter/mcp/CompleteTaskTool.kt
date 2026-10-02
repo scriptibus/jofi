@@ -23,7 +23,9 @@ class CompleteTaskTool(
     override val description =
         "Mark an open task done. Give its `id` and the `version` you read (list_tasks); a stale version answers " +
             "version-conflict and changes nothing. A task that is done already is returned unchanged; a " +
-            "suggestion or dismissed task cannot be completed (invalid-transition, accept a suggestion first)."
+            "suggestion or dismissed task cannot be completed (invalid-transition, accept a suggestion first). A " +
+            "completed task is no longer in list_tasks: find it with list_done_tasks and open it again with " +
+            "reopen_task."
     override val inputSchema = TASK_VERSION_SCHEMA
 
     override fun call(call: ToolCall): ToolAnswer {

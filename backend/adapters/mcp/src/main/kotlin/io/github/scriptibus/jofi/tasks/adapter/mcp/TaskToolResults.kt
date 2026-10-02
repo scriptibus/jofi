@@ -60,7 +60,7 @@ data class TaskTimingResult(
 
 enum class TaskOriginKind { MANUAL, CHAT, SUGGESTED }
 
-/** One task; [version] is what `complete_task` and `accept_task_suggestion` need to be based on. */
+/** One task; [version] is what `complete_task`, `reopen_task` and `accept_task_suggestion` need to be based on. */
 data class TaskDetailResult(
     val id: UUID,
     val version: Long,
@@ -222,6 +222,9 @@ data class TaskSuggestionsResult(
 
 /** The tool errors of the tasks: stable codes, no stored content. */
 internal object TaskToolErrors {
+    private const val NOT_A_SUGGESTION =
+        "This task is not a suggestion: only suggestions can be accepted or dismissed."
+
     fun failure(failure: TaskResult.Failure): ToolAnswer.Error =
         when (failure) {
             is TaskResult.Invalid -> {
@@ -241,10 +244,7 @@ internal object TaskToolErrors {
             }
 
             is TaskResult.InvalidTransition -> {
-                ToolAnswer.Error(
-                    "invalid-transition",
-                    "A task cannot move from ${failure.from} to ${failure.to}. Read it again to see its state.",
-                )
+                ToolAnswer.Error("invalid-transition", transitionMessage(failure))
             }
 
             is TaskResult.StorageFailure -> {
@@ -255,6 +255,18 @@ internal object TaskToolErrors {
             TaskResult.CountdownNotFound, is TaskResult.Unconfirmed -> {
                 ToolAnswer.Error("failed", "The task request could not be completed.")
             }
+        }
+
+    /**
+     * A transition to the state the task is in already can only be an accept of a task that never was a suggestion
+     * (a done or dismissed one is "unchanged" for its own transition): say that, since reading it again shows only
+     * OPEN.
+     */
+    private fun transitionMessage(failure: TaskResult.InvalidTransition): String =
+        if (failure.from == failure.to) {
+            NOT_A_SUGGESTION
+        } else {
+            "A task cannot move from ${failure.from} to ${failure.to}. Read it again to see its state."
         }
 
     /**

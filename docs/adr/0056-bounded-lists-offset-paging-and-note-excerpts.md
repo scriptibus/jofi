@@ -59,8 +59,10 @@ send it back as an update and store a shortened note over the real one.
   excerpt. Patch-style updates would be the full fix. `...Truncated` says whether the text the reader sees was cut,
   so for an AI it is relative to the redacted text. The upcoming interviews carry no notes in MCP and stay as they
   are.
-- The done-tasks list (#248) has its own paging shape (`DoneTaskQuery`, no `hasMore`). "Every new list follows
-  this" means `PageInput`/`PageInfo`: the done list is aligned to it by whichever of the two pull requests merges
-  second.
+- The done-tasks list (#248) is aligned: `GET /api/tasks/done` and `list_done_tasks` take the same `PageInput` and
+  answer the same `PageInfo` (`page`, `size`, `total`, `hasMore`), with one source of the 400 for a `page` or `size`
+  that is out of range or no number. Its single-statement page-and-total query stays (a task reopened between two reads
+  cannot make the total smaller than the page). Done entries carry no notes (REST: the title and facts; MCP: the
+  title only); `get_task` reads one done task in full.
 - Every new list tool follows this: a `page`/`size` pair, the use case limits, excerpts for long text (for an AI,
   cut from filtered text), a `get_*` tool.

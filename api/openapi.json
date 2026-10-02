@@ -4219,6 +4219,65 @@
         "tags" : [ "task-controller" ]
       }
     },
+    "/api/tasks/done" : {
+      "get" : {
+        "operationId" : "listDoneTasks",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "maximum" : 10000,
+            "minimum" : 0,
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DoneTaskPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "done-task-controller" ]
+      }
+    },
     "/api/tasks/suggestions" : {
       "get" : {
         "operationId" : "listSuggestedTasks",
@@ -5993,6 +6052,21 @@
           },
           "text" : {
             "type" : "string"
+          }
+        }
+      },
+      "DoneTaskPageResponse" : {
+        "required" : [ "page", "tasks" ],
+        "type" : "object",
+        "properties" : {
+          "page" : {
+            "$ref" : "#/components/schemas/PageResponse"
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskResponse"
+            }
           }
         }
       },
