@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.tasks.adapter.web
 
+import io.github.scriptibus.jofi.shared.adapter.web.PageResponse
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput

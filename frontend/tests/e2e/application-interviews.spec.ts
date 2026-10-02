@@ -122,6 +122,52 @@ test("log, edit and delete an interview, and see it on the timeline", async ({ p
   );
 });
 
+test("more than 50 interviews load a page at a time, long notes show an excerpt until asked for", async ({
+  page,
+}, testInfo) => {
+  // 51 interviews are many writes (each schedules suggestions): one project is enough, and it gets more time.
+  test.skip(testInfo.project.name !== "desktop-light", "One run is enough: it logs 51 interviews.");
+  test.slow();
+  const { application } = await arrange(page);
+  const { request, headers } = await api(page);
+  const long = `Start of the notes ${"x".repeat(400)} the very end`;
+  for (let from = 0; from < 51; from += 5) {
+    const batch = Array.from({ length: Math.min(5, 51 - from) }, async (_, offset) => {
+      const index = from + offset;
+      const data = {
+        type: "PHONE_SCREEN",
+        localStart: `2031-01-${String(1 + Math.floor(index / 24)).padStart(2, "0")}T${String(index % 24).padStart(2, "0")}:00`,
+        timeZone: "Europe/Berlin",
+        participantIds: [],
+        notes: index === 0 ? long : null,
+      };
+      expect(
+        (await request.post(`/api/applications/${application.id}/interviews`, { data, headers })).status(),
+      ).toBe(201);
+    });
+    await Promise.all(batch);
+  }
+
+  await page.goto(`/applications/${application.id}?tab=interviews`);
+  const section = page.getByRole("region", { name: "Interviews and calls" });
+  await expect(section.getByRole("article")).toHaveCount(50);
+  await expectNoA11yViolations(page);
+  await snapshot(page, "application-interviews-paged");
+
+  await section.getByRole("button", { name: "Show more interviews" }).click();
+  await expect(section.getByRole("article")).toHaveCount(51);
+  await expect(section.getByRole("button", { name: "Show more interviews" })).toHaveCount(0);
+
+  const first = section.getByRole("article").first();
+  await expect(first.getByText(/^Start of the notes x+$/)).toBeVisible();
+  await first.getByRole("button", { name: "Show all notes" }).click();
+  await expect(first.getByText(long)).toBeVisible();
+  await expectNoA11yViolations(page);
+
+  await first.getByRole("button", { name: /^Edit / }).click();
+  await expect(page.getByRole("textbox", { name: "Notes afterwards" })).toHaveValue(long);
+});
+
 test.describe("in German", () => {
   test.use({ locale: "de-DE" });
 

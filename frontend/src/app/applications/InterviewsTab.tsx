@@ -7,8 +7,10 @@ import {
   type ApplicationResponse,
   deleteInterview,
   getGetContactQueryOptions,
+  getInterview,
   type InterviewResponse,
-  useListInterviews,
+  type InterviewSummaryResponse,
+  useGetInterview,
   useLogInterview,
   useUpdateInterview,
 } from "../../api/generated/jofi";
@@ -22,6 +24,7 @@ import { useConfirmation } from "../useConfirmation";
 import { isApplicationVersionConflict } from "./applicationProblems";
 import { LoadFailure } from "./DescriptionVersions";
 import { InterviewForm } from "./InterviewForm";
+import { useInterviewPages } from "./interviewPages";
 import {
   DELETE_INTERVIEW_OPERATION,
   describeInterviewDelete,
@@ -29,6 +32,7 @@ import {
   formatAgreedTime,
   interviewFieldErrors,
   interviewFormValues,
+  isInterviewNotFound,
   refreshInterviews,
   timeOnUserClock,
 } from "./interviews";
@@ -45,14 +49,15 @@ const quietly = { meta: { errorHandledLocally: true } } as const;
  */
 export function InterviewsTab({ application }: { application: ApplicationResponse }) {
   const queryClient = useQueryClient();
-  const interviews = useListInterviews(application.id, { query: quietly });
+  const interviews = useInterviewPages(application.id);
+  const listed = interviews.data?.pages.flatMap((page) => page.interviews);
   const [editing, setEditing] = useState<Editing>(null);
   const [done, setDone] = useState<string | null>(null);
   const [failure, setFailure] = useState<ErrorDescription | null>(null);
   const { confirmed, dialog } = useConfirmation();
   const remove = useMutation({
     ...quietly,
-    mutationFn: (interview: InterviewResponse) =>
+    mutationFn: (interview: InterviewSummaryResponse) =>
       confirmed((options) => deleteInterview(application.id, interview.id, options), {
         expect: { operation: DELETE_INTERVIEW_OPERATION, targets: [interview.id] },
         describe: describeInterviewDelete,
@@ -71,7 +76,7 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
     setFailure(null);
     setEditing(next);
   };
-  const startDelete = (interview: InterviewResponse) => {
+  const startDelete = (interview: InterviewSummaryResponse) => {
     open(null);
     remove.mutate(interview, {
       onSuccess: (outcome) => {
@@ -83,12 +88,22 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
       },
     });
   };
-  const reloadForEdit = async (id: string) => {
-    const latest = (await interviews.refetch()).data?.interviews.find((interview) => interview.id === id);
-    if (latest) open({ kind: "edit", interview: latest });
-    else {
+  // The list holds excerpts of the notes: the form is filled from the whole interview, read now.
+  const [opening, setOpening] = useState<string | null>(null);
+  const startEdit = async (id: string) => {
+    setOpening(id);
+    try {
+      open({ kind: "edit", interview: await getInterview(application.id, id) });
+    } catch (error) {
       open(null);
-      setFailure({ message: m.application_interview_error_not_found() });
+      setFailure(
+        isInterviewNotFound(error)
+          ? { message: m.application_interview_error_not_found() }
+          : { message: m.application_interview_edit_failed() },
+      );
+      void refreshInterviews(queryClient, application.id);
+    } finally {
+      setOpening(null);
     }
   };
 
@@ -122,11 +137,11 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
         ) : (
           <p role="status">{m.loading()}</p>
         )
-      ) : interviews.data.interviews.length === 0 ? (
+      ) : listed?.length === 0 ? (
         <p className="text-muted">{m.application_interviews_empty()}</p>
       ) : (
         <ol aria-labelledby="application-interviews-heading" className="flex flex-col gap-3">
-          {interviews.data.interviews.map((interview) => (
+          {listed?.map((interview) => (
             <li key={interview.id}>
               {editing?.kind === "edit" && editing.interview.id === interview.id ? (
                 <EditInterview
@@ -135,13 +150,14 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
                   interview={editing.interview}
                   onDone={finished}
                   onCancel={() => open(null)}
-                  onReload={() => void reloadForEdit(interview.id)}
+                  onReload={() => void startEdit(interview.id)}
                 />
               ) : (
                 <InterviewCard
                   interview={interview}
                   isBusy={remove.isPending}
-                  onEdit={() => open({ kind: "edit", interview })}
+                  isOpening={opening === interview.id}
+                  onEdit={() => void startEdit(interview.id)}
                   onDelete={() => startDelete(interview)}
                 />
               )}
@@ -149,6 +165,16 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
           ))}
         </ol>
       )}
+      {interviews.hasNextPage ? (
+        <Button
+          variant="secondary"
+          className="self-start"
+          onPress={() => void interviews.fetchNextPage()}
+          isDisabled={interviews.isFetchingNextPage}
+        >
+          {m.application_interviews_show_more()}
+        </Button>
+      ) : null}
       {dialog}
     </section>
   );
@@ -256,17 +282,28 @@ function EditInterview({
 }
 
 interface InterviewCardProps {
-  interview: InterviewResponse;
+  interview: InterviewSummaryResponse;
   isBusy: boolean;
+  /** The whole interview is being read for editing. */
+  isOpening: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-function InterviewCard({ interview, isBusy, onEdit, onDelete }: InterviewCardProps) {
+function InterviewCard({ interview, isBusy, isOpening, onEdit, onDelete }: InterviewCardProps) {
   const type = interviewTypeLabels[interview.type]();
   const agreed = formatAgreedTime(interview.localStart, interview.timeZone);
   const yours = timeOnUserClock(interview);
   const named = { type, time: agreed };
+  // A list entry holds only the start of its notes (ADR-0056): "Show all notes" reads the whole interview, and then
+  // only the full text is shown.
+  const [wanted, setWanted] = useState(false);
+  const read = useGetInterview(interview.applicationId, interview.id, {
+    query: { enabled: wanted, ...quietly },
+  });
+  const preparation = read.data ? read.data.preparationNotes : interview.preparationNotesExcerpt;
+  const notes = read.data ? read.data.notes : interview.notesExcerpt;
+  const cut = !read.data && (interview.notesTruncated || interview.preparationNotesTruncated);
   return (
     <article className="flex flex-col gap-3 rounded border border-line bg-bg p-4">
       <div className="flex flex-col gap-1">
@@ -285,19 +322,37 @@ function InterviewCard({ interview, isBusy, onEdit, onDelete }: InterviewCardPro
         <Fact label={m.application_interview_field_participants()}>
           <ParticipantNames ids={interview.participantIds} />
         </Fact>
-        {interview.preparationNotes ? (
+        {preparation ? (
           <Fact label={m.application_interview_field_preparation()}>
-            <Markdown>{interview.preparationNotes}</Markdown>
+            <Markdown>{preparation}</Markdown>
           </Fact>
         ) : null}
-        {interview.notes ? (
+        {notes ? (
           <Fact label={m.application_interview_field_notes()}>
-            <Markdown>{interview.notes}</Markdown>
+            <Markdown>{notes}</Markdown>
           </Fact>
         ) : null}
       </dl>
+      {cut ? (
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="secondary"
+            className="self-start"
+            onPress={() => setWanted(true)}
+            isDisabled={read.isFetching}
+          >
+            {m.application_interview_notes_show_all()}
+          </Button>
+          {read.isError ? <p role="alert">{m.application_interview_notes_failed()}</p> : null}
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" aria-label={m.application_interview_edit_named(named)} onPress={onEdit}>
+        <Button
+          variant="secondary"
+          aria-label={m.application_interview_edit_named(named)}
+          isDisabled={isOpening}
+          onPress={onEdit}
+        >
           <EditIcon className="size-4" aria-hidden="true" />
           {m.company_edit()}
         </Button>

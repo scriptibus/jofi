@@ -10,11 +10,15 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.InterviewOutcome
+import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIEW
 import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import org.jooq.Condition
 import org.jooq.DSLContext
 import org.slf4j.Logger
@@ -78,15 +82,30 @@ class InterviewRepository(
                 ?: ApplicationStoreResult.NotFound
         }
 
-    override fun listByApplication(application: ApplicationId): ApplicationStoreResult<List<Interview>> =
-        storeCall("list interviews") {
+    override fun pageByApplication(
+        application: ApplicationId,
+        request: PageRequest,
+        direction: SortDirection,
+    ): ApplicationStoreResult<Paged<Interview>> =
+        storeCall("page interviews") {
+            val ofApplication = INTERVIEW.APPLICATION_ID.eq(application.value)
+            val total = dsl.fetchCount(INTERVIEW, ofApplication)
+            val order =
+                when (direction) {
+                    SortDirection.ASCENDING -> listOf(INTERVIEW.STARTS_AT.asc(), INTERVIEW.ID.asc())
+                    SortDirection.DESCENDING -> listOf(INTERVIEW.STARTS_AT.desc(), INTERVIEW.ID.desc())
+                }
             val records =
                 dsl
                     .selectFrom(INTERVIEW)
-                    .where(INTERVIEW.APPLICATION_ID.eq(application.value))
-                    .orderBy(INTERVIEW.STARTS_AT, INTERVIEW.ID)
+                    .where(ofApplication)
+                    .orderBy(order)
+                    .limit(request.size)
+                    .offset(request.offset)
                     .fetch()
-            ApplicationStoreResult.Success(participants.interviewsOf(records))
+            ApplicationStoreResult.Success(
+                Paged(participants.interviewsOf(records), PageInfo.of(request, total)),
+            )
         }
 
     override fun upcoming(

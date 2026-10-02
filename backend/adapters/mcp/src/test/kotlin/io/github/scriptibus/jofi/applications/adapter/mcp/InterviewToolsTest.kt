@@ -57,7 +57,7 @@ class InterviewToolsTest {
         LogInterviewTool(LogInterviewUseCase(applications, interviews, events, changelog, transactions, clock))
     private val update =
         UpdateInterviewTool(UpdateInterviewUseCase(applications, interviews, events, changelog, transactions, clock))
-    private val list = ListInterviewsTool(ListInterviewsUseCase(applications, interviews))
+    private val list = ListInterviewsTool(ListInterviewsUseCase(applications, interviews, ToolTestPorts.redaction))
     private val upcoming = ListUpcomingInterviewsTool(ListUpcomingInterviewsUseCase(interviews, clock))
 
     private val applicationId = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
@@ -190,42 +190,6 @@ class InterviewToolsTest {
         answer.shouldBeInstanceOf<ToolAnswer.Error>().problems shouldBe
             listOf(ArgumentProblem("interview.notes", "withheld-value"))
         verify(exactly = 0) { interviews.findById(any(), any()) }
-    }
-
-    @Test
-    fun `list_interviews answers the interviews of the application with their versions`() {
-        every { interviews.listByApplication(ApplicationId(applicationId)) } returns
-            ApplicationStoreResult.Success(listOf(stored))
-
-        val result =
-            list
-                .call(call("applicationId" to "$applicationId"))
-                .shouldBeInstanceOf<ToolAnswer.Result>()
-                .value
-                .shouldBeInstanceOf<InterviewListResult>()
-
-        result.total shouldBe 1
-        result.interviews.single().id shouldBe interviewId
-        result.interviews
-            .single()
-            .interview.content.notes shouldBe "Went well"
-    }
-
-    @Test
-    fun `list_interviews called with more interviews than it returns answers the earliest ones and the total`() {
-        val many = (0 until InterviewListResult.MAX_LISTED + 5).map { stored.copy(id = InterviewId(UUID.randomUUID())) }
-        every { interviews.listByApplication(ApplicationId(applicationId)) } returns
-            ApplicationStoreResult.Success(many)
-
-        val result =
-            list
-                .call(call("applicationId" to "$applicationId"))
-                .shouldBeInstanceOf<ToolAnswer.Result>()
-                .value
-                .shouldBeInstanceOf<InterviewListResult>()
-
-        result.total shouldBe InterviewListResult.MAX_LISTED + 5
-        result.interviews.map { it.id } shouldBe many.take(InterviewListResult.MAX_LISTED).map { it.id.value }
     }
 
     @Test

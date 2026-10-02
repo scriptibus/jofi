@@ -50,7 +50,12 @@ class OpenApiSpecTest(
     fun `the paged lists document the bounds of page and size, each its own`() {
         val spec = JsonMapper().readTree(renderSpec())
         val lists =
-            listOf("/api/tasks" to "get", "/api/tasks/suggestions" to "get", "/api/tasks/done" to "get")
+            listOf(
+                "/api/tasks" to "get",
+                "/api/tasks/suggestions" to "get",
+                "/api/tasks/done" to "get",
+                "/api/applications/{id}/interviews" to "get",
+            )
 
         lists.forEach { (path, method) ->
             val parameters = spec["paths"][path][method]["parameters"].associateBy { it["name"].asString() }

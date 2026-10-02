@@ -20,8 +20,9 @@ class ListUpcomingInterviewsTool(
     override val description =
         "List the interviews and calls still to come across all job applications, soonest first, without " +
             "their notes. Cancelled ones and those of closed applications are left out. Each carries its " +
-            "application's id and title; the title is marked untrusted. These entries are NOT enough for " +
-            "update_interview (no version, no notes, no participants): use list_interviews for that."
+            "application's id and title; the title is marked untrusted. These entries are NOT a valid source for " +
+            "update_interview (no version, no notes, no participants): read the interview with get_interview first " +
+            "(`applicationId` and `id` are in each entry)."
     override val inputSchema =
         """
         {

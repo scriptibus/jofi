@@ -25,14 +25,21 @@ import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.kotest.matchers.shouldBe
 import io.mockk.clearMocks
 import io.mockk.every
@@ -118,7 +125,14 @@ class InterviewControllerTest(
         fun get(ports: Ports) = GetInterviewUseCase(ports.applications, ports.interviews)
 
         @Bean
-        fun list(ports: Ports) = ListInterviewsUseCase(ports.applications, ports.interviews)
+        fun list(ports: Ports) = ListInterviewsUseCase(ports.applications, ports.interviews, unflagged())
+
+        private fun unflagged() =
+            RedactForAiUseCase(
+                object : AiVisibilityPort {
+                    override fun rulesFor(sources: Set<ContentSource>) = AiVisibilityResult.Known(NeverSendRules.NONE)
+                },
+            )
 
         @Bean
         fun upcoming(ports: Ports) = ListUpcomingInterviewsUseCase(ports.interviews, Clock.fixed(NOW, ZoneOffset.UTC))
@@ -183,8 +197,8 @@ class InterviewControllerTest(
         every { ports.applications.findById(application.id) } returns ApplicationStoreResult.Success(application)
         every { ports.interviews.findById(any(), any()) } returns ApplicationStoreResult.NotFound
         every { ports.interviews.findById(application.id, stored.id) } returns ApplicationStoreResult.Success(stored)
-        every { ports.interviews.listByApplication(application.id) } returns
-            ApplicationStoreResult.Success(listOf(stored))
+        every { ports.interviews.pageByApplication(application.id, any(), any()) } returns
+            ApplicationStoreResult.Success(Paged(listOf(stored), PageInfo(0, 20, 1, false)))
         every { ports.interviews.add(any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.interviews.update(any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.interviews.delete(any(), any(), any()) } returns ApplicationStoreResult.Success(Unit)

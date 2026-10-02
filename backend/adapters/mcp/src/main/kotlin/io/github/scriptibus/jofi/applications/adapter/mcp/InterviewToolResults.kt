@@ -5,9 +5,11 @@ package io.github.scriptibus.jofi.applications.adapter.mcp
 
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewOutcome
+import io.github.scriptibus.jofi.applications.domain.InterviewSummary
 import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.adapter.mcp.Untrusted
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
@@ -64,17 +66,75 @@ data class InterviewReadOnly(
     val updatedAt: Instant,
 )
 
-/** The interviews of one application in the order they start; [total] is their number, [interviews] at most 50. */
-data class InterviewListResult(
-    val total: Int,
-    val interviews: List<InterviewResult>,
+/**
+ * The start of both notes, as a list shows them (ADR-0056). The keys differ from [InterviewNotes] on purpose: an
+ * excerpt is never the whole note, so `update_interview` refuses a list entry (it lacks `preparationNotes` and `notes`
+ * and has keys the schema does not know) instead of storing an excerpt over the real text. `get_interview` has the
+ * whole notes.
+ */
+data class InterviewExcerpts(
+    val preparationNotesExcerpt: String?,
+    val preparationNotesTruncated: Boolean,
+    val notesExcerpt: String?,
+    val notesTruncated: Boolean,
+)
+
+/**
+ * One interview of a list: [InterviewResult] with excerpts of the notes in place of the notes, and **no `version`**:
+ * `update_interview` needs it, and it comes from `get_interview`, so an update cannot be put together from a list
+ * entry alone.
+ */
+data class InterviewSummaryResult(
+    val id: UUID,
+    val applicationId: UUID,
+    val type: InterviewType,
+    val localStart: LocalDateTime,
+    val timeZone: String,
+    val participantIds: List<UUID>,
+    val outcome: InterviewOutcome?,
+    val interview: Untrusted<InterviewExcerpts>,
+    val readOnly: InterviewReadOnly,
 ) {
     companion object {
-        /** A client's context is not for an unbounded list; an application has a handful of interviews. */
-        const val MAX_LISTED = 50
+        fun from(interview: InterviewSummary) =
+            InterviewSummaryResult(
+                interview.id.value,
+                interview.application.value,
+                interview.type,
+                interview.time.localStart,
+                interview.time.zone.id,
+                interview.participants.map { it.value }.sorted(),
+                interview.outcome,
+                Untrusted(
+                    InterviewExcerpts(
+                        interview.preparationNotesExcerpt?.text,
+                        interview.preparationNotesExcerpt?.truncated ?: false,
+                        interview.notesExcerpt?.text,
+                        interview.notesExcerpt?.truncated ?: false,
+                    ),
+                ),
+                InterviewReadOnly(interview.time.startsAt, interview.createdAt, interview.updatedAt),
+            )
+    }
+}
 
-        fun from(interviews: List<Interview>) =
-            InterviewListResult(interviews.size, interviews.take(MAX_LISTED).map(InterviewResult::from))
+/** One page of the interviews of one application; ask for the next `page` while [hasMore] is true. */
+data class InterviewListResult(
+    val page: Int,
+    val size: Int,
+    val total: Int,
+    val hasMore: Boolean,
+    val interviews: List<InterviewSummaryResult>,
+) {
+    companion object {
+        fun from(page: Paged<InterviewSummary>) =
+            InterviewListResult(
+                page.info.page,
+                page.info.size,
+                page.info.total,
+                page.info.hasMore,
+                page.items.map(InterviewSummaryResult::from),
+            )
     }
 }
 

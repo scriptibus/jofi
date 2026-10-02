@@ -11,10 +11,13 @@ import io.github.scriptibus.jofi.applications.application.LogInterviewUseCase
 import io.github.scriptibus.jofi.applications.application.UpdateInterviewUseCase
 import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.InterviewId
+import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
@@ -44,12 +48,28 @@ class InterviewController(
     private val deleteInterview: DeleteInterviewUseCase,
     private val listUpcomingInterviews: ListUpcomingInterviewsUseCase,
 ) {
-    /** The application's interviews and calls in the order they start. */
+    /**
+     * One page of the application's interviews and calls in the order they start, or newest first with
+     * `direction=DESCENDING` (ADR-0056). `page` counts from 0, `size` is 1 to 50 (default 20); out of range is a 400
+     * naming them. Notes come as excerpts: read one interview for the whole text.
+     */
     @GetMapping("/applications/{id}/interviews")
-    @ProblemResponses(ProblemKind.NOT_FOUND)
+    @ProblemResponses(ProblemKind.NOT_FOUND, ProblemKind.INVALID_INPUT)
     fun listInterviews(
         @PathVariable id: UUID,
-    ): InterviewListResponse = InterviewListResponse.from(listInterviews.execute(ApplicationId(id)).orThrow())
+        @RequestParam(required = false) page: Int?,
+        @RequestParam(required = false) size: Int?,
+        @RequestParam(required = false) direction: InterviewListDirection?,
+    ): InterviewListResponse =
+        InterviewListResponse.from(
+            listInterviews
+                .execute(
+                    ApplicationId(id),
+                    PageInput(page, size),
+                    direction?.mapByName() ?: SortDirection.ASCENDING,
+                    NotesAudience.USER,
+                ).orThrow(),
+        )
 
     /** Logs an interview or call, before or after it took place. */
     @PostMapping("/applications/{id}/interviews")

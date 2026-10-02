@@ -7,8 +7,11 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationId
 import io.github.scriptibus.jofi.applications.domain.ApplicationStoreResult
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewId
+import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import java.time.Instant
 
 /**
@@ -38,10 +41,15 @@ interface InterviewRepositoryPort {
     ): ApplicationStoreResult<Interview>
 
     /**
-     * The interviews of [application] in the order they start (then by id); empty for none. Whether the application
-     * exists is the use case's check.
+     * One page of the interviews of [application] in the order they start (then by id), oldest first for
+     * [SortDirection.ASCENDING], newest first (and by id descending) for [SortDirection.DESCENDING], with how many the
+     * application has in all; empty for none. Whether the application exists is the use case's check.
      */
-    fun listByApplication(application: ApplicationId): ApplicationStoreResult<List<Interview>>
+    fun pageByApplication(
+        application: ApplicationId,
+        request: PageRequest,
+        direction: SortDirection,
+    ): ApplicationStoreResult<Paged<Interview>>
 
     /**
      * The interviews of every application that start at or after [from] and are not `CANCELLED`, soonest first

@@ -6,7 +6,10 @@ package io.github.scriptibus.jofi.applications.adapter.web
 import io.github.scriptibus.jofi.applications.domain.ContactRef
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewInput
+import io.github.scriptibus.jofi.applications.domain.InterviewSummary
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
+import io.github.scriptibus.jofi.shared.adapter.web.PageResponse
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
@@ -95,13 +98,68 @@ data class InterviewResponse(
     }
 }
 
-/** JSON body of `GET /api/applications/{id}/interviews`: the interviews in the order they start. */
+/** Copy of `SortDirection`: oldest (`ASCENDING`) or newest (`DESCENDING`) interview first. */
+enum class InterviewListDirection { ASCENDING, DESCENDING }
+
+/**
+ * One interview or call as a list shows it (ADR-0056): everything of [InterviewResponse] but the notes, of which the
+ * start is given as [preparationNotesExcerpt] and [notesExcerpt] (Markdown, cut at a code point, `null` without
+ * notes), each with a flag whether text was left out. `GET /api/applications/{id}/interviews/{interviewId}` has the
+ * whole text; render the excerpts sanitised.
+ */
+data class InterviewSummaryResponse(
+    val id: UUID,
+    val applicationId: UUID,
+    val type: InterviewKind,
+    val startsAt: Instant,
+    val localStart: LocalDateTime,
+    val timeZone: String,
+    val participantIds: List<UUID>,
+    val preparationNotesExcerpt: String?,
+    val preparationNotesTruncated: Boolean,
+    val notesExcerpt: String?,
+    val notesTruncated: Boolean,
+    val outcome: InterviewResultKind?,
+    val version: Long,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+) {
+    override fun toString(): String =
+        "InterviewSummaryResponse(id=$id, type=$type, startsAt=$startsAt, version=$version)"
+
+    companion object {
+        fun from(interview: InterviewSummary): InterviewSummaryResponse =
+            InterviewSummaryResponse(
+                interview.id.value,
+                interview.application.value,
+                interview.type.mapByName(),
+                interview.time.startsAt,
+                interview.time.localStart,
+                interview.time.zone.id,
+                interview.participants.map { it.value }.sorted(),
+                interview.preparationNotesExcerpt?.text,
+                interview.preparationNotesExcerpt?.truncated ?: false,
+                interview.notesExcerpt?.text,
+                interview.notesExcerpt?.truncated ?: false,
+                interview.outcome?.mapByName(),
+                interview.version,
+                interview.createdAt,
+                interview.updatedAt,
+            )
+    }
+}
+
+/**
+ * JSON body of `GET /api/applications/{id}/interviews`: one page of the interviews in the order they start (or
+ * newest first), as summaries.
+ */
 data class InterviewListResponse(
-    val interviews: List<InterviewResponse>,
+    val interviews: List<InterviewSummaryResponse>,
+    val page: PageResponse,
 ) {
     companion object {
-        fun from(interviews: List<Interview>): InterviewListResponse =
-            InterviewListResponse(interviews.map(InterviewResponse::from))
+        fun from(page: Paged<InterviewSummary>): InterviewListResponse =
+            InterviewListResponse(page.items.map(InterviewSummaryResponse::from), PageResponse.from(page.info))
     }
 }
 

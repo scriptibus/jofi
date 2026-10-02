@@ -16,6 +16,7 @@ import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.InterviewInput
 import io.github.scriptibus.jofi.applications.domain.InterviewOutcome
 import io.github.scriptibus.jofi.applications.domain.InterviewType
+import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.setup.adapter.persistence.ConfirmedProofs
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
@@ -24,6 +25,8 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIEW
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIEW_PARTICIPANT
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
@@ -129,11 +132,63 @@ class InterviewRepositoryTest {
         val otherApplication = ApplicationId(UUID.randomUUID()).also { rows.application(it.value, company) }
         stored(of = otherApplication)
 
-        repository.listByApplication(application) shouldBe ApplicationStoreResult.Success(listOf(sooner, later))
+        page(application, 0, 10).items shouldBe listOf(sooner, later)
         applications.interviewCount(application) shouldBe ApplicationStoreResult.Success(2)
-        repository.listByApplication(ApplicationId(UUID.randomUUID())) shouldBe
-            ApplicationStoreResult.Success(emptyList())
+        page(ApplicationId(UUID.randomUUID()), 0, 10).items shouldBe emptyList()
     }
+
+    @Test
+    fun `pages in either direction reach every interview exactly once, with the total`() {
+        val all = (1..7).map { stored(details("2026-10-${10 + it}T10:00")) }
+        stored(of = ApplicationId(UUID.randomUUID()).also { rows.application(it.value, company) })
+
+        val oldest = (0..2).map { page(application, it, 3) }
+        val newest = (0..2).map { page(application, it, 3, SortDirection.DESCENDING) }
+
+        oldest.flatMap { it.items } shouldBe all
+        newest.flatMap { it.items } shouldBe all.reversed()
+        oldest.map { it.info.total } shouldBe listOf(7, 7, 7)
+        oldest.map { it.info.hasMore } shouldBe listOf(true, true, false)
+        page(application, 3, 3).items shouldBe emptyList()
+    }
+
+    @Test
+    fun `interviews that start at the same instant keep one order over every page, by id`() {
+        val same = (1..5).map { stored(details("2026-10-05T10:00")) }
+
+        val ascending = (0..2).flatMap { page(application, it, 2).items }.map { it.id.value.toString() }
+        val descending =
+            (0..2).flatMap { page(application, it, 2, SortDirection.DESCENDING).items }.map { it.id.value.toString() }
+
+        // PostgreSQL orders uuids bytewise, which is the order of their lower-case text.
+        ascending shouldBe same.map { it.id.value.toString() }.sorted()
+        descending shouldBe same.map { it.id.value.toString() }.sortedDescending()
+    }
+
+    @Test
+    fun `an interview added between two page reads shows in the changed total`() {
+        (1..4).forEach { stored(details("2026-10-${10 + it}T10:00")) }
+        val before = page(application, 0, 2, SortDirection.DESCENDING)
+
+        stored(details("2026-11-20T10:00"))
+        val after = page(application, 1, 2, SortDirection.DESCENDING)
+
+        before.info.total shouldBe 4
+        after.info.total shouldBe 5
+        // The new newest one pushed the last entry of page 0 onto page 1: a repeat, never a gap.
+        after.items.first().id shouldBe before.items.last().id
+    }
+
+    private fun page(
+        of: ApplicationId,
+        page: Int,
+        size: Int,
+        direction: SortDirection = SortDirection.ASCENDING,
+    ): Paged<Interview> =
+        repository
+            .pageByApplication(of, PageRequest(page, size), direction)
+            .shouldBeInstanceOf<ApplicationStoreResult.Success<Paged<Interview>>>()
+            .value
 
     @Test
     fun `an update stores on top of its version and rewrites participants only when they change`() {
@@ -212,7 +267,7 @@ class InterviewRepositoryTest {
         read(interview.id).details.participants shouldBe setOf(max)
 
         dsl.deleteFrom(APPLICATION).where(APPLICATION.ID.eq(application.value)).execute()
-        repository.listByApplication(application) shouldBe ApplicationStoreResult.Success(emptyList())
+        page(application, 0, 10).items shouldBe emptyList()
         dsl.fetchCount(INTERVIEW) shouldBe 0
         dsl.fetchCount(INTERVIEW_PARTICIPANT) shouldBe 0
     }

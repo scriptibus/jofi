@@ -1153,6 +1153,34 @@
             "type" : "string",
             "format" : "uuid"
           }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "maximum" : 10000,
+            "minimum" : 0,
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "in" : "query",
+          "name" : "direction",
+          "required" : false,
+          "schema" : {
+            "type" : "string",
+            "enum" : [ "ASCENDING", "DESCENDING" ]
+          }
         } ],
         "responses" : {
           "200" : {
@@ -1164,6 +1192,16 @@
               }
             },
             "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
           },
           "404" : {
             "content" : {
@@ -6083,14 +6121,17 @@
         }
       },
       "InterviewListResponse" : {
-        "required" : [ "interviews" ],
+        "required" : [ "interviews", "page" ],
         "type" : "object",
         "properties" : {
           "interviews" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/InterviewResponse"
+              "$ref" : "#/components/schemas/InterviewSummaryResponse"
             }
+          },
+          "page" : {
+            "$ref" : "#/components/schemas/PageResponse"
           }
         }
       },
@@ -6174,6 +6215,75 @@
           "preparationNotes" : {
             "type" : "string",
             "nullable" : true
+          },
+          "startsAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "timeZone" : {
+            "type" : "string"
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "PHONE_SCREEN", "HR", "TECHNICAL", "CASE", "ON_SITE", "FINAL", "OTHER" ]
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "InterviewSummaryResponse" : {
+        "required" : [ "applicationId", "createdAt", "id", "localStart", "notesTruncated", "participantIds", "preparationNotesTruncated", "startsAt", "timeZone", "type", "updatedAt", "version" ],
+        "type" : "object",
+        "properties" : {
+          "applicationId" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "localStart" : {
+            "pattern" : "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?$",
+            "type" : "string",
+            "description" : "A date and time on a clock, without zone or offset (ISO 8601)",
+            "example" : "2026-10-05T10:00:00"
+          },
+          "notesExcerpt" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "notesTruncated" : {
+            "type" : "boolean"
+          },
+          "outcome" : {
+            "type" : "string",
+            "nullable" : true,
+            "enum" : [ "PASSED", "REJECTED", "WITHDRAWN", "CANCELLED" ]
+          },
+          "participantIds" : {
+            "type" : "array",
+            "items" : {
+              "type" : "string",
+              "format" : "uuid"
+            }
+          },
+          "preparationNotesExcerpt" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "preparationNotesTruncated" : {
+            "type" : "boolean"
           },
           "startsAt" : {
             "type" : "string",

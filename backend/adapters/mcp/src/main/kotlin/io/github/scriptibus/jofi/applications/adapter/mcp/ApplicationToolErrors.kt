@@ -160,6 +160,8 @@ internal object ApplicationToolErrors {
             ApplicationField.PARTICIPANTS to "participantIds",
             ApplicationField.PREPARATION_NOTES to "interview.preparationNotes",
             ApplicationField.INTERVIEW_NOTES to "interview.notes",
+            ApplicationField.PAGE to "page",
+            ApplicationField.SIZE to "size",
             ApplicationField.GHOSTED_AFTER_WEEKS to "ghostedAfterWeeks",
             ApplicationField.FOLLOW_UP_AFTER_DAYS to "followUpAfterDays",
         )

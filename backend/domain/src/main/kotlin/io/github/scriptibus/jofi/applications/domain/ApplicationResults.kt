@@ -70,6 +70,12 @@ enum class ApplicationField {
     /** The user's notes after an interview. */
     INTERVIEW_NOTES,
 
+    /** The page of a list that is asked for: below 0 or beyond `PageRequest.MAX_PAGE`. */
+    PAGE,
+
+    /** The size of a page: not within 1 and `PageRequest.MAX_SIZE`. */
+    SIZE,
+
     /** After how many weeks without news Ghosted is suggested ([ApplicationSettings.GHOSTED_WEEKS]). */
     GHOSTED_AFTER_WEEKS,
 

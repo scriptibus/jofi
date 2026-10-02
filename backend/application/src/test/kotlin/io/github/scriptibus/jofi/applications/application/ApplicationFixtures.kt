@@ -21,11 +21,14 @@ import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.SnapshotId
 import io.github.scriptibus.jofi.applications.domain.SnapshotSummary
+import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.applications.domain.SourceId
 import io.github.scriptibus.jofi.applications.domain.SourceKind
 import io.github.scriptibus.jofi.applications.domain.StatusChange
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
@@ -36,9 +39,15 @@ import io.github.scriptibus.jofi.shared.domain.ChangelogLimit
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.DomainEvent
 import io.github.scriptibus.jofi.shared.domain.EntityRef
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.FlaggedValue
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -65,6 +74,19 @@ class ApplicationFixtures {
     var failingChangelogFor: String? = null
     var failingEvents = false
     var failingStore = false
+
+    /** What the "never send to AI" source flags; `null` makes it unavailable. */
+    var flaggedValues: Set<FlaggedValue>? = emptySet()
+
+    val redaction =
+        RedactForAiUseCase(
+            object : AiVisibilityPort {
+                override fun rulesFor(sources: Set<ContentSource>) =
+                    flaggedValues
+                        ?.let { AiVisibilityResult.Known(NeverSendRules(emptyMap(), it)) }
+                        ?: AiVisibilityResult.Unavailable("test")
+            },
+        )
 
     /** Description snapshots per application, which the delete cascades to. */
     val snapshots = mutableMapOf<ApplicationId, Int>()
@@ -301,12 +323,18 @@ class ApplicationFixtures {
                 interviews[id]?.takeIf { it.application == application }?.let { ApplicationStoreResult.Success(it) }
                     ?: ApplicationStoreResult.NotFound
 
-            override fun listByApplication(application: ApplicationId): ApplicationStoreResult<List<Interview>> =
-                ApplicationStoreResult.Success(
+            override fun pageByApplication(
+                application: ApplicationId,
+                request: PageRequest,
+                direction: SortDirection,
+            ): ApplicationStoreResult<Paged<Interview>> {
+                val ascending =
                     interviews.values
                         .filter { it.application == application }
-                        .sortedWith(compareBy({ it.details.time.startsAt }, { it.id.value })),
-                )
+                        .sortedWith(compareBy({ it.details.time.startsAt }, { it.id.value.toString() }))
+                val ordered = if (direction == SortDirection.ASCENDING) ascending else ascending.reversed()
+                return ApplicationStoreResult.Success(Paged.slice(ordered, request))
+            }
 
             override fun upcoming(
                 from: Instant,
