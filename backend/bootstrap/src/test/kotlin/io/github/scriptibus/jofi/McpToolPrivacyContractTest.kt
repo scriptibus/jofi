@@ -10,6 +10,23 @@ import org.junit.jupiter.api.Test
 
 /** The company and contact tools (#119): flagged values never leave, and no tool works without a session. */
 class McpToolPrivacyContractTest : McpToolContractSupport() {
+    private fun contactUpdate(
+        id: String,
+        phone: Map<String, String>,
+    ): Map<String, Any?> {
+        val fields =
+            mapOf("name" to "Erika", "role" to "HR", "relationshipNotes" to null) +
+                mapOf("channels" to listOf(phone + ("label" to null)))
+        return mapOf("id" to id, "version" to 0, "companyId" to null, "contact" to fields)
+    }
+
+    private fun companyUpdate(id: String): Map<String, Any?> {
+        val fields =
+            mapOf("name" to "ACME 2", "website" to null, "industry" to null, "size" to null) +
+                mapOf("locations" to emptyList<String>(), "careersPage" to null, "researchNotes" to FLAGGED_PHONE)
+        return mapOf("id" to id, "version" to 0, "company" to fields)
+    }
+
     @Test
     fun `flagged values are withheld from every result of the company and contact tools`() {
         owner.mcpClient().use { client ->
@@ -20,10 +37,8 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
             val companyId = company["id"].asString()
             val contact = client.call("create_contact", mapOf("name" to "Erika", "channels" to listOf(phone)))
             val contactId = contact["id"].asString()
-            val contactUpdate =
-                mapOf("id" to contactId, "version" to 0, "name" to "Erika", "channels" to listOf(phone), "role" to "HR")
-            val companyUpdate =
-                mapOf("id" to companyId, "version" to 0, "name" to "ACME 2", "researchNotes" to FLAGGED_PHONE)
+            val contactUpdate = contactUpdate(contactId, phone)
+            val companyUpdate = companyUpdate(companyId)
 
             val results =
                 listOf(
@@ -77,10 +92,11 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
                 .asString() shouldBe
                 "[withheld]"
 
-            val shown = listOf(mapOf("kind" to "PHONE", "value" to "+49 [withheld]"))
-            val back = mapOf("id" to id, "version" to 0, "name" to "Erika", "channels" to shown)
+            val shown = listOf(mapOf("kind" to "PHONE", "value" to "+49 [withheld]", "label" to null))
+            val fields = mapOf("name" to "Erika", "role" to null, "channels" to shown, "relationshipNotes" to null)
+            val back = mapOf("id" to id, "version" to 0, "companyId" to null, "contact" to fields)
             client.failure("update_contact", back, "invalid-arguments").problems() shouldBe
-                listOf("channels[0].value:withheld-value")
+                listOf("contact.channels[0].value:withheld-value")
 
             changelog("contact", id).size shouldBe 1
             client.call("get_contact", mapOf("id" to id))["version"].asInt() shouldBe 0
@@ -98,9 +114,16 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
                 )
             val id = created["id"].asString()
 
-            val back = mapOf("id" to id, "version" to 0, "name" to "ACME", "researchNotes" to "Call [withheld]")
+            val fields =
+                mapOf("name" to "ACME", "website" to null, "industry" to null, "size" to null) +
+                    mapOf(
+                        "locations" to emptyList<String>(),
+                        "careersPage" to null,
+                        "researchNotes" to "Call [withheld]",
+                    )
+            val back = mapOf("id" to id, "version" to 0, "company" to fields)
             client.failure("update_company", back, "invalid-arguments").problems() shouldBe
-                listOf("researchNotes:withheld-value")
+                listOf("company.researchNotes:withheld-value")
 
             changelog("company", id).size shouldBe 1
             client.call("get_company", mapOf("id" to id))["version"].asInt() shouldBe 0
