@@ -12,6 +12,8 @@ import io.github.scriptibus.jofi.shared.domain.job.JobId
 import io.github.scriptibus.jofi.shared.domain.job.JobRequest
 import io.github.scriptibus.jofi.shared.domain.job.JobResult
 import io.github.scriptibus.jofi.shared.domain.job.RecurringJobId
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.CLOCK
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.CREATED
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.NOW
@@ -24,6 +26,7 @@ import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskState
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -173,7 +176,10 @@ class TaskSuggestionUseCasesTest {
         val newer = suggestion("interview-prep", created = CREATED.plusSeconds(60))
         fixtures.task()
 
-        list.execute() shouldBe TaskResult.Success(listOf(newer, older))
+        val page = list.execute(PageInput()).shouldBeInstanceOf<TaskResult.Success<Paged<TaskSummary>>>().value
+
+        page.items shouldBe listOf(TaskSummary.of(newer), TaskSummary.of(older))
+        page.info.total shouldBe 2
     }
 
     @Test

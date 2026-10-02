@@ -4,6 +4,8 @@
 package io.github.scriptibus.jofi.tasks.application.port
 
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskLink
@@ -31,6 +33,15 @@ interface TaskRepositoryPort {
 
     /** The tasks in [state], oldest first (then by id); the use case groups and orders them for the viewer. */
     fun listByState(state: TaskState): TaskStoreResult<List<Task>>
+
+    /**
+     * One page of the tasks in [state], newest first (then by id, descending, so the order is stable), with the
+     * number of tasks in [state] in all.
+     */
+    fun pageByStateNewestFirst(
+        state: TaskState,
+        request: PageRequest,
+    ): TaskStoreResult<Paged<Task>>
 
     /** The tasks linked to [link] in any state, oldest first (then by id), for its timeline (#94). */
     fun listByLink(link: TaskLink): TaskStoreResult<List<Task>>

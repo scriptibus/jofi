@@ -210,7 +210,13 @@ class McpTaskToolsContractTest : McpToolContractSupport() {
             client.refused("create_task", task("T", "bucket" to "TODAY", "link" to badLink))
             client.refused("list_tasks", mapOf())
             client.refused("list_tasks", mapOf("timeZone" to "x".repeat(65)))
-            client.refused("list_tasks", mapOf("timeZone" to ZONE, "size" to 5))
+            client.refused("list_tasks", mapOf("timeZone" to ZONE, "size" to 51))
+            client.refused("list_tasks", mapOf("timeZone" to ZONE, "size" to 0))
+            client.refused("list_tasks", mapOf("timeZone" to ZONE, "page" to -1))
+            client.refused("list_tasks", mapOf("timeZone" to ZONE, "unknown" to 1))
+            client.refused("list_task_suggestions", mapOf("size" to 51))
+            client.refused("list_task_suggestions", mapOf("page" to "first"))
+            client.refused("get_task", mapOf())
             client.refused("complete_task", mapOf("id" to open))
             client.refused("complete_task", mapOf("id" to open, "version" to -1))
             client.refused("accept_task_suggestion", mapOf("version" to 0))
@@ -255,7 +261,7 @@ class McpTaskToolsContractTest : McpToolContractSupport() {
             val link = mapOf("type" to "COMPANY", "id" to company)
             val first = client.call("create_task", task("Call", "bucket" to "TODAY", "link" to link))
             val read = client.call("list_tasks", mapOf("timeZone" to ZONE)).group("TODAY").single()
-            read["task"].untrusted()["notes"].isNull shouldBe true
+            read["task"].untrusted()["notesExcerpt"].isNull shouldBe true
 
             val copy =
                 client.call(
@@ -310,7 +316,14 @@ class McpTaskToolsContractTest : McpToolContractSupport() {
     fun `without a session no task tool can be called`() {
         val anonymous = Session().open()
         val tools =
-            listOf("list_tasks", "list_task_suggestions", "create_task", "complete_task", "accept_task_suggestion")
+            listOf(
+                "list_tasks",
+                "list_task_suggestions",
+                "get_task",
+                "create_task",
+                "complete_task",
+                "accept_task_suggestion",
+            )
 
         tools.forEach { tool ->
             val call = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"$tool","arguments":{}}}"""

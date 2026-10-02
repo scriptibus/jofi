@@ -11,9 +11,14 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolTestPorts
 import io.github.scriptibus.jofi.shared.adapter.mcp.Untrusted
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
+import io.github.scriptibus.jofi.shared.domain.text.TextExcerpt
 import io.github.scriptibus.jofi.tasks.application.AcceptTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
+import io.github.scriptibus.jofi.tasks.application.GetTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.ListSuggestedTasksUseCase
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
@@ -63,6 +68,7 @@ class TaskToolsTest {
         AcceptTaskSuggestionTool(AcceptTaskSuggestionUseCase(tasks, changelog, transactions, clock))
     private val listTasks = ListTasksTool(ListTaskGroupsUseCase(tasks, clock))
     private val listSuggestions = ListTaskSuggestionsTool(ListSuggestedTasksUseCase(tasks))
+    private val getTask = GetTaskTool(GetTaskUseCase(tasks))
 
     @Test
     fun `create_task stores a chat task with timing and link, records the AI and marks the text untrusted`() {
@@ -242,83 +248,8 @@ class TaskToolsTest {
     }
 
     @Test
-    fun `list_tasks groups the open tasks on the calendar of the given zone, empty groups included`() {
-        val ended = TaskTiming.Bucket(BucketSpan.DAY, LocalDate.of(2026, 9, 29))
-        val overdue = Task.create(TaskId(taskId), TaskDetails("Old", ended), TaskOrigin.Manual, at)
-        every { tasks.listByState(TaskState.OPEN) } returns TaskStoreResult.Success(listOf(overdue, open))
-
-        val answer = listTasks.call(call("timeZone" to "Europe/Berlin"))
-
-        val groups =
-            answer
-                .shouldBeInstanceOf<ToolAnswer.Result>()
-                .value
-                .shouldBeInstanceOf<TaskGroupsResult>()
-                .groups
-        groups.map { it.group } shouldBe TaskGroupKind.entries
-        groups
-            .first { it.group == TaskGroupKind.OVERDUE }
-            .tasks
-            .single()
-            .task.content.title shouldBe "Old"
-        groups
-            .first { it.group == TaskGroupKind.TODAY }
-            .tasks
-            .single()
-            .task.content.title shouldBe "Call"
-        groups.first { it.group == TaskGroupKind.LATER }.tasks shouldBe emptyList()
-    }
-
-    @Test
-    fun `list_tasks sees the same task on the calendar of the zone it is given`() {
-        val evening = TaskTiming.Exact.of(java.time.LocalDateTime.of(2026, 10, 1, 20, 0), java.time.ZoneOffset.UTC)
-        val exact = Task.create(TaskId(taskId), TaskDetails("Evening", requireNotNull(evening)), TaskOrigin.Manual, at)
-        every { tasks.listByState(TaskState.OPEN) } returns TaskStoreResult.Success(listOf(exact))
-
-        fun groupIn(zone: String): TaskGroupKind =
-            listTasks
-                .call(call("timeZone" to zone))
-                .shouldBeInstanceOf<ToolAnswer.Result>()
-                .value
-                .shouldBeInstanceOf<TaskGroupsResult>()
-                .groups
-                .single { it.tasks.isNotEmpty() }
-                .group
-
-        groupIn("UTC") shouldBe TaskGroupKind.TODAY
-        groupIn("Pacific/Kiritimati") shouldBe TaskGroupKind.THIS_WEEK
-    }
-
-    @Test
-    fun `list_tasks refuses an unknown zone by name and reads nothing`() {
-        listTasks.call(call("timeZone" to "Mars/Base")) shouldBe
-            ToolAnswer.Error(
-                "invalid-arguments",
-                "The task arguments are invalid.",
-                listOf(ArgumentProblem("timeZone", "invalid-time-zone")),
-            )
-        listTasks.call(call()).shouldBeInstanceOf<ToolAnswer.Error>().problems shouldContainExactly
-            listOf(ArgumentProblem("timeZone", "invalid-time-zone"))
-        verify(exactly = 0) { tasks.listByState(any()) }
-    }
-
-    @Test
-    fun `list_task_suggestions answers the waiting suggestions with their ids and versions`() {
-        every { tasks.listByState(TaskState.SUGGESTED) } returns TaskStoreResult.Success(listOf(suggestion))
-
-        val answer = listSuggestions.call(call())
-
-        val result = answer.shouldBeInstanceOf<ToolAnswer.Result>().value.shouldBeInstanceOf<TaskSuggestionsResult>()
-        result.tasks.single().id shouldBe taskId
-        result.tasks.single().status shouldBe TaskState.SUGGESTED
-        result.tasks
-            .single()
-            .task.content.title shouldBe "Follow up"
-    }
-
-    @Test
     fun `the read tools are read only and the write tools are not`() {
-        listOf(listTasks, listSuggestions).map { it.readOnly } shouldBe listOf(true, true)
+        listOf(listTasks, listSuggestions, getTask).map { it.readOnly } shouldBe listOf(true, true, true)
         listOf(createTask, completeTask, acceptSuggestion).map { it.readOnly } shouldBe listOf(false, false, false)
     }
 

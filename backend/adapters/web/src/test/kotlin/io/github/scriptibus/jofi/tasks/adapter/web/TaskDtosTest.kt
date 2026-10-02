@@ -4,6 +4,9 @@
 package io.github.scriptibus.jofi.tasks.adapter.web
 
 import io.github.scriptibus.jofi.shared.domain.EntityRef
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
+import io.github.scriptibus.jofi.shared.domain.text.TextExcerpt
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
@@ -17,13 +20,15 @@ import io.github.scriptibus.jofi.tasks.domain.CountdownTarget
 import io.github.scriptibus.jofi.tasks.domain.DashboardCountdown
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
-import io.github.scriptibus.jofi.tasks.domain.TaskGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskGroupKind
+import io.github.scriptibus.jofi.tasks.domain.TaskGroupsPage
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskInput
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskState
 import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
+import io.github.scriptibus.jofi.tasks.domain.TaskSummaryGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.github.scriptibus.jofi.tasks.domain.TaskTimingInput
 import io.github.scriptibus.jofi.tasks.domain.TaskTransition
@@ -133,21 +138,47 @@ class TaskDtosTest {
     }
 
     @Test
-    fun `lists and groups keep their order`() {
+    fun `lists and groups keep their order and carry where the page sits`() {
+        val summary = TaskSummary.of(task)
+        val info = PageInfo(1, 2, 5, true)
+
         TaskListResponse
-            .from(listOf(task))
+            .from(Paged(listOf(summary), info))
             .tasks
             .single()
             .id shouldBe uuid
         TaskGroupListResponse.from(
-            listOf(TaskGroup(TaskGroupKind.OVERDUE, listOf(task)), TaskGroup(TaskGroupKind.SOMEDAY, emptyList())),
+            TaskGroupsPage(
+                listOf(
+                    TaskSummaryGroup(TaskGroupKind.OVERDUE, listOf(summary)),
+                    TaskSummaryGroup(TaskGroupKind.SOMEDAY, emptyList()),
+                ),
+                info,
+            ),
         ) shouldBe
             TaskGroupListResponse(
                 listOf(
-                    TaskGroupResponse(TaskDueGroup.OVERDUE, listOf(TaskResponse.from(task))),
+                    TaskGroupResponse(TaskDueGroup.OVERDUE, listOf(TaskSummaryResponse.from(summary))),
                     TaskGroupResponse(TaskDueGroup.SOMEDAY, emptyList()),
                 ),
+                PageResponse(1, 2, 5, true),
             )
+    }
+
+    @Test
+    fun `a summary shows the excerpt and whether notes were cut, never the notes`() {
+        val long = "n".repeat(TextExcerpt.MAX_LENGTH + 1)
+        val cut = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = long))))
+        val short = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = "hi"))))
+        val none = TaskSummaryResponse.from(TaskSummary.of(task.copy(details = task.details.copy(notes = null))))
+
+        cut.notesExcerpt shouldBe "n".repeat(TextExcerpt.MAX_LENGTH)
+        cut.notesTruncated shouldBe true
+        short.notesExcerpt shouldBe "hi"
+        short.notesTruncated shouldBe false
+        none.notesExcerpt shouldBe null
+        none.notesTruncated shouldBe false
+        cut.toString() shouldNotContain "nnnn"
     }
 
     @Test

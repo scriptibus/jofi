@@ -6,6 +6,7 @@ import type {
   TaskLinkDtoType,
   TaskRequest,
   TaskResponse,
+  TaskSummaryResponse,
   TaskTimingRequestBucket,
   TaskTimingResponse,
 } from "../../api/generated/jofi";
@@ -91,6 +92,19 @@ export function taskTitle(task: Pick<TaskResponse, "title" | "suggestionRule">):
   const rule = task.suggestionRule ? suggestionTitles.get(task.suggestionRule) : undefined;
   if (!rule || !task.title.startsWith(rule.prefix)) return task.title;
   return rule.title(task.title.slice(rule.prefix.length));
+}
+
+/**
+ * The list entry for a task the server just answered with (a complete, reopen or accept): the whole task without its
+ * notes, keeping the excerpt the list already had (a list entry never holds the notes themselves, ADR-0056).
+ */
+export function summaryOf(saved: TaskResponse, listed?: TaskSummaryResponse): TaskSummaryResponse {
+  const { notes: _notes, ...rest } = saved;
+  return {
+    ...rest,
+    notesExcerpt: listed?.notesExcerpt ?? null,
+    notesTruncated: listed?.notesTruncated ?? false,
+  };
 }
 
 /** The browser's IANA zone (e.g. `Europe/Berlin`): buckets and the grouping follow the viewer's calendar. */

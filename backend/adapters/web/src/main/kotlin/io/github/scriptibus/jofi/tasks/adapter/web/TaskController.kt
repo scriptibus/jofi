@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.DeleteTaskUseCase
@@ -52,15 +53,19 @@ class TaskController(
 ) {
     /**
      * The open tasks grouped by when they are due, as seen on the calendar of [timeZone] (the viewer's zone, e.g.
-     * `Europe/Berlin` or `+02:00`; weeks start on Monday). An unknown zone is a 400 naming `timeZone`.
+     * `Europe/Berlin` or `+02:00`; weeks start on Monday). An unknown zone is a 400 naming `timeZone`. The list is
+     * paged (ADR-0056): `page` from 0 and `size` of 1 to 50 (default 20), a 400 naming them when out of range; notes
+     * come as an excerpt, `GET /api/tasks/{id}` has the whole text.
      */
     @GetMapping
     @ProblemResponses(ProblemKind.INVALID_INPUT)
     fun listTaskGroups(
         @RequestParam timeZone: String,
+        @RequestParam(required = false) page: Int?,
+        @RequestParam(required = false) size: Int?,
     ): TaskGroupListResponse {
         val zone = TaskTiming.zoneOf(timeZone) ?: throw TaskProblems.invalidViewerZone()
-        return TaskGroupListResponse.from(listTaskGroups.execute(zone).orThrow())
+        return TaskGroupListResponse.from(listTaskGroups.execute(zone, PageInput(page, size)).orThrow())
     }
 
     @PostMapping

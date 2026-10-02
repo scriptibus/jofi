@@ -334,7 +334,9 @@ class TaskControllerTest(
                 .assertThat()
                 .hasStatus(200)
                 .bodyJson()
-        utc.isLenientlyEqualTo("""{"groups":$groups}""")
+        utc.isLenientlyEqualTo(
+            """{"groups":$groups,"page":{"page":0,"size":20,"total":1,"hasMore":false}}""",
+        )
         utc.extractingPath("groups[1].tasks[0].id").isEqualTo(task.id.value.toString())
         utc.extractingPath("groups[2].tasks").asArray().isEmpty()
         val berlin =

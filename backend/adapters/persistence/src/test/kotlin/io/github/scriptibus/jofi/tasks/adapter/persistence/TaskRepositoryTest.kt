@@ -9,6 +9,8 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
@@ -134,6 +136,67 @@ class TaskRepositoryTest {
         repository.listByLink(CompanyRef(company)) shouldBe TaskStoreResult.Success(listOf(completed))
         repository.listByLink(ContactRef(contact)) shouldBe TaskStoreResult.Success(emptyList())
     }
+
+    @Test
+    fun `a page of suggestions is newest first with the total, and paging reaches every one exactly once`() {
+        val suggested =
+            (1..7).map { index ->
+                val origin = TaskOrigin.Suggested("follow-up", "application:$index")
+                Task.suggest(newId(), details(), origin, CREATED.plusSeconds(index.toLong()))
+            }
+        suggested.forEach { repository.add(it) }
+        repository.add(open(details()))
+
+        val pages = (0..2).map { page(it, 3) }
+
+        pages.map { it.info.total } shouldBe listOf(7, 7, 7)
+        pages.map { it.info.hasMore } shouldBe listOf(true, true, false)
+        pages.flatMap { it.items }.map { it.id } shouldBe suggested.reversed().map { it.id }
+        page(3, 3).items shouldBe emptyList()
+    }
+
+    @Test
+    fun `tasks created in the same instant keep one order over every page, by id`() {
+        val same =
+            (1..5).map { index ->
+                val origin = TaskOrigin.Suggested("follow-up", "application:$index")
+                Task.suggest(newId(), details(), origin, CREATED)
+            }
+        same.forEach { repository.add(it) }
+
+        val ids = (0..2).flatMap { page(it, 2).items }.map { it.id.value.toString() }
+
+        // PostgreSQL orders uuids bytewise, which is the order of their lower-case text (not of `UUID.compareTo`).
+        ids shouldBe same.map { it.id.value.toString() }.sortedDescending()
+    }
+
+    @Test
+    fun `a task added between two page reads can shift the next page, which the changed total shows`() {
+        val first =
+            (1..4).map {
+                Task.suggest(newId(), details(), TaskOrigin.Suggested("r", "k$it"), CREATED.plusSeconds(it.toLong()))
+            }
+        first.forEach { repository.add(it) }
+        val before = page(0, 2)
+
+        val newest = Task.suggest(newId(), details(), TaskOrigin.Suggested("r", "new"), LATER)
+        repository.add(newest)
+        val after = page(1, 2)
+
+        before.info.total shouldBe 4
+        after.info.total shouldBe 5
+        // The new one pushed the last item of page 0 onto page 1: a repeat, never a gap.
+        after.items.first().id shouldBe before.items.last().id
+    }
+
+    private fun page(
+        page: Int,
+        size: Int,
+    ): Paged<Task> =
+        repository
+            .pageByStateNewestFirst(TaskState.SUGGESTED, PageRequest(page, size))
+            .shouldBeInstanceOf<TaskStoreResult.Success<Paged<Task>>>()
+            .value
 
     @Test
     fun `deleting needs the proof for exactly this task`() {

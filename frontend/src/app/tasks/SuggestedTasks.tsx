@@ -7,17 +7,16 @@ import {
   acceptTaskSuggestion,
   dismissTaskSuggestion,
   getGetTaskQueryKey,
-  getListSuggestedTasksQueryKey,
   getListTaskGroupsQueryKey,
-  type TaskListResponse,
   type TaskResponse,
-  useListSuggestedTasks,
+  type TaskSummaryResponse,
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import { Alert, Button, CheckIcon, CloseIcon } from "../../ui";
 import { sectionCard } from "../companies/RelatedRecords";
 import { describeTiming, taskTitle } from "./task";
 import { TaskLinkChip } from "./taskLinks";
+import { type SuggestionPages, suggestionPagesKey, useSuggestionPages } from "./taskPages";
 
 type Decision = "accept" | "dismiss";
 
@@ -28,16 +27,24 @@ type Decision = "accept" | "dismiss";
  */
 function useDecideSuggestion() {
   const queryClient = useQueryClient();
-  const suggestionsKey = getListSuggestedTasksQueryKey();
+  const suggestionsKey = suggestionPagesKey();
   return useMutation({
     meta: { errorHandledLocally: true },
-    mutationFn: ({ task, decision }: { task: TaskResponse; decision: Decision }) =>
+    mutationFn: ({ task, decision }: { task: TaskSummaryResponse; decision: Decision }) =>
       (decision === "accept" ? acceptTaskSuggestion : dismissTaskSuggestion)(task.id, {
         basedOnVersion: task.version,
       }),
     onSuccess: (saved, { decision }) => {
-      queryClient.setQueryData<TaskListResponse>(suggestionsKey, (list) =>
-        list ? { tasks: list.tasks.filter((task) => task.id !== saved.id) } : list,
+      queryClient.setQueryData<SuggestionPages>(suggestionsKey, (data) =>
+        data
+          ? {
+              ...data,
+              pages: data.pages.map((page) => ({
+                ...page,
+                tasks: page.tasks.filter((task) => task.id !== saved.id),
+              })),
+            }
+          : data,
       );
       queryClient.setQueryData(getGetTaskQueryKey(saved.id), saved);
       if (decision === "accept")
@@ -59,23 +66,25 @@ export interface SuggestedTasksProps {
  * (it never comes back). Focus returns to the heading once a decided suggestion has left the list.
  */
 export function SuggestedTasks({ viewerZone, onDecided, onFailure }: SuggestedTasksProps) {
-  const suggestions = useListSuggestedTasks({ query: { meta: { errorHandledLocally: true } } });
+  const suggestions = useSuggestionPages();
   const decide = useDecideSuggestion();
   const heading = useRef<HTMLHeadingElement>(null);
 
-  const onDecide = (task: TaskResponse, decision: Decision) =>
+  const onDecide = (task: TaskSummaryResponse, decision: Decision) =>
     decide.mutate(
       { task, decision },
       {
         onSuccess: (saved) => {
           onDecided(saved, decision);
           heading.current?.focus();
+          // Entries moved up into the pages already loaded: the next page would skip some.
+          if (suggestions.hasNextPage) void suggestions.refetch();
         },
         onError: onFailure,
       },
     );
 
-  const tasks = suggestions.data?.tasks;
+  const tasks = suggestions.data?.pages.flatMap((page) => page.tasks);
   return (
     <section aria-labelledby="task-suggestions-heading" className={sectionCard}>
       <h2 id="task-suggestions-heading" ref={heading} tabIndex={-1} className="text-h2">
@@ -110,6 +119,16 @@ export function SuggestedTasks({ viewerZone, onDecided, onFailure }: SuggestedTa
               />
             ))}
           </ul>
+          {suggestions.hasNextPage ? (
+            <Button
+              variant="secondary"
+              className="self-start"
+              onPress={() => void suggestions.fetchNextPage()}
+              isDisabled={suggestions.isFetchingNextPage}
+            >
+              {m.task_suggestions_show_more()}
+            </Button>
+          ) : null}
         </>
       )}
     </section>
@@ -117,10 +136,10 @@ export function SuggestedTasks({ viewerZone, onDecided, onFailure }: SuggestedTa
 }
 
 interface SuggestionRowProps {
-  task: TaskResponse;
+  task: TaskSummaryResponse;
   viewerZone: string;
   busy: boolean;
-  onDecide: (task: TaskResponse, decision: Decision) => void;
+  onDecide: (task: TaskSummaryResponse, decision: Decision) => void;
 }
 
 /** One suggestion: its title in the user's language, when it would be due, what it is about, and the choice. */

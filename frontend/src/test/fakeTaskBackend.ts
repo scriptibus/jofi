@@ -4,7 +4,8 @@
 // An in-memory stand-in for the task endpoints (#93, #94, #95), as MSW handlers. It mirrors the backend's status
 // codes and problem types: 400 violations, 409 `version-conflict` for a stale `basedOnVersion`, 409
 // `invalid-transition` for accepting or dismissing what is no suggestion, a 428 before a delete, the grouped list
-// of open tasks only, and the suggestions (state `SUGGESTED`) newest first. The group of each task is given by the test (`groups`),
+// of open tasks only, and the suggestions (state `SUGGESTED`) newest first. Both lists are paged like the server's
+// (ADR-0056: `page` from 0, `size` up to 50, default 20) and show an excerpt of the notes, never the notes. The group of each task is given by the test (`groups`),
 // or follows the bucket it was created with; the real calendar runs in the backend's tests and in e2e.
 
 import { HttpResponse, http } from "msw";
@@ -12,6 +13,7 @@ import type {
   TaskGroupResponseGroup,
   TaskRequest,
   TaskResponse,
+  TaskSummaryResponse,
   TaskTimingRequest,
   TaskTimingResponse,
   TaskVersionRequest,
@@ -54,12 +56,42 @@ export function aTask(overrides: Partial<TaskResponse> = {}): TaskResponse {
   };
 }
 
+/** The server's excerpt length (backend `TextExcerpt.MAX_LENGTH`). */
+export const EXCERPT_LENGTH = 300;
+const DEFAULT_PAGE_SIZE = 20;
+
+/** A task as the lists show it: the notes cut to an excerpt, under keys of their own. */
+export function summaryOfTask(task: TaskResponse): TaskSummaryResponse {
+  const { notes, ...rest } = task;
+  const points = notes === null || notes === undefined ? null : [...notes];
+  return {
+    ...rest,
+    notesExcerpt: points ? points.slice(0, EXCERPT_LENGTH).join("") : null,
+    notesTruncated: points ? points.length > EXCERPT_LENGTH : false,
+  };
+}
+
+function pageOf<T>(all: T[], url: string) {
+  const query = new URL(url).searchParams;
+  const page = Number(query.get("page") ?? 0);
+  const size = Number(query.get("size") ?? DEFAULT_PAGE_SIZE);
+  const start = page * size;
+  return {
+    items: all.slice(start, start + size),
+    info: { page, size, total: all.length, hasMore: start + size < all.length },
+  };
+}
+
 export interface FakeTaskState {
   tasks: TaskResponse[];
   /** The group each task is listed in, by id; tasks without one follow their bucket (see `groupOf`). */
   groups: Record<string, TaskGroupResponseGroup>;
   /** The `timeZone` of every list request, in order. */
   listZones: string[];
+  /** The `page` and `size` of every grouped list request, in order. */
+  listPages: { page: number; size: number }[];
+  /** The `page` and `size` of every suggestions request, in order. */
+  suggestionPages: { page: number; size: number }[];
   /** Every accepted `POST` body, in order. */
   creates: TaskRequest[];
   /** Every accepted `PUT` body, in order. */
@@ -120,6 +152,8 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
     tasks: [],
     groups: {},
     listZones: [],
+    listPages: [],
+    suggestionPages: [],
     creates: [],
     updates: [],
     stateChanges: [],
@@ -171,21 +205,30 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
 
   const handlers = [
     // Before `/api/tasks/:id`, which would take "suggestions" for an id.
-    http.get(`${origin()}/api/tasks/suggestions`, () => {
+    http.get(`${origin()}/api/tasks/suggestions`, ({ request }) => {
       if (state.suggestionsUnavailable) return problem(503, "storage-unavailable");
-      const suggested = state.tasks.filter((task) => task.status === "SUGGESTED");
-      return HttpResponse.json({ tasks: suggested.toReversed() });
+      const suggested = state.tasks.filter((task) => task.status === "SUGGESTED").toReversed();
+      const { items, info } = pageOf(suggested, request.url);
+      state.suggestionPages.push({ page: info.page, size: info.size });
+      return HttpResponse.json({ tasks: items.map(summaryOfTask), page: info });
     }),
     http.post(`${origin()}/api/tasks/:id/accept`, decide("accept")),
     http.post(`${origin()}/api/tasks/:id/dismiss`, decide("dismiss")),
     http.get(`${origin()}/api/tasks`, ({ request }) => {
       state.listZones.push(new URL(request.url).searchParams.get("timeZone") ?? "");
       const open = state.tasks.filter((task) => task.status === "OPEN");
+      const inOrder = GROUP_ORDER.flatMap((group) =>
+        open
+          .filter((task) => (state.groups[task.id] ?? "THIS_WEEK") === group)
+          .map((task) => ({ group, task })),
+      );
+      const { items, info } = pageOf(inOrder, request.url);
+      state.listPages.push({ page: info.page, size: info.size });
       const groups = GROUP_ORDER.map((group) => ({
         group,
-        tasks: open.filter((task) => (state.groups[task.id] ?? "THIS_WEEK") === group),
+        tasks: items.filter((item) => item.group === group).map((item) => summaryOfTask(item.task)),
       }));
-      return HttpResponse.json({ groups });
+      return HttpResponse.json({ groups, page: info });
     }),
     http.post(`${origin()}/api/tasks`, async ({ request }) => {
       const body = (await request.json()) as TaskRequest;

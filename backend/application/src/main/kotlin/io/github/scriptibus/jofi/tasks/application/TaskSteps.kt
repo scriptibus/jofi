@@ -4,6 +4,9 @@
 package io.github.scriptibus.jofi.tasks.application
 
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.PageValidation
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskField
@@ -35,6 +38,23 @@ internal inline fun <T, R> TaskResult<T>.then(next: (T) -> TaskResult<R>): TaskR
 /** Runs [work] in one transaction that commits only on [TaskResult.Success]. */
 internal fun <T> TransactionPort.inTaskTransaction(work: () -> TaskResult<T>): TaskResult<T> =
     inTransaction({ it is TaskResult.Success }, work)
+
+/** The page asked for, or the violations of the page and size that are out of range. */
+internal fun PageInput.toResult(): TaskResult<PageRequest> =
+    when (val validation = validate()) {
+        is PageValidation.Valid -> {
+            TaskResult.Success(validation.request)
+        }
+
+        is PageValidation.Invalid -> {
+            TaskResult.Invalid(
+                listOfNotNull(
+                    TaskViolation(TaskField.PAGE, TaskProblem.OUT_OF_RANGE).takeIf { validation.pageOutOfRange },
+                    TaskViolation(TaskField.SIZE, TaskProblem.OUT_OF_RANGE).takeIf { validation.sizeOutOfRange },
+                ),
+            )
+        }
+    }
 
 internal fun <T> TaskValidation<T>.toResult(): TaskResult<T> =
     when (this) {

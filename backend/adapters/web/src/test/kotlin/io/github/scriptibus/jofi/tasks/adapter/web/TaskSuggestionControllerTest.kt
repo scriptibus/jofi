@@ -5,6 +5,10 @@ package io.github.scriptibus.jofi.tasks.adapter.web
 
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
+import io.github.scriptibus.jofi.shared.domain.text.TextExcerpt
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
@@ -14,8 +18,10 @@ import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.github.scriptibus.jofi.tasks.domain.TaskTransition
+import io.kotest.matchers.shouldBe
 import io.mockk.clearMocks
 import io.mockk.every
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -60,7 +66,8 @@ class TaskSuggestionControllerTest(
     fun `the suggestions are listed newest first with their rule`() {
         val older = suggested("follow-up", Instant.parse("2026-09-01T08:00:00Z"))
         val newer = suggested("ghosted-suggestion", Instant.parse("2026-09-02T08:00:00Z"))
-        every { ports.tasks.listByState(TaskState.SUGGESTED) } returns TaskStoreResult.Success(listOf(older, newer))
+        every { ports.tasks.pageByStateNewestFirst(TaskState.SUGGESTED, any()) } returns
+            TaskStoreResult.Success(Paged(listOf(newer, older), PageInfo(0, 20, 2, false)))
 
         mvc
             .get()
@@ -71,9 +78,52 @@ class TaskSuggestionControllerTest(
             .isLenientlyEqualTo(
                 """
                 {"tasks":[{"id":"${newer.id.value}","suggestionRule":"ghosted-suggestion","status":"SUGGESTED"},
-                          {"id":"${older.id.value}","suggestionRule":"follow-up","status":"SUGGESTED"}]}
+                          {"id":"${older.id.value}","suggestionRule":"follow-up","status":"SUGGESTED"}],
+                 "page":{"page":0,"size":20,"total":2,"hasMore":false}}
                 """.trimIndent(),
             )
+    }
+
+    @Test
+    fun `the suggestions are paged, notes come as an excerpt and never as the whole text`() {
+        val long = "n".repeat(TextExcerpt.MAX_LENGTH + 10)
+        val withNotes =
+            suggested("follow-up", Instant.parse("2026-09-01T08:00:00Z"))
+                .let { it.copy(details = it.details.copy(notes = long)) }
+        val requested = slot<PageRequest>()
+        every { ports.tasks.pageByStateNewestFirst(TaskState.SUGGESTED, capture(requested)) } returns
+            TaskStoreResult.Success(Paged(listOf(withNotes), PageInfo(1, 2, 3, false)))
+
+        val body =
+            mvc
+                .get()
+                .uri("/api/tasks/suggestions?page=1&size=2")
+                .assertThat()
+                .hasStatusOk()
+                .bodyJson()
+
+        requested.captured shouldBe PageRequest(1, 2)
+        body.extractingPath("page").isEqualTo(mapOf("page" to 1, "size" to 2, "total" to 3, "hasMore" to false))
+        body.extractingPath("tasks[0].notesExcerpt").isEqualTo("n".repeat(TextExcerpt.MAX_LENGTH))
+        body.extractingPath("tasks[0].notesTruncated").isEqualTo(true)
+        body.extractingPath("tasks[0]").asMap().doesNotContainKey("notes")
+    }
+
+    @Test
+    fun `a page or size out of range is a 400 naming it, reading nothing`() {
+        mvc
+            .get()
+            .uri("/api/tasks/suggestions?page=-1&size=51")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """
+                {"type":"${TaskProblems.INVALID}",
+                 "violations":[{"field":"page","problem":"OUT_OF_RANGE"},{"field":"size","problem":"OUT_OF_RANGE"}]}
+                """.trimIndent(),
+            )
+        verify(exactly = 0) { ports.tasks.pageByStateNewestFirst(any(), any()) }
     }
 
     @Test

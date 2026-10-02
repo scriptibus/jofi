@@ -40,6 +40,9 @@ Adding a tool:
   changed one refuses the marker too (`create_company`, `create_contact` and `create_task` still accept it, and
   `update_company`, `update_contact` and `set_application_contacts` predate the required-but-nullable rule: #241).
   Contract-test that leaving out each property is refused and stores nothing.
+- List tools (ADR-0056): take `page`/`size` with `PageArguments` and pass them to a use case that owns the limits; the
+  result says `page`, `size`, `total`, `hasMore`. Long text (notes) is an excerpt under keys of its own
+  (`notesExcerpt`, `notesTruncated`), never under the key of the full field, and a `get_*` tool returns the whole text.
 - Write the result as DTOs in the same package; never return domain objects.
 - Test the translation (real use case, mocked repository), and extend `McpContractTest` (bootstrap) to list
   and call the tool with the MCP SDK client. Add the tool to `docs/mcp-tools.md`.

@@ -6,13 +6,16 @@ package io.github.scriptibus.jofi.tasks.application.port.inbound
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDashboard
-import io.github.scriptibus.jofi.tasks.domain.TaskGroup
+import io.github.scriptibus.jofi.tasks.domain.TaskGroupsPage
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskInput
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
 import java.time.ZoneId
 
 // Inbound ports for tasks (#80, ADR-0049), implemented by the use cases of the same name (#93, #94, #95). An unknown
@@ -87,11 +90,17 @@ interface DeleteTaskPort {
 }
 
 /**
- * The open tasks grouped by when they are due (#94), as seen on the calendar of [zone] (the viewer's), weeks from
- * Monday: every group of `TaskGroupKind` in its order, empty ones included. Reads only.
+ * One page of the open tasks grouped by when they are due (#94, ADR-0056), as seen on the calendar of [zone] (the
+ * viewer's), weeks from Monday: every group of `TaskGroupKind` in its order, empty ones included, each with the tasks
+ * of the page. The tasks are numbered through the groups in that order, so every open task is on exactly one page.
+ * Entries carry an excerpt of the notes ([TaskSummary]); `GetTaskPort` has the whole task. A [page] out of range is
+ * `Invalid` (PAGE, SIZE). Reads only.
  */
 interface ListTaskGroupsPort {
-    fun execute(zone: ZoneId): TaskResult<List<TaskGroup>>
+    fun execute(
+        zone: ZoneId,
+        page: PageInput,
+    ): TaskResult<TaskGroupsPage>
 }
 
 /**
@@ -102,9 +111,12 @@ interface GetTaskDashboardPort {
     fun execute(zone: ZoneId): TaskResult<TaskDashboard>
 }
 
-/** The suggestions waiting for one click (#95), newest first. Reads only. */
+/**
+ * One page of the suggestions waiting for one click (#95, ADR-0056), newest first, as [TaskSummary]s (an excerpt of
+ * the notes). A [page] out of range is `Invalid` (PAGE, SIZE). Reads only.
+ */
 interface ListSuggestedTasksPort {
-    fun execute(): TaskResult<List<Task>>
+    fun execute(page: PageInput): TaskResult<Paged<TaskSummary>>
 }
 
 /**

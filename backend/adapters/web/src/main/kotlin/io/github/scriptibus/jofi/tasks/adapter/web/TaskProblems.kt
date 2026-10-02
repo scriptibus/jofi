@@ -81,6 +81,8 @@ object TaskProblems {
             TaskField.TIME_ZONE -> "timing.timeZone"
             TaskField.LINK -> "link.id"
             TaskField.TARGET_DATE -> "targetDate"
+            TaskField.PAGE -> "page"
+            TaskField.SIZE -> "size"
         }
 
     private fun problem(

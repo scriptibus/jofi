@@ -3,10 +3,11 @@
 
 package io.github.scriptibus.jofi.tasks.application
 
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.Task
-import io.github.scriptibus.jofi.tasks.domain.TaskGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskGroupKind
+import io.github.scriptibus.jofi.tasks.domain.TaskGroupsPage
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
@@ -53,15 +54,16 @@ class ListTaskGroupsUseCaseTest {
     fun `a store that cannot answer is a storage failure`() {
         fixtures.failingStore = true
 
-        useCase.execute(ZoneId.of("UTC")) shouldBe TaskResult.StorageFailure("listByState")
+        useCase.execute(ZoneId.of("UTC"), PageInput()) shouldBe TaskResult.StorageFailure("listByState")
     }
 
     private fun groupsIn(zone: String): Map<TaskGroupKind, List<Task>> =
         useCase
-            .execute(ZoneId.of(zone))
-            .shouldBeInstanceOf<TaskResult.Success<List<TaskGroup>>>()
+            .execute(ZoneId.of(zone), PageInput())
+            .shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
             .value
-            .associate { it.kind to it.tasks }
+            .groups
+            .associate { group -> group.kind to group.tasks.map { fixtures.tasks.getValue(it.id) } }
 
     private fun expected(vararg filled: Pair<TaskGroupKind, Task>): Map<TaskGroupKind, List<Task>> =
         TaskGroupKind.entries.associateWith { emptyList<Task>() } + filled.map { (kind, task) -> kind to listOf(task) }

@@ -14,6 +14,8 @@ import io.github.scriptibus.jofi.shared.domain.EntityRef
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.Task
@@ -86,6 +88,25 @@ class TaskFixtures {
                 when {
                     failingStore -> TaskStoreResult.StorageFailure("listByState")
                     else -> TaskStoreResult.Success(tasks.values.filter { it.state == state }.sortedBy { it.createdAt })
+                }
+
+            override fun pageByStateNewestFirst(
+                state: TaskState,
+                request: PageRequest,
+            ): TaskStoreResult<Paged<Task>> =
+                when {
+                    failingStore -> {
+                        TaskStoreResult.StorageFailure("pageByStateNewestFirst")
+                    }
+
+                    else -> {
+                        val newestFirst =
+                            tasks.values
+                                .filter { it.state == state }
+                                .sortedBy { it.createdAt }
+                                .reversed()
+                        TaskStoreResult.Success(Paged.slice(newestFirst, request))
+                    }
                 }
 
             override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> = error("Not used by these use cases")

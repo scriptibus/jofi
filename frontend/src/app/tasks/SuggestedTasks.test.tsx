@@ -154,3 +154,36 @@ describe("suggested tasks", () => {
     expect(state.decisions).toEqual([]);
   });
 });
+
+describe("many suggestions", () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, index) =>
+      followUp({ title: `Follow up ${index + 1}`, suggestionRule: null }),
+    );
+
+  it("loads 50 at a time and shows the rest on request", async () => {
+    const { user, state } = start({ tasks: many(60) });
+    const section = await suggestions();
+    await waitFor(() => expect(within(section).getAllByRole("listitem")).toHaveLength(50));
+    expect(state.suggestionPages).toEqual([{ page: 0, size: 50 }]);
+
+    await user.click(within(section).getByRole("button", { name: "Show more suggestions" }));
+
+    await waitFor(() => expect(within(section).getAllByRole("listitem")).toHaveLength(60));
+    expect(within(section).queryByRole("button", { name: "Show more suggestions" })).toBeNull();
+    expect(state.suggestionPages).toContainEqual({ page: 1, size: 50 });
+  });
+
+  it("keeps the next page right after a decision, loading the list again", async () => {
+    const { user, state } = start({ tasks: many(60) });
+    const section = await suggestions();
+    await waitFor(() => expect(within(section).getAllByRole("listitem")).toHaveLength(50));
+
+    await user.click(within(section).getByRole("button", { name: "Dismiss suggestion: Follow up 60" }));
+    await waitFor(() => expect(state.decisions).toHaveLength(1));
+    await user.click(await within(section).findByRole("button", { name: "Show more suggestions" }));
+
+    await waitFor(() => expect(within(section).getAllByRole("listitem")).toHaveLength(59));
+    expect(within(section).getByText("Follow up 1")).toBeVisible();
+  });
+});

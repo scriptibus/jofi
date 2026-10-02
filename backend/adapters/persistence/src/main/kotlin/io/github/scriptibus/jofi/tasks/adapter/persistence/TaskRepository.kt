@@ -6,6 +6,9 @@ package io.github.scriptibus.jofi.tasks.adapter.persistence
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.TASK
 import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
@@ -63,6 +66,25 @@ class TaskRepository(
 
     override fun listByState(state: TaskState): TaskStoreResult<List<Task>> =
         storeCall("listByState") { TaskStoreResult.Success(list(TASK.STATE.eq(state.name))) }
+
+    override fun pageByStateNewestFirst(
+        state: TaskState,
+        request: PageRequest,
+    ): TaskStoreResult<Paged<Task>> =
+        storeCall("pageByStateNewestFirst") {
+            val inState = TASK.STATE.eq(state.name)
+            val total = dsl.fetchCount(TASK, inState)
+            val items =
+                dsl
+                    .selectFrom(TASK)
+                    .where(inState)
+                    .orderBy(TASK.CREATED_AT.desc(), TASK.ID.desc())
+                    .limit(request.size)
+                    .offset(request.offset)
+                    .fetch()
+                    .map(TaskRecords::toDomain)
+            TaskStoreResult.Success(Paged(items, PageInfo.of(request, total)))
+        }
 
     override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> =
         storeCall("listByLink") {
