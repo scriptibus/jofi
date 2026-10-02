@@ -4118,6 +4118,8 @@
           "name" : "page",
           "required" : false,
           "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
             "type" : "integer",
             "format" : "int32"
           }
@@ -4126,6 +4128,8 @@
           "name" : "size",
           "required" : false,
           "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
             "type" : "integer",
             "format" : "int32"
           }
@@ -4219,6 +4223,8 @@
           "name" : "page",
           "required" : false,
           "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
             "type" : "integer",
             "format" : "int32"
           }
@@ -4227,6 +4233,8 @@
           "name" : "size",
           "required" : false,
           "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
             "type" : "integer",
             "format" : "int32"
           }

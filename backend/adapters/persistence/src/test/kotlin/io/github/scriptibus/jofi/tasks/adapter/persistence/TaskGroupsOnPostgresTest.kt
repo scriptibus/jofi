@@ -109,8 +109,10 @@ class TaskGroupsOnPostgresTest {
             )
         // Saturday 31 October 23:30 in UTC is Sunday 1 November 00:30 in Berlin.
         val lastNight = Instant.parse("2026-10-31T23:30:00Z")
-        groups(lastNight, BERLIN)[TaskGroupKind.OVERDUE] shouldBe listOf(week, nextWeek, october).map(TaskSummary::of)
-        groups(lastNight, BERLIN)[TaskGroupKind.THIS_MONTH] shouldBe listOf(november).map(TaskSummary::of)
+        groups(lastNight, BERLIN)[TaskGroupKind.OVERDUE] shouldBe
+            listOf(week, nextWeek, october).map { TaskSummary.of(it, it.details.notes) }
+        groups(lastNight, BERLIN)[TaskGroupKind.THIS_MONTH] shouldBe
+            listOf(november).map { TaskSummary.of(it, it.details.notes) }
     }
 
     @Test
@@ -156,7 +158,7 @@ class TaskGroupsOnPostgresTest {
     /** Every group, empty but for [filled]. */
     private fun expected(vararg filled: Pair<TaskGroupKind, List<Task>>): Map<TaskGroupKind, List<TaskSummary>> =
         TaskGroupKind.entries.associateWith { emptyList<TaskSummary>() } +
-            filled.map { (kind, tasks) -> kind to tasks.map(TaskSummary::of) }
+            filled.map { (kind, tasks) -> kind to tasks.map { TaskSummary.of(it, it.details.notes) } }
 
     private fun add(timing: TaskTiming): Task =
         Task.create(newId(), details(timing), TaskOrigin.Manual, nextCreated()).also {

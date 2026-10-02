@@ -221,8 +221,8 @@ class TaskListPagingTest {
             val text = it.notesExcerpt?.text.orEmpty()
             text.contains("0170") shouldBe false
             text.contains("1234") shouldBe false
-            // What is left of the value is the start of the marker, never of the number.
-            text.endsWith("[wit") shouldBe true
+            // The marker would be cut in two, so it is left out whole: nothing of the value, not even half a marker.
+            text.contains("[") shouldBe false
         }
         // The user sees their own notes as they are.
         val own =

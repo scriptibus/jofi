@@ -185,7 +185,8 @@ class TaskSuggestionUseCasesTest {
                 ).shouldBeInstanceOf<TaskResult.Success<Paged<TaskSummary>>>()
                 .value
 
-        page.items shouldBe listOf(TaskSummary.of(newer), TaskSummary.of(older))
+        page.items shouldBe
+            listOf(TaskSummary.of(newer, newer.details.notes), TaskSummary.of(older, older.details.notes))
         page.info.total shouldBe 2
     }
 

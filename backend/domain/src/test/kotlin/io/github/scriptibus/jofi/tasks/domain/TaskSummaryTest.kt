@@ -35,7 +35,7 @@ class TaskSummaryTest {
         request: PageRequest,
     ): TaskGroupsPage {
         val window = TaskGroupsPage.window(groups, request)
-        return window.page(window.tasks.map(TaskSummary::of))
+        return window.page(window.tasks.map { TaskSummary.of(it, it.details.notes) })
     }
 
     @Test
@@ -49,7 +49,7 @@ class TaskSummaryTest {
     fun `a summary keeps the excerpt of long notes and flags the cut`() {
         val long = "n".repeat(TextExcerpt.MAX_LENGTH + 40)
 
-        val summary = TaskSummary.of(task("T", long))
+        val summary = TaskSummary.of(task("T", long), long)
 
         summary.notesExcerpt shouldBe TextExcerpt("n".repeat(TextExcerpt.MAX_LENGTH), true)
         summary.title shouldBe "T"
@@ -57,8 +57,8 @@ class TaskSummaryTest {
 
     @Test
     fun `short notes are kept whole and missing notes stay missing`() {
-        TaskSummary.of(task("A", "short")).notesExcerpt shouldBe TextExcerpt("short", false)
-        TaskSummary.of(task("B")).notesExcerpt shouldBe null
+        TaskSummary.of(task("A", "short"), "short").notesExcerpt shouldBe TextExcerpt("short", false)
+        TaskSummary.of(task("B"), null).notesExcerpt shouldBe null
     }
 
     @Test

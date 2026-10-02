@@ -139,6 +139,24 @@ describe("paging", () => {
     expect(state.listPages.at(-1)).toEqual({ page: 1, size: 50 });
   });
 
+  it("keeps Show more disabled while a complete is under way, then loads the list again before the next page", async () => {
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const { user, state } = start("/tasks", { tasks: many(60), completeGate: gate });
+    await screen.findAllByRole("checkbox");
+    const more = screen.getByRole("button", { name: "Show more tasks" });
+
+    await user.click(screen.getByRole("checkbox", { name: "Task 1" }));
+    await waitFor(() => expect(more).toBeDisabled());
+    release();
+    await screen.findByText("“Task 1” is done.");
+    await waitFor(() => expect(more).toBeEnabled());
+    await user.click(more);
+
+    expect(await screen.findByRole("checkbox", { name: "Task 60" })).toBeVisible();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(59);
+    expect(state.listPages.at(-1)).toEqual({ page: 1, size: 50 });
+  });
+
   it("completes a task that came with a later page", async () => {
     const { user, state } = start("/tasks", { tasks: many(60) });
     await screen.findAllByRole("checkbox");

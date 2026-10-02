@@ -34,7 +34,8 @@ the PR that adds or changes a tool.
 - Values flagged "never send to AI" are replaced by `[withheld]` in every result.
 - Lists are paged (ADR-0056): `page` (from 0) and `size` (1 to 50, default 20); the answer says `page`, `size`,
   `total` and `hasMore`. Ask for the next `page` while `hasMore` is true. Paging is by offset over a stable order,
-  so a list that changes between two reads can repeat or skip an entry: compare `total`. A long text (notes) is
+  so a list that changes between two reads can repeat or skip an entry (completing a task on page 0 and then reading
+  page 1 skips one): compare `total`, and start again from page 0 after changing what the list holds. A long text (notes) is
   not in a list entry in full: the entry has `notesExcerpt` (at most 300 characters, cut at a character, never
   inside one) and `notesTruncated` under keys of their own, and a `get_*` tool has the whole text. A list
   entry is therefore never a valid source for an update (see "Replace-style updates").
@@ -337,14 +338,16 @@ through the groups in that order and a page is a window of that sequence: page 0
 `TODAY`, and a later page continues in the group where the last one ended. `total` is the number of open tasks.
 A task entry is a task without `notes`: `task: untrusted {title, notesExcerpt, notesTruncated}`; `get_task` has the
 whole notes. Errors: `invalid-arguments` (`timeZone:invalid-time-zone`, `page:out-of-range`, `size:out-of-range`),
-`unavailable`.
+`unavailable`, `privacy-filter-failed` (the "never send to AI" flags could not be read: the notes are cut from text
+that was filtered first, so nothing is returned).
 
 ### `list_task_suggestions` (read only)
 
 `page` and `size`. One page of the suggested tasks waiting for a yes (for example a follow-up after applying), newest
 first, as `{page, size, total, hasMore, tasks: [...]}` with entries as in `list_tasks`. It exists so
 `accept_task_suggestion` has ids and versions; the use case behind it is the one of `GET /api/tasks/suggestions`.
-Errors: `invalid-arguments` (`page:out-of-range`, `size:out-of-range`), `unavailable`.
+Errors: `invalid-arguments` (`page:out-of-range`, `size:out-of-range`), `unavailable`, `privacy-filter-failed`
+(as `list_tasks`).
 
 ### `get_task` (read only)
 

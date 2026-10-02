@@ -51,20 +51,20 @@ export function useSuggestionPages() {
   });
 }
 
-/** Every group once, with the tasks of all loaded pages in order: a group continues on the next page. */
+/**
+ * Every group once, with the tasks of all loaded pages in order: a group continues on the next page. A task is listed
+ * once, in the group it was first loaded in, wherever it shows up again (a reopened one, or one whose due time passed
+ * between two page reads and so moved to another group).
+ */
 export function mergeGroups(pages: readonly TaskGroupListResponse[]): TaskGroupResponse[] {
   const merged = new Map<string, TaskGroupResponse>();
+  const seen = new Set<string>();
   for (const { groups } of pages) {
     for (const group of groups) {
-      const known = merged.get(group.group);
-      if (!known) {
-        merged.set(group.group, group);
-        continue;
-      }
-      // A task that was reopened meanwhile can come on a later page too: it is listed once.
-      const seen = new Set(known.tasks.map((task) => task.id));
       const added = group.tasks.filter((task) => !seen.has(task.id));
-      merged.set(group.group, { ...known, tasks: [...known.tasks, ...added] });
+      for (const task of added) seen.add(task.id);
+      const known = merged.get(group.group);
+      merged.set(group.group, { ...group, tasks: [...(known?.tasks ?? []), ...added] });
     }
   }
   return [...merged.values()];

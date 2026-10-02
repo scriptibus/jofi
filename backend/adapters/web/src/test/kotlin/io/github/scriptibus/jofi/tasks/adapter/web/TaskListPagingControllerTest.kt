@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.tasks.adapter.web
 
+import io.github.scriptibus.jofi.shared.adapter.web.InvalidParameterAdvice
 import io.github.scriptibus.jofi.shared.domain.text.TextExcerpt
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
@@ -28,7 +29,7 @@ import java.util.UUID
 /** Paging and note excerpts of the grouped task list (#236, ADR-0056), over the real use cases. */
 @WebMvcTest(TaskController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
-@Import(TaskControllerTest.UseCases::class)
+@Import(TaskControllerTest.UseCases::class, InvalidParameterAdvice::class)
 class TaskListPagingControllerTest(
     @param:Autowired private val mvc: MockMvcTester,
     @param:Autowired private val ports: TaskControllerTest.Ports,
@@ -77,6 +78,21 @@ class TaskListPagingControllerTest(
             .bodyJson()
             .extractingPath("notes")
             .isEqualTo(long)
+    }
+
+    @Test
+    fun `a page or size that is no number is a 400 with the documented violations, reading nothing`() {
+        listOf("page=abc", "size=1.5", "page=2147483648").forEach { query ->
+            val name = query.substringBefore("=")
+            mvc
+                .get()
+                .uri("/api/tasks?timeZone=UTC&$query")
+                .assertThat()
+                .hasStatus(400)
+                .bodyJson()
+                .isLenientlyEqualTo("""{"violations":[{"field":"$name","problem":"INVALID"}]}""")
+        }
+        verify(exactly = 0) { ports.tasks.listByState(any()) }
     }
 
     @Test

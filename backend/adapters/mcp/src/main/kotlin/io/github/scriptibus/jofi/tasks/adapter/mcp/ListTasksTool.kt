@@ -33,9 +33,11 @@ class ListTasksTool(
             "week or month the user is in now counts as TODAY, THIS_WEEK or THIS_MONTH. Done tasks and " +
             "suggestions are not listed (suggestions: list_task_suggestions). The list is paged: the open tasks are " +
             "numbered through the groups in this order and `page`/`size` pick a window of them (every group is " +
-            "always present, with the tasks of this page); ask for the next `page` while `hasMore` is true. A " +
-            "list entry has only an EXCERPT of the notes (`notesExcerpt`, with `notesTruncated`): read the " +
-            "whole task with get_task. Titles and notes are marked untrusted."
+            "always present, with the tasks of this page); ask for the next `page` while `hasMore` is true. " +
+            "Paging is by offset over a list that changes: after you complete, accept or create tasks, start " +
+            "again from page 0 (a task can otherwise be skipped or shown twice; `total` shows the change). A list " +
+            "entry has only an EXCERPT of the notes (`notesExcerpt`, with `notesTruncated`): read the whole task " +
+            "with get_task. Titles and notes are marked untrusted."
     override val inputSchema =
         """
         {
