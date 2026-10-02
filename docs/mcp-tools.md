@@ -342,8 +342,10 @@ and writes nothing; a suggestion or dismissed task answers `invalid-transition`.
 ### `accept_task_suggestion`
 
 `id` and `version` (from `list_task_suggestions`), both required. Turns a suggestion into an open task (it keeps
-its origin, so its rule does not suggest it again). An open task is returned unchanged and writes nothing; a done
-or dismissed one answers `invalid-transition`. Result: the task. Errors: as `complete_task`.
+its origin, so its rule does not suggest it again). An already accepted suggestion is returned unchanged and
+writes nothing; a done or dismissed one, and any task that never was a suggestion, answers `invalid-transition`
+(for a task that never was a suggestion the message says so: "This task is not a suggestion: only suggestions can be
+accepted or dismissed."). Result: the task. Errors: as `complete_task`.
 
 ## Deleting (two-step confirmation)
 
