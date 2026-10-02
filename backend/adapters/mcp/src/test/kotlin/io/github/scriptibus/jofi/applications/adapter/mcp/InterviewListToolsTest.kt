@@ -105,7 +105,6 @@ class InterviewListToolsTest {
         listOf(result.page, result.size, result.total, result.hasMore) shouldBe listOf(1, 5, 11, true)
         val entry = result.interviews.single()
         entry.id shouldBe interviewId
-        entry.version shouldBe 4
         entry.interview.content.notesExcerpt shouldBe "n".repeat(TextExcerpt.MAX_LENGTH)
         entry.interview.content.notesTruncated shouldBe true
         entry.interview.content.preparationNotesExcerpt shouldBe "short prep"

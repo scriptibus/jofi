@@ -89,7 +89,9 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
     });
   };
   // The list holds excerpts of the notes: the form is filled from the whole interview, read now.
+  const [opening, setOpening] = useState<string | null>(null);
   const startEdit = async (id: string) => {
+    setOpening(id);
     try {
       open({ kind: "edit", interview: await getInterview(application.id, id) });
     } catch (error) {
@@ -100,6 +102,8 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
           : { message: m.application_interview_edit_failed() },
       );
       void refreshInterviews(queryClient, application.id);
+    } finally {
+      setOpening(null);
     }
   };
 
@@ -152,6 +156,7 @@ export function InterviewsTab({ application }: { application: ApplicationRespons
                 <InterviewCard
                   interview={interview}
                   isBusy={remove.isPending}
+                  isOpening={opening === interview.id}
                   onEdit={() => void startEdit(interview.id)}
                   onDelete={() => startDelete(interview)}
                 />
@@ -279,15 +284,26 @@ function EditInterview({
 interface InterviewCardProps {
   interview: InterviewSummaryResponse;
   isBusy: boolean;
+  /** The whole interview is being read for editing. */
+  isOpening: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-function InterviewCard({ interview, isBusy, onEdit, onDelete }: InterviewCardProps) {
+function InterviewCard({ interview, isBusy, isOpening, onEdit, onDelete }: InterviewCardProps) {
   const type = interviewTypeLabels[interview.type]();
   const agreed = formatAgreedTime(interview.localStart, interview.timeZone);
   const yours = timeOnUserClock(interview);
   const named = { type, time: agreed };
+  // A list entry holds only the start of its notes (ADR-0056): "Show all notes" reads the whole interview, and then
+  // only the full text is shown.
+  const [wanted, setWanted] = useState(false);
+  const read = useGetInterview(interview.applicationId, interview.id, {
+    query: { enabled: wanted, ...quietly },
+  });
+  const preparation = read.data ? read.data.preparationNotes : interview.preparationNotesExcerpt;
+  const notes = read.data ? read.data.notes : interview.notesExcerpt;
+  const cut = !read.data && (interview.notesTruncated || interview.preparationNotesTruncated);
   return (
     <article className="flex flex-col gap-3 rounded border border-line bg-bg p-4">
       <div className="flex flex-col gap-1">
@@ -306,22 +322,37 @@ function InterviewCard({ interview, isBusy, onEdit, onDelete }: InterviewCardPro
         <Fact label={m.application_interview_field_participants()}>
           <ParticipantNames ids={interview.participantIds} />
         </Fact>
-        {interview.preparationNotesExcerpt ? (
+        {preparation ? (
           <Fact label={m.application_interview_field_preparation()}>
-            <Markdown>{interview.preparationNotesExcerpt}</Markdown>
+            <Markdown>{preparation}</Markdown>
           </Fact>
         ) : null}
-        {interview.notesExcerpt ? (
+        {notes ? (
           <Fact label={m.application_interview_field_notes()}>
-            <Markdown>{interview.notesExcerpt}</Markdown>
+            <Markdown>{notes}</Markdown>
           </Fact>
         ) : null}
       </dl>
-      {interview.notesTruncated || interview.preparationNotesTruncated ? (
-        <AllNotes interview={interview} />
+      {cut ? (
+        <div className="flex flex-col gap-2">
+          <Button
+            variant="secondary"
+            className="self-start"
+            onPress={() => setWanted(true)}
+            isDisabled={read.isFetching}
+          >
+            {m.application_interview_notes_show_all()}
+          </Button>
+          {read.isError ? <p role="alert">{m.application_interview_notes_failed()}</p> : null}
+        </div>
       ) : null}
       <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" aria-label={m.application_interview_edit_named(named)} onPress={onEdit}>
+        <Button
+          variant="secondary"
+          aria-label={m.application_interview_edit_named(named)}
+          isDisabled={isOpening}
+          onPress={onEdit}
+        >
           <EditIcon className="size-4" aria-hidden="true" />
           {m.company_edit()}
         </Button>
@@ -336,45 +367,6 @@ function InterviewCard({ interview, isBusy, onEdit, onDelete }: InterviewCardPro
         </Button>
       </div>
     </article>
-  );
-}
-
-/**
- * A list entry holds only the start of its notes (ADR-0056): this reads the whole interview and shows both notes in
- * full. It stays out of the card's way until asked for.
- */
-function AllNotes({ interview }: { interview: InterviewSummaryResponse }) {
-  const [wanted, setWanted] = useState(false);
-  const read = useGetInterview(interview.applicationId, interview.id, {
-    query: { enabled: wanted, ...quietly },
-  });
-  if (read.data)
-    return (
-      <dl className="grid gap-3">
-        {read.data.preparationNotes ? (
-          <Fact label={m.application_interview_field_preparation()}>
-            <Markdown>{read.data.preparationNotes}</Markdown>
-          </Fact>
-        ) : null}
-        {read.data.notes ? (
-          <Fact label={m.application_interview_field_notes()}>
-            <Markdown>{read.data.notes}</Markdown>
-          </Fact>
-        ) : null}
-      </dl>
-    );
-  return (
-    <div className="flex flex-col gap-2">
-      <Button
-        variant="secondary"
-        className="self-start"
-        onPress={() => setWanted(true)}
-        isDisabled={read.isFetching}
-      >
-        {m.application_interview_notes_show_all()}
-      </Button>
-      {read.isError ? <p role="alert">{m.application_interview_notes_failed()}</p> : null}
-    </div>
   );
 }
 

@@ -28,8 +28,8 @@ class ListInterviewsTool(
         "List one page of the interviews and calls of one job application (`applicationId`), newest first unless " +
             "`direction` is ASCENDING. Ask for the next `page` while `hasMore` is true: every interview is " +
             "reachable. An entry has only an EXCERPT of both notes (`preparationNotesExcerpt` and `notesExcerpt`, " +
-            "each with a `...Truncated` flag), so it is NOT a valid source for update_interview and is refused " +
-            "there: read the interview with get_interview first. The notes are marked untrusted."
+            "each with a `...Truncated` flag) and no `version`, so it is NOT a valid source for update_interview " +
+            "and is refused there: read the interview with get_interview first. The notes are marked untrusted."
     override val inputSchema =
         """
         {

@@ -154,6 +154,14 @@ class McpInterviewUpdateContractTest : McpInterviewContractSupport() {
             val content = entry["interview"]["content"].toPlain() as Map<*, *>
             client.refused("update_interview", entry.asUpdate() + ("interview" to (content + ("notes" to "x"))))
 
+            // Renaming the excerpt keys to the full ones still lacks the version, which no list entry carries.
+            entry.has("version") shouldBe false
+            val renamed =
+                entry.asUpdate() + ("interview" to mapOf("preparationNotes" to "p", "notes" to "n"))
+            client.refused("update_interview", renamed)
+            val upcoming = client.call("list_upcoming_interviews", mapOf())["interviews"][0]
+            upcoming.has("version") shouldBe false
+
             changelog("interview", id).size shouldBe 1
             val read = client.call("get_interview", mapOf("applicationId" to application, "id" to id))
             read["version"].asInt() shouldBe 0

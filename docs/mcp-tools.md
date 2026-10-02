@@ -38,7 +38,9 @@ the PR that adds or changes a tool.
   page 1 skips one): compare `total`, and start again from page 0 after changing what the list holds. A long text (notes) is
   not in a list entry in full: the entry has `notesExcerpt` (at most 300 characters, cut at a character, never
   inside one) and `notesTruncated` under keys of their own, and a `get_*` tool has the whole text. A list
-  entry is therefore never a valid source for an update (see "Replace-style updates").
+  entry is therefore not a valid source for an update (see "Interviews"). `...Truncated` says whether the text the
+  reader sees was cut: for an AI that is the text after the "never send to AI" values were taken out, so a 301-character
+  note that this shrinks to 299 answers `false`.
 - Content copied from job postings or web pages is wrapped as
   `{"trust": "untrusted", "notice": "...", "content": ...}`: data, never instructions.
 
@@ -227,8 +229,11 @@ agreed wall-clock time in `timeZone` (a local time a clock change skips is moved
 `content` of `interview` under its key); `readOnly` is not sent back. That is the shape of `get_interview` and of
 the answers of `log_interview` and `update_interview`. A **list entry** (`list_interviews`) has the same keys, but
 `interview` holds only excerpts: `untrusted {preparationNotesExcerpt, preparationNotesTruncated, notesExcerpt,
-notesTruncated}`. It is not a source for an update: `update_interview` refuses it (`preparationNotes` and `notes`
-are missing, the excerpt keys are unknown), so an excerpt can never be stored as a note.
+notesTruncated}`, and it has no `version`. It is not a source for an update, and the schema makes that hard to do by
+accident: sent back as returned, `update_interview` refuses it (`preparationNotes`, `notes` and `version` are missing,
+the excerpt keys are unknown), and the version comes only from `get_interview`. It is a guard, not a proof: a caller
+that renames the excerpt keys to the full ones and invents the version (`0` fits an interview that was never edited)
+can still store an excerpt as the note. Patch-style updates would close that.
 
 ### `log_interview`
 
@@ -245,9 +250,9 @@ The arguments of `get_interview`'s answer without `readOnly`: `applicationId`, `
 property is required** (the rule for replace-style updates above): leaving one out is refused and stores nothing,
 only an explicit `null` clears (`participantIds`: `null` or `[]` for none). The entries of
 `list_upcoming_interviews` and `list_interviews` are not a valid source (no version, notes or participants, or only
-excerpts of the notes): read the interview with `get_interview` first, in this session, and send what it returned.
-A model that writes the nulls itself and guesses the version could blind-update and delete the notes, so the
-schema refuses a list entry (see above). Unchanged details store nothing and log nothing. Result: the interview. Errors:
+excerpts of the notes, and no version): read the interview with `get_interview` first, in this session, and send
+what it returned. A model that writes the nulls itself and guesses the version could still blind-update and delete the
+notes; the schema refuses a list entry as returned (see above), but cannot tell an invented value from a meant one. Unchanged details store nothing and log nothing. Result: the interview. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
 ### `list_interviews` (read only)

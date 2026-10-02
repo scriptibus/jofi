@@ -33,7 +33,8 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
             val listed = client.call("list_interviews", mapOf("applicationId" to application))
             listed["total"].asInt() shouldBe 1
             listed["interviews"][0]["id"].asString() shouldBe id
-            listed["interviews"][0]["version"].asInt() shouldBe 0
+            // A list entry has no version: update_interview needs it, and get_interview is where it comes from.
+            listed["interviews"][0].has("version") shouldBe false
             val read = client.call("get_interview", mapOf("applicationId" to application, "id" to id))
             read shouldBe logged
 
@@ -140,12 +141,8 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
 
             changelog("interview", id).size shouldBe 1
             client
-                .call(
-                    "list_interviews",
-                    mapOf("applicationId" to application),
-                )["interviews"][0]["version"]
-                .asInt() shouldBe
-                0
+                .call("get_interview", mapOf("applicationId" to application, "id" to id))["version"]
+                .asInt() shouldBe 0
         }
     }
 

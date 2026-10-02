@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi
 
+import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.INTERVIEW
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
@@ -10,6 +11,7 @@ import io.modelcontextprotocol.client.McpSyncClient
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.JsonNode
 import java.util.Locale
+import java.util.UUID
 
 /**
  * The bounded interview lists (#236, ADR-0056) with the MCP SDK client against the running app: every interview is
@@ -125,6 +127,54 @@ class McpInterviewListContractTest : McpInterviewContractSupport() {
             listed shouldNotContain "0170"
             listed shouldNotContain "1234"
         }
+    }
+
+    @Test
+    fun `a flagged value in both notes never reaches the model, from get, log, list or an update built from a read`() {
+        val application = application()
+        val straddling = "x".repeat(EXCERPT_LENGTH - 5) + " $FLAGGED_PHONE and more"
+        val both = arrayOf("notes" to "Call $FLAGGED_PHONE", "preparationNotes" to "Or $FLAGGED_PHONE")
+        owner.mcpClient().use { client ->
+            client.initialize()
+            val logged = client.call("log_interview", interview(application, *both))
+            val id = logged["id"].asString()
+            client.call(
+                "log_interview",
+                interview(application, "notes" to straddling, "preparationNotes" to straddling),
+            )
+
+            val read = client.call("get_interview", mapOf("applicationId" to application, "id" to id))
+            val newest = client.call("list_interviews", mapOf("applicationId" to application))
+            val oldest =
+                client.call(
+                    "list_interviews",
+                    mapOf("applicationId" to application, "direction" to "ASCENDING"),
+                )
+
+            listOf(logged, read, newest, oldest).forEach {
+                it.toString() shouldNotContain "0170"
+                it.toString() shouldNotContain "1234"
+            }
+            read["interview"].untrusted()["notes"].asString() shouldBe "Call [withheld]"
+            read["interview"].untrusted()["preparationNotes"].asString() shouldBe "Or [withheld]"
+            assertWithheldReadRefused(client, read, id)
+        }
+    }
+
+    /** Written back, the marker would replace the real number: refused, nothing stored. */
+    private fun assertWithheldReadRefused(
+        client: McpSyncClient,
+        read: JsonNode,
+        id: String,
+    ) {
+        client.failure("update_interview", read.asUpdate(), INVALID).problems() shouldContainExactly
+            listOf("interview.preparationNotes:withheld-value")
+        changelog("interview", id).size shouldBe 1
+        dsl.fetchCount(
+            INTERVIEW,
+            INTERVIEW.ID.eq(UUID.fromString(id)).and(INTERVIEW.NOTES.contains(FLAGGED_PHONE)),
+        ) shouldBe
+            1
     }
 
     @Test

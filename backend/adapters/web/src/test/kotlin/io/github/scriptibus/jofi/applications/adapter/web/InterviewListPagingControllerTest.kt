@@ -14,6 +14,7 @@ import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.InterviewTime
 import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.SortDirection
+import io.github.scriptibus.jofi.shared.adapter.web.InvalidParameterAdvice
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
@@ -38,7 +39,7 @@ import java.util.UUID
 /** Paging, direction and note excerpts of the interview list (#236, ADR-0056), over the real use cases. */
 @WebMvcTest(InterviewController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
-@Import(InterviewControllerTest.UseCases::class)
+@Import(InterviewControllerTest.UseCases::class, InvalidParameterAdvice::class)
 class InterviewListPagingControllerTest(
     @param:Autowired private val mvc: MockMvcTester,
     @param:Autowired private val ports: InterviewControllerTest.Ports,
@@ -115,6 +116,21 @@ class InterviewListPagingControllerTest(
             .bodyJson()
             .extractingPath("notes")
             .isEqualTo(long)
+    }
+
+    @Test
+    fun `a page, size or direction that cannot be read is a 400 with the documented violations, reading nothing`() {
+        val unreadable = listOf("page=abc" to "page", "size=1.5" to "size", "direction=SIDEWAYS" to "direction")
+        unreadable.forEach { (query, name) ->
+            mvc
+                .get()
+                .uri("$base?$query")
+                .assertThat()
+                .hasStatus(400)
+                .bodyJson()
+                .isLenientlyEqualTo("""{"violations":[{"field":"$name","problem":"INVALID"}]}""")
+        }
+        verify(exactly = 0) { ports.interviews.pageByApplication(any(), any(), any()) }
     }
 
     @Test

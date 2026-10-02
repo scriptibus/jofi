@@ -383,4 +383,50 @@ describe("many interviews and long notes", () => {
     expect(state.updates[0]?.details.notes).toBe(long);
     expect(state.updates[0]?.basedOnVersion).toBe(1);
   });
+
+  it("shows only the full notes after Show all notes, not the excerpt as well", async () => {
+    const { user } = await start({ interviews: [anInterview(application.id, { notes: long })] });
+
+    await user.click(await within(section()).findByRole("button", { name: "Show all notes" }));
+
+    expect(await within(section()).findByText(long)).toBeVisible();
+    expect(within(section()).getAllByText(/^a{299}é/)).toHaveLength(1);
+  });
+
+  it("shows the new notes after Show all notes, Edit and Save", async () => {
+    const edited = `NEW ${"c".repeat(400)}`;
+    const { user } = await start({ interviews: [anInterview(application.id, { notes: `OLD ${long}` })] });
+    await user.click(await within(section()).findByRole("button", { name: "Show all notes" }));
+    expect(await within(section()).findByText(`OLD ${long}`)).toBeVisible();
+
+    await user.click(within(section()).getByRole("button", { name: /^Edit Phone screen on Oct 5, 2026/ }));
+    const edit = await screen.findByRole("region", { name: "Edit: Phone screen" });
+    const box = within(edit).getByRole("textbox", { name: "Notes afterwards" });
+    await user.clear(box);
+    await user.click(box);
+    await user.paste(edited);
+    await user.click(within(edit).getByRole("button", { name: "Save changes" }));
+    expect(await within(section()).findByText("The interview was saved.")).toBeVisible();
+
+    // The card shows the new start, not the old full text it had read; the full new text is one click away.
+    await user.click(await within(section()).findByRole("button", { name: "Show all notes" }));
+    expect(await within(section()).findByText(edited)).toBeVisible();
+    expect(within(section()).queryByText(`OLD ${long}`)).toBeNull();
+  });
+
+  it("disables Edit while the whole interview is being read", async () => {
+    const { user, state } = await start({ interviews: [anInterview(application.id, { notes: "n" })] });
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    state.readGate = gate;
+
+    await user.click(
+      await within(section()).findByRole("button", { name: /^Edit Phone screen on Oct 5, 2026/ }),
+    );
+    expect(
+      within(section()).getByRole("button", { name: /^Edit Phone screen on Oct 5, 2026/ }),
+    ).toBeDisabled();
+    release();
+
+    expect(await screen.findByRole("region", { name: "Edit: Phone screen" })).toBeVisible();
+  });
 });

@@ -152,6 +152,12 @@ export function interviewFieldErrors(error: unknown): Record<string, string> | u
 
 /** After a log, edit or delete: the list, the timeline and the upcoming interviews read anew. */
 export function refreshInterviews(queryClient: QueryClient, applicationId: string): Promise<unknown> {
+  // Whole interviews read for "Show all notes" are stale after any change: forget them, the next ask reads anew.
+  queryClient.removeQueries({
+    predicate: ({ queryKey }) =>
+      typeof queryKey[0] === "string" &&
+      queryKey[0].startsWith(`/api/applications/${applicationId}/interviews/`),
+  });
   return Promise.all(
     [
       getListInterviewsQueryKey(applicationId),

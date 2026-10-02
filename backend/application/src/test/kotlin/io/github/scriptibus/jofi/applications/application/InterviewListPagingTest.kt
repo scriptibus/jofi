@@ -122,7 +122,8 @@ class InterviewListPagingTest {
         listOf(entry.notesExcerpt?.text.orEmpty(), entry.preparationNotesExcerpt?.text.orEmpty()).forEach {
             it.contains("0170") shouldBe false
             it.contains("1234") shouldBe false
-            it.endsWith("[wit") shouldBe true
+            // The marker would be cut in two, so it is left out whole.
+            it.contains("[") shouldBe false
         }
         // The user sees their own notes as they are.
         page(0, 10, SortDirection.ASCENDING)

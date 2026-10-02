@@ -127,6 +127,8 @@ export interface FakeInterviewState {
   deleteCalls: ("first" | "confirmed")[];
   /** The contacts that exist; when set, any other participant is refused (`participantIds` NOT_FOUND). */
   knownContactIds?: () => string[];
+  /** Held until resolved: lets a test look at the page while one interview is being read. */
+  readGate?: Promise<void>;
   /** The list fails (to show its own failure; a 4xx, so the query does not retry). */
   listFails?: boolean;
   /** The timeline whose entries follow the interviews. */
@@ -204,7 +206,8 @@ export function fakeInterviewBackend(initial: Partial<FakeInterviewState> = {}) 
         page: { page, size, total: ordered.length, hasMore: start + size < ordered.length },
       });
     }),
-    http.get(`${path}/:interviewId`, ({ params }) => {
+    http.get(`${path}/:interviewId`, async ({ params }) => {
+      if (state.readGate) await state.readGate;
       const interview = find(params.id, params.interviewId);
       return interview ? HttpResponse.json(interview) : problem(404, "interview-not-found");
     }),

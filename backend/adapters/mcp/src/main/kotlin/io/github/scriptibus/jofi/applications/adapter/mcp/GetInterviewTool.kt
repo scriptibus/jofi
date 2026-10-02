@@ -12,7 +12,12 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
 import org.springframework.stereotype.Component
 
-/** `get_interview`: one interview in full (whole notes, participants, version), the source of an update; read only. */
+/**
+ * `get_interview`: one interview in full (whole notes, participants, version), the source of an update; read only.
+ * Like every tool result it leaves through the server's "never send to AI" value filter (ADR-0053, in
+ * `McpToolSpecifications`): a flagged value in the notes is `[withheld]`, and an update that sends the marker back is
+ * refused. Only text that is cut first, the list excerpts, needs more (ADR-0056).
+ */
 @Component
 class GetInterviewTool(
     private val getInterview: GetInterviewUseCase,

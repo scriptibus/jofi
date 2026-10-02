@@ -79,11 +79,14 @@ data class InterviewExcerpts(
     val notesTruncated: Boolean,
 )
 
-/** One interview of a list: [InterviewResult] with excerpts of the notes in place of the notes. */
+/**
+ * One interview of a list: [InterviewResult] with excerpts of the notes in place of the notes, and **no `version`**:
+ * `update_interview` needs it, and it comes from `get_interview`, so an update cannot be put together from a list
+ * entry alone.
+ */
 data class InterviewSummaryResult(
     val id: UUID,
     val applicationId: UUID,
-    val version: Long,
     val type: InterviewType,
     val localStart: LocalDateTime,
     val timeZone: String,
@@ -97,7 +100,6 @@ data class InterviewSummaryResult(
             InterviewSummaryResult(
                 interview.id.value,
                 interview.application.value,
-                interview.version,
                 interview.type,
                 interview.time.localStart,
                 interview.time.zone.id,
