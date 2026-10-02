@@ -145,7 +145,8 @@ class TaskRepositoryTest {
         val others = listOf(open(details()), Task.suggest(newId(), details(), SUGGESTION, CREATED))
         (doneTasks + sameInstant + others).forEach { repository.add(it) }
         val newestFirst = doneTasks.reversed()
-        val oldest = listOf(doneTasks.first(), sameInstant).sortedByDescending { it.id.value }
+        // PostgreSQL orders uuids bytewise; java.util.UUID compares signed longs, so compare the text.
+        val oldest = listOf(doneTasks.first(), sameInstant).sortedByDescending { it.id.value.toString() }
 
         fun page(
             page: Int,
