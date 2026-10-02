@@ -209,7 +209,7 @@ class McpTaskToolsContractTest : McpToolContractSupport() {
                 )
 
             refused["message"].asString() shouldBe
-                "A task cannot move from OPEN to OPEN. Read it again to see its state."
+                "This task is not a suggestion: only suggestions can be accepted or dismissed."
             changelog("task", manual) shouldContainExactly listOf("Created task" to "USER")
             dsl.fetchCount(TASK, TASK.VERSION.ne(0L)) shouldBe 0
         }

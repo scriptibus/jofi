@@ -135,6 +135,15 @@ class TaskSuggestionControllerTest(
             .bodyJson()
             .extractingPath("type")
             .isEqualTo(TaskProblems.INVALID_TRANSITION)
+        mvc
+            .post()
+            .uri("$path/accept")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""{"basedOnVersion":0}""")
+            .assertThat()
+            .bodyJson()
+            .extractingPath("detail")
+            .isEqualTo("This task is not a suggestion: only suggestions can be accepted or dismissed")
         verify(exactly = 0) { ports.tasks.update(any()) }
         verify(exactly = 0) { ports.changelog.append(any()) }
     }

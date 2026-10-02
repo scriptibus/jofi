@@ -236,7 +236,7 @@ class TaskToolsTest {
         acceptSuggestion.call(call("id" to taskId.toString(), "version" to 0)) shouldBe
             ToolAnswer.Error(
                 "invalid-transition",
-                "A task cannot move from OPEN to OPEN. Read it again to see its state.",
+                "This task is not a suggestion: only suggestions can be accepted or dismissed.",
             )
         changelog.entries shouldBe emptyList()
     }
