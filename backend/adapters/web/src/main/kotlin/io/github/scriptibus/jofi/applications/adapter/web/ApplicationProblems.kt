@@ -182,6 +182,8 @@ object ApplicationProblems {
             ApplicationField.PARTICIPANTS to "participantIds",
             ApplicationField.PREPARATION_NOTES to "preparationNotes",
             ApplicationField.INTERVIEW_NOTES to "notes",
+            ApplicationField.PAGE to "page",
+            ApplicationField.SIZE to "size",
             ApplicationField.GHOSTED_AFTER_WEEKS to "ghostedAfterWeeks",
             ApplicationField.FOLLOW_UP_AFTER_DAYS to "followUpAfterDays",
         )

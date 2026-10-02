@@ -32,11 +32,14 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
 
             val listed = client.call("list_interviews", mapOf("applicationId" to application))
             listed["total"].asInt() shouldBe 1
-            listed["interviews"][0] shouldBe logged
+            listed["interviews"][0]["id"].asString() shouldBe id
+            listed["interviews"][0]["version"].asInt() shouldBe 0
+            val read = client.call("get_interview", mapOf("applicationId" to application, "id" to id))
+            read shouldBe logged
 
             val notes = mapOf("preparationNotes" to "Read", "notes" to "Went well")
             val change = mapOf("outcome" to "PASSED", "interview" to notes)
-            val updated = client.call("update_interview", listed["interviews"][0].asUpdate() + change)
+            val updated = client.call("update_interview", read.asUpdate() + change)
 
             updated["version"].asInt() shouldBe 1
             updated["outcome"].asString() shouldBe "PASSED"
@@ -166,6 +169,13 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
             client.refused("update_interview", ok + ("id" to MISSING))
             client.refused("update_interview", ok + mapOf("id" to MISSING, "version" to -1))
             client.refused("list_interviews", mapOf())
+            client.refused("list_interviews", mapOf("applicationId" to application, "size" to 51))
+            client.refused("list_interviews", mapOf("applicationId" to application, "size" to 0))
+            client.refused("list_interviews", mapOf("applicationId" to application, "page" to -1))
+            client.refused("list_interviews", mapOf("applicationId" to application, "direction" to "SIDEWAYS"))
+            client.refused("list_interviews", mapOf("applicationId" to application, "unknown" to 1))
+            client.refused("get_interview", mapOf("applicationId" to application))
+            client.refused("get_interview", mapOf("id" to MISSING))
             client.refused("list_upcoming_interviews", mapOf("size" to 5))
             client.call("list_interviews", mapOf("applicationId" to application))["total"].asInt() shouldBe 0
         }
@@ -185,7 +195,10 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
             val results =
                 listOf(
                     logged,
-                    client.call("list_interviews", mapOf("applicationId" to application))["interviews"][0],
+                    client.call(
+                        "get_interview",
+                        mapOf("applicationId" to application, "id" to logged["id"].asString()),
+                    ),
                     client.call("update_interview", logged.asUpdate()),
                 )
 
@@ -194,6 +207,10 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
                 // Both notes appear once each, inside the mark, never as plain fields.
                 result.toString().split(INJECTION).size shouldBe 3
             }
+            val entry = client.call("list_interviews", mapOf("applicationId" to application))["interviews"][0]
+            entry["interview"].untrusted()["notesExcerpt"].asString() shouldBe INJECTION
+            entry["interview"].untrusted()["preparationNotesExcerpt"].asString() shouldBe INJECTION
+            entry.toString().split(INJECTION).size shouldBe 3
         }
     }
 
@@ -213,6 +230,9 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
             rejected.toString() shouldNotContain "1234567"
             client.call("list_interviews", mapOf("applicationId" to application)).toString() shouldNotContain "1234567"
             client.call("list_upcoming_interviews", mapOf()).toString() shouldNotContain "1234567"
+            client
+                .call("get_interview", mapOf("applicationId" to application, "id" to id))
+                .toString() shouldNotContain "1234567"
             changelog("interview", id).size shouldBe 1
         }
     }
@@ -221,9 +241,10 @@ class McpInterviewToolsContractTest : McpInterviewContractSupport() {
     fun `without a session no interview tool can be called`() {
         val anonymous = Session().open()
 
-        listOf("log_interview", "update_interview", "list_interviews", "list_upcoming_interviews").forEach { tool ->
-            val call = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"$tool","arguments":{}}}"""
-            anonymous.send("POST", "/mcp", call).statusCode() shouldBe 401
-        }
+        listOf("log_interview", "update_interview", "list_interviews", "get_interview", "list_upcoming_interviews")
+            .forEach { tool ->
+                val call = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"$tool","arguments":{}}}"""
+                anonymous.send("POST", "/mcp", call).statusCode() shouldBe 401
+            }
     }
 }

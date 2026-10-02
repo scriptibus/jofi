@@ -42,4 +42,8 @@ send it back as an update and store a shortened note over the real one.
 - The excerpt is cut before the "never send to AI" filter sees the result (ADR-0053). The filter matches whole
   values, so an excerpt that ends inside a flagged value shows its first characters. Closing that needs a
   prefix-aware filter (a protected path) or lists without notes; it is open.
+- The interview list pages the same way, newest first by default in MCP (`direction` `ASCENDING` for the earliest
+  first; the REST list defaults to start order, as the Interviews tab shows them) and has `get_interview` for the
+  whole notes. A list entry has excerpt keys instead of the note keys, so the replace-style `update_interview`
+  refuses it by its schema. The upcoming interviews carry no notes in MCP and stay as they are.
 - Every new list tool follows this: a `page`/`size` pair, the use case limits, excerpts for long text, a `get_*` tool.

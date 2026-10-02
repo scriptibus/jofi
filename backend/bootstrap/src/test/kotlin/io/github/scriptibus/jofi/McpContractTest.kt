@@ -300,6 +300,7 @@ class McpContractTest(
                 "log_interview" to false,
                 "update_interview" to false,
                 "list_interviews" to true,
+                "get_interview" to true,
                 "list_upcoming_interviews" to true,
                 "start_text_import" to false,
                 "get_import_status" to true,

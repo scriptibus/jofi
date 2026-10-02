@@ -331,3 +331,56 @@ describe("Interviews tab", () => {
     expect(await within(section()).findByText(/No interviews or calls logged yet/)).toBeVisible();
   });
 });
+
+describe("many interviews and long notes", () => {
+  const long = `${"a".repeat(299)}é${"b".repeat(200)}`;
+
+  it("loads 50 at a time in start order and shows the rest on request", async () => {
+    const interviews = Array.from({ length: 60 }, (_, index) =>
+      anInterview(application.id, {
+        localStart: `2026-11-${String(1 + Math.floor(index / 24)).padStart(2, "0")}T${String(index % 24).padStart(2, "0")}:00`,
+      }),
+    );
+    const { state, user } = await start({ interviews });
+    await waitFor(() => expect(within(section()).getAllByRole("article")).toHaveLength(50));
+    expect(state.listRequests).toEqual([{ page: 0, size: 50, direction: "ASCENDING" }]);
+
+    await user.click(within(section()).getByRole("button", { name: "Show more interviews" }));
+
+    await waitFor(() => expect(within(section()).getAllByRole("article")).toHaveLength(60));
+    expect(within(section()).queryByRole("button", { name: "Show more interviews" })).toBeNull();
+  });
+
+  it("shows the excerpt of long notes and reads the whole interview for the rest", async () => {
+    const { user } = await start({ interviews: [anInterview(application.id, { notes: long })] });
+    expect(await within(section()).findByText(`${"a".repeat(299)}é`, { exact: false })).toBeVisible();
+    expect(within(section()).queryByText(long)).toBeNull();
+
+    await user.click(within(section()).getByRole("button", { name: "Show all notes" }));
+
+    expect(await within(section()).findByText(long)).toBeVisible();
+    expect(within(section()).queryByRole("button", { name: "Show all notes" })).toBeNull();
+  });
+
+  it("offers no button for notes that were not cut", async () => {
+    await start({ interviews: [anInterview(application.id, { notes: "Went well" })] });
+    expect(await within(section()).findByText("Went well")).toBeVisible();
+    expect(within(section()).queryByRole("button", { name: "Show all notes" })).toBeNull();
+  });
+
+  it("fills the edit form with the whole notes, not the excerpt, and saves them whole", async () => {
+    const interview = anInterview(application.id, { notes: long, version: 1 });
+    const { state, user } = await start({ interviews: [interview] });
+    await user.click(
+      await within(section()).findByRole("button", { name: /^Edit Phone screen on Oct 5, 2026/ }),
+    );
+    const edit = await screen.findByRole("region", { name: "Edit: Phone screen" });
+    expect(within(edit).getByRole("textbox", { name: "Notes afterwards" })).toHaveValue(long);
+
+    await user.click(within(edit).getByRole("button", { name: "Save changes" }));
+
+    expect(await within(section()).findByText("The interview was saved.")).toBeVisible();
+    expect(state.updates[0]?.details.notes).toBe(long);
+    expect(state.updates[0]?.basedOnVersion).toBe(1);
+  });
+});

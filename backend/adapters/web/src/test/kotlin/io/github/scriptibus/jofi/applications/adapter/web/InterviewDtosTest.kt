@@ -10,9 +10,12 @@ import io.github.scriptibus.jofi.applications.domain.InterviewDetails
 import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.InterviewInput
 import io.github.scriptibus.jofi.applications.domain.InterviewOutcome
+import io.github.scriptibus.jofi.applications.domain.InterviewSummary
 import io.github.scriptibus.jofi.applications.domain.InterviewTime
 import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
@@ -91,7 +94,7 @@ class InterviewDtosTest {
                 at.plusSeconds(60),
             )
         InterviewListResponse
-            .from(listOf(interview))
+            .from(Paged(listOf(InterviewSummary.of(interview)), PageInfo(0, 20, 1, false)))
             .interviews
             .single()
             .id shouldBe interviewUuid

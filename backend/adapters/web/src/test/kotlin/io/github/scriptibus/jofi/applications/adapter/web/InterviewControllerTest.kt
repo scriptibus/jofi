@@ -33,6 +33,8 @@ import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.kotest.matchers.shouldBe
 import io.mockk.clearMocks
 import io.mockk.every
@@ -183,8 +185,8 @@ class InterviewControllerTest(
         every { ports.applications.findById(application.id) } returns ApplicationStoreResult.Success(application)
         every { ports.interviews.findById(any(), any()) } returns ApplicationStoreResult.NotFound
         every { ports.interviews.findById(application.id, stored.id) } returns ApplicationStoreResult.Success(stored)
-        every { ports.interviews.listByApplication(application.id) } returns
-            ApplicationStoreResult.Success(listOf(stored))
+        every { ports.interviews.pageByApplication(application.id, any(), any()) } returns
+            ApplicationStoreResult.Success(Paged(listOf(stored), PageInfo(0, 20, 1, false)))
         every { ports.interviews.add(any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.interviews.update(any()) } returns ApplicationStoreResult.Success(Unit)
         every { ports.interviews.delete(any(), any(), any()) } returns ApplicationStoreResult.Success(Unit)

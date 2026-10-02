@@ -207,7 +207,11 @@ Interview result: `{id, applicationId, version, type, localStart, timeZone, part
 interview: untrusted {preparationNotes, notes}, readOnly: {startsAt, createdAt, updatedAt}}`. `localStart` is the
 agreed wall-clock time in `timeZone` (a local time a clock change skips is moved on: check it in the answer),
 `startsAt` the instant. Everything above `readOnly` goes back to `update_interview` under the same keys (the
-`content` of `interview` under its key); `readOnly` is not sent back.
+`content` of `interview` under its key); `readOnly` is not sent back. That is the shape of `get_interview` and of
+the answers of `log_interview` and `update_interview`. A **list entry** (`list_interviews`) has the same keys, but
+`interview` holds only excerpts: `untrusted {preparationNotesExcerpt, preparationNotesTruncated, notesExcerpt,
+notesTruncated}`. It is not a source for an update: `update_interview` refuses it (`preparationNotes` and `notes`
+are missing, the excerpt keys are unknown), so an excerpt can never be stored as a note.
 
 ### `log_interview`
 
@@ -219,27 +223,36 @@ agreed wall-clock time in `timeZone` (a local time a clock change skips is moved
 
 ### `update_interview`
 
-The arguments of `list_interviews`' entries without `readOnly`: `applicationId`, `id`, `version`, `type`,
+The arguments of `get_interview`'s answer without `readOnly`: `applicationId`, `id`, `version`, `type`,
 `localStart`, `timeZone`, `participantIds`, `outcome` and `interview` (`{preparationNotes, notes}`). **Every
 property is required** (the rule for replace-style updates above): leaving one out is refused and stores nothing,
 only an explicit `null` clears (`participantIds`: `null` or `[]` for none). The entries of
-`list_upcoming_interviews` are not enough (no version, notes or participants): read the interview with
-`list_interviews` first, in this session, and send what it returned: a model that writes the nulls itself and guesses
-the version can still blind-update and delete the notes (a `get_interview` tool is #236, a blocker before #121).
-Unchanged details store nothing and log nothing. Result: the interview. Errors:
+`list_upcoming_interviews` and `list_interviews` are not a valid source (no version, notes or participants, or only
+excerpts of the notes): read the interview with `get_interview` first, in this session, and send what it returned.
+A model that writes the nulls itself and guesses the version could blind-update and delete the notes, so the
+schema refuses a list entry (see above). Unchanged details store nothing and log nothing. Result: the interview. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
 ### `list_interviews` (read only)
 
-`applicationId` (required). Result: `{total, interviews: [interview]}` in the order they start; at most 50 are
-returned, the **earliest** 50 (`total` says how many there are, later ones cannot be read through MCP yet).
-Bounding the list in the use case, notes as an excerpt and a `get_interview` tool are #236. Errors:
-`invalid-arguments` (`applicationId:invalid`), `not-found`, `unavailable`.
+`applicationId` (required), `direction` (`DESCENDING`, the default: newest first; or `ASCENDING`), `page` and
+`size` (see "Results"). Result: `{page, size, total, hasMore, interviews: [entry]}`; paging through reaches every
+interview of the application exactly once in either direction. An entry is an interview with excerpts of both notes
+(see "Interviews") and the `version`; read one with `get_interview` for the whole text. Errors: `invalid-arguments`
+(`applicationId:invalid`, `page:out-of-range`, `size:out-of-range`), `not-found`, `unavailable`.
+
+### `get_interview` (read only)
+
+`applicationId` and `id` (both required, from a list). The interview in full: the whole notes (`interview: untrusted
+{preparationNotes, notes}`), the participants and the `version`, in the shape `update_interview` takes. The same use
+case as `GET /api/applications/{id}/interviews/{interviewId}`. Errors: `invalid-arguments`, `not-found`,
+`unavailable`.
 
 ### `list_upcoming_interviews` (read only)
 
 No arguments. The interviews still to come across all applications, soonest first (at most 100); cancelled ones and
-those of closed applications are left out. No notes, and not enough for `update_interview`:
+those of closed applications are left out. No notes, and not a valid source for `update_interview` (read the interview
+with `get_interview` first):
 `{interviews: [{id, applicationId, type, startsAt, localStart, timeZone, outcome, application: untrusted {title}}]}`.
 Errors: `unavailable`.
 

@@ -8,10 +8,14 @@ import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.Interview
 import io.github.scriptibus.jofi.applications.domain.InterviewId
 import io.github.scriptibus.jofi.applications.domain.InterviewInput
+import io.github.scriptibus.jofi.applications.domain.InterviewSummary
+import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 
 // Inbound ports for interviews and calls (#79, ADR-0048), implemented by the use cases of the same name (#91, #92).
 // An interview is an aggregate of its own with its own `version`; none of these writes the application, so none
@@ -56,9 +60,18 @@ interface GetInterviewPort {
     ): ApplicationResult<Interview>
 }
 
-/** The interviews and calls of the application in the order they start (#91). */
+/**
+ * One page of the interviews and calls of the application in the order they start (#91, ADR-0056), oldest first for
+ * [SortDirection.ASCENDING] and newest first for [SortDirection.DESCENDING], so every interview is reachable. Entries
+ * are [InterviewSummary]s with an excerpt of both notes; `GetInterviewPort` has the whole interview. A [page] out of
+ * range is `Invalid` (PAGE, SIZE).
+ */
 interface ListInterviewsPort {
-    fun execute(application: ApplicationId): ApplicationResult<List<Interview>>
+    fun execute(
+        application: ApplicationId,
+        page: PageInput,
+        direction: SortDirection,
+    ): ApplicationResult<Paged<InterviewSummary>>
 }
 
 /**

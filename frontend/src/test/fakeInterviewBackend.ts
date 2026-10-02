@@ -9,7 +9,12 @@
 // timeline entry, as the server's timeline would show it.
 
 import { HttpResponse, http } from "msw";
-import type { InterviewRequest, InterviewResponse, UpdateInterviewRequest } from "../api/generated/jofi";
+import type {
+  InterviewRequest,
+  InterviewResponse,
+  InterviewSummaryResponse,
+  UpdateInterviewRequest,
+} from "../api/generated/jofi";
 import type { FakeTimelineState } from "./fakeTimelineBackend";
 
 const origin = () => window.location.origin;
@@ -84,7 +89,35 @@ export function anInterview(
   };
 }
 
+/** The server's excerpt length (backend `TextExcerpt.MAX_LENGTH`). */
+export const EXCERPT_LENGTH = 300;
+const DEFAULT_PAGE_SIZE = 20;
+
+function excerpt(notes: string | null | undefined) {
+  const points = notes === null || notes === undefined ? null : [...notes];
+  return {
+    text: points ? points.slice(0, EXCERPT_LENGTH).join("") : null,
+    truncated: points ? points.length > EXCERPT_LENGTH : false,
+  };
+}
+
+/** An interview as the list shows it: both notes cut to an excerpt, under keys of their own (ADR-0056). */
+export function summaryOfInterview(interview: InterviewResponse): InterviewSummaryResponse {
+  const { preparationNotes, notes, ...rest } = interview;
+  const prepared = excerpt(preparationNotes);
+  const noted = excerpt(notes);
+  return {
+    ...rest,
+    preparationNotesExcerpt: prepared.text,
+    preparationNotesTruncated: prepared.truncated,
+    notesExcerpt: noted.text,
+    notesTruncated: noted.truncated,
+  };
+}
+
 export interface FakeInterviewState {
+  /** The `page`, `size` and `direction` of every list request, in order. */
+  listRequests: { page: number; size: number; direction: string | null }[];
   interviews: InterviewResponse[];
   /** Every accepted `POST` body, in order. */
   logs: InterviewRequest[];
@@ -129,7 +162,14 @@ function withDetails(interview: InterviewResponse, details: InterviewRequest): I
 }
 
 export function fakeInterviewBackend(initial: Partial<FakeInterviewState> = {}) {
-  const state: FakeInterviewState = { interviews: [], logs: [], updates: [], deleteCalls: [], ...initial };
+  const state: FakeInterviewState = {
+    interviews: [],
+    listRequests: [],
+    logs: [],
+    updates: [],
+    deleteCalls: [],
+    ...initial,
+  };
   const path = `${origin()}/api/applications/:id/interviews`;
   const find = (applicationId: unknown, id: unknown) =>
     state.interviews.find((interview) => interview.applicationId === applicationId && interview.id === id);
@@ -147,12 +187,26 @@ export function fakeInterviewBackend(initial: Partial<FakeInterviewState> = {}) 
   };
 
   const handlers = [
-    http.get(path, ({ params }) => {
+    http.get(path, ({ params, request }) => {
       if (state.listFails) return problem(404, "application-not-found");
-      const interviews = state.interviews
+      const query = new URL(request.url).searchParams;
+      const page = Number(query.get("page") ?? 0);
+      const size = Number(query.get("size") ?? DEFAULT_PAGE_SIZE);
+      const direction = query.get("direction");
+      state.listRequests.push({ page, size, direction });
+      const ascending = state.interviews
         .filter((interview) => interview.applicationId === params.id)
         .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-      return HttpResponse.json({ interviews });
+      const ordered = direction === "DESCENDING" ? ascending.toReversed() : ascending;
+      const start = page * size;
+      return HttpResponse.json({
+        interviews: ordered.slice(start, start + size).map(summaryOfInterview),
+        page: { page, size, total: ordered.length, hasMore: start + size < ordered.length },
+      });
+    }),
+    http.get(`${path}/:interviewId`, ({ params }) => {
+      const interview = find(params.id, params.interviewId);
+      return interview ? HttpResponse.json(interview) : problem(404, "interview-not-found");
     }),
     http.post(path, async ({ request, params }) => {
       const body = (await request.json()) as InterviewRequest;

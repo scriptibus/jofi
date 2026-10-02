@@ -18,9 +18,13 @@ import io.github.scriptibus.jofi.applications.domain.InterviewInput
 import io.github.scriptibus.jofi.applications.domain.InterviewOutcome
 import io.github.scriptibus.jofi.applications.domain.InterviewRescheduled
 import io.github.scriptibus.jofi.applications.domain.InterviewScheduled
+import io.github.scriptibus.jofi.applications.domain.InterviewSummary
 import io.github.scriptibus.jofi.applications.domain.InterviewType
+import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.FieldChange
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
@@ -251,6 +255,12 @@ class InterviewUseCasesTest {
         fixtures.interviews[interview.id] shouldBe interview
     }
 
+    private fun listed(application: ApplicationId) =
+        list
+            .execute(application, PageInput(), SortDirection.ASCENDING)
+            .shouldBeInstanceOf<ApplicationResult.Success<Paged<InterviewSummary>>>()
+            .value
+
     @Test
     fun `reading and listing tell an unknown application from an interview it does not have`() {
         val later = logged(phoneScreen.copy(localStart = LocalDateTime.parse("2026-10-09T09:00")))
@@ -259,11 +269,11 @@ class InterviewUseCasesTest {
         val unknown = ApplicationId(UUID.randomUUID())
 
         get.execute(application.id, sooner.id) shouldBe ApplicationResult.Success(sooner)
-        list.execute(application.id) shouldBe ApplicationResult.Success(listOf(sooner, later))
-        list.execute(other.id) shouldBe ApplicationResult.Success(emptyList())
+        listed(application.id).items shouldBe listOf(sooner, later).map(InterviewSummary::of)
+        listed(other.id).items shouldBe emptyList()
         get.execute(other.id, sooner.id) shouldBe ApplicationResult.InterviewNotFound
         get.execute(unknown, sooner.id) shouldBe ApplicationResult.NotFound
-        list.execute(unknown) shouldBe ApplicationResult.NotFound
+        list.execute(unknown, PageInput(), SortDirection.ASCENDING) shouldBe ApplicationResult.NotFound
         update.execute(other.id, sooner.id, phoneScreen, 0, Actor.User) shouldBe ApplicationResult.InterviewNotFound
         update.execute(application.id, InterviewId(UUID.randomUUID()), phoneScreen, 0, Actor.User) shouldBe
             ApplicationResult.InterviewNotFound

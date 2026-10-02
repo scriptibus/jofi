@@ -40,7 +40,7 @@ open class McpInterviewContractSupport : McpToolContractSupport() {
             .filter { it != "readOnly" }
             .associateWith { name -> this[name].let { if (it.has("trust")) it["content"] else it }.toPlain() }
 
-    private fun JsonNode.toPlain(): Any? =
+    protected fun JsonNode.toPlain(): Any? =
         when {
             isNull -> null
             isIntegralNumber -> asLong()

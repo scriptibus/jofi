@@ -54,7 +54,14 @@ class McpInterviewUpdateContractTest : McpInterviewContractSupport() {
                     )
             client.refused("update_interview", sent)
 
-            val read = client.call("list_interviews", mapOf("applicationId" to application))["interviews"][0]
+            val read =
+                client.call(
+                    "get_interview",
+                    mapOf(
+                        "applicationId" to application,
+                        "id" to logged["id"].asString(),
+                    ),
+                )
             read["interview"].untrusted()["notes"].asString() shouldBe "NOTES"
             changelog("interview", logged["id"].asString()).size shouldBe 1
         }
@@ -84,7 +91,7 @@ class McpInterviewUpdateContractTest : McpInterviewContractSupport() {
         id: String,
     ) {
         changelog("interview", id).size shouldBe 1
-        val read: JsonNode = client.call("list_interviews", mapOf("applicationId" to application))["interviews"][0]
+        val read: JsonNode = client.call("get_interview", mapOf("applicationId" to application, "id" to id))
         read["version"].asInt() shouldBe 0
         read["participantIds"].size() shouldBe 1
         read["interview"].untrusted()["notes"].asString() shouldBe "NOTES"
@@ -127,21 +134,33 @@ class McpInterviewUpdateContractTest : McpInterviewContractSupport() {
     }
 
     @Test
-    fun `list_interviews with more interviews than it returns answers the earliest ones and the total`() {
+    fun `a list entry is no source for an update, it is refused and stores nothing`() {
         val application = application()
         owner.mcpClient().use { client ->
             client.initialize()
-            val starts = (0 until 52).map { String.format(Locale.ROOT, "2099-02-01T%02d:%02d", it / 4, (it % 4) * 15) }
-            starts.reversed().forEach { start ->
-                client.call("log_interview", interview(application, "localStart" to start))
-            }
+            val long = "L".repeat(2_000)
+            val logged =
+                client.call(
+                    "log_interview",
+                    interview(application, "notes" to long, "preparationNotes" to "P"),
+                )
+            val id = logged["id"].asString()
+            val entry = client.call("list_interviews", mapOf("applicationId" to application))["interviews"][0]
 
-            val listed = client.call("list_interviews", mapOf("applicationId" to application))
+            // As a client builds it from the entry: wrapper content in place, without readOnly.
+            client.refused("update_interview", entry.asUpdate())
+            // With the entry's `interview` wrapper as it is, and with the excerpt keys next to the full ones.
+            client.refused("update_interview", entry.asUpdate() + ("interview" to entry["interview"].toPlain()))
+            val content = entry["interview"]["content"].toPlain() as Map<*, *>
+            client.refused("update_interview", entry.asUpdate() + ("interview" to (content + ("notes" to "x"))))
 
-            listed["total"].asInt() shouldBe 52
-            listed["interviews"].size() shouldBe 50
-            listed["interviews"][0]["localStart"].asString() shouldBe "${starts[0]}:00"
-            listed["interviews"][49]["localStart"].asString() shouldBe "${starts[49]}:00"
+            changelog("interview", id).size shouldBe 1
+            val read = client.call("get_interview", mapOf("applicationId" to application, "id" to id))
+            read["version"].asInt() shouldBe 0
+            read["interview"].untrusted()["notes"].asString() shouldBe long
+
+            // The full read, in contrast, is accepted.
+            client.call("update_interview", read.asUpdate() + ("outcome" to "PASSED"))["version"].asInt() shouldBe 1
         }
     }
 }
