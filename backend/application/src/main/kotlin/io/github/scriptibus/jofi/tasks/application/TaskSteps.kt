@@ -3,9 +3,9 @@
 
 package io.github.scriptibus.jofi.tasks.application
 
-import io.github.scriptibus.jofi.shared.application.AiRedaction
 import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
+import io.github.scriptibus.jofi.shared.domain.ai.AiRedaction
 import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest

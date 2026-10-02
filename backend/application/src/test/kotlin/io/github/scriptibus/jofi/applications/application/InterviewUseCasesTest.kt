@@ -23,6 +23,7 @@ import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.SortDirection
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.FieldChange
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -56,7 +57,7 @@ class InterviewUseCasesTest {
             CLOCK,
         )
     private val get = GetInterviewUseCase(fixtures.repository, fixtures.interviewPort)
-    private val list = ListInterviewsUseCase(fixtures.repository, fixtures.interviewPort)
+    private val list = ListInterviewsUseCase(fixtures.repository, fixtures.interviewPort, fixtures.redaction)
     private val erika = ContactRef(UUID.randomUUID()).also { fixtures.contacts += it }
     private val max = ContactRef(UUID.randomUUID()).also { fixtures.contacts += it }
     private val application: Application = fixtures.application()
@@ -257,7 +258,7 @@ class InterviewUseCasesTest {
 
     private fun listed(application: ApplicationId) =
         list
-            .execute(application, PageInput(), SortDirection.ASCENDING)
+            .execute(application, PageInput(), SortDirection.ASCENDING, NotesAudience.USER)
             .shouldBeInstanceOf<ApplicationResult.Success<Paged<InterviewSummary>>>()
             .value
 
@@ -273,7 +274,8 @@ class InterviewUseCasesTest {
         listed(other.id).items shouldBe emptyList()
         get.execute(other.id, sooner.id) shouldBe ApplicationResult.InterviewNotFound
         get.execute(unknown, sooner.id) shouldBe ApplicationResult.NotFound
-        list.execute(unknown, PageInput(), SortDirection.ASCENDING) shouldBe ApplicationResult.NotFound
+        list.execute(unknown, PageInput(), SortDirection.ASCENDING, NotesAudience.USER) shouldBe
+            ApplicationResult.NotFound
         update.execute(other.id, sooner.id, phoneScreen, 0, Actor.User) shouldBe ApplicationResult.InterviewNotFound
         update.execute(application.id, InterviewId(UUID.randomUUID()), phoneScreen, 0, Actor.User) shouldBe
             ApplicationResult.InterviewNotFound

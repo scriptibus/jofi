@@ -13,6 +13,7 @@ import io.github.scriptibus.jofi.applications.application.port.ApplicationReposi
 import io.github.scriptibus.jofi.applications.application.port.InterviewRepositoryPort
 import io.github.scriptibus.jofi.applications.config.ApplicationsConfiguration.ApplicationAudit
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -51,7 +52,8 @@ class InterviewsConfiguration {
     fun listInterviewsUseCase(
         applications: ApplicationRepositoryPort,
         interviews: InterviewRepositoryPort,
-    ): ListInterviewsUseCase = ListInterviewsUseCase(applications, interviews)
+        redaction: RedactForAiUseCase,
+    ): ListInterviewsUseCase = ListInterviewsUseCase(applications, interviews, redaction)
 
     @Bean
     fun listUpcomingInterviewsUseCase(

@@ -12,6 +12,7 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.PageArguments
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import org.springframework.stereotype.Component
 import java.util.UUID
@@ -57,5 +58,5 @@ class ListInterviewsTool(
         application: UUID,
         page: PageInput,
         direction: SortDirection,
-    ) = listInterviews.execute(ApplicationId(application), page, direction)
+    ) = listInterviews.execute(ApplicationId(application), page, direction, NotesAudience.AI)
 }

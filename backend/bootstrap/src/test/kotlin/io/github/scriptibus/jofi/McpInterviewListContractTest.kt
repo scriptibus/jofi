@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi
 
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldNotContain
 import io.modelcontextprotocol.client.McpSyncClient
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.JsonNode
@@ -107,6 +108,22 @@ class McpInterviewListContractTest : McpInterviewContractSupport() {
             val listed = client.call("list_interviews", mapOf("applicationId" to application))
 
             listed["interviews"].values().map { it["id"].asString() } shouldContainExactly ids.reversed()
+        }
+    }
+
+    @Test
+    fun `an excerpt never ends inside a flagged value`() {
+        val application = application()
+        // The phone number starts just before the cut at 300 characters: its first digits would be in the excerpt.
+        val notes = "x".repeat(EXCERPT_LENGTH - 5) + " $FLAGGED_PHONE and more"
+        owner.mcpClient().use { client ->
+            client.initialize()
+            client.call("log_interview", interview(application, "notes" to notes, "preparationNotes" to notes))
+
+            val listed = client.call("list_interviews", mapOf("applicationId" to application)).toString()
+
+            listed shouldNotContain "0170"
+            listed shouldNotContain "1234"
         }
     }
 

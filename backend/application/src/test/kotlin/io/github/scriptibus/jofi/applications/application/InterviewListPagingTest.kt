@@ -15,6 +15,8 @@ import io.github.scriptibus.jofi.applications.domain.InterviewSummary
 import io.github.scriptibus.jofi.applications.domain.InterviewTime
 import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.SortDirection
+import io.github.scriptibus.jofi.shared.domain.ai.FlaggedValue
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
 import io.github.scriptibus.jofi.shared.domain.paging.Paged
@@ -30,7 +32,7 @@ import java.util.UUID
 /** Paging, direction and note excerpts of the interview list (#236, ADR-0056). */
 class InterviewListPagingTest {
     private val fixtures = ApplicationFixtures()
-    private val list = ListInterviewsUseCase(fixtures.repository, fixtures.interviewPort)
+    private val list = ListInterviewsUseCase(fixtures.repository, fixtures.interviewPort, fixtures.redaction)
     private val application = fixtures.application()
     private val first = Instant.parse("2026-10-01T08:00:00Z")
 
@@ -52,7 +54,7 @@ class InterviewListPagingTest {
         direction: SortDirection,
     ): Paged<InterviewSummary> =
         list
-            .execute(application.id, PageInput(page, size), direction)
+            .execute(application.id, PageInput(page, size), direction, NotesAudience.USER)
             .shouldBeInstanceOf<ApplicationResult.Success<Paged<InterviewSummary>>>()
             .value
 
@@ -91,15 +93,60 @@ class InterviewListPagingTest {
 
     @Test
     fun `a page or size out of range is invalid and names what is wrong, an unknown application is not found`() {
-        list.execute(application.id, PageInput(-1, 51), SortDirection.ASCENDING) shouldBe
+        list.execute(application.id, PageInput(-1, 51), SortDirection.ASCENDING, NotesAudience.USER) shouldBe
             ApplicationResult.Invalid(
                 listOf(
                     ApplicationViolation(ApplicationField.PAGE, ApplicationProblem.OUT_OF_RANGE),
                     ApplicationViolation(ApplicationField.SIZE, ApplicationProblem.OUT_OF_RANGE),
                 ),
             )
-        list.execute(ApplicationId(UUID.randomUUID()), PageInput(), SortDirection.ASCENDING) shouldBe
+        list.execute(
+            ApplicationId(UUID.randomUUID()),
+            PageInput(),
+            SortDirection.ASCENDING,
+            NotesAudience.USER,
+        ) shouldBe
             ApplicationResult.NotFound
         PageRequest.MAX_SIZE shouldBe 50
     }
+
+    @Test
+    fun `for an AI the flagged values go out of both notes before the cut, so none is left half in`() {
+        val phone = "0170 1234567"
+        val straddling = "x".repeat(TextExcerpt.MAX_LENGTH - 5) + " " + phone + " end"
+        store(1, notes = straddling, preparation = straddling)
+        fixtures.flaggedValues = setOf(FlaggedValue(phone))
+
+        val entry = aiPage().items.single()
+
+        listOf(entry.notesExcerpt?.text.orEmpty(), entry.preparationNotesExcerpt?.text.orEmpty()).forEach {
+            it.contains("0170") shouldBe false
+            it.contains("1234") shouldBe false
+            it.endsWith("[wit") shouldBe true
+        }
+        // The user sees their own notes as they are.
+        page(0, 10, SortDirection.ASCENDING)
+            .items
+            .single()
+            .notesExcerpt
+            ?.text
+            .orEmpty()
+            .endsWith("0170") shouldBe true
+    }
+
+    @Test
+    fun `for an AI the list fails closed when the flags cannot be read`() {
+        store(1, notes = "n")
+        fixtures.flaggedValues = null
+
+        list.execute(application.id, PageInput(), SortDirection.ASCENDING, NotesAudience.AI) shouldBe
+            ApplicationResult.StorageFailure("privacy flags")
+        page(0, 10, SortDirection.ASCENDING).items.size shouldBe 1
+    }
+
+    private fun aiPage() =
+        list
+            .execute(application.id, PageInput(), SortDirection.ASCENDING, NotesAudience.AI)
+            .shouldBeInstanceOf<ApplicationResult.Success<Paged<InterviewSummary>>>()
+            .value
 }

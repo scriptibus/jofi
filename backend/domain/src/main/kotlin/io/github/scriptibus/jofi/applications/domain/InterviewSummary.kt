@@ -28,7 +28,12 @@ data class InterviewSummary(
         "InterviewSummary(id=${id.value}, application=${application.value}, version=$version)"
 
     companion object {
-        fun of(interview: Interview): InterviewSummary {
+        /** The excerpts are cut from [preparationNotes] and [notes]: the interview's own, or after the AI's filter. */
+        fun of(
+            interview: Interview,
+            preparationNotes: String? = interview.details.preparationNotes,
+            notes: String? = interview.details.notes,
+        ): InterviewSummary {
             val details = interview.details
             return InterviewSummary(
                 interview.id,
@@ -37,8 +42,8 @@ data class InterviewSummary(
                 details.time,
                 details.participants,
                 details.outcome,
-                TextExcerpt.ofOrNull(details.preparationNotes),
-                TextExcerpt.ofOrNull(details.notes),
+                TextExcerpt.ofOrNull(preparationNotes),
+                TextExcerpt.ofOrNull(notes),
                 interview.version,
                 interview.createdAt,
                 interview.updatedAt,

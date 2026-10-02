@@ -56,4 +56,12 @@ class InterviewSummaryTest {
         summary.preparationNotesExcerpt shouldBe null
         summary.toString() shouldNotContain "secret"
     }
+
+    @Test
+    fun `a summary can be cut from other notes than the interview's own`() {
+        val summary = InterviewSummary.of(interview("p 0170 1234567", "n 0170 1234567"), "p [withheld]", "n [withheld]")
+
+        summary.preparationNotesExcerpt shouldBe TextExcerpt("p [withheld]", false)
+        summary.notesExcerpt shouldBe TextExcerpt("n [withheld]", false)
+    }
 }

@@ -25,12 +25,17 @@ import io.github.scriptibus.jofi.applications.domain.InterviewType
 import io.github.scriptibus.jofi.applications.domain.UpcomingInterview
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
 import io.github.scriptibus.jofi.shared.application.port.DomainEventPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
@@ -120,7 +125,14 @@ class InterviewControllerTest(
         fun get(ports: Ports) = GetInterviewUseCase(ports.applications, ports.interviews)
 
         @Bean
-        fun list(ports: Ports) = ListInterviewsUseCase(ports.applications, ports.interviews)
+        fun list(ports: Ports) = ListInterviewsUseCase(ports.applications, ports.interviews, unflagged())
+
+        private fun unflagged() =
+            RedactForAiUseCase(
+                object : AiVisibilityPort {
+                    override fun rulesFor(sources: Set<ContentSource>) = AiVisibilityResult.Known(NeverSendRules.NONE)
+                },
+            )
 
         @Bean
         fun upcoming(ports: Ports) = ListUpcomingInterviewsUseCase(ports.interviews, Clock.fixed(NOW, ZoneOffset.UTC))

@@ -24,6 +24,7 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.InvalidToolArgument
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolArguments
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.adapter.mcp.ToolTestPorts
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
@@ -46,7 +47,7 @@ import java.util.UUID
 class InterviewListToolsTest {
     private val applications = mockk<ApplicationRepositoryPort>()
     private val interviews = mockk<InterviewRepositoryPort>()
-    private val list = ListInterviewsTool(ListInterviewsUseCase(applications, interviews))
+    private val list = ListInterviewsTool(ListInterviewsUseCase(applications, interviews, ToolTestPorts.redaction))
     private val get = GetInterviewTool(GetInterviewUseCase(applications, interviews))
 
     private val applicationId = UUID.fromString("00000000-0000-0000-0000-0000000000a1")

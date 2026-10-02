@@ -57,7 +57,7 @@ class InterviewToolsTest {
         LogInterviewTool(LogInterviewUseCase(applications, interviews, events, changelog, transactions, clock))
     private val update =
         UpdateInterviewTool(UpdateInterviewUseCase(applications, interviews, events, changelog, transactions, clock))
-    private val list = ListInterviewsTool(ListInterviewsUseCase(applications, interviews))
+    private val list = ListInterviewsTool(ListInterviewsUseCase(applications, interviews, ToolTestPorts.redaction))
     private val upcoming = ListUpcomingInterviewsTool(ListUpcomingInterviewsUseCase(interviews, clock))
 
     private val applicationId = UUID.fromString("00000000-0000-0000-0000-0000000000a1")

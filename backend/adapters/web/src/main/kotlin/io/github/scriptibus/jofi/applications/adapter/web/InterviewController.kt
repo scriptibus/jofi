@@ -16,6 +16,7 @@ import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
@@ -66,6 +67,7 @@ class InterviewController(
                     ApplicationId(id),
                     PageInput(page, size),
                     direction?.mapByName() ?: SortDirection.ASCENDING,
+                    NotesAudience.USER,
                 ).orThrow(),
         )
 
