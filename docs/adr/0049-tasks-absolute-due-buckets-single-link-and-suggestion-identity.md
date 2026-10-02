@@ -111,7 +111,8 @@ A suggestion whose application is deleted is obsolete and dismissed by its rule'
 `TaskState`: `SUGGESTED` → `OPEN` (accept) or `DISMISSED`; `OPEN` → `DONE` (complete); `DONE` → `OPEN` (reopen).
 Each is a `TaskTransition` with exactly one source state (`ACCEPT`, `DISMISS`, `COMPLETE`, `REOPEN`), applied with
 `Task.apply`: a task already in the target state is unchanged, one in any other state is not allowed, so reopening
-never accepts a suggestion and accepting never reopens a done task.
+never accepts a suggestion and accepting never reopens a done task. Accepting and dismissing are for suggestions
+only: a task that never was one (`Manual`, `Chat`) is not allowed, even "already open" (#237).
 Nothing leaves `DISMISSED`. `completed_at` is set exactly while `DONE`. `TaskOrigin` is `Manual` (the app), `Chat`
 (the built-in chat or an MCP client) or `Suggested(rule, key)`; only suggestions are ever `SUGGESTED` or
 `DISMISSED`. Every change, a state change too, is a new `version` with `basedOnVersion` (ADR-0041).

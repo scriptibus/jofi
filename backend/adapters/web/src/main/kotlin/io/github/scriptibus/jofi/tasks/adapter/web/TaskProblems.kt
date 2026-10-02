@@ -52,11 +52,7 @@ object TaskProblems {
             }
 
             is TaskResult.InvalidTransition -> {
-                problem(
-                    HttpStatus.CONFLICT,
-                    INVALID_TRANSITION,
-                    "A task cannot move from ${failure.from} to ${failure.to}",
-                )
+                problem(HttpStatus.CONFLICT, INVALID_TRANSITION, transitionDetail(failure))
             }
 
             is TaskResult.Unconfirmed -> {
@@ -66,6 +62,14 @@ object TaskProblems {
             is TaskResult.StorageFailure -> {
                 problem(HttpStatus.SERVICE_UNAVAILABLE, UNAVAILABLE, "Tasks cannot be stored right now")
             }
+        }
+
+    /** A move to the state the task is in already is an accept of a task that never was a suggestion. */
+    private fun transitionDetail(failure: TaskResult.InvalidTransition): String =
+        if (failure.from == failure.to) {
+            "This task is not a suggestion: only suggestions can be accepted or dismissed"
+        } else {
+            "A task cannot move from ${failure.from} to ${failure.to}"
         }
 
     /** The viewer's zone of a list (query parameter `timeZone`) is not one Java knows. */

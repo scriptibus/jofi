@@ -16,9 +16,9 @@ import java.time.Clock
 
 /**
  * Accepts a suggestion with one click (ADR-0049, `TaskTransition.ACCEPT`): it becomes an open task, keeping its
- * origin, so its rule never suggests it again. An open one is unchanged (no entry); a done or dismissed one is
- * `InvalidTransition`. The version is checked first; the move and its changelog entry (field `state`) are stored
- * together.
+ * origin, so its rule never suggests it again. An accepted one is unchanged (no entry); a done or dismissed one, or a
+ * task that never was a suggestion, is `InvalidTransition`. The version is checked first; the move and its changelog
+ * entry (field `state`) are stored together.
  */
 class AcceptTaskSuggestionUseCase(
     private val tasks: TaskRepositoryPort,

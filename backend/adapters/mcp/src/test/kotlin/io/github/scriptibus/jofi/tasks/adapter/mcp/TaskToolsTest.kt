@@ -230,6 +230,18 @@ class TaskToolsTest {
     }
 
     @Test
+    fun `accepting an open task that never was a suggestion answers invalid-transition, writing nothing`() {
+        every { tasks.findById(TaskId(taskId)) } returns TaskStoreResult.Success(open)
+
+        acceptSuggestion.call(call("id" to taskId.toString(), "version" to 0)) shouldBe
+            ToolAnswer.Error(
+                "invalid-transition",
+                "This task is not a suggestion: only suggestions can be accepted or dismissed.",
+            )
+        changelog.entries shouldBe emptyList()
+    }
+
+    @Test
     fun `an unavailable store is reported without detail, and both write tools need their id and version`() {
         every { tasks.findById(TaskId(taskId)) } returns TaskStoreResult.StorageFailure("read")
 
