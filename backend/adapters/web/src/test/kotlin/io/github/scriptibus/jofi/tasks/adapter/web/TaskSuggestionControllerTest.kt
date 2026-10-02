@@ -128,6 +128,18 @@ class TaskSuggestionControllerTest(
     }
 
     @Test
+    fun `accepting an open task that never was a suggestion is an invalid transition, writing nothing`() {
+        json(mvc.post().uri("$path/accept"), """{"basedOnVersion":0}""")
+            .assertThat()
+            .hasStatus(409)
+            .bodyJson()
+            .extractingPath("type")
+            .isEqualTo(TaskProblems.INVALID_TRANSITION)
+        verify(exactly = 0) { ports.tasks.update(any()) }
+        verify(exactly = 0) { ports.changelog.append(any()) }
+    }
+
+    @Test
     fun `accepting an unknown task is not found`() {
         every { ports.tasks.findById(stored.id) } returns TaskStoreResult.NotFound
 

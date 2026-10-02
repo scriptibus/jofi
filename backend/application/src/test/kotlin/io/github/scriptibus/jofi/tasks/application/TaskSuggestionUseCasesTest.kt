@@ -61,6 +61,8 @@ class TaskSuggestionUseCasesTest {
         )
     private val dismiss =
         DismissTaskSuggestionUseCase(fixtures.repository, fixtures.changelog, fixtures.transactions, CLOCK)
+    private val accept =
+        AcceptTaskSuggestionUseCase(fixtures.repository, fixtures.changelog, fixtures.transactions, CLOCK)
     private val list = ListSuggestedTasksUseCase(fixtures.repository)
 
     private val application = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
@@ -194,6 +196,29 @@ class TaskSuggestionUseCasesTest {
         val open = fixtures.task()
         dismiss.execute(open.id, 0, Actor.User) shouldBe
             TaskResult.InvalidTransition(TaskState.OPEN, TaskState.DISMISSED)
+    }
+
+    @Test
+    fun `accepting a task that never was a suggestion is an invalid transition, writing nothing`() {
+        val open = fixtures.task()
+
+        accept.execute(open.id, open.version, Actor.Ai) shouldBe
+            TaskResult.InvalidTransition(TaskState.OPEN, TaskState.OPEN)
+        fixtures.tasks.getValue(open.id) shouldBe open
+        fixtures.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `an accepted suggestion accepted again is unchanged, and a dismissed one cannot be accepted`() {
+        val waiting = suggestion("follow-up")
+        val accepted = accept.execute(waiting.id, 0, Actor.User).shouldBeInstanceOf<TaskResult.Success<Task>>().value
+
+        accept.execute(waiting.id, 1, Actor.User) shouldBe TaskResult.Success(accepted)
+        fixtures.entries shouldHaveSize 1
+        val other = suggestion("interview-prep")
+        dismiss.execute(other.id, 0, Actor.User)
+        accept.execute(other.id, 1, Actor.User) shouldBe
+            TaskResult.InvalidTransition(TaskState.DISMISSED, TaskState.OPEN)
     }
 
     @Test
