@@ -71,14 +71,22 @@ data class ContactDetailFacts(
     val relationshipNotes: String?,
 )
 
-/** One contact in full; [version] is what `update_contact` needs to be based on. */
+/** What no contact tool changes: shown for reading, not sendable to `update_contact`. */
+data class ContactReadOnly(
+    val createdAt: Instant,
+    val updatedAt: Instant,
+)
+
+/**
+ * One contact in full; [version] is what `update_contact` needs to be based on. `update_contact` takes `id`,
+ * `version`, `companyId` and the `content` of [contact] (under the key `contact`); [readOnly] is never sent back.
+ */
 data class ContactDetailResult(
     val id: UUID,
     val version: Long,
     val companyId: UUID?,
-    val createdAt: Instant,
-    val updatedAt: Instant,
     val contact: Untrusted<ContactDetailFacts>,
+    val readOnly: ContactReadOnly,
 ) {
     companion object {
         fun from(contact: Contact): ContactDetailResult {
@@ -87,8 +95,6 @@ data class ContactDetailResult(
                 contact.id.value,
                 contact.version,
                 details.company?.value,
-                contact.createdAt,
-                contact.updatedAt,
                 Untrusted(
                     ContactDetailFacts(
                         details.name,
@@ -97,6 +103,7 @@ data class ContactDetailResult(
                         details.relationshipNotes,
                     ),
                 ),
+                ContactReadOnly(contact.createdAt, contact.updatedAt),
             )
         }
 
@@ -106,13 +113,16 @@ data class ContactDetailResult(
 
 /** The tool errors of the contacts: stable codes, no stored content. */
 internal object ContactToolErrors {
-    fun failure(failure: ContactResult.Failure): ToolAnswer.Error =
+    fun failure(
+        failure: ContactResult.Failure,
+        prefix: String = "",
+    ): ToolAnswer.Error =
         when (failure) {
             is ContactResult.Invalid -> {
                 ToolAnswer.Error(
                     "invalid-arguments",
                     "The contact arguments are invalid.",
-                    failure.violations.map(::problemOf),
+                    failure.violations.map { problemOf(it, prefix) },
                 )
             }
 
@@ -135,13 +145,16 @@ internal object ContactToolErrors {
         }
 
     /** `COMPANY` is the argument `companyId`; a channel's problem names its position, as `channels[0].value`. */
-    private fun problemOf(violation: ContactViolation): ArgumentProblem {
+    private fun problemOf(
+        violation: ContactViolation,
+        prefix: String,
+    ): ArgumentProblem {
         val code = ToolProblems.problemCode(violation.problem.name)
         val position = violation.channel
         return when {
-            position != null -> ArgumentProblem("channels[$position].${channelPart(violation.field)}", code)
+            position != null -> ArgumentProblem("${prefix}channels[$position].${channelPart(violation.field)}", code)
             violation.field == ContactField.COMPANY -> ArgumentProblem("companyId", code)
-            else -> ArgumentProblem(ToolProblems.argumentName(violation.field.name), code)
+            else -> ArgumentProblem(prefix + ToolProblems.argumentName(violation.field.name), code)
         }
     }
 

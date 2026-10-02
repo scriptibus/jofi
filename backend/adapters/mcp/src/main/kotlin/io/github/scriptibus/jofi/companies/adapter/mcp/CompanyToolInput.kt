@@ -5,6 +5,7 @@ package io.github.scriptibus.jofi.companies.adapter.mcp
 
 import io.github.scriptibus.jofi.companies.domain.CompanyInput
 import io.github.scriptibus.jofi.companies.domain.CompanySize
+import io.github.scriptibus.jofi.shared.adapter.mcp.InvalidToolArgument
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolArguments
 
 /** What the search tools of companies and contacts allow; every result goes into the model's context. */
@@ -35,6 +36,9 @@ internal object CompanyToolInput {
             researchNotes = arguments.text("researchNotes"),
         )
 
+    /** `update_company` takes the company's fields as `get_company` returns them: inside the `company` object. */
+    fun ofUpdate(arguments: ToolArguments) = of(arguments.obj("company") ?: throw InvalidToolArgument("company"))
+
     /** The sizes and `null`: `get_company` answers `null` for a size that is not set, and sends it back. */
     val SIZES = enumValues<CompanySize>().joinToString(", ", "[", ", null]") { "\"${it.name}\"" }
 
@@ -51,5 +55,19 @@ internal object CompanyToolInput {
         "locations": {"type": ["array", "null"], "items": {"type": "string"}, "description": "Cities, regions or remote."},
         "careersPage": {"type": ["string", "null"], "description": "An absolute http(s) URL."},
         "researchNotes": {"type": ["string", "null"], "description": "Notes about the company, Markdown."}
+        """.trimIndent()
+
+    private val KEYS = listOf("name", "website", "industry", "size", "locations", "careersPage", "researchNotes")
+
+    /** The `company` object of `update_company`: every field required, `null` (or `[]`) clears it. */
+    val UPDATE_OBJECT =
+        """
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [${KEYS.joinToString(", ") { "\"$it\"" }}],
+          "description": "The `content` of get_company's `company` (not the wrapper around it), changed as meant.",
+          "properties": {$PROPERTIES}
+        }
         """.trimIndent()
 }

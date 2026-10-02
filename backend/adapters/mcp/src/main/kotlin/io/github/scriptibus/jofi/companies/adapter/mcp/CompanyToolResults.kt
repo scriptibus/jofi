@@ -73,16 +73,16 @@ data class CompanySearchResult(
     }
 }
 
-/** One company in full; [version] is what `update_company` needs to be based on. */
+/**
+ * One company in full; [version] is what `update_company` needs to be based on. `update_company` takes `id`,
+ * `version` and the `content` of [company] (under the key `company`); [readOnly] is what no tool changes here, shown
+ * for reading and never sent back.
+ */
 data class CompanyDetailResult(
     val id: UUID,
     val version: Long,
-    val applicationCount: Int,
-    val preference: PreferenceKind,
-    val preferenceReason: String?,
-    val createdAt: Instant,
-    val updatedAt: Instant,
     val company: Untrusted<CompanyDetailFacts>,
+    val readOnly: CompanyReadOnly,
 ) {
     companion object {
         fun from(view: CompanyView): CompanyDetailResult {
@@ -90,16 +90,27 @@ data class CompanyDetailResult(
             return CompanyDetailResult(
                 company.id.value,
                 company.version,
-                view.applicationCount,
-                company.preference.kind,
-                company.preference.reason,
-                company.createdAt,
-                company.updatedAt,
                 Untrusted(detailFactsOf(view)),
+                CompanyReadOnly(
+                    view.applicationCount,
+                    company.preference.kind,
+                    company.preference.reason,
+                    company.createdAt,
+                    company.updatedAt,
+                ),
             )
         }
     }
 }
+
+/** What no company tool changes (the preference is the user's): not sendable to `update_company`. */
+data class CompanyReadOnly(
+    val applicationCount: Int,
+    val preference: PreferenceKind,
+    val preferenceReason: String?,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+)
 
 private fun detailFactsOf(view: CompanyView): CompanyDetailFacts {
     val details = view.company.details
@@ -128,7 +139,10 @@ private fun factsOf(view: CompanyView): CompanyFacts {
 
 /** The tool errors of the companies: stable codes, no stored content. */
 internal object CompanyToolErrors {
-    fun failure(failure: CompanyResult.Failure): ToolAnswer.Error =
+    fun failure(
+        failure: CompanyResult.Failure,
+        prefix: String = "",
+    ): ToolAnswer.Error =
         when (failure) {
             is CompanyResult.Invalid -> {
                 ToolAnswer.Error(
@@ -136,7 +150,7 @@ internal object CompanyToolErrors {
                     "The company arguments are invalid.",
                     failure.violations.map {
                         ArgumentProblem(
-                            ToolProblems.argumentName(it.field.name),
+                            prefix + ToolProblems.argumentName(it.field.name),
                             ToolProblems.problemCode(it.problem.name),
                         )
                     },

@@ -22,21 +22,24 @@ class UpdateContactTool(
     override val name = "update_contact"
     override val readOnly = false
     override val description =
-        "Replace ALL details of a contact, channels included: a field or channel left out is removed, so call " +
-            "get_contact first, change what you mean to change and send everything back (the fields of `contact` " +
-            "in the answer, `null` for a field that is not set) with the `version` you read. A stale version " +
-            "answers version-conflict and changes nothing. A value that shows [withheld] is hidden from you; " +
-            "sending it back is refused (withheld-value), so such a contact cannot be updated here."
+        "Replace ALL details of a contact, channels included. Call get_contact first, change what you mean to " +
+            "change and send it back with the same keys: `id`, `version`, `companyId` and `contact`, the `content` " +
+            "of the answer's `contact` (not the wrapper). Do not send `readOnly` (timestamps). Every property is " +
+            "required: leaving one out is refused, only an explicit `null` (or `[]` for `channels`) clears it. A " +
+            "stale version answers version-conflict and changes nothing. A value that shows [withheld] is hidden " +
+            "from you; sending it back is refused (withheld-value) and names the argument, so such a contact " +
+            "cannot be updated here. Answers the contact."
     override val inputSchema =
         """
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["id", "version", "name"],
+          "required": ["id", "version", "companyId", "contact"],
           "properties": {
             "id": {"type": "string", "format": "uuid"},
             "version": {"type": "integer", "minimum": 0, "description": "The version from get_contact."},
-            ${ContactToolInput.PROPERTIES}
+            ${ContactToolInput.COMPANY_PROPERTY},
+            "contact": ${ContactToolInput.UPDATE_OBJECT}
           }
         }
         """.trimIndent()
@@ -47,7 +50,7 @@ class UpdateContactTool(
         val version = call.arguments.long("version") ?: throw InvalidToolArgument("version")
         return when (val result = update(call, id, version)) {
             is ContactResult.Success -> ToolAnswer.Result(ContactDetailResult.from(result.value))
-            is ContactResult.Failure -> ContactToolErrors.failure(result)
+            is ContactResult.Failure -> ContactToolErrors.failure(result, "contact.")
         }
     }
 
@@ -55,5 +58,5 @@ class UpdateContactTool(
         call: ToolCall,
         id: UUID,
         version: Long,
-    ) = updateContact.execute(ContactId(id), ContactToolInput.of(call.arguments), version, call.caller)
+    ) = updateContact.execute(ContactId(id), ContactToolInput.ofUpdate(call.arguments), version, call.caller)
 }
