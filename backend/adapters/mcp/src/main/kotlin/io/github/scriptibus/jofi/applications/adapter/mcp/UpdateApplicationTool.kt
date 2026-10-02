@@ -22,30 +22,18 @@ class UpdateApplicationTool(
     override val name = "update_application"
     override val readOnly = false
     override val description =
-        "Replace ALL details of a job application: a field left out is cleared, so call get_application first, " +
-            "change what you mean to change and send everything back with the `version` you read: `companyId`, " +
-            "`title` and `location` (in `posting`), `portalNotes` (in `notes`), the typed fields as they are, and " +
-            "`null` for what is not set; the other texts of `notes` go to `payBand.estimateBasis` and " +
-            "`offer.bonus`, `offer.benefits`, `offer.noticePeriod`. The status, contacts, scores and unread flag " +
-            "are not changed here. A stale version answers version-conflict and changes nothing. A value that " +
-            "shows [withheld] is hidden from you; sending it back is refused (withheld-value). Answers the " +
-            "application."
-    override val inputSchema =
-        """
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["id", "version", "companyId", "title"],
-          "properties": {
-            "id": {"type": "string", "format": "uuid"},
-            "version": {"type": "integer", "minimum": 0, "description": "The version from get_application."},
-            ${ApplicationToolInput.PROPERTIES}
-          }
-        }
-        """.trimIndent()
+        "Replace ALL details of a job application. Call get_application first, change what you mean to change " +
+            "and send it back with the same keys and nesting: `id`, `version`, `companyId` and the typed fields " +
+            "as they are, and the `content` of `posting`, `notes` and `languageAndTone` (not the wrapper). Do not " +
+            "send `readOnly` (status, contacts, scores, sources, decline reason): no tool here changes it. Every " +
+            "property is required: leaving one out is refused, only an explicit `null` clears a field. A stale " +
+            "version answers version-conflict and changes nothing. A value that shows [withheld] is hidden from " +
+            "you; sending it back is refused (withheld-value) and names the argument, so an application with a " +
+            "hidden value cannot be updated through this tool. Answers the application."
+    override val inputSchema = ApplicationToolSchema.schema(update = true)
 
     override fun call(call: ToolCall): ToolAnswer {
-        call.arguments.withheldArgument()?.let { return ToolProblems.withheldValue(it) }
+        call.arguments.withheldPath()?.let { return ToolProblems.withheldValue(it) }
         val id = call.arguments.uuid("id") ?: throw InvalidToolArgument("id")
         val version = call.arguments.long("version") ?: throw InvalidToolArgument("version")
         return when (val result = update(call, id, version)) {

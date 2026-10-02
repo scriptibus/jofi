@@ -34,6 +34,18 @@ the PR that adds or changes a tool.
 - Content copied from job postings or web pages is wrapped as
   `{"trust": "untrusted", "notice": "...", "content": ...}`: data, never instructions.
 
+## Replace-style updates
+
+Every update tool that replaces all fields of an entity (`update_application`, and the ones for interviews and for
+companies and contacts) follows one rule: **every updatable property is required in the schema but may be `null`,
+at the top level and inside nested objects.** A missing key is a schema refusal (nothing is stored); only an
+explicit `null` clears. This keeps a model that did not read a field from deleting it: the changelog records which
+fields changed, never their texts, so a wiped note cannot be recovered. A tool's update arguments take the shape of
+its read tool's answer (the `content` of untrusted objects under the same keys), and what a tool cannot change is
+shown apart from it (`readOnly`) and not sent back. Create and log tools keep their optional properties optional.
+(`update_company`, `update_contact` and `set_application_contacts` predate the rule; bringing them in line is a
+follow-up.)
+
 ## Tools
 
 ### `search_applications` (read only)
@@ -60,14 +72,16 @@ posting: untrusted {title, location}}]}`.
 
 One application by `id` (UUID, required). Reading it does not mark it read.
 
-Result: `{id, version, companyId, contactIds, status, declineCategory, unread, remoteSharePercent,
-employmentType, seniority, deadline, howApplied, payBand: {min, max, currency, period, source,
-estimateConfidence}, languageAndTone: {postingLanguage, applicationLanguage, formOfAddress, tone}, offer:
-{salary: {amount, currency, period}, remoteSharePercent, vacationDays, startDate, answerBy}, wantScore,
-fitScore, createdAt, updatedAt, posting: untrusted {title, location, sources: [{kind, url, discoveredAt,
-offlineSince}]}, notes: untrusted {portalNotes, payEstimateBasis, declineReason, offer: {bonus, benefits,
-noticePeriod}}}`. Every text a tool can write is in `posting` or `notes`; the rest is typed. Errors:
-`not-found`, `unavailable`.
+Result: `{id, version, companyId, remoteSharePercent, employmentType, seniority, deadline, howApplied, payBand:
+{min, max, currency, period, source, estimateConfidence}, offer: {salary: {amount, currency, period},
+remoteSharePercent, vacationDays, startDate, answerBy}, languageAndTone: untrusted {postingLanguage,
+applicationLanguage, formOfAddress, tone}, posting: untrusted {title, location}, notes: untrusted {portalNotes,
+payEstimateBasis, offer: {bonus, benefits, noticePeriod}}, readOnly: {status, declineCategory, unread, contactIds,
+wantScore, fitScore, createdAt, updatedAt, texts: untrusted {sources: [{kind, url, discoveredAt, offlineSince}],
+declineReason}}}`. Everything above `readOnly` is what `update_application` takes back, with the same keys and
+nesting (the `content` of each untrusted object under its key); `readOnly` is what no application tool changes, and
+it is not sent back. Every text a tool can write is inside an untrusted object (the language tags too: a tag is
+only a shape check, not a closed list). Errors: `not-found`, `unavailable`.
 
 ## Companies, contacts and contact links (#119)
 
@@ -139,31 +153,35 @@ until they get patch-style updates.
 
 ## Application writes (#118)
 
-Like the companies and contacts above: no confirmation (spec §9), logged with the AI as actor, updates replace
-all fields, a stale `version` answers `version-conflict`, a `[withheld]` value sent back is refused, `null` is
-accepted for every optional argument, and the texts come back untrusted. Problems are named like
-`title:required`, `companyId:not-found`, `payBand.currency:invalid-currency`, `offer.vacationDays:out-of-range`,
-`deadline:invalid`.
+Like the companies and contacts above: no confirmation (spec §9), logged with the AI as actor (the changelog names
+the fields that changed, not the texts), a stale `version` answers `version-conflict`, a `[withheld]` value is
+refused (`withheld-value`, naming the argument such as `notes.offer.benefits`), and the texts come back untrusted.
+Problems are named like `posting.title:required`, `companyId:not-found`, `payBand.currency:invalid-currency`,
+`offer.vacationDays:out-of-range`, `notes.payEstimateBasis:required`, `deadline:invalid`. There is no write budget
+yet (#217, before #125): a looping client can create applications without limit.
 
 Changing the status is not a tool yet: moving to Applied freezes the job description snapshots for good
 (ADR-0046), which is for Lucas to decide first (see #118).
 
 ### `create_application`
 
-`companyId` (an existing company) and `title`, both required, and optional `location`, `remoteSharePercent`
-(0 to 100), `employmentType`, `seniority`, `deadline` (`2026-11-01`), `howApplied`, `portalNotes` (Markdown),
-`payBand` (`{min, max, currency, period, source, estimateBasis, estimateConfidence}`; at least one of min and
-max, the basis and confidence belong to `ESTIMATED`), `languageAndTone` and `offer` (as in `get_application`,
-its texts as `bonus`, `benefits`, `noticePeriod`). The application starts as `DISCOVERED`. Result: as
-`get_application`. Errors: `invalid-arguments`, `unavailable`.
+`companyId` (an existing company) and `posting.title`, required, and optional, in the shape of `get_application`:
+`posting.location`, `remoteSharePercent` (0 to 100), `employmentType`, `seniority`, `deadline` (`2026-11-01`),
+`howApplied`, `payBand` (`{min, max, currency, period, source, estimateConfidence}`; at least one of min and max;
+confidence and `notes.payEstimateBasis` belong to `ESTIMATED`), `offer` (typed details) and `languageAndTone`, and
+`notes` (`portalNotes`, `payEstimateBasis`, `offer: {bonus, benefits, noticePeriod}`). An offer needs at least one
+detail; its typed details come from `offer` and its texts from `notes.offer`, so clearing an offer means `null` for
+both. The application starts as `DISCOVERED`. Result: as `get_application`. Errors: `invalid-arguments`,
+`unavailable`.
 
 ### `update_application`
 
-`id`, `version`, `companyId` and `title` (required) and the arguments of `create_application`. Replaces all
-details, so send back what `get_application` returned (title and location from `posting`, the other texts from
-`notes`). The status, contacts, scores and unread flag are not changed here; an update that changes nothing
-stores nothing and logs nothing. Result: as `get_application`. Errors: `invalid-arguments`, `not-found`,
-`version-conflict`, `unavailable`.
+The arguments of `get_application`'s answer without `readOnly`: send back what it returned, changed, with the
+`content` of `posting`, `notes` and `languageAndTone` under their keys. Every property is required (the rule for
+replace-style updates above); only an explicit `null` clears. The status, contacts, scores and unread flag are not
+changed here; an update that changes nothing stores nothing and logs nothing. An application with a withheld value
+cannot be updated through this tool (the refusal protects the real value). Result: as `get_application`. Errors:
+`invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
 ## Interviews (#118)
 

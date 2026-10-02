@@ -57,7 +57,7 @@ class SetApplicationContactsTool(
         return when (val result = link(call, id, contacts, version)) {
             is ApplicationResult.Success -> ToolAnswer.Result(ApplicationDetailResult.from(result.value))
             is ApplicationResult.Invalid -> invalid(result)
-            is ApplicationResult.Failure -> ApplicationToolErrors.failure(result)
+            is ApplicationResult.Failure -> ApplicationToolErrors.failure(result, "The contacts cannot be linked now.")
         }
     }
 

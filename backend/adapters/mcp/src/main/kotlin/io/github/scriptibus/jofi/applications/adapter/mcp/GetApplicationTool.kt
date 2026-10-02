@@ -36,7 +36,7 @@ class GetApplicationTool(
         val id = call.arguments.uuid("id") ?: throw InvalidToolArgument("id")
         return when (val result = getApplication.execute(ApplicationId(id))) {
             is ApplicationResult.Success -> ToolAnswer.Result(ApplicationDetailResult.from(result.value))
-            is ApplicationResult.Failure -> ApplicationToolErrors.failure(result)
+            is ApplicationResult.Failure -> ApplicationToolErrors.failure(result, "Applications cannot be read now.")
         }
     }
 }

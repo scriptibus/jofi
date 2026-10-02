@@ -23,7 +23,10 @@ internal object ApplicationToolErrors {
         )
 
     /** Every outcome of the application use cases; a new one breaks this `when` instead of becoming a vague code. */
-    fun failure(failure: ApplicationResult.Failure): ToolAnswer.Error =
+    fun failure(
+        failure: ApplicationResult.Failure,
+        unavailable: String = "Applications cannot be used now.",
+    ): ToolAnswer.Error =
         when (failure) {
             is ApplicationResult.Invalid -> invalid(failure)
 
@@ -35,7 +38,7 @@ internal object ApplicationToolErrors {
 
             is ApplicationResult.InvalidTransition -> invalidTransition(failure)
 
-            is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", "Applications cannot be used now.")
+            is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", unavailable)
 
             // Sources, snapshots, saved views and imports have no tool of this kind (yet): none of these can happen.
             ApplicationResult.SourceNotFound,
@@ -64,7 +67,7 @@ internal object ApplicationToolErrors {
     fun deleted(result: ApplicationResult<Unit>): ToolAnswer =
         when (result) {
             is ApplicationResult.Success -> ToolAnswer.Result(Unit)
-            is ApplicationResult.Failure -> failure(result)
+            is ApplicationResult.Failure -> failure(result, "The delete cannot run now.")
         }
 
     private fun problemOf(violation: ApplicationViolation) =
@@ -76,25 +79,25 @@ internal object ApplicationToolErrors {
     // A map, not a `when`, to keep the function short; ApplicationToolErrorsTest checks that every field is in it.
     private val ARGUMENTS =
         mapOf(
-            ApplicationField.TITLE to "title",
+            ApplicationField.TITLE to "posting.title",
             ApplicationField.COMPANY to "companyId",
-            ApplicationField.LOCATION to "location",
+            ApplicationField.LOCATION to "posting.location",
             ApplicationField.REMOTE_SHARE to "remoteSharePercent",
-            ApplicationField.PORTAL_NOTES to "portalNotes",
+            ApplicationField.PORTAL_NOTES to "notes.portalNotes",
             ApplicationField.PAY_MIN to "payBand.min",
             ApplicationField.PAY_MAX to "payBand.max",
             ApplicationField.PAY_CURRENCY to "payBand.currency",
-            ApplicationField.PAY_ESTIMATE_BASIS to "payBand.estimateBasis",
+            ApplicationField.PAY_ESTIMATE_BASIS to "notes.payEstimateBasis",
             ApplicationField.PAY_ESTIMATE_CONFIDENCE to "payBand.estimateConfidence",
             ApplicationField.POSTING_LANGUAGE to "languageAndTone.postingLanguage",
             ApplicationField.APPLICATION_LANGUAGE to "languageAndTone.applicationLanguage",
             ApplicationField.OFFER_SALARY to "offer.salary.amount",
             ApplicationField.OFFER_SALARY_CURRENCY to "offer.salary.currency",
-            ApplicationField.OFFER_BONUS to "offer.bonus",
-            ApplicationField.OFFER_BENEFITS to "offer.benefits",
+            ApplicationField.OFFER_BONUS to "notes.offer.bonus",
+            ApplicationField.OFFER_BENEFITS to "notes.offer.benefits",
             ApplicationField.OFFER_REMOTE_SHARE to "offer.remoteSharePercent",
             ApplicationField.OFFER_VACATION_DAYS to "offer.vacationDays",
-            ApplicationField.OFFER_NOTICE_PERIOD to "offer.noticePeriod",
+            ApplicationField.OFFER_NOTICE_PERIOD to "notes.offer.noticePeriod",
             ApplicationField.CONTACTS to "contactIds",
             ApplicationField.STATUS_REASON to "reason",
             ApplicationField.DECLINE_CATEGORY to "declineCategory",
