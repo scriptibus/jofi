@@ -102,8 +102,9 @@ class ApplicationToolsTest {
         val result = answer.shouldBeInstanceOf<ToolAnswer.Result>().value.shouldBeInstanceOf<ApplicationDetailResult>()
         result.id shouldBe application.id.value
         result.companyId shouldBe company
-        result.unread shouldBe true
-        result.posting shouldBe Untrusted(PostingDetails("Backend Engineer", "Berlin", emptyList()))
+        result.readOnly.unread shouldBe true
+        result.posting shouldBe Untrusted(PostingFields("Backend Engineer", "Berlin"))
+        result.readOnly.texts shouldBe Untrusted(ReadOnlyTexts(emptyList(), null))
     }
 
     @Test

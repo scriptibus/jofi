@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.applications.adapter.mcp
 
 import io.github.scriptibus.jofi.applications.domain.Application
+import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationPage
 import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
@@ -77,32 +78,26 @@ data class PostingSummary(
 )
 
 /**
- * One application in full, except its scores' history and the status history, which no tool needs yet. The posting's
- * title, location and sources are [Untrusted] (imports and scanners copy them from pages), and so is every other
- * text a tool can write ([notes]); [update_application][UpdateApplicationTool] takes all of it back.
+ * One application in full. Everything `update_application` takes back sits at the top level, under the same names
+ * and nesting: send the `content` of each untrusted object (`posting`, `notes`, `languageAndTone`) under its key.
+ * What no tool can change sits under [readOnly], which is not sent back. The posting's title and location,
+ * the notes and the language tags are [Untrusted]: imports and scanners copy them from pages, and tools can write them.
  */
 data class ApplicationDetailResult(
     val id: UUID,
     val version: Long,
     val companyId: UUID,
-    val contactIds: List<UUID>,
-    val status: ApplicationStatus,
-    val declineCategory: DeclineCategory?,
-    val unread: Boolean,
     val remoteSharePercent: Int?,
     val employmentType: EmploymentType?,
     val seniority: Seniority?,
     val deadline: LocalDate?,
     val howApplied: HowApplied?,
     val payBand: PayBandResult?,
-    val languageAndTone: LanguageAndToneResult,
     val offer: OfferResult?,
-    val wantScore: BigDecimal?,
-    val fitScore: BigDecimal?,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-    val posting: Untrusted<PostingDetails>,
+    val languageAndTone: Untrusted<LanguageAndToneResult>,
+    val posting: Untrusted<PostingFields>,
     val notes: Untrusted<ApplicationNotes>,
+    val readOnly: ApplicationReadOnly,
 ) {
     companion object {
         fun from(application: Application): ApplicationDetailResult {
@@ -111,47 +106,78 @@ data class ApplicationDetailResult(
                 application.id.value,
                 application.version,
                 details.company.value,
-                application.contacts.map { it.value }.sorted(),
-                application.status,
-                application.declineReason?.category,
-                application.unread,
                 details.remoteShare?.percent,
                 details.employmentType,
                 details.seniority,
                 details.deadline,
                 details.howApplied,
                 details.payBand?.let(PayBandResult::from),
-                LanguageAndToneResult.from(details.languageAndTone),
                 details.offer?.let(OfferResult::from),
+                Untrusted(LanguageAndToneResult.from(details.languageAndTone)),
+                Untrusted(PostingFields(details.title, details.location)),
+                Untrusted(notesOf(details)),
+                ApplicationReadOnly.from(application),
+            )
+        }
+
+        private fun notesOf(details: ApplicationDetails) =
+            ApplicationNotes(
+                details.portalNotes,
+                (details.payBand?.source as? PaySource.Estimated)?.basis,
+                details.offer?.let { OfferTexts(it.bonus, it.benefits, it.noticePeriod) },
+            )
+    }
+}
+
+/** The posting's own fields a tool can write. */
+data class PostingFields(
+    val title: String,
+    val location: String?,
+)
+
+/** The texts of an application besides its posting. */
+data class ApplicationNotes(
+    val portalNotes: String?,
+    val payEstimateBasis: String?,
+    val offer: OfferTexts?,
+)
+
+/**
+ * What no application tool changes (status, contacts, scores, flags, timestamps, where it was found, why it ended):
+ * shown for reading, never sent back to `update_application`. Its third-party texts are [Untrusted].
+ */
+data class ApplicationReadOnly(
+    val status: ApplicationStatus,
+    val declineCategory: DeclineCategory?,
+    val unread: Boolean,
+    val contactIds: List<UUID>,
+    val wantScore: BigDecimal?,
+    val fitScore: BigDecimal?,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    val texts: Untrusted<ReadOnlyTexts>,
+) {
+    companion object {
+        fun from(application: Application) =
+            ApplicationReadOnly(
+                application.status,
+                application.declineReason?.category,
+                application.unread,
+                application.contacts.map { it.value }.sorted(),
                 application.wantScore?.let(::points),
                 application.fitScore?.let(::points),
                 application.createdAt,
                 application.updatedAt,
-                Untrusted(PostingDetails(details.title, details.location, application.sources.map(SourceResult::from))),
-                Untrusted(notesOf(application)),
+                Untrusted(ReadOnlyTexts(application.sources.map(SourceResult::from), application.declineReason?.text)),
             )
-        }
-
-        private fun notesOf(application: Application): ApplicationNotes {
-            val details = application.details
-            return ApplicationNotes(
-                details.portalNotes,
-                (details.payBand?.source as? PaySource.Estimated)?.basis,
-                application.declineReason?.text,
-                details.offer?.let { OfferTexts(it.bonus, it.benefits, it.noticePeriod) },
-            )
-        }
 
         private fun points(score: Score): BigDecimal = BigDecimal.valueOf(score.tenths.toLong(), 1)
     }
 }
 
-/** The texts of an application besides its posting: what `update_application` takes back as plain arguments. */
-data class ApplicationNotes(
-    val portalNotes: String?,
-    val payEstimateBasis: String?,
+data class ReadOnlyTexts(
+    val sources: List<SourceResult>,
     val declineReason: String?,
-    val offer: OfferTexts?,
 )
 
 data class OfferTexts(
@@ -206,12 +232,6 @@ data class PayResult(
         fun from(pay: Pay) = PayResult(pay.amount, pay.currency.value, pay.period)
     }
 }
-
-data class PostingDetails(
-    val title: String,
-    val location: String?,
-    val sources: List<SourceResult>,
-)
 
 data class SourceResult(
     val kind: SourceKind,
