@@ -217,7 +217,9 @@ The arguments of `list_interviews`' entries without `readOnly`: `applicationId`,
 property is required** (the rule for replace-style updates above): leaving one out is refused and stores nothing,
 only an explicit `null` clears (`participantIds`: `null` or `[]` for none). The entries of
 `list_upcoming_interviews` are not enough (no version, notes or participants): read the interview with
-`list_interviews` first. Unchanged details store nothing and log nothing. Result: the interview. Errors:
+`list_interviews` first, in this session, and send what it returned: a model that writes the nulls itself and guesses
+the version can still blind-update and delete the notes (a `get_interview` tool is #236, a blocker before #121).
+Unchanged details store nothing and log nothing. Result: the interview. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
 ### `list_interviews` (read only)

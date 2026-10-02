@@ -22,8 +22,10 @@ class UpdateInterviewTool(
     override val name = "update_interview"
     override val readOnly = false
     override val description =
-        "Replace ALL details of an interview. Call list_interviews first (list_upcoming_interviews does not " +
-            "return enough), change what you mean to change and send it back with the same keys and nesting: " +
+        "Replace ALL details of an interview. Build the call from an entry of list_interviews that you read in " +
+            "this session (list_upcoming_interviews does not return enough): never invent the nulls or the " +
+            "version, because a null deletes the user's notes or participants for good. Change what you mean to " +
+            "change and send it back with the same keys and nesting: " +
             "`applicationId`, `id`, `version`, `type`, `localStart`, `timeZone`, `participantIds`, `outcome` as " +
             "they are and the `content` of `interview` {preparationNotes, notes}. Do not send `readOnly`. Every " +
             "property is required: leaving one out is refused, only an explicit `null` clears a field " +
