@@ -108,8 +108,8 @@ internal object ApplicationToolErrors {
             ApplicationField.INTERVIEW_START to "localStart",
             ApplicationField.TIME_ZONE to "timeZone",
             ApplicationField.PARTICIPANTS to "participantIds",
-            ApplicationField.PREPARATION_NOTES to "preparationNotes",
-            ApplicationField.INTERVIEW_NOTES to "notes",
+            ApplicationField.PREPARATION_NOTES to "interview.preparationNotes",
+            ApplicationField.INTERVIEW_NOTES to "interview.notes",
             ApplicationField.GHOSTED_AFTER_WEEKS to "ghostedAfterWeeks",
             ApplicationField.FOLLOW_UP_AFTER_DAYS to "followUpAfterDays",
         )

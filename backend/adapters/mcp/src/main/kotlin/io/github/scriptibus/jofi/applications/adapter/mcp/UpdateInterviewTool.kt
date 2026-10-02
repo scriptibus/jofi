@@ -22,29 +22,19 @@ class UpdateInterviewTool(
     override val name = "update_interview"
     override val readOnly = false
     override val description =
-        "Replace ALL details of an interview: a field left out is cleared, so call list_interviews first, change " +
-            "what you mean to change and send everything back with the interview's `version`: `type`, " +
-            "`localStart`, `timeZone`, `participantIds`, `outcome` as they are, `preparationNotes` and `notes` " +
-            "from `interview`, and `null` for what is not set. A stale version answers version-conflict and " +
-            "changes nothing. A value that shows [withheld] is hidden from you; sending it back is refused " +
-            "(withheld-value). Answers the interview."
-    override val inputSchema =
-        """
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["applicationId", "id", "version", "type", "localStart", "timeZone"],
-          "properties": {
-            "applicationId": {"type": "string", "format": "uuid"},
-            "id": {"type": "string", "format": "uuid", "description": "The interview."},
-            "version": {"type": "integer", "minimum": 0, "description": "The version from list_interviews."},
-            ${InterviewToolInput.PROPERTIES}
-          }
-        }
-        """.trimIndent()
+        "Replace ALL details of an interview. Call list_interviews first (list_upcoming_interviews does not " +
+            "return enough), change what you mean to change and send it back with the same keys and nesting: " +
+            "`applicationId`, `id`, `version`, `type`, `localStart`, `timeZone`, `participantIds`, `outcome` as " +
+            "they are and the `content` of `interview` {preparationNotes, notes}. Do not send `readOnly`. Every " +
+            "property is required: leaving one out is refused, only an explicit `null` clears a field " +
+            "(`participantIds`: null or [] for none). A stale version answers version-conflict and changes " +
+            "nothing. A value that shows [withheld] is hidden from you; sending it back is refused " +
+            "(withheld-value) and names the argument, so an interview with a hidden value cannot be updated " +
+            "through this tool. Answers the interview."
+    override val inputSchema = InterviewToolInput.schema(update = true)
 
     override fun call(call: ToolCall): ToolAnswer {
-        call.arguments.withheldArgument()?.let { return ToolProblems.withheldValue(it) }
+        call.arguments.withheldPath()?.let { return ToolProblems.withheldValue(it) }
         return when (val result = update(call)) {
             is ApplicationResult.Success -> ToolAnswer.Result(InterviewResult.from(result.value))
             is ApplicationResult.Failure -> ApplicationToolErrors.failure(result)

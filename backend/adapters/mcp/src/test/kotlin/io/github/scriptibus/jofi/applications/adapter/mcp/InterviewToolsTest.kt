@@ -113,7 +113,7 @@ class InterviewToolsTest {
     fun `explicit nulls for the optional arguments mean not set`() {
         val added = slot<Interview>()
         every { interviews.add(capture(added)) } returns ApplicationStoreResult.Success(Unit)
-        val nulls = listOf("participantIds", "preparationNotes", "notes", "outcome").map { it to null }.toTypedArray()
+        val nulls = listOf("participantIds", "interview", "outcome").map { it to null }.toTypedArray()
 
         log.call(call("applicationId" to "$applicationId", *nulls, *required())).shouldBeInstanceOf<ToolAnswer.Result>()
 
@@ -157,7 +157,7 @@ class InterviewToolsTest {
         every { interviews.update(capture(edited)) } returns ApplicationStoreResult.Success(Unit)
 
         val answer =
-            update.call(call(*identity(0), *required(), "outcome" to "REJECTED", "notes" to null))
+            update.call(call(*identity(0), *required(), "outcome" to "REJECTED", "interview" to mapOf("notes" to null)))
 
         edited.captured.details.outcome shouldBe InterviewOutcome.REJECTED
         edited.captured.details.notes shouldBe null
@@ -185,10 +185,10 @@ class InterviewToolsTest {
 
     @Test
     fun `update_interview refuses an argument that carries the withheld marker`() {
-        val answer = update.call(call(*identity(0), *required(), "notes" to "call [withheld]"))
+        val answer = update.call(call(*identity(0), *required(), "interview" to mapOf("notes" to "call [withheld]")))
 
         answer.shouldBeInstanceOf<ToolAnswer.Error>().problems shouldBe
-            listOf(ArgumentProblem("notes", "withheld-value"))
+            listOf(ArgumentProblem("interview.notes", "withheld-value"))
         verify(exactly = 0) { interviews.findById(any(), any()) }
     }
 
@@ -212,15 +212,60 @@ class InterviewToolsTest {
     }
 
     @Test
-    fun `list_interviews caps what it returns and still says how many there are`() {
+    fun `list_interviews called with more interviews than it returns answers the earliest ones and the total`() {
         val many = (0 until InterviewListResult.MAX_LISTED + 5).map { stored.copy(id = InterviewId(UUID.randomUUID())) }
-        every { interviews.listByApplication(any()) } returns ApplicationStoreResult.Success(many)
+        every { interviews.listByApplication(ApplicationId(applicationId)) } returns
+            ApplicationStoreResult.Success(many)
 
-        val result = InterviewListResult.from(many)
+        val result =
+            list
+                .call(call("applicationId" to "$applicationId"))
+                .shouldBeInstanceOf<ToolAnswer.Result>()
+                .value
+                .shouldBeInstanceOf<InterviewListResult>()
 
         result.total shouldBe InterviewListResult.MAX_LISTED + 5
-        result.interviews.size shouldBe InterviewListResult.MAX_LISTED
+        result.interviews.map { it.id } shouldBe many.take(InterviewListResult.MAX_LISTED).map { it.id.value }
     }
+
+    @Test
+    fun `log_interview refuses a withheld marker, update and log name the nested argument, store nothing`() {
+        val marker = "interview" to mapOf("preparationNotes" to "see [withheld]")
+        val answer = log.call(call("applicationId" to "$applicationId", *required(), marker))
+
+        answer.shouldBeInstanceOf<ToolAnswer.Error>().problems shouldBe
+            listOf(ArgumentProblem("interview.preparationNotes", "withheld-value"))
+        verify(exactly = 0) { interviews.add(any()) }
+    }
+
+    @Test
+    fun `the update schema requires every property, the log schema only the identifying ones`() {
+        val updateRequired = requiredOf(update.inputSchema)
+        val logRequired = requiredOf(log.inputSchema)
+
+        updateRequired shouldBe
+            setOf(
+                "applicationId",
+                "id",
+                "version",
+                "type",
+                "localStart",
+                "timeZone",
+                "participantIds",
+                "outcome",
+                "interview",
+            )
+        logRequired shouldBe setOf("applicationId", "type", "localStart", "timeZone")
+        update.inputSchema.contains("\"required\": [\"preparationNotes\", \"notes\"]") shouldBe true
+    }
+
+    private fun requiredOf(schema: String): Set<String> =
+        Regex("\"required\": \\[([^\\]]*)]")
+            .let { checkNotNull(it.find(schema)) }
+            .groupValues[1]
+            .split(",")
+            .map { it.trim().trim('"') }
+            .toSet()
 
     @Test
     fun `list_upcoming_interviews answers the soonest first without notes, the title untrusted`() {
@@ -257,8 +302,7 @@ class InterviewToolsTest {
         arrayOf(
             *required(),
             "participantIds" to listOf("$contact"),
-            "preparationNotes" to " Read the posting ",
-            "notes" to "Went well",
+            "interview" to mapOf("preparationNotes" to " Read the posting ", "notes" to "Went well"),
             "outcome" to "PASSED",
             *more,
         )

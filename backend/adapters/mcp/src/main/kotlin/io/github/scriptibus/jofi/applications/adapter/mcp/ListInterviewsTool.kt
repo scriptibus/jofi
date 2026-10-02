@@ -21,8 +21,8 @@ class ListInterviewsTool(
     override val readOnly = true
     override val description =
         "List the interviews and calls of one job application (`applicationId`) in the order they start, with " +
-            "their versions, for update_interview. At most ${InterviewListResult.MAX_LISTED} are returned; " +
-            "`total` is their number. The notes are marked untrusted."
+            "their versions, for update_interview. At most ${InterviewListResult.MAX_LISTED} are returned, the " +
+            "earliest ones; `total` is their number (#236 bounds this properly). The notes are marked untrusted."
     override val inputSchema =
         """
         {
