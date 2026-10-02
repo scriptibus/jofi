@@ -102,15 +102,9 @@ class ToolArgumentsTest {
     }
 
     @Test
-    fun `the redaction marker is found in nested text and names the top-level argument`() {
-        ToolArguments(mapOf("name" to "E", "channels" to listOf(mapOf("value" to "+49 [withheld]"))))
-            .withheldArgument() shouldBe "channels"
-        ToolArguments(mapOf("notes" to "see [withheld]")).withheldArgument() shouldBe "notes"
-        ToolArguments(mapOf("notes" to "fine", "n" to 1, "nothing" to null)).withheldArgument().shouldBeNull()
-    }
-
-    @Test
     fun `the redaction marker's path names the nested argument`() {
+        ToolArguments(mapOf("name" to "E", "channels" to listOf(mapOf("value" to "+49 [withheld]"))))
+            .withheldPath() shouldBe "channels[0].value"
         ToolArguments(mapOf("a" to "x", "offer" to mapOf("n" to 1, "bonus" to mapOf("t" to "[withheld]"))))
             .withheldPath() shouldBe "offer.bonus.t"
         ToolArguments(mapOf("ids" to listOf("fine", "see [withheld]"))).withheldPath() shouldBe "ids[1]"

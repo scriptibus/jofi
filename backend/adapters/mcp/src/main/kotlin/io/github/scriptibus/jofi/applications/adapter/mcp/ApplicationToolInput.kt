@@ -17,6 +17,7 @@ import io.github.scriptibus.jofi.applications.domain.PayPeriod
 import io.github.scriptibus.jofi.applications.domain.PaySourceKind
 import io.github.scriptibus.jofi.applications.domain.Seniority
 import io.github.scriptibus.jofi.applications.domain.Tone
+import io.github.scriptibus.jofi.shared.adapter.mcp.ArgumentProblem
 import io.github.scriptibus.jofi.shared.adapter.mcp.InvalidToolArgument
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolArguments
 
@@ -47,6 +48,27 @@ internal object ApplicationToolInput {
             offer = offerOf(arguments.obj("offer"), notes?.obj("offer")),
         )
     }
+
+    /**
+     * What the arguments say against each other, which the domain would resolve by dropping something silently: a
+     * pay estimate basis without an `ESTIMATED` band, and (an update sends both halves) an `offer` and a `notes.offer`
+     * of which only one is `null`, which would clear the details and keep the texts or the reverse.
+     */
+    fun conflicts(
+        arguments: ToolArguments,
+        update: Boolean,
+    ): List<ArgumentProblem> {
+        val notes = arguments.obj("notes")
+        val estimated = arguments.obj("payBand")?.enum("source", PaySourceKind::class.java) == PaySourceKind.ESTIMATED
+        val basis = if (notes?.text("payEstimateBasis") != null && !estimated) listOf(NOT_APPLICABLE) else emptyList()
+        val halves = listOf(arguments.obj("offer") == null, notes?.obj("offer") == null)
+        val offer = if (update && halves.distinct().size > 1) listOf(OFFER_HALF, NOTES_OFFER_HALF) else emptyList()
+        return basis + offer
+    }
+
+    private val NOT_APPLICABLE = ArgumentProblem("notes.payEstimateBasis", "not-applicable")
+    private val OFFER_HALF = ArgumentProblem("offer", "inconsistent")
+    private val NOTES_OFFER_HALF = ArgumentProblem("notes.offer", "inconsistent")
 
     private fun payBandOf(
         band: ToolArguments,

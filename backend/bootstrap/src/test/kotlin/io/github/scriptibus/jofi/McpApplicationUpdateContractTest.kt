@@ -82,6 +82,40 @@ class McpApplicationUpdateContractTest : McpApplicationContractSupport() {
     }
 
     @Test
+    fun `clearing the offer in one place only, or sending a basis without an estimated band, is refused`() {
+        val company = company()
+        owner.mcpClient().use { client ->
+            client.initialize()
+            val created = client.call("create_application", everyField(company))
+            val before = applicationRows()
+            val full = created.asUpdate()
+            val notes = full["notes"] as Map<*, *>
+
+            val detailsOnly =
+                client.failure(
+                    "update_application",
+                    full + ("notes" to (notes + ("offer" to null))),
+                    INVALID,
+                )
+            val textsOnly = client.failure("update_application", full + ("offer" to null), INVALID)
+            val band = (full["payBand"] as Map<*, *>) + ("source" to "POSTING")
+            val basis = client.failure("update_application", full + ("payBand" to band), INVALID)
+            val noBand =
+                client.failure(
+                    "create_application",
+                    bare(company) + ("notes" to mapOf("payEstimateBasis" to "x")),
+                    INVALID,
+                )
+
+            detailsOnly.problems() shouldContainExactly listOf("offer:inconsistent", "notes.offer:inconsistent")
+            textsOnly.problems() shouldContainExactly detailsOnly.problems()
+            basis.problems() shouldContainExactly listOf("notes.payEstimateBasis:not-applicable")
+            noBand.problems() shouldContainExactly listOf("notes.payEstimateBasis:not-applicable")
+            applicationRows() shouldBe before
+        }
+    }
+
+    @Test
     fun `an update that leaves a property out is refused by the schema, and nothing is stored`() {
         val company = company()
         owner.mcpClient().use { client ->
