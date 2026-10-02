@@ -13,6 +13,8 @@ import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
 import io.github.scriptibus.jofi.tasks.domain.ContactRef
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
@@ -136,6 +138,36 @@ class TaskRepositoryTest {
     }
 
     @Test
+    fun `lists one page of the done tasks, the newest completion first, with the total and no other state`() {
+        val completions = listOf(LATER, LATER.plusSeconds(60), LATER.plusSeconds(120), LATER.plusSeconds(180))
+        val doneTasks = completions.map { doneAt(open(details()), it) }
+        val sameInstant = doneAt(open(details()), LATER)
+        val others = listOf(open(details()), Task.suggest(newId(), details(), SUGGESTION, CREATED))
+        (doneTasks + sameInstant + others).forEach { repository.add(it) }
+        val newestFirst = doneTasks.reversed()
+        val oldest = listOf(doneTasks.first(), sameInstant).sortedByDescending { it.id.value }
+
+        fun page(
+            page: Int,
+            size: Int,
+        ) = repository.listDone(DoneTaskQuery(page, size))
+
+        page(0, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(newestFirst.take(2), 5))
+        page(1, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(newestFirst.drop(2).take(1) + oldest.take(1), 5))
+        page(2, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(oldest.drop(1), 5))
+        page(3, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(emptyList(), 5))
+        page(0, DoneTaskQuery.MAX_SIZE) shouldBe
+            TaskStoreResult.Success(DoneTaskPage(newestFirst.dropLast(1) + oldest, 5))
+    }
+
+    @Test
+    fun `without done tasks the page is empty with a total of zero`() {
+        repository.add(open(details()))
+
+        repository.listDone(DoneTaskQuery()) shouldBe TaskStoreResult.Success(DoneTaskPage(emptyList(), 0))
+    }
+
+    @Test
     fun `deleting needs the proof for exactly this task`() {
         val task = open(details())
         val other = open(details())
@@ -184,9 +216,14 @@ class TaskRepositoryTest {
 
     private fun open(details: TaskDetails): Task = Task.create(newId(), details, TaskOrigin.Manual, CREATED)
 
-    private fun done(task: Task): Task =
+    private fun done(task: Task): Task = doneAt(task, LATER)
+
+    private fun doneAt(
+        task: Task,
+        at: Instant,
+    ): Task =
         task
-            .apply(TaskTransition.COMPLETE, LATER)
+            .apply(TaskTransition.COMPLETE, at)
             .shouldBeInstanceOf<TaskStateChange.Changed>()
             .task
 
@@ -197,5 +234,6 @@ class TaskRepositoryTest {
     private companion object {
         val CREATED: Instant = Instant.parse("2026-09-30T08:00:00.123456Z")
         val LATER: Instant = Instant.parse("2026-09-30T09:30:00Z")
+        val SUGGESTION = TaskOrigin.Suggested("follow-up", "application:page")
     }
 }

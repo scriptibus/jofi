@@ -4161,6 +4161,63 @@
         "tags" : [ "task-controller" ]
       }
     },
+    "/api/tasks/done" : {
+      "get" : {
+        "operationId" : "listDoneTasks",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 0
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "type" : "integer",
+            "format" : "int32",
+            "default" : 20
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DoneTaskPageResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
+          },
+          "default" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description" : "Error as RFC 9457 problem details"
+          }
+        },
+        "tags" : [ "done-task-controller" ]
+      }
+    },
     "/api/tasks/suggestions" : {
       "get" : {
         "operationId" : "listSuggestedTasks",
@@ -5904,6 +5961,30 @@
           },
           "text" : {
             "type" : "string"
+          }
+        }
+      },
+      "DoneTaskPageResponse" : {
+        "required" : [ "page", "size", "tasks", "total" ],
+        "type" : "object",
+        "properties" : {
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "tasks" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/components/schemas/TaskResponse"
+            }
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int64"
           }
         }
       },

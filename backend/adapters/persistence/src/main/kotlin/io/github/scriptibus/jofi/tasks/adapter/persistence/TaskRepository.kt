@@ -10,6 +10,8 @@ import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
 import io.github.scriptibus.jofi.tasks.domain.ContactRef
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
+import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskLink
@@ -63,6 +65,21 @@ class TaskRepository(
 
     override fun listByState(state: TaskState): TaskStoreResult<List<Task>> =
         storeCall("listByState") { TaskStoreResult.Success(list(TASK.STATE.eq(state.name))) }
+
+    override fun listDone(query: DoneTaskQuery): TaskStoreResult<DoneTaskPage> =
+        storeCall("listDone") {
+            val done = TASK.STATE.eq(TaskState.DONE.name)
+            val tasks =
+                dsl
+                    .selectFrom(TASK)
+                    .where(done)
+                    .orderBy(TASK.COMPLETED_AT.desc(), TASK.ID.desc())
+                    .limit(query.size)
+                    .offset(query.offset)
+                    .fetch()
+                    .map(TaskRecords::toDomain)
+            TaskStoreResult.Success(DoneTaskPage(tasks, dsl.fetchCount(TASK, done).toLong()))
+        }
 
     override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> =
         storeCall("listByLink") {
