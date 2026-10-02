@@ -57,7 +57,14 @@ export function mergeGroups(pages: readonly TaskGroupListResponse[]): TaskGroupR
   for (const { groups } of pages) {
     for (const group of groups) {
       const known = merged.get(group.group);
-      merged.set(group.group, known ? { ...known, tasks: [...known.tasks, ...group.tasks] } : group);
+      if (!known) {
+        merged.set(group.group, group);
+        continue;
+      }
+      // A task that was reopened meanwhile can come on a later page too: it is listed once.
+      const seen = new Set(known.tasks.map((task) => task.id));
+      const added = group.tasks.filter((task) => !seen.has(task.id));
+      merged.set(group.group, { ...known, tasks: [...known.tasks, ...added] });
     }
   }
   return [...merged.values()];
