@@ -56,7 +56,7 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
                     mapOf("id" to application, "version" to 0, "contactIds" to emptyList<String>()),
                 )
 
-            answer["portalNotes"].asString() shouldBe "Call [withheld]"
+            answer["notes"].untrusted()["portalNotes"].asString() shouldBe "Call [withheld]"
             answer.toString() shouldNotContain "1234567"
         }
     }

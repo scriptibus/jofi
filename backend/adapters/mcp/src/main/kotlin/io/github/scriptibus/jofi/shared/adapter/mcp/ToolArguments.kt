@@ -4,7 +4,9 @@
 package io.github.scriptibus.jofi.shared.adapter.mcp
 
 import io.github.scriptibus.jofi.shared.domain.ai.NeverSendFilter
+import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeParseException
 import java.util.UUID
@@ -38,6 +40,15 @@ class ToolArguments(
             when (value) {
                 is Int -> value.toLong()
                 is Long -> value
+                else -> invalid(name)
+            }
+        }
+
+    /** An amount as the client wrote it: a JSON number, read exactly (a double through its shortest text). */
+    fun decimal(name: String): BigDecimal? =
+        values[name]?.let { value ->
+            when (value) {
+                is Int, is Long, is Double, is BigDecimal -> BigDecimal(value.toString())
                 else -> invalid(name)
             }
         }
@@ -94,6 +105,16 @@ class ToolArguments(
         text(name)?.let { text ->
             try {
                 Instant.parse(text)
+            } catch (_: DateTimeParseException) {
+                invalid(name)
+            }
+        }
+
+    /** A calendar date such as `2026-10-05`. */
+    fun date(name: String): LocalDate? =
+        text(name)?.let { text ->
+            try {
+                LocalDate.parse(text)
             } catch (_: DateTimeParseException) {
                 invalid(name)
             }

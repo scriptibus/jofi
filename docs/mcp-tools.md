@@ -60,11 +60,14 @@ posting: untrusted {title, location}}]}`.
 
 One application by `id` (UUID, required). Reading it does not mark it read.
 
-Result: `{id, version, companyId, contactIds, status, declineCategory, declineReason, unread,
-remoteSharePercent, employmentType, seniority, deadline, howApplied, portalNotes, payBand: {min, max,
-currency, period, source}, wantScore, fitScore, createdAt, updatedAt, posting: untrusted {title, location,
-sources: [{kind, url, discoveredAt, offlineSince}]}}`. Language and tone and the offer are not returned yet.
-Errors: `not-found`, `unavailable`.
+Result: `{id, version, companyId, contactIds, status, declineCategory, unread, remoteSharePercent,
+employmentType, seniority, deadline, howApplied, payBand: {min, max, currency, period, source,
+estimateConfidence}, languageAndTone: {postingLanguage, applicationLanguage, formOfAddress, tone}, offer:
+{salary: {amount, currency, period}, remoteSharePercent, vacationDays, startDate, answerBy}, wantScore,
+fitScore, createdAt, updatedAt, posting: untrusted {title, location, sources: [{kind, url, discoveredAt,
+offlineSince}]}, notes: untrusted {portalNotes, payEstimateBasis, declineReason, offer: {bonus, benefits,
+noticePeriod}}}`. Every text a tool can write is in `posting` or `notes`; the rest is typed. Errors:
+`not-found`, `unavailable`.
 
 ## Companies, contacts and contact links (#119)
 
@@ -133,6 +136,34 @@ An update that sends back a value showing `[withheld]` (a flagged value the resu
 `invalid-arguments` (`withheld-value`) and changes nothing, because the replace-all update would store the marker
 over the real value. A contact or company with a flagged value therefore cannot be updated through these tools
 until they get patch-style updates.
+
+## Application writes (#118)
+
+Like the companies and contacts above: no confirmation (spec §9), logged with the AI as actor, updates replace
+all fields, a stale `version` answers `version-conflict`, a `[withheld]` value sent back is refused, `null` is
+accepted for every optional argument, and the texts come back untrusted. Problems are named like
+`title:required`, `companyId:not-found`, `payBand.currency:invalid-currency`, `offer.vacationDays:out-of-range`,
+`deadline:invalid`.
+
+Changing the status is not a tool yet: moving to Applied freezes the job description snapshots for good
+(ADR-0046), which is for Lucas to decide first (see #118).
+
+### `create_application`
+
+`companyId` (an existing company) and `title`, both required, and optional `location`, `remoteSharePercent`
+(0 to 100), `employmentType`, `seniority`, `deadline` (`2026-11-01`), `howApplied`, `portalNotes` (Markdown),
+`payBand` (`{min, max, currency, period, source, estimateBasis, estimateConfidence}`; at least one of min and
+max, the basis and confidence belong to `ESTIMATED`), `languageAndTone` and `offer` (as in `get_application`,
+its texts as `bonus`, `benefits`, `noticePeriod`). The application starts as `DISCOVERED`. Result: as
+`get_application`. Errors: `invalid-arguments`, `unavailable`.
+
+### `update_application`
+
+`id`, `version`, `companyId` and `title` (required) and the arguments of `create_application`. Replaces all
+details, so send back what `get_application` returned (title and location from `posting`, the other texts from
+`notes`). The status, contacts, scores and unread flag are not changed here; an update that changes nothing
+stores nothing and logs nothing. Result: as `get_application`. Errors: `invalid-arguments`, `not-found`,
+`version-conflict`, `unavailable`.
 
 ## Tasks (#119)
 

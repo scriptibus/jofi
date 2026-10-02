@@ -137,4 +137,22 @@ class ToolArgumentsTest {
             shouldThrow<InvalidToolArgument> { read() }
         }
     }
+
+    @Test
+    fun `amounts and dates are read exactly, and wrong shapes name the argument`() {
+        val values =
+            ToolArguments(
+                mapOf("a" to 70000, "b" to 1234.56, "c" to 5L, "day" to "2026-10-05", "bad" to "5 Oct", "text" to "1"),
+            )
+
+        values.decimal("a") shouldBe java.math.BigDecimal("70000")
+        values.decimal("b") shouldBe java.math.BigDecimal("1234.56")
+        values.decimal("c") shouldBe java.math.BigDecimal("5")
+        values.decimal("missing").shouldBeNull()
+        values.date("day") shouldBe java.time.LocalDate.of(2026, 10, 5)
+        values.date("missing").shouldBeNull()
+        listOf<() -> Any?>({ values.decimal("text") }, { values.date("bad") }).forEach { read ->
+            shouldThrow<InvalidToolArgument> { read() }
+        }
+    }
 }

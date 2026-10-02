@@ -120,32 +120,7 @@ class McpContractTest(
 
             val tools = client.listTools().tools().associate { it.name() to it.annotations().readOnlyHint() }
 
-            // The only test that pins the whole tool surface: a PR that adds a tool extends this map, and a
-            // write tool marked read only fails it.
-            tools shouldBe
-                mapOf(
-                    "search_applications" to true,
-                    "get_application" to true,
-                    "search_companies" to true,
-                    "get_company" to true,
-                    "search_contacts" to true,
-                    "get_contact" to true,
-                    "create_company" to false,
-                    "update_company" to false,
-                    "create_contact" to false,
-                    "update_contact" to false,
-                    "set_application_contacts" to false,
-                    "list_tasks" to true,
-                    "list_task_suggestions" to true,
-                    "create_task" to false,
-                    "complete_task" to false,
-                    "accept_task_suggestion" to false,
-                    "delete_application" to false,
-                    "delete_interview" to false,
-                    "delete_company" to false,
-                    "delete_contact" to false,
-                    "delete_task" to false,
-                )
+            tools shouldBe TOOLS
         }
     }
 
@@ -170,7 +145,7 @@ class McpContractTest(
             search["applications"][0]["posting"].untrusted()["title"].asString() shouldBe "Kotlin Engineer"
             application["id"].asString() shouldBe id
             application["posting"].untrusted()["location"].asString() shouldBe "Berlin"
-            application["portalNotes"].asString() shouldBe "Recruiter asked to call [withheld]"
+            application["notes"].untrusted()["portalNotes"].asString() shouldBe "Recruiter asked to call [withheld]"
             application.toString() shouldNotContain "1234567"
         }
     }
@@ -302,6 +277,37 @@ class McpContractTest(
         /** Makes the flag source throw, as a broken knowledge store would (M2). */
         @Volatile
         var broken = false
+
+        /**
+         * The whole tool surface with its read-only hints, pinned by the one test that lists the tools: a PR that
+         * adds a tool extends this map, and a write tool marked read only fails it.
+         */
+        val TOOLS =
+            mapOf(
+                "search_applications" to true,
+                "get_application" to true,
+                "search_companies" to true,
+                "get_company" to true,
+                "search_contacts" to true,
+                "get_contact" to true,
+                "create_company" to false,
+                "update_company" to false,
+                "create_contact" to false,
+                "update_contact" to false,
+                "set_application_contacts" to false,
+                "create_application" to false,
+                "update_application" to false,
+                "list_tasks" to true,
+                "list_task_suggestions" to true,
+                "create_task" to false,
+                "complete_task" to false,
+                "accept_task_suggestion" to false,
+                "delete_application" to false,
+                "delete_interview" to false,
+                "delete_company" to false,
+                "delete_contact" to false,
+                "delete_task" to false,
+            )
         const val PASSWORD = "correct horse battery staple"
         const val FLAGGED_PHONE = "0170 1234567"
         const val CSRF_HEADER = "X-XSRF-TOKEN"
