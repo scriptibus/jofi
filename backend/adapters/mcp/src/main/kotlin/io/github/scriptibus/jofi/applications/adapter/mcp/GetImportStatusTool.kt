@@ -20,7 +20,7 @@ class GetImportStatusTool(
     override val name = "get_import_status"
     override val readOnly = true
     override val description =
-        "Get the status of a posting import by the `id` start_text_import or start_url_import answered: PENDING " +
+        "Get the status of a posting import by the `id` start_text_import answered: PENDING " +
             "(the AI is still reading the posting; ask again in a few seconds), SUCCEEDED (`applicationId` names " +
             "the new application: read it with get_application) or FAILED (`failure` says why, such as " +
             "NOT_A_POSTING or AI_UNAVAILABLE; the user can retry in the app)."

@@ -24,7 +24,6 @@ internal object ApplicationToolErrors {
         )
 
     /** Every outcome of the application use cases; a new one breaks this `when` instead of becoming a vague code. */
-    @Suppress("CyclomaticComplexMethod") // One branch per outcome of a sealed result, no `else`.
     fun failure(
         failure: ApplicationResult.Failure,
         unavailable: String = "Applications cannot be used now.",
@@ -32,23 +31,20 @@ internal object ApplicationToolErrors {
         when (failure) {
             is ApplicationResult.Invalid -> invalid(failure)
 
-            ApplicationResult.NotFound -> ToolAnswer.Error("not-found", "No application has this id.")
-
-            ApplicationResult.InterviewNotFound -> ToolAnswer.Error("not-found", "No such interview.")
-
             ApplicationResult.VersionConflict -> ToolProblems.versionConflict()
 
             is ApplicationResult.InvalidTransition -> invalidTransition(failure)
 
             is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", unavailable)
 
-            ApplicationResult.ImportNotFound -> ToolAnswer.Error("not-found", "No import has this id.")
-
-            ApplicationResult.AiNotConfigured -> aiNotConfigured()
-
-            ApplicationResult.ImportInProgress -> importInProgress()
-
-            ApplicationResult.ImportBusy -> importBusy()
+            // The outcomes with a fixed answer, in FIXED (ApplicationToolErrorsTest checks that each has one).
+            ApplicationResult.NotFound,
+            ApplicationResult.InterviewNotFound,
+            ApplicationResult.ImportNotFound,
+            ApplicationResult.AiNotConfigured,
+            ApplicationResult.ImportInProgress,
+            ApplicationResult.ImportBusy,
+            -> FIXED.getValue(failure)
 
             // Sources, snapshots, saved views and retries have no tool (yet): none of these can happen.
             ApplicationResult.SourceNotFound,
@@ -60,22 +56,26 @@ internal object ApplicationToolErrors {
             -> ToolAnswer.Error("failed", "The request could not be completed.")
         }
 
-    private fun aiNotConfigured() =
-        ToolAnswer.Error(
-            "ai-not-configured",
-            "No AI model is set up for reading postings. The user sets one up in the settings first.",
-        )
-
-    private fun importInProgress() =
-        ToolAnswer.Error(
-            "import-in-progress",
-            "Another request is importing this very link. Try again shortly: by then its import is known.",
-        )
-
-    private fun importBusy() =
-        ToolAnswer.Error(
-            "import-busy",
-            "The server is fetching as many pages as it allows. Try again shortly; nothing was fetched or stored.",
+    private val FIXED: Map<ApplicationResult.Failure, ToolAnswer.Error> =
+        mapOf(
+            ApplicationResult.NotFound to ToolAnswer.Error("not-found", "No application has this id."),
+            ApplicationResult.InterviewNotFound to ToolAnswer.Error("not-found", "No such interview."),
+            ApplicationResult.ImportNotFound to ToolAnswer.Error("not-found", "No import has this id."),
+            ApplicationResult.AiNotConfigured to
+                ToolAnswer.Error(
+                    "ai-not-configured",
+                    "No AI model is set up for reading postings. The user sets one up in the settings first.",
+                ),
+            ApplicationResult.ImportInProgress to
+                ToolAnswer.Error(
+                    "import-in-progress",
+                    "Another request is importing this very link. Try again shortly: by then its import is known.",
+                ),
+            ApplicationResult.ImportBusy to
+                ToolAnswer.Error(
+                    "import-busy",
+                    "The server is fetching as many pages as it allows. Try again shortly; nothing was fetched.",
+                ),
         )
 
     private fun invalid(failure: ApplicationResult.Invalid) =

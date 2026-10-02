@@ -10,6 +10,7 @@ import io.github.scriptibus.jofi.applications.domain.PostingImport
 import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
 import org.springframework.stereotype.Component
 
 /**
@@ -43,11 +44,13 @@ class StartTextImportTool(
         }
         """.trimIndent()
 
-    override fun call(call: ToolCall): ToolAnswer =
-        when (val result = start(call)) {
+    override fun call(call: ToolCall): ToolAnswer {
+        call.arguments.withheldPath()?.let { return ToolProblems.withheldValue(it) }
+        return when (val result = start(call)) {
             is ApplicationResult.Success -> ToolAnswer.Result(PostingImportResult.from(result.value))
             is ApplicationResult.Failure -> ApplicationToolErrors.failure(result)
         }
+    }
 
     // A named method, not a lambda: the architecture rule sees the one use case call here.
     private fun start(call: ToolCall): ApplicationResult<PostingImport> =

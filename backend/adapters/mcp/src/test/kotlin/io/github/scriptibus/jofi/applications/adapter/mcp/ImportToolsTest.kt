@@ -79,6 +79,13 @@ class ImportToolsTest {
     }
 
     @Test
+    fun `start_text_import refuses a withheld marker and stores nothing`() {
+        text.call(call("text" to "A posting [withheld]")).shouldBeInstanceOf<ToolAnswer.Error>().problems shouldBe
+            listOf(ArgumentProblem("text", "withheld-value"))
+        imports.stored shouldBe emptyMap()
+    }
+
+    @Test
     fun `start_text_import refuses blank text and answers no model, storing nothing`() {
         text.call(call("text" to " \n ")) shouldBe
             ToolAnswer.Error(

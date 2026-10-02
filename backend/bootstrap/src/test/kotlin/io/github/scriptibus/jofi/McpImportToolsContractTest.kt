@@ -174,6 +174,9 @@ class McpImportToolsContractTest : McpToolContractSupport() {
                 listOf("text:required")
             client.failure("start_text_import", mapOf("text" to "a\u0000b"), "invalid-arguments").problems() shouldBe
                 listOf("text:invalid-character")
+            client
+                .failure("start_text_import", mapOf("text" to "A posting [withheld]"), "invalid-arguments")
+                .problems() shouldBe listOf("text:withheld-value")
             client.refused("start_text_import", mapOf())
             client.refused("start_text_import", mapOf("text" to "x".repeat(100_001)))
             client.refused("start_text_import", mapOf("text" to "A posting", "unknown" to 1))
