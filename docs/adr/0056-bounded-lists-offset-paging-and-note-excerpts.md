@@ -39,7 +39,9 @@ send it back as an update and store a shortened note over the real one.
 
 - REST `GET /api/tasks` and `GET /api/tasks/suggestions` take optional `page` and `size`; the Tasks page loads 50 at
   a time and has "Show more". The response gains `page`; list entries lose `notes` for the excerpt keys.
-- The excerpt is cut before the "never send to AI" filter sees the result (ADR-0053). The filter matches whole
-  values, so an excerpt that ends inside a flagged value shows its first characters. Closing that needs a
-  prefix-aware filter (a protected path) or lists without notes; it is open.
-- Every new list tool follows this: a `page`/`size` pair, the use case limits, excerpts for long text, a `get_*` tool.
+- The "never send to AI" values (ADR-0053) go out of the **whole** notes before an excerpt is cut, for every list an
+  AI reads (`NotesAudience.AI`, `RedactForAiUseCase`): the value filter of the MCP server matches whole values only
+  and would no longer recognise one that a cut left half in. The user's own lists (`NotesAudience.USER`) show the
+  notes as they are. If the flags cannot be read, an AI's list fails (`unavailable`), as every tool result does.
+- Every new list tool follows this: a `page`/`size` pair, the use case limits, excerpts for long text (for an AI,
+  cut from filtered text), a `get_*` tool.

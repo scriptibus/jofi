@@ -30,6 +30,21 @@ class TaskSummaryTest {
         at,
     )
 
+    private fun pageOf(
+        groups: List<TaskGroup>,
+        request: PageRequest,
+    ): TaskGroupsPage {
+        val window = TaskGroupsPage.window(groups, request)
+        return window.page(window.tasks.map(TaskSummary::of))
+    }
+
+    @Test
+    fun `a summary can be cut from other notes than the task's own`() {
+        val summary = TaskSummary.of(task("T", "0170 1234567 is private"), "[withheld] is private")
+
+        summary.notesExcerpt shouldBe TextExcerpt("[withheld] is private", false)
+    }
+
     @Test
     fun `a summary keeps the excerpt of long notes and flags the cut`() {
         val long = "n".repeat(TextExcerpt.MAX_LENGTH + 40)
@@ -62,7 +77,7 @@ class TaskSummaryTest {
                 )
             }
 
-        val page = TaskGroupsPage.of(groups, PageRequest(1, 2))
+        val page = pageOf(groups, PageRequest(1, 2))
 
         page.groups.map { it.kind } shouldContainExactly TaskGroupKind.entries
         page.groups
@@ -89,7 +104,7 @@ class TaskSummaryTest {
 
         val titles =
             (0..2).flatMap { index ->
-                TaskGroupsPage.of(groups, PageRequest(index, 50)).groups.flatMap { g -> g.tasks.map { it.title } }
+                pageOf(groups, PageRequest(index, 50)).groups.flatMap { g -> g.tasks.map { it.title } }
             }
 
         titles.size shouldBe 120

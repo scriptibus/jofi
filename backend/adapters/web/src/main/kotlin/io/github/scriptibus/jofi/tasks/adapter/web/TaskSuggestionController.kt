@@ -6,6 +6,7 @@ package io.github.scriptibus.jofi.tasks.adapter.web
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.application.AcceptTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.DismissTaskSuggestionUseCase
@@ -40,7 +41,8 @@ class TaskSuggestionController(
     fun listSuggestedTasks(
         @RequestParam(required = false) page: Int?,
         @RequestParam(required = false) size: Int?,
-    ): TaskListResponse = TaskListResponse.from(listSuggestions.execute(PageInput(page, size)).orThrow())
+    ): TaskListResponse =
+        TaskListResponse.from(listSuggestions.execute(PageInput(page, size), NotesAudience.USER).orThrow())
 
     /**
      * Accepts a suggestion with one click: it becomes an open task. 409 `invalid-transition` for a done or dismissed

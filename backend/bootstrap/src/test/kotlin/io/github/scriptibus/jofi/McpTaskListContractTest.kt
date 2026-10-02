@@ -172,6 +172,39 @@ class McpTaskListContractTest : McpToolContractSupport() {
     }
 
     @Test
+    fun `an excerpt never ends inside a flagged value, in lists of tasks and of suggestions`() {
+        // The phone number starts just before the cut at 300 characters: its first digits would be in the excerpt.
+        val notes = "x".repeat(EXCERPT_LENGTH - 5) + " $FLAGGED_PHONE and more"
+        suggestWithNotesText(notes)
+        owner.mcpClient().use { client ->
+            client.initialize()
+            val arguments = mapOf("title" to "T", "timeZone" to ZONE, "bucket" to "SOMEDAY", "notes" to notes)
+            client.call("create_task", arguments)
+
+            val listed = client.call("list_tasks", mapOf("timeZone" to ZONE)).toString()
+            val suggested = client.call("list_task_suggestions", mapOf()).toString()
+
+            listOf(listed, suggested).forEach {
+                it shouldNotContain "0170"
+                it shouldNotContain "1234"
+            }
+        }
+    }
+
+    private fun suggestWithNotesText(notes: String) {
+        val id = UUID.randomUUID().toString()
+        dsl.execute(
+            "INSERT INTO task (id, title, notes, bucket_span, bucket_starts_on, origin, suggestion_rule, " +
+                "suggestion_key, state, version, created_at, updated_at) VALUES (?::uuid, 'S', ?, 'DAY', ?::date, " +
+                "'SUGGESTED', 'follow-up', ?, 'SUGGESTED', 0, now(), now())",
+            id,
+            notes,
+            LocalDate.now(ZoneOffset.UTC).toString(),
+            "application:$id",
+        )
+    }
+
+    @Test
     fun `without a session get_task cannot be called`() {
         val call = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_task","arguments":{}}}"""
 

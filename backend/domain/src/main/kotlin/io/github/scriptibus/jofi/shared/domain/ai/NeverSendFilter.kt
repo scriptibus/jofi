@@ -101,6 +101,15 @@ object NeverSendFilter {
         return FilterOutcome.Passed(redacted.text, redacted.count)
     }
 
+    /**
+     * [text] with every flagged value replaced by [REDACTION], for text that is cut or reshaped before it leaves (an
+     * excerpt): filtering the whole text first means no flagged value can be left half in.
+     */
+    fun redactText(
+        text: String,
+        rules: NeverSendRules,
+    ): String = ValueRedactor(rules.flaggedValues).text(text).text
+
     private fun partsOf(message: LlmMessage): List<ContentPart> =
         when (message) {
             is LlmMessage.System -> message.parts

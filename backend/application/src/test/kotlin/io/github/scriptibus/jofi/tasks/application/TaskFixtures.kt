@@ -4,6 +4,8 @@
 package io.github.scriptibus.jofi.tasks.application
 
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
@@ -11,6 +13,10 @@ import io.github.scriptibus.jofi.shared.domain.ChangelogEntry
 import io.github.scriptibus.jofi.shared.domain.ChangelogLimit
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.EntityRef
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.FlaggedValue
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
@@ -43,6 +49,19 @@ class TaskFixtures {
     val entries = mutableListOf<ChangelogEntry>()
     var failingChangelog = false
     var failingStore = false
+
+    /** What the "never send to AI" source flags; `null` makes it unavailable. */
+    var flaggedValues: Set<FlaggedValue>? = emptySet()
+
+    val redaction =
+        RedactForAiUseCase(
+            object : AiVisibilityPort {
+                override fun rulesFor(sources: Set<ContentSource>) =
+                    flaggedValues
+                        ?.let { AiVisibilityResult.Known(NeverSendRules(emptyMap(), it)) }
+                        ?: AiVisibilityResult.Unavailable("test")
+            },
+        )
 
     /** A version another client stored between this use case's read and its write (the update race). */
     var concurrentVersion: Long? = null

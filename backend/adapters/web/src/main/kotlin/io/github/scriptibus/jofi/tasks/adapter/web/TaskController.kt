@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
 import io.github.scriptibus.jofi.tasks.application.CreateTaskUseCase
@@ -65,7 +66,9 @@ class TaskController(
         @RequestParam(required = false) size: Int?,
     ): TaskGroupListResponse {
         val zone = TaskTiming.zoneOf(timeZone) ?: throw TaskProblems.invalidViewerZone()
-        return TaskGroupListResponse.from(listTaskGroups.execute(zone, PageInput(page, size)).orThrow())
+        return TaskGroupListResponse.from(
+            listTaskGroups.execute(zone, PageInput(page, size), NotesAudience.USER).orThrow(),
+        )
     }
 
     @PostMapping

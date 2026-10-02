@@ -30,13 +30,17 @@ data class TaskSummary(
     override fun toString(): String = "TaskSummary(id=${id.value}, origin=$origin, state=$state, version=$version)"
 
     companion object {
-        fun of(task: Task): TaskSummary =
+        /** [notes] are what the excerpt is cut from: the task's own, or them after the AI's filter (ADR-0056). */
+        fun of(
+            task: Task,
+            notes: String? = task.details.notes,
+        ): TaskSummary =
             TaskSummary(
                 task.id,
                 task.details.title,
                 task.details.timing,
                 task.details.link,
-                TextExcerpt.ofOrNull(task.details.notes),
+                TextExcerpt.ofOrNull(notes),
                 task.origin,
                 task.state,
                 task.completedAt,
@@ -63,20 +67,33 @@ data class TaskGroupsPage(
 ) {
     companion object {
         /**
-         * The page of [groups] (the whole grouped list): the tasks are numbered through the groups in their order,
-         * soonest first within each, and [request] picks a window of that sequence.
+         * The window of [groups] (the whole grouped list) that [request] asks for: the tasks are numbered through the
+         * groups in their order, soonest first within each. Summaries are made from [TaskWindow.tasks] by the caller,
+         * since the notes' excerpts may need the AI's filter first.
          */
-        fun of(
+        fun window(
             groups: List<TaskGroup>,
             request: PageRequest,
-        ): TaskGroupsPage {
+        ): TaskWindow {
             val all = groups.flatMap { group -> group.tasks.map { group.kind to it } }
-            val page = Paged.slice(all, request)
-            val byKind = page.items.groupBy({ it.first }, { TaskSummary.of(it.second) })
-            return TaskGroupsPage(
-                groups.map { TaskSummaryGroup(it.kind, byKind[it.kind].orEmpty()) },
-                PageInfo.of(request, all.size),
-            )
+            return TaskWindow(groups.map { it.kind }, Paged.slice(all, request).items, PageInfo.of(request, all.size))
         }
+    }
+}
+
+/** The tasks of one page with their groups, before their summaries are made. */
+class TaskWindow(
+    private val kinds: List<TaskGroupKind>,
+    private val entries: List<Pair<TaskGroupKind, Task>>,
+    private val info: PageInfo,
+) {
+    /** The tasks of the page, in the order [page] expects their summaries. */
+    val tasks: List<Task> get() = entries.map { it.second }
+
+    /** The page, from one summary per task of [tasks], in that order. */
+    fun page(summaries: List<TaskSummary>): TaskGroupsPage {
+        require(summaries.size == entries.size) { "One summary for each task of the window" }
+        val byKind = entries.map { it.first }.zip(summaries).groupBy({ it.first }, { it.second })
+        return TaskGroupsPage(kinds.map { TaskSummaryGroup(it, byKind[it].orEmpty()) }, info)
     }
 }

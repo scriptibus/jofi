@@ -3,6 +3,8 @@
 
 package io.github.scriptibus.jofi.tasks.application
 
+import io.github.scriptibus.jofi.shared.domain.ai.FlaggedValue
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
 import io.github.scriptibus.jofi.shared.domain.paging.Paged
@@ -32,8 +34,8 @@ import java.util.UUID
 /** Paging, size limits and note excerpts of the two task lists (#236, ADR-0056). */
 class TaskListPagingTest {
     private val fixtures = TaskFixtures()
-    private val groups = ListTaskGroupsUseCase(fixtures.repository, TaskFixtures.CLOCK)
-    private val suggestions = ListSuggestedTasksUseCase(fixtures.repository)
+    private val groups = ListTaskGroupsUseCase(fixtures.repository, TaskFixtures.CLOCK, fixtures.redaction)
+    private val suggestions = ListSuggestedTasksUseCase(fixtures.repository, fixtures.redaction)
     private val utc = ZoneId.of("UTC")
 
     private fun groupsPage(
@@ -41,7 +43,7 @@ class TaskListPagingTest {
         size: Int,
     ): TaskGroupsPage =
         groups
-            .execute(utc, PageInput(page, size))
+            .execute(utc, PageInput(page, size), NotesAudience.USER)
             .shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
             .value
 
@@ -50,7 +52,7 @@ class TaskListPagingTest {
         size: Int,
     ): Paged<TaskSummary> =
         suggestions
-            .execute(PageInput(page, size))
+            .execute(PageInput(page, size), NotesAudience.USER)
             .shouldBeInstanceOf<TaskResult.Success<Paged<TaskSummary>>>()
             .value
 
@@ -131,7 +133,14 @@ class TaskListPagingTest {
     fun `the default is the first page of the default size`() {
         (1..PageRequest.DEFAULT_SIZE + 5).forEach { open("t$it") }
 
-        val page = groups.execute(utc, PageInput()).shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>().value
+        val page =
+            groups
+                .execute(
+                    utc,
+                    PageInput(),
+                    NotesAudience.USER,
+                ).shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
+                .value
 
         page.groups.sumOf { it.tasks.size } shouldBe PageRequest.DEFAULT_SIZE
         page.info.hasMore shouldBe true
@@ -155,13 +164,13 @@ class TaskListPagingTest {
     fun `a page or size out of range is invalid and names what is wrong, reading nothing`() {
         fixtures.failingStore = true
 
-        groups.execute(utc, PageInput(-1, 10)) shouldBe
+        groups.execute(utc, PageInput(-1, 10), NotesAudience.USER) shouldBe
             TaskResult.Invalid(listOf(TaskViolation(TaskField.PAGE, TaskProblem.OUT_OF_RANGE)))
-        groups.execute(utc, PageInput(0, PageRequest.MAX_SIZE + 1)) shouldBe
+        groups.execute(utc, PageInput(0, PageRequest.MAX_SIZE + 1), NotesAudience.USER) shouldBe
             TaskResult.Invalid(listOf(TaskViolation(TaskField.SIZE, TaskProblem.OUT_OF_RANGE)))
-        suggestions.execute(PageInput(0, 0)) shouldBe
+        suggestions.execute(PageInput(0, 0), NotesAudience.USER) shouldBe
             TaskResult.Invalid(listOf(TaskViolation(TaskField.SIZE, TaskProblem.OUT_OF_RANGE)))
-        suggestions.execute(PageInput(-2, -2)) shouldBe
+        suggestions.execute(PageInput(-2, -2), NotesAudience.USER) shouldBe
             TaskResult.Invalid(
                 listOf(
                     TaskViolation(TaskField.PAGE, TaskProblem.OUT_OF_RANGE),
@@ -192,6 +201,61 @@ class TaskListPagingTest {
             .state shouldBe TaskState.SUGGESTED
 
         fixtures.failingStore = true
-        suggestions.execute(PageInput()) shouldBe TaskResult.StorageFailure("pageByStateNewestFirst")
+        suggestions.execute(PageInput(), NotesAudience.USER) shouldBe
+            TaskResult.StorageFailure("pageByStateNewestFirst")
     }
+
+    @Test
+    fun `for an AI the flagged values go out of the whole notes before the cut, so none is left half in`() {
+        val phone = "0170 1234567"
+        // The value straddles the cut: its first digits would be in the excerpt, the rest beyond it.
+        val notes = "x".repeat(TextExcerpt.MAX_LENGTH - 5) + " " + phone + " end"
+        open("Call", notes = notes)
+        suggest("S", 1, notes = notes)
+        fixtures.flaggedValues = setOf(FlaggedValue(phone))
+
+        val listed = aiGroups().flatMap { it.tasks }.single()
+        val suggested = aiSuggestions().single()
+
+        listOf(listed, suggested).forEach {
+            val text = it.notesExcerpt?.text.orEmpty()
+            text.contains("0170") shouldBe false
+            text.contains("1234") shouldBe false
+            // What is left of the value is the start of the marker, never of the number.
+            text.endsWith("[wit") shouldBe true
+        }
+        // The user sees their own notes as they are.
+        val own =
+            groupsPage(0, 10)
+                .groups
+                .flatMap { it.tasks }
+                .single()
+                .notesExcerpt
+                ?.text
+                .orEmpty()
+        own.endsWith("0170") shouldBe true
+    }
+
+    @Test
+    fun `for an AI the lists fail closed when the flags cannot be read`() {
+        open("Call", notes = "n")
+        suggest("S", 1, notes = "n")
+        fixtures.flaggedValues = null
+
+        groups.execute(utc, PageInput(), NotesAudience.AI) shouldBe TaskResult.StorageFailure("privacy flags")
+        suggestions.execute(PageInput(), NotesAudience.AI) shouldBe TaskResult.StorageFailure("privacy flags")
+        groups.execute(utc, PageInput(), NotesAudience.USER).shouldBeInstanceOf<TaskResult.Success<*>>()
+    }
+
+    private fun aiGroups() =
+        groups
+            .execute(utc, PageInput(), NotesAudience.AI)
+            .shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
+            .value.groups
+
+    private fun aiSuggestions() =
+        suggestions
+            .execute(PageInput(), NotesAudience.AI)
+            .shouldBeInstanceOf<TaskResult.Success<Paged<TaskSummary>>>()
+            .value.items
 }

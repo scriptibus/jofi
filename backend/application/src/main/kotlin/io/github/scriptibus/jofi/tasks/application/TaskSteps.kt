@@ -3,7 +3,10 @@
 
 package io.github.scriptibus.jofi.tasks.application
 
+import io.github.scriptibus.jofi.shared.application.AiRedaction
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
 import io.github.scriptibus.jofi.shared.domain.paging.PageValidation
@@ -15,6 +18,7 @@ import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
 import io.github.scriptibus.jofi.tasks.domain.TaskTransition
 import io.github.scriptibus.jofi.tasks.domain.TaskValidation
 import io.github.scriptibus.jofi.tasks.domain.TaskViolation
@@ -53,6 +57,36 @@ internal fun PageInput.toResult(): TaskResult<PageRequest> =
                     TaskViolation(TaskField.SIZE, TaskProblem.OUT_OF_RANGE).takeIf { validation.sizeOutOfRange },
                 ),
             )
+        }
+    }
+
+/**
+ * The list entries of [tasks] for [audience] (ADR-0056): the user's own notes are cut as they are; for an AI the
+ * "never send to AI" values go out of the whole notes first, so no excerpt ends inside one. Flags that cannot be read
+ * fail the list (nothing reaches an AI).
+ */
+internal fun summariesOf(
+    tasks: List<Task>,
+    audience: NotesAudience,
+    redaction: RedactForAiUseCase,
+): TaskResult<List<TaskSummary>> =
+    when (audience) {
+        NotesAudience.USER -> {
+            TaskResult.Success(tasks.map { TaskSummary.of(it) })
+        }
+
+        NotesAudience.AI -> {
+            when (val redacted = redaction.execute(tasks.map { it.details.notes })) {
+                AiRedaction.Unavailable -> {
+                    TaskResult.StorageFailure("privacy flags")
+                }
+
+                is AiRedaction.Redacted -> {
+                    TaskResult.Success(
+                        tasks.zip(redacted.texts) { task, notes -> TaskSummary.of(task, notes) },
+                    )
+                }
+            }
         }
     }
 

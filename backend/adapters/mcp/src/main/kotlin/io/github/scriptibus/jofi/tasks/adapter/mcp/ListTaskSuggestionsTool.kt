@@ -7,6 +7,7 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.PageArguments
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolCall
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.application.ListSuggestedTasksUseCase
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
@@ -39,5 +40,5 @@ class ListTaskSuggestionsTool(
             is TaskResult.Failure -> TaskToolErrors.failure(result)
         }
 
-    private fun list(page: PageInput) = listSuggestions.execute(page)
+    private fun list(page: PageInput) = listSuggestions.execute(page, NotesAudience.AI)
 }

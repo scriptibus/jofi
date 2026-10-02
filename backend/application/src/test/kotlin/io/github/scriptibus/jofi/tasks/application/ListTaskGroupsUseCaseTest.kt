@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.tasks.application
 
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.Task
@@ -26,7 +27,7 @@ import java.util.UUID
 /** The grouped list at the fixtures' clock: Wednesday 30 September 2026, 23:30 in Berlin, Thursday in Tokyo. */
 class ListTaskGroupsUseCaseTest {
     private val fixtures = TaskFixtures()
-    private val useCase = ListTaskGroupsUseCase(fixtures.repository, TaskFixtures.CLOCK)
+    private val useCase = ListTaskGroupsUseCase(fixtures.repository, TaskFixtures.CLOCK, fixtures.redaction)
 
     @Test
     fun `groups the open tasks on the calendar of the viewer's zone`() {
@@ -54,12 +55,13 @@ class ListTaskGroupsUseCaseTest {
     fun `a store that cannot answer is a storage failure`() {
         fixtures.failingStore = true
 
-        useCase.execute(ZoneId.of("UTC"), PageInput()) shouldBe TaskResult.StorageFailure("listByState")
+        useCase.execute(ZoneId.of("UTC"), PageInput(), NotesAudience.USER) shouldBe
+            TaskResult.StorageFailure("listByState")
     }
 
     private fun groupsIn(zone: String): Map<TaskGroupKind, List<Task>> =
         useCase
-            .execute(ZoneId.of(zone), PageInput())
+            .execute(ZoneId.of(zone), PageInput(), NotesAudience.USER)
             .shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
             .value
             .groups
