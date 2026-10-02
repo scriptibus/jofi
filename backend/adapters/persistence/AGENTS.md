@@ -121,7 +121,9 @@ The generator lives in the `codegen` source set and has its own locked classpath
   `ai_model_capability` (per provider + model, deleted with the provider), `ai_model_assignment`
   (one row per `AiTask`: provider + model only), `ai_cost_entry` (append-only by trigger, integer
   micros in USD, provider kind snapshot, no FK to the provider so history survives its deletion),
-  `ai_monthly_budget` (single row, USD). Check constraints mirror the `setup` domain invariants and
+  `ai_monthly_budget` (single row, USD), `ai_model_price_override` (the user's price per provider + model for
+  OpenAI-compatible models, micros of a USD per million tokens, deleted with the provider; exported, ADR-0055).
+  Check constraints mirror the `setup` domain invariants and
   enum names; `SetupSchemaTest` proves them. `ProviderConfigRepository.delete` takes the confirmation
   proof (`ProviderId.DELETE_OPERATION`, ADR-0039); the use case deletes the provider's secret after the
   row that references it.
@@ -283,7 +285,7 @@ the aggregate's id type, which also builds the `EntityRef` (`toEntityRef()`).
 |---|---|---|
 | `company` | `companies.domain.Company` | `CompanyId.ENTITY_TYPE` |
 | `contact` | `companies.domain.Contact` | `ContactId.ENTITY_TYPE` |
-| `ai_provider` | `setup.domain.ProviderConfig` (also its models' capability corrections and refreshes) | `ProviderId.ENTITY_TYPE` |
+| `ai_provider` | `setup.domain.ProviderConfig` (also its models' capability corrections and refreshes, and their user prices) | `ProviderId.ENTITY_TYPE` |
 | `ai_model_assignment` | `setup.domain.ModelAssignment`, one entity per task (id = task name) | `ModelAssignment.ENTITY_TYPE` |
 | `ai_monthly_budget` | `setup.domain.MonthlyBudget`, a single entity (id `monthly`) | `MonthlyBudget.ENTITY_TYPE` |
 | `application` | `applications.domain.Application` | `ApplicationId.ENTITY_TYPE` |

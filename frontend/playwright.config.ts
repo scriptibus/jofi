@@ -62,13 +62,23 @@ const target: PlaywrightTestConfig = stackUrl
           dependencies: ["ai-setup"],
           use: { ...devices["Desktop Chrome"], colorScheme: "light", storageState: E2E_STORAGE_STATE },
         },
+        // Model prices change what the seeded model's calls cost, so they run after the costs spec, alone,
+        // and remove what they set (tests/ai/ai-prices.spec.ts).
+        {
+          name: "ai-prices",
+          testDir: "./tests/ai",
+          testMatch: /ai-prices\.spec\.ts/,
+          fullyParallel: false,
+          dependencies: ["ai-costs"],
+          use: { ...devices["Desktop Chrome"], colorScheme: "light", storageState: E2E_STORAGE_STATE },
+        },
         // Wrong passwords and password changes: they share the one-client login backoff with every
         // other test and end the seeded session, so they run last, alone (tests/auth/auth.spec.ts).
         {
           name: "auth",
           testDir: "./tests/auth",
           fullyParallel: false,
-          dependencies: ["ai-costs"],
+          dependencies: ["ai-prices"],
           use: { ...devices["Desktop Chrome"], colorScheme: "light" },
         },
         // Backup export and restore: wrong passwords, the one backup lock, and a restore that ends every

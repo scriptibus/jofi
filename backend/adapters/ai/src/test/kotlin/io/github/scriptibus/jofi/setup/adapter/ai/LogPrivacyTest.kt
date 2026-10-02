@@ -173,7 +173,7 @@ class LogPrivacyTest {
                 adapter,
                 AiRouter(setup.assignmentPort, setup.providerPort, setup.capabilityPort, stub.catalog()),
                 NeverSendGuard(visibility),
-                AiMeter(setup.costPort, setup.budgetPort, PriceTableFile.load(), ProviderStub.CLOCK),
+                AiMeter(setup.costPort, setup.budgetPort, PriceTableFile.load(), setup.pricePort, ProviderStub.CLOCK),
             )
 
         gateway.complete(request()).shouldBeInstanceOf<AiResult.Success<*>>()

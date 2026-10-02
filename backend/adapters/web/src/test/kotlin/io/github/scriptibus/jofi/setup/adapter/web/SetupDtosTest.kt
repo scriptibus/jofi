@@ -38,8 +38,7 @@ class SetupDtosTest {
 
     @Test
     fun `every field has a request name and every provider failure a problem type`() {
-        SetupField.entries.map(SetupProblems::apiName) shouldBe
-            listOf("displayName", "baseUrl", "apiKey", "model", "contextWindowTokens", "capMicros", "month", "months")
+        SetupField.entries.map(SetupProblems::apiName) shouldBe API_NAMES
         val types =
             listOf(
                 AiResult.RateLimited(Duration.ofSeconds(1)),
@@ -60,5 +59,21 @@ class SetupDtosTest {
                 SetupProblems.REJECTED,
             )
         SetupProblems.of(SetupResult.Forbidden).statusCode.value() shouldBe 403
+    }
+
+    private companion object {
+        val API_NAMES =
+            listOf(
+                "displayName",
+                "baseUrl",
+                "apiKey",
+                "model",
+                "contextWindowTokens",
+                "capMicros",
+                "month",
+                "months",
+                "inputMicrosPerMillion",
+                "outputMicrosPerMillion",
+            )
     }
 }

@@ -13,6 +13,7 @@ export const SetupProblemType = {
   invalid: `${SETUP}invalid-input`,
   notFound: `${SETUP}provider-not-found`,
   inUse: `${SETUP}provider-in-use`,
+  priceNotAllowed: `${SETUP}price-not-allowed`,
   forbidden: `${SETUP}forbidden`,
   authenticationFailed: `${SETUP}provider-authentication-failed`,
   rateLimited: `${SETUP}provider-rate-limited`,
@@ -24,6 +25,7 @@ export const SetupProblemType = {
 const knownMessages: Record<string, () => string> = {
   [SetupProblemType.notFound]: m.ai_error_not_found,
   [SetupProblemType.inUse]: m.ai_error_in_use,
+  [SetupProblemType.priceNotAllowed]: m.ai_error_price_not_allowed,
   [SetupProblemType.forbidden]: m.ai_error_forbidden,
   [SetupProblemType.authenticationFailed]: m.ai_error_authentication_failed,
   [SetupProblemType.rateLimited]: m.ai_error_rate_limited,

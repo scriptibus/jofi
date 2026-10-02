@@ -114,7 +114,9 @@ the AI transport's allowlist; never expose them as MCP or AI tools. `SetupRules`
 enforces it: only `setup.adapter.web` (and `setup.config`) may depend on the mutating setup use cases and
 inbound ports, and only `..adapter.web..` may name `Actor.User` (reviewed allowlist in `SetupRules`). Mark text copied from a stored
 item as `ContentPart.Sourced`, and handle the results `PrivacyFilterFailed` and `Withheld`. `ModelCatalogPort` lists a provider's models with their known
-capabilities for the setup checks. Costs and the budget are in USD only; an unknown cost is null.
+capabilities for the setup checks. Costs and the budget are in USD only; an unknown cost is null. The user may
+price the models of an OpenAI-compatible provider (`ModelPricePort`, ADR-0055): `AiMeter` uses that price for
+calls recorded afterwards, cloud providers keep the verified table, and recorded entries are never re-priced.
 
 ## Rules (all fail `check`)
 

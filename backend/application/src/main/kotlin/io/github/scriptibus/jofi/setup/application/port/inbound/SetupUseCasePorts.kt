@@ -5,6 +5,8 @@ package io.github.scriptibus.jofi.setup.application.port.inbound
 
 import io.github.scriptibus.jofi.setup.domain.CapabilityInput
 import io.github.scriptibus.jofi.setup.domain.ModelCapabilityProfile
+import io.github.scriptibus.jofi.setup.domain.ModelPriceInput
+import io.github.scriptibus.jofi.setup.domain.ModelPriceOverride
 import io.github.scriptibus.jofi.setup.domain.ProviderConfig
 import io.github.scriptibus.jofi.setup.domain.ProviderId
 import io.github.scriptibus.jofi.setup.domain.ProviderInput
@@ -94,6 +96,33 @@ interface ListTaskAssignmentsPort {
  */
 interface ListProviderPrivacyInfoPort {
     fun execute(): ProviderPrivacyOverview
+}
+
+/** The prices the user gave the models of an OpenAI-compatible provider, by model name (ADR-0055). Read-only. */
+interface ListModelPricesPort {
+    fun execute(id: ProviderId): SetupResult<List<ModelPriceOverride>>
+}
+
+/**
+ * Sets what a model of an OpenAI-compatible provider costs, in micros of a US dollar per million input and
+ * output tokens (0 is allowed). Calls recorded afterwards get a cost; earlier entries keep theirs (the meter
+ * is append-only). A cloud provider is [SetupResult.PriceNotAllowed].
+ */
+interface SetModelPricePort {
+    fun execute(
+        id: ProviderId,
+        input: ModelPriceInput,
+        actor: Actor,
+    ): SetupResult<ModelPriceOverride>
+}
+
+/** Removes the price of a model; later calls have an unknown cost again. Succeeds when there was none. */
+interface ClearModelPricePort {
+    fun execute(
+        id: ProviderId,
+        model: String,
+        actor: Actor,
+    ): SetupResult<Unit>
 }
 
 /** Assigns a model to a task; answers with the warnings, but a weaker model is still allowed. */

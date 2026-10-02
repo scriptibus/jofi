@@ -16,7 +16,8 @@ that call `LlmPort` for a task (never a provider) live here as `<context>.adapte
   → provider call → `AiMeter.record` (one `CostEntry`; unknown cost stays null, never guessed).
 - `price-table.json` (resources, next to `PriceTableFile`): list prices per model with the provider's
   page and the day read. Only add a row you read on the official page; bump `checkedOn` with every
-  change. `PriceTableFileTest` checks sources and spot prices.
+  change. `PriceTableFileTest` checks sources and spot prices. `AiMeter` prices a call on an OpenAI-compatible
+  model from the user's price (`ModelPricePort`, ADR-0055), every other kind from the table.
 - `provider-privacy.json` (resources, next to `ProviderPrivacyFile`, #138, spec §3.2): per provider kind
   what the API terms say about zero data retention, training and data location, each claim with a
   status, a DE/EN summary and short **verbatim** quotes from the provider's official pages. Never write a

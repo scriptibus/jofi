@@ -7,12 +7,13 @@ import { m } from "../../paraglide/messages.js";
 import { Button } from "../../ui";
 import { BudgetForm } from "./BudgetForm";
 import { CostsCard } from "./CostsCard";
+import { ModelPrices } from "./ModelPrices";
 import { ProviderList } from "./ProviderList";
 import { TaskAssignments } from "./TaskAssignments";
 
 /**
- * Settings > AI: the same providers, task models and budget as the setup guide, as three cards of the
- * settings grid (`className`), plus a way back to the guide.
+ * Settings > AI: the same providers, task models and budget as the setup guide, plus the prices of the user's
+ * own models (ADR-0055), as cards of the settings grid (`className`), and a way back to the guide.
  */
 export function AiSettingsSection({ className }: { className: string }) {
   const navigate = useNavigate();
@@ -34,6 +35,9 @@ export function AiSettingsSection({ className }: { className: string }) {
       </Card>
       <Card id="ai-budget-heading" title={m.ai_budget_heading()} className={className}>
         <BudgetForm />
+      </Card>
+      <Card id="ai-prices-heading" title={m.ai_prices_heading()} className={className}>
+        <ModelPrices />
       </Card>
       <Card id="ai-costs-heading" title={m.ai_costs_heading()} className={className}>
         <CostsCard />
