@@ -111,12 +111,12 @@ class CompanyContactToolsTest {
         every { companies.findById(CompanyId(companyId)) } returns CompanyStoreResult.Success(company)
         every { companies.findById(CompanyId(MISSING)) } returns CompanyStoreResult.NotFound
 
-        updateCompany.call(call("id" to companyId.toString(), "version" to 4, "name" to "X")) shouldBe
+        updateCompany.call(call("id" to companyId.toString(), "version" to 4, "company" to named("X"))) shouldBe
             ToolAnswer.Error(
                 "version-conflict",
                 "The entity changed since it was read. Read it again and retry with its current version.",
             )
-        updateCompany.call(call("id" to MISSING.toString(), "version" to 0, "name" to "X")) shouldBe
+        updateCompany.call(call("id" to MISSING.toString(), "version" to 0, "company" to named("X"))) shouldBe
             ToolAnswer.Error("not-found", "No company has this id.")
         changelog.entries shouldBe emptyList()
     }
@@ -127,20 +127,23 @@ class CompanyContactToolsTest {
         every { companies.findById(CompanyId(companyId)) } returns CompanyStoreResult.Success(company)
         every { companies.update(capture(updated)) } returns CompanyStoreResult.Success(Unit)
 
-        val answer = updateCompany.call(call("id" to companyId.toString(), "version" to 0, "name" to "ACME SE"))
+        val answer =
+            updateCompany.call(
+                call("id" to companyId.toString(), "version" to 0, "company" to named("ACME SE")),
+            )
 
         updated.captured.details.name shouldBe "ACME SE"
         updated.captured.version shouldBe 1
         changelog.entries.single().actor shouldBe Actor.Ai
         val result = answer.shouldBeInstanceOf<ToolAnswer.Result>().value.shouldBeInstanceOf<CompanyDetailResult>()
-        result.applicationCount shouldBe 2
+        result.readOnly.applicationCount shouldBe 2
     }
 
     @Test
     fun `update tools need their id and version`() {
-        val noId = call("version" to 1, "name" to "X")
+        val noId = call("version" to 1, "company" to named("X"))
         shouldThrow<InvalidToolArgument> { updateCompany.call(noId) }.argument shouldBe "id"
-        shouldThrow<InvalidToolArgument> { updateContact.call(call("id" to "$contactId", "name" to "X")) }
+        shouldThrow<InvalidToolArgument> { updateContact.call(call("id" to "$contactId", "contact" to named("X"))) }
             .argument shouldBe "version"
     }
 
@@ -244,7 +247,7 @@ class CompanyContactToolsTest {
 
     @Test
     fun `update_contact is based on the version and maps not-found, conflict and storage failures`() {
-        val arguments = arrayOf("id" to contactId.toString(), "version" to 2, "name" to "E")
+        val arguments = arrayOf("id" to contactId.toString(), "version" to 2, "contact" to named("E"))
 
         every { contacts.findById(any()) } returns ContactStoreResult.NotFound
         updateContact.call(call(*arguments)).shouldBeInstanceOf<ToolAnswer.Error>().code shouldBe "not-found"
@@ -272,6 +275,33 @@ class CompanyContactToolsTest {
             .contacts
             .single()
             .id shouldBe contactId
+    }
+
+    /** The `company` or `contact` object of an update: only the name matters to these tests. */
+    private fun named(name: String) = mapOf("name" to name)
+
+    @Test
+    fun `the create tools of companies and contacts refuse the withheld marker and store nothing`() {
+        createCompany
+            .call(call("name" to "ACME", "locations" to listOf("Berlin", "[withheld]")))
+            .shouldBeInstanceOf<ToolAnswer.Error>()
+            .problems shouldBe listOf(ArgumentProblem("locations[1]", "withheld-value"))
+        val channels = listOf(mapOf("kind" to "EMAIL", "value" to "x", "label" to "a [withheld]"))
+        createContact
+            .call(call("name" to "E", "channels" to channels))
+            .shouldBeInstanceOf<ToolAnswer.Error>()
+            .problems shouldBe listOf(ArgumentProblem("channels[0].label", "withheld-value"))
+        verify(exactly = 0) { companies.add(any()) }
+        verify(exactly = 0) { contacts.add(any()) }
+        changelog.entries shouldBe emptyList()
+    }
+
+    @Test
+    fun `an update without its company or contact object is an invalid argument`() {
+        shouldThrow<InvalidToolArgument> { updateCompany.call(call("id" to "$companyId", "version" to 0)) }
+            .argument shouldBe "company"
+        shouldThrow<InvalidToolArgument> { updateContact.call(call("id" to "$contactId", "version" to 0)) }
+            .argument shouldBe "contact"
     }
 
     private fun call(vararg arguments: Pair<String, Any?>) = ToolCall(ToolArguments(mapOf(*arguments)), Actor.Ai)

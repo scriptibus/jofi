@@ -29,9 +29,10 @@ class SetApplicationContactsTool(
     override val readOnly = false
     override val description =
         "Link contacts to a job application: `contactIds` becomes EXACTLY the set of linked contacts, so to link " +
-            "one more, call get_application, add its id to `contactIds` and send the `version` you read; to " +
-            "unlink one, leave its id out. An empty list unlinks all. A stale version answers version-conflict " +
-            "and changes nothing. Answers the application."
+            "one more, call get_application, add its id to `contactIds` (the ids in its `readOnly.contactIds`) " +
+            "and send the `version` you read; to unlink one, leave its id out. `contactIds` is required, never " +
+            "assumed: leaving it out is refused, and only an explicit empty list `[]` unlinks all. A stale " +
+            "version answers version-conflict and changes nothing. Answers the application."
     override val inputSchema =
         """
         {
