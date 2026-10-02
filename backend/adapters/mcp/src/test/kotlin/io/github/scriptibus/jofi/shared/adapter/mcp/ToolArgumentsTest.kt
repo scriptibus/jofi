@@ -102,11 +102,14 @@ class ToolArgumentsTest {
     }
 
     @Test
-    fun `the redaction marker is found in nested text and names the top-level argument`() {
+    fun `the redaction marker's path names the nested argument`() {
         ToolArguments(mapOf("name" to "E", "channels" to listOf(mapOf("value" to "+49 [withheld]"))))
-            .withheldArgument() shouldBe "channels"
-        ToolArguments(mapOf("notes" to "see [withheld]")).withheldArgument() shouldBe "notes"
-        ToolArguments(mapOf("notes" to "fine", "n" to 1, "nothing" to null)).withheldArgument().shouldBeNull()
+            .withheldPath() shouldBe "channels[0].value"
+        ToolArguments(mapOf("a" to "x", "offer" to mapOf("n" to 1, "bonus" to mapOf("t" to "[withheld]"))))
+            .withheldPath() shouldBe "offer.bonus.t"
+        ToolArguments(mapOf("ids" to listOf("fine", "see [withheld]"))).withheldPath() shouldBe "ids[1]"
+        ToolArguments(mapOf("notes" to "see [withheld]")).withheldPath() shouldBe "notes"
+        ToolArguments(mapOf("notes" to "fine", "nothing" to null)).withheldPath().shouldBeNull()
     }
 
     @Test
@@ -134,6 +137,24 @@ class ToolArgumentsTest {
         values.localDateTime("due") shouldBe java.time.LocalDateTime.of(2026, 10, 5, 10, 0)
         values.localDateTime("missing").shouldBeNull()
         listOf<() -> Any?>({ values.obj("n") }, { values.localDateTime("bad") }).forEach { read ->
+            shouldThrow<InvalidToolArgument> { read() }
+        }
+    }
+
+    @Test
+    fun `amounts and dates are read exactly, and wrong shapes name the argument`() {
+        val values =
+            ToolArguments(
+                mapOf("a" to 70000, "b" to 1234.56, "c" to 5L, "day" to "2026-10-05", "bad" to "5 Oct", "text" to "1"),
+            )
+
+        values.decimal("a") shouldBe java.math.BigDecimal("70000")
+        values.decimal("b") shouldBe java.math.BigDecimal("1234.56")
+        values.decimal("c") shouldBe java.math.BigDecimal("5")
+        values.decimal("missing").shouldBeNull()
+        values.date("day") shouldBe java.time.LocalDate.of(2026, 10, 5)
+        values.date("missing").shouldBeNull()
+        listOf<() -> Any?>({ values.decimal("text") }, { values.date("bad") }).forEach { read ->
             shouldThrow<InvalidToolArgument> { read() }
         }
     }

@@ -4,7 +4,9 @@
 package io.github.scriptibus.jofi.shared.adapter.mcp
 
 import io.github.scriptibus.jofi.shared.domain.ai.NeverSendFilter
+import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeParseException
 import java.util.UUID
@@ -42,6 +44,15 @@ class ToolArguments(
             }
         }
 
+    /** An amount as the client wrote it: a JSON number, read exactly (a double through its shortest text). */
+    fun decimal(name: String): BigDecimal? =
+        values[name]?.let { value ->
+            when (value) {
+                is Int, is Long, is Double, is BigDecimal -> BigDecimal(value.toString())
+                else -> invalid(name)
+            }
+        }
+
     /** A list of JSON objects, each read through its own [ToolArguments]. */
     fun objects(name: String): List<ToolArguments> =
         list(name).map { item ->
@@ -66,18 +77,22 @@ class ToolArguments(
         }
 
     /**
-     * The first argument that holds the redaction marker of the "never send to AI" filter, or null. Results show
-     * `[withheld]` in place of flagged values, so a replace-all update that sends a result back would store the
-     * marker over the real value; tools refuse such input instead.
+     * The first argument that holds the redaction marker of the "never send to AI" filter, named by its path (such
+     * as `notes.offer.benefits` or `channels[0].value`), or null. Results show `[withheld]` in place of flagged
+     * values, so an update that sends a result back would store the marker over the real value, and a create call
+     * that copies one would store the marker as text; tools refuse such input and name the value to leave alone.
      */
-    fun withheldArgument(): String? = values.entries.firstOrNull { (_, value) -> holdsMarker(value) }?.key
+    fun withheldPath(): String? = values.entries.firstNotNullOfOrNull { (key, value) -> markerPath(key, value) }
 
-    private fun holdsMarker(value: Any?): Boolean =
+    private fun markerPath(
+        path: String,
+        value: Any?,
+    ): String? =
         when (value) {
-            is String -> NeverSendFilter.REDACTION in value
-            is Map<*, *> -> value.values.any(::holdsMarker)
-            is List<*> -> value.any(::holdsMarker)
-            else -> false
+            is String -> path.takeIf { NeverSendFilter.REDACTION in value }
+            is Map<*, *> -> value.entries.firstNotNullOfOrNull { (key, item) -> markerPath("$path.$key", item) }
+            is List<*> -> value.withIndex().firstNotNullOfOrNull { (index, item) -> markerPath("$path[$index]", item) }
+            else -> null
         }
 
     fun uuids(name: String): Set<UUID> =
@@ -94,6 +109,16 @@ class ToolArguments(
         text(name)?.let { text ->
             try {
                 Instant.parse(text)
+            } catch (_: DateTimeParseException) {
+                invalid(name)
+            }
+        }
+
+    /** A calendar date such as `2026-10-05`. */
+    fun date(name: String): LocalDate? =
+        text(name)?.let { text ->
+            try {
+                LocalDate.parse(text)
             } catch (_: DateTimeParseException) {
                 invalid(name)
             }

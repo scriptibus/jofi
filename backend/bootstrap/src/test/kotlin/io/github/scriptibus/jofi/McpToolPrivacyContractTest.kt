@@ -56,7 +56,7 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
                     mapOf("id" to application, "version" to 0, "contactIds" to emptyList<String>()),
                 )
 
-            answer["portalNotes"].asString() shouldBe "Call [withheld]"
+            answer["notes"].untrusted()["portalNotes"].asString() shouldBe "Call [withheld]"
             answer.toString() shouldNotContain "1234567"
         }
     }
@@ -80,7 +80,7 @@ class McpToolPrivacyContractTest : McpToolContractSupport() {
             val shown = listOf(mapOf("kind" to "PHONE", "value" to "+49 [withheld]"))
             val back = mapOf("id" to id, "version" to 0, "name" to "Erika", "channels" to shown)
             client.failure("update_contact", back, "invalid-arguments").problems() shouldBe
-                listOf("channels:withheld-value")
+                listOf("channels[0].value:withheld-value")
 
             changelog("contact", id).size shouldBe 1
             client.call("get_contact", mapOf("id" to id))["version"].asInt() shouldBe 0

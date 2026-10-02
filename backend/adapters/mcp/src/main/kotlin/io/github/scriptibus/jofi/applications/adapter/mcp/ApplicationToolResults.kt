@@ -4,25 +4,26 @@
 package io.github.scriptibus.jofi.applications.adapter.mcp
 
 import io.github.scriptibus.jofi.applications.domain.Application
+import io.github.scriptibus.jofi.applications.domain.ApplicationDetails
 import io.github.scriptibus.jofi.applications.domain.ApplicationPage
-import io.github.scriptibus.jofi.applications.domain.ApplicationProblem
-import io.github.scriptibus.jofi.applications.domain.ApplicationResult
 import io.github.scriptibus.jofi.applications.domain.ApplicationSource
 import io.github.scriptibus.jofi.applications.domain.ApplicationStatus
 import io.github.scriptibus.jofi.applications.domain.DeclineCategory
 import io.github.scriptibus.jofi.applications.domain.EmploymentType
+import io.github.scriptibus.jofi.applications.domain.EstimateConfidence
+import io.github.scriptibus.jofi.applications.domain.FormOfAddress
 import io.github.scriptibus.jofi.applications.domain.HowApplied
+import io.github.scriptibus.jofi.applications.domain.LanguageAndTone
+import io.github.scriptibus.jofi.applications.domain.OfferDetails
+import io.github.scriptibus.jofi.applications.domain.Pay
 import io.github.scriptibus.jofi.applications.domain.PayBand
 import io.github.scriptibus.jofi.applications.domain.PayPeriod
 import io.github.scriptibus.jofi.applications.domain.PaySource
 import io.github.scriptibus.jofi.applications.domain.PaySourceKind
 import io.github.scriptibus.jofi.applications.domain.Score
-import io.github.scriptibus.jofi.applications.domain.SearchViolation
 import io.github.scriptibus.jofi.applications.domain.Seniority
 import io.github.scriptibus.jofi.applications.domain.SourceKind
-import io.github.scriptibus.jofi.shared.adapter.mcp.ArgumentProblem
-import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
-import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
+import io.github.scriptibus.jofi.applications.domain.Tone
 import io.github.scriptibus.jofi.shared.adapter.mcp.Untrusted
 import java.math.BigDecimal
 import java.time.Instant
@@ -76,28 +77,27 @@ data class PostingSummary(
     val location: String?,
 )
 
-/** One application in full, except its language and tone and the offer, which no tool needs yet. */
+/**
+ * One application in full. Everything `update_application` takes back sits at the top level, under the same names
+ * and nesting: send the `content` of each untrusted object (`posting`, `notes`, `languageAndTone`) under its key.
+ * What no tool can change sits under [readOnly], which is not sent back. The posting's title and location,
+ * the notes and the language tags are [Untrusted]: imports and scanners copy them from pages, and tools can write them.
+ */
 data class ApplicationDetailResult(
     val id: UUID,
     val version: Long,
     val companyId: UUID,
-    val contactIds: List<UUID>,
-    val status: ApplicationStatus,
-    val declineCategory: DeclineCategory?,
-    val declineReason: String?,
-    val unread: Boolean,
     val remoteSharePercent: Int?,
     val employmentType: EmploymentType?,
     val seniority: Seniority?,
     val deadline: LocalDate?,
     val howApplied: HowApplied?,
-    val portalNotes: String?,
     val payBand: PayBandResult?,
-    val wantScore: BigDecimal?,
-    val fitScore: BigDecimal?,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-    val posting: Untrusted<PostingDetails>,
+    val offer: OfferResult?,
+    val languageAndTone: Untrusted<LanguageAndToneResult>,
+    val posting: Untrusted<PostingFields>,
+    val notes: Untrusted<ApplicationNotes>,
+    val readOnly: ApplicationReadOnly,
 ) {
     companion object {
         fun from(application: Application): ApplicationDetailResult {
@@ -106,35 +106,132 @@ data class ApplicationDetailResult(
                 application.id.value,
                 application.version,
                 details.company.value,
-                application.contacts.map { it.value }.sorted(),
-                application.status,
-                application.declineReason?.category,
-                application.declineReason?.text,
-                application.unread,
                 details.remoteShare?.percent,
                 details.employmentType,
                 details.seniority,
                 details.deadline,
                 details.howApplied,
-                details.portalNotes,
                 details.payBand?.let(PayBandResult::from),
+                details.offer?.let(OfferResult::from),
+                Untrusted(LanguageAndToneResult.from(details.languageAndTone)),
+                Untrusted(PostingFields(details.title, details.location)),
+                Untrusted(notesOf(details)),
+                ApplicationReadOnly.from(application),
+            )
+        }
+
+        private fun notesOf(details: ApplicationDetails) =
+            ApplicationNotes(
+                details.portalNotes,
+                (details.payBand?.source as? PaySource.Estimated)?.basis,
+                details.offer?.let { OfferTexts(it.bonus, it.benefits, it.noticePeriod) },
+            )
+    }
+}
+
+/** The posting's own fields a tool can write. */
+data class PostingFields(
+    val title: String,
+    val location: String?,
+)
+
+/** The texts of an application besides its posting. */
+data class ApplicationNotes(
+    val portalNotes: String?,
+    val payEstimateBasis: String?,
+    val offer: OfferTexts?,
+)
+
+/**
+ * What no application tool changes (status, contacts, scores, flags, timestamps, where it was found, why it ended):
+ * shown for reading, never sent back to `update_application`. Its third-party texts are [Untrusted].
+ */
+data class ApplicationReadOnly(
+    val status: ApplicationStatus,
+    val declineCategory: DeclineCategory?,
+    val unread: Boolean,
+    val contactIds: List<UUID>,
+    val wantScore: BigDecimal?,
+    val fitScore: BigDecimal?,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    val texts: Untrusted<ReadOnlyTexts>,
+) {
+    companion object {
+        fun from(application: Application) =
+            ApplicationReadOnly(
+                application.status,
+                application.declineReason?.category,
+                application.unread,
+                application.contacts.map { it.value }.sorted(),
                 application.wantScore?.let(::points),
                 application.fitScore?.let(::points),
                 application.createdAt,
                 application.updatedAt,
-                Untrusted(PostingDetails(details.title, details.location, application.sources.map(SourceResult::from))),
+                Untrusted(ReadOnlyTexts(application.sources.map(SourceResult::from), application.declineReason?.text)),
             )
-        }
 
         private fun points(score: Score): BigDecimal = BigDecimal.valueOf(score.tenths.toLong(), 1)
     }
 }
 
-data class PostingDetails(
-    val title: String,
-    val location: String?,
+data class ReadOnlyTexts(
     val sources: List<SourceResult>,
+    val declineReason: String?,
 )
+
+data class OfferTexts(
+    val bonus: String?,
+    val benefits: String?,
+    val noticePeriod: String?,
+)
+
+data class LanguageAndToneResult(
+    val postingLanguage: String?,
+    val applicationLanguage: String?,
+    val formOfAddress: FormOfAddress?,
+    val tone: Tone?,
+) {
+    companion object {
+        fun from(languageAndTone: LanguageAndTone) =
+            LanguageAndToneResult(
+                languageAndTone.postingLanguage?.value,
+                languageAndTone.applicationLanguage?.value,
+                languageAndTone.formOfAddress,
+                languageAndTone.tone,
+            )
+    }
+}
+
+/** The typed part of an offer; its texts are in [ApplicationNotes]. */
+data class OfferResult(
+    val salary: PayResult?,
+    val remoteSharePercent: Int?,
+    val vacationDays: Int?,
+    val startDate: LocalDate?,
+    val answerBy: LocalDate?,
+) {
+    companion object {
+        fun from(offer: OfferDetails) =
+            OfferResult(
+                offer.salary?.let(PayResult::from),
+                offer.remoteShare?.percent,
+                offer.vacationDays,
+                offer.startDate,
+                offer.answerBy,
+            )
+    }
+}
+
+data class PayResult(
+    val amount: BigDecimal,
+    val currency: String,
+    val period: PayPeriod,
+) {
+    companion object {
+        fun from(pay: Pay) = PayResult(pay.amount, pay.currency.value, pay.period)
+    }
+}
 
 data class SourceResult(
     val kind: SourceKind,
@@ -154,6 +251,7 @@ data class PayBandResult(
     val currency: String,
     val period: PayPeriod,
     val source: PaySourceKind,
+    val estimateConfidence: EstimateConfidence?,
 ) {
     companion object {
         fun from(band: PayBand) =
@@ -167,35 +265,7 @@ data class PayBandResult(
                     PaySource.Recruiter -> PaySourceKind.RECRUITER
                     is PaySource.Estimated -> PaySourceKind.ESTIMATED
                 },
+                (band.source as? PaySource.Estimated)?.confidence,
             )
     }
-}
-
-/** The tool errors of the applications context: stable codes, no stored content. */
-internal object ApplicationToolErrors {
-    fun invalidSearch(violations: List<SearchViolation>) =
-        ToolAnswer.Error(
-            "invalid-arguments",
-            "The search arguments are invalid.",
-            violations.map {
-                ArgumentProblem(ToolProblems.argumentName(it.field.name), ToolProblems.problemCode(it.problem.name))
-            },
-        )
-
-    fun failure(failure: ApplicationResult.Failure): ToolAnswer.Error =
-        when (failure) {
-            ApplicationResult.NotFound -> ToolAnswer.Error("not-found", "No application has this id.")
-            is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", "Applications cannot be read now.")
-            else -> ToolAnswer.Error("failed", "The applications could not be read.")
-        }
-
-    /** The answer of a delete once the gate is passed: success, not found, or a failure of the store. */
-    fun deleted(result: ApplicationResult<Unit>): ToolAnswer =
-        when (result) {
-            is ApplicationResult.Success -> ToolAnswer.Result(Unit)
-            ApplicationResult.NotFound -> ToolAnswer.Error("not-found", "No application has this id.")
-            ApplicationResult.InterviewNotFound -> ToolAnswer.Error("not-found", "No such interview.")
-            is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", "The delete cannot run now.")
-            else -> ToolAnswer.Error("failed", "The delete could not be completed.")
-        }
 }

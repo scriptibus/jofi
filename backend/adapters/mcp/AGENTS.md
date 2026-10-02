@@ -31,6 +31,15 @@ Adding a tool:
   message except through `ConfirmationMessage`.
 - Wrap text from postings, pages or uploads in `Untrusted`. Return flaggable items (knowledge, M2) only
   after leaving out the flagged ones; the server's value filter is the second line.
+- Replace-style update tools (the use case replaces all fields): every updatable property is **required but
+  nullable** in the schema, at the top level and in nested objects. A missing key is a schema refusal, only an
+  explicit `null` clears, so a model that never read a field cannot wipe it. Take the shape of the read tool's
+  answer (the `content` of its untrusted objects under the same keys) and keep what the tool cannot change apart
+  from it in the result (`readOnly`), documented as not sendable. Check `call.arguments.withheldPath()` first and
+  refuse a `[withheld]` value, naming the nested argument. Create and log tools keep optionals optional, but a new or
+  changed one refuses the marker too (`create_company`, `create_contact` and `create_task` still accept it, and
+  `update_company`, `update_contact` and `set_application_contacts` predate the required-but-nullable rule: #241).
+  Contract-test that leaving out each property is refused and stores nothing.
 - Write the result as DTOs in the same package; never return domain objects.
 - Test the translation (real use case, mocked repository), and extend `McpContractTest` (bootstrap) to list
   and call the tool with the MCP SDK client. Add the tool to `docs/mcp-tools.md`.

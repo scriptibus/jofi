@@ -57,7 +57,7 @@ class SetApplicationContactsToolTest {
         replaced.captured.contacts shouldBe setOf(ContactRef(contactId))
         changelog.entries.single().actor shouldBe Actor.Ai
         val result = answer.shouldBeInstanceOf<ToolAnswer.Result>().value.shouldBeInstanceOf<ApplicationDetailResult>()
-        result.contactIds shouldBe listOf(contactId)
+        result.readOnly.contactIds shouldBe listOf(contactId)
     }
 
     @Test

@@ -56,17 +56,8 @@ class SetApplicationContactsTool(
                 .toSet()
         return when (val result = link(call, id, contacts, version)) {
             is ApplicationResult.Success -> ToolAnswer.Result(ApplicationDetailResult.from(result.value))
-
             is ApplicationResult.Invalid -> invalid(result)
-
-            ApplicationResult.VersionConflict -> ToolProblems.versionConflict()
-
-            ApplicationResult.NotFound -> ToolAnswer.Error("not-found", "No application has this id.")
-
-            is ApplicationResult.StorageFailure -> ToolAnswer.Error("unavailable", "The contacts cannot be linked now.")
-
-            // The other failures belong to other use cases (imports, interviews, status changes, deletes).
-            is ApplicationResult.Failure -> ToolAnswer.Error("failed", "The contacts could not be linked.")
+            is ApplicationResult.Failure -> ApplicationToolErrors.failure(result, "The contacts cannot be linked now.")
         }
     }
 
