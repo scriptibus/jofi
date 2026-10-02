@@ -49,7 +49,7 @@ test("a price is added, changed and removed on the OpenAI-compatible provider", 
   await expect(card.getByText("No prices set for this provider yet.")).toBeVisible();
 
   const add = card.getByRole("region", { name: "Add a price" });
-  await add.getByLabel("Model name").fill(MODEL);
+  await add.getByLabel("Model name", { exact: true }).fill(MODEL);
   await add.getByLabel("Input price per million tokens (US dollars)").fill("0.15");
   await add.getByLabel("Output price per million tokens (US dollars)").fill("0.6");
   await expectNoA11yViolations(page);
@@ -68,7 +68,7 @@ test("a price is added, changed and removed on the OpenAI-compatible provider", 
   // 0 is a price: a model on the user's own machine.
   await card.getByRole("button", { name: `Edit the price of ${MODEL}` }).click();
   const edit = card.getByRole("region", { name: `Change the price of ${MODEL}` });
-  await expect(edit.getByLabel("Model name")).toHaveAttribute("readonly", "");
+  await expect(edit.getByLabel("Model name", { exact: true })).toHaveAttribute("readonly", "");
   await edit.getByLabel("Input price per million tokens (US dollars)").fill("0");
   await edit.getByLabel("Output price per million tokens (US dollars)").fill("0");
   await edit.getByRole("button", { name: "Save price" }).click();
@@ -85,12 +85,12 @@ test("a price the server refuses is shown at its field", async ({ page }) => {
   const add = pricesCard(page, "Prices for your own models", `Prices of ${SEEDED}`).getByRole("region", {
     name: "Add a price",
   });
-  await add.getByLabel("Model name").fill("m".repeat(201));
+  await add.getByLabel("Model name", { exact: true }).fill("m".repeat(201));
   await add.getByLabel("Input price per million tokens (US dollars)").fill("1");
   await add.getByLabel("Output price per million tokens (US dollars)").fill("1");
   await add.getByRole("button", { name: "Save price" }).click();
 
-  await expect(add.getByLabel("Model name")).toHaveAttribute("aria-invalid", "true");
+  await expect(add.getByLabel("Model name", { exact: true })).toHaveAttribute("aria-invalid", "true");
   await expect(add.getByText("This is too long.")).toBeVisible();
   await expectNoA11yViolations(page);
 });
@@ -103,7 +103,7 @@ test.describe("in German, dark, at phone width", () => {
     await page.goto("/settings");
     const card = pricesCard(page, "Preise für eigene Modelle", `Preise von ${SEEDED}`);
     const add = card.getByRole("region", { name: "Preis hinzufügen" });
-    await add.getByLabel("Modellname").fill(MODEL);
+    await add.getByLabel("Modellname", { exact: true }).fill(MODEL);
     await add.getByLabel("Eingabepreis pro Million Token (US-Dollar)").fill("0,125");
     await add.getByLabel("Ausgabepreis pro Million Token (US-Dollar)").fill("0,5");
     await add.getByRole("button", { name: "Preis speichern" }).click();
