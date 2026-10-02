@@ -53,6 +53,18 @@ class ApplicationToolErrorsTest {
     }
 
     @Test
+    fun `a link that cannot be imported says to paste the text, for the day a URL import exists`() {
+        fun message(problem: ApplicationProblem) =
+            ApplicationToolErrors
+                .failure(ApplicationResult.Invalid(listOf(ApplicationViolation(ApplicationField.SOURCE_URL, problem))))
+                .message
+
+        message(ApplicationProblem.NOT_ALLOWED).contains("LinkedIn, StepStone or Indeed") shouldBe true
+        message(ApplicationProblem.UNREACHABLE).contains("start_text_import") shouldBe true
+        message(ApplicationProblem.INVALID_URL) shouldBe "The arguments are invalid."
+    }
+
+    @Test
     fun `every application field has an argument name`() {
         ApplicationField.entries.map(ApplicationToolErrors::argumentOf).toSet() shouldHaveSize
             ApplicationField.entries.size

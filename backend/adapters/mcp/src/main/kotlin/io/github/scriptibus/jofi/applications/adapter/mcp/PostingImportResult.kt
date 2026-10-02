@@ -6,7 +6,6 @@ package io.github.scriptibus.jofi.applications.adapter.mcp
 import io.github.scriptibus.jofi.applications.domain.ImportFailure
 import io.github.scriptibus.jofi.applications.domain.ImportStatus
 import io.github.scriptibus.jofi.applications.domain.PostingImport
-import io.github.scriptibus.jofi.applications.domain.UrlImportOutcome
 import java.time.Instant
 import java.util.UUID
 
@@ -35,35 +34,6 @@ data class PostingImportResult(
                 import.attempt,
                 import.createdAt,
                 import.updatedAt,
-            )
-    }
-}
-
-/** What starting a URL import came to. */
-enum class UrlImportKind {
-    /** A new import was started (or a stalled one resumed): poll [PostingImportResult] until it is done. */
-    STARTED,
-
-    /** The same link is being imported already: this is that import. */
-    ALREADY_PENDING,
-
-    /** The link was imported before: the import already carries the existing application. */
-    ALREADY_IMPORTED,
-}
-
-data class UrlImportResult(
-    val outcome: UrlImportKind,
-    val import: PostingImportResult,
-) {
-    companion object {
-        fun from(outcome: UrlImportOutcome) =
-            UrlImportResult(
-                when (outcome) {
-                    is UrlImportOutcome.Started -> UrlImportKind.STARTED
-                    is UrlImportOutcome.AlreadyPending -> UrlImportKind.ALREADY_PENDING
-                    is UrlImportOutcome.AlreadyImported -> UrlImportKind.ALREADY_IMPORTED
-                },
-                PostingImportResult.from(outcome.import),
             )
     }
 }

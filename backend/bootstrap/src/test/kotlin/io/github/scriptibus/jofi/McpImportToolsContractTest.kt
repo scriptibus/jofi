@@ -4,14 +4,12 @@
 package io.github.scriptibus.jofi
 
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
-import com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.ANSWER
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.COMPLETIONS
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.FAKE_AI
-import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.FAKE_POSTING
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.INJECTION
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.POSTING
 import io.github.scriptibus.jofi.PostingUrlImportFlowTest.Companion.PROVIDER
@@ -35,17 +33,50 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.context.annotation.Import
 import tools.jackson.databind.JsonNode
-import com.github.tomakehurst.wiremock.client.WireMock.get as wireMockGet
 
 /**
  * The import tools (#118) with the MCP SDK client against the running app: a fake AI provider (WireMock, through the
- * real AI gateway), postings fetched through the real SSRF guard from a second WireMock server, the worker job's
- * handler called directly (the `app` profile runs no jobs), the database and the changelog.
+ * real AI gateway), the worker job's handler called directly (the `app` profile runs no jobs), the database and the
+ * changelog. There is no URL import through MCP (#242).
  */
-@Import(PostingUrlImportFlowTest.HttpTestConfig::class)
-class McpImportToolsContractTest : McpImportContractSupport() {
+@Suppress("VarCouldBeVal") // Spring injects the fields after construction.
+class McpImportToolsContractTest : McpToolContractSupport() {
+    @Autowired
+    private lateinit var providers: ProviderConfigPort
+
+    @Autowired
+    private lateinit var assignments: ModelAssignmentPort
+
+    @Autowired
+    private lateinit var job: PostingImportJobAdapter
+
+    @BeforeEach
+    fun configureFakeProvider() {
+        FAKE_AI.resetAll()
+        providers.save(PROVIDER)
+        assignments.save(ModelAssignment(AiTask.EXTRACTION, PROVIDER.id, ModelName("fake-extraction")))
+    }
+
+    @AfterEach
+    fun removeFakeProvider() {
+        dsl.deleteFrom(AI_MODEL_ASSIGNMENT).where(AI_MODEL_ASSIGNMENT.PROVIDER_ID.eq(PROVIDER.id.value)).execute()
+        dsl.deleteFrom(AI_PROVIDER_CONFIG).where(AI_PROVIDER_CONFIG.ID.eq(PROVIDER.id.value)).execute()
+    }
+
+    private fun answers(content: String) {
+        FAKE_AI.stubFor(post(COMPLETIONS).willReturn(completion(content)))
+    }
+
+    private fun McpSyncClient.status(id: String): JsonNode = call("get_import_status", mapOf("id" to id))
+
+    /** Polls until the import is no longer pending; the worker's turn comes after the first pending reading. */
+    private fun McpSyncClient.untilDone(id: String): JsonNode {
+        status(id)["status"].asString() shouldBe "PENDING"
+        job.run(mapOf("import" to id)) shouldBe JobOutcome.Done
+        return status(id)
+    }
+
     @Test
     fun `a pasted posting is imported by the AI, polled to its application, each step logged with the AI`() {
         answers(ANSWER)
@@ -62,9 +93,11 @@ class McpImportToolsContractTest : McpImportContractSupport() {
             done["status"].asString() shouldBe "SUCCEEDED"
             changelog("posting_import", id).map { it.second }.distinct() shouldBe listOf("AI")
             val application = client.call("get_application", mapOf("id" to done["applicationId"].asString()))
-            application["status"].asString() shouldBe "DISCOVERED"
+            changelog("application", done["applicationId"].asString()).map { it.second }.distinct() shouldBe
+                listOf("AI")
+            application["readOnly"]["status"].asString() shouldBe "DISCOVERED"
             application["posting"].untrusted()["title"].asString() shouldBe "Senior Kotlin Developer"
-            application["posting"].untrusted()["sources"][0]["kind"].asString() shouldBe "MANUAL_CHAT"
+            application["readOnly"]["texts"].untrusted()["sources"][0]["kind"].asString() shouldBe "MANUAL_CHAT"
         }
     }
 
@@ -81,10 +114,26 @@ class McpImportToolsContractTest : McpImportContractSupport() {
             done.toString() shouldNotContain "Ignore previous"
             dsl.fetchCount(APPLICATION) shouldBe 1
             client
-                .call("get_application", mapOf("id" to done["applicationId"].asString()))["status"]
+                .call("get_application", mapOf("id" to done["applicationId"].asString()))["readOnly"]["status"]
                 .asString() shouldBe "DISCOVERED"
             val sent = FAKE_AI.findAll(postRequestedFor(urlEqualTo(COMPLETIONS))).single().bodyAsString
             sent.contains("Ignore previous instructions") shouldBe true
+        }
+    }
+
+    @Test
+    fun `the same text submitted over and over stores one pending import, not one row per call`() {
+        answers(ANSWER)
+        owner.mcpClient().use { client ->
+            client.initialize()
+            val first = client.call("start_text_import", mapOf("text" to POSTING))
+            client.untilDone(first["id"].asString())
+
+            val repeats = (1..5).map { client.call("start_text_import", mapOf("text" to POSTING))["id"].asString() }
+
+            repeats.toSet().size shouldBe 1
+            dsl.fetchCount(POSTING_IMPORT) shouldBe 2
+            dsl.fetchCount(APPLICATION) shouldBe 1
         }
     }
 
@@ -117,95 +166,6 @@ class McpImportToolsContractTest : McpImportContractSupport() {
     }
 
     @Test
-    fun `a posting URL is fetched through the guard, imported and polled, with the link as its source`() {
-        servesPosting("/jobs/42", "<html><body><script>evil()</script><h1>Senior Kotlin Developer</h1></body></html>")
-        answers(ANSWER)
-        owner.mcpClient().use { client ->
-            client.initialize()
-
-            val started = client.call("start_url_import", mapOf("url" to postingUrl("/jobs/42") + "?utm_source=mail"))
-
-            started["outcome"].asString() shouldBe "STARTED"
-            val id = started["import"]["id"].asString()
-            changelog("posting_import", id).map { it.second } shouldContainExactly listOf("AI")
-            val done = client.untilDone(id)
-            val application = client.call("get_application", mapOf("id" to done["applicationId"].asString()))
-            val source = application["posting"].untrusted()["sources"][0]
-            source["kind"].asString() shouldBe "URL"
-            source["url"].asString() shouldBe postingUrl("/jobs/42")
-            val sent = FAKE_AI.findAll(postRequestedFor(urlEqualTo(COMPLETIONS))).single().bodyAsString
-            sent shouldNotContain "evil()"
-        }
-    }
-
-    @Test
-    fun `the same link twice answers the pending import, then the existing application, fetching once`() {
-        servesPosting("/jobs/42", "<html><body><h1>Senior Kotlin Developer</h1></body></html>")
-        answers(ANSWER)
-        owner.mcpClient().use { client ->
-            client.initialize()
-            val link = mapOf("url" to postingUrl("/jobs/42"))
-            val first = client.call("start_url_import", link)
-            val again = client.call("start_url_import", link)
-
-            again["outcome"].asString() shouldBe "ALREADY_PENDING"
-            again["import"]["id"].asString() shouldBe first["import"]["id"].asString()
-            val done = client.untilDone(first["import"]["id"].asString())
-            val imported = client.call("start_url_import", link)
-
-            imported["outcome"].asString() shouldBe "ALREADY_IMPORTED"
-            imported["import"]["status"].asString() shouldBe "SUCCEEDED"
-            imported["import"]["applicationId"].asString() shouldBe done["applicationId"].asString()
-            fetches("/jobs/42") shouldBe 1
-            dsl.fetchCount(APPLICATION) shouldBe 1
-        }
-    }
-
-    @Test
-    fun `links to LinkedIn, StepStone and Indeed are refused with not-allowed and never fetched`() {
-        owner.mcpClient().use { client ->
-            client.initialize()
-
-            listOf(
-                "https://www.linkedin.com/jobs/view/123",
-                "https://www.stepstone.de/stellenangebote--x-123-inline.html",
-                "https://de.indeed.com/viewjob?jk=abc",
-            ).forEach { link ->
-                val refused = client.failure("start_url_import", mapOf("url" to link), "invalid-arguments")
-                refused.problems() shouldContainExactly listOf("url:not-allowed")
-                refused["message"].asString().contains("start_text_import") shouldBe true
-            }
-            FAKE_POSTING.allServeEvents.size shouldBe 0
-            dsl.fetchCount(POSTING_IMPORT) shouldBe 0
-        }
-    }
-
-    @Test
-    fun `internal and unknown addresses are refused by the guard, and a malformed link is invalid`() {
-        owner.mcpClient().use { client ->
-            client.initialize()
-
-            listOf(
-                "http://169.254.169.254/latest/meta-data/",
-                "http://10.0.0.5/jobs/1",
-                "http://127.0.0.1:1/jobs/1",
-                "http://localhost:1/jobs/1",
-            ).forEach { link ->
-                client.failure("start_url_import", mapOf("url" to link), "invalid-arguments").problems() shouldBe
-                    listOf("url:unreachable")
-            }
-            client
-                .failure(
-                    "start_url_import",
-                    mapOf("url" to "ftp://x.example/1"),
-                    "invalid-arguments",
-                ).problems() shouldBe
-                listOf("url:invalid-url")
-            dsl.fetchCount(POSTING_IMPORT) shouldBe 0
-        }
-    }
-
-    @Test
     fun `invalid text and arguments that break the schema are refused, storing nothing`() {
         owner.mcpClient().use { client ->
             client.initialize()
@@ -217,8 +177,6 @@ class McpImportToolsContractTest : McpImportContractSupport() {
             client.refused("start_text_import", mapOf())
             client.refused("start_text_import", mapOf("text" to "x".repeat(100_001)))
             client.refused("start_text_import", mapOf("text" to "A posting", "unknown" to 1))
-            client.refused("start_url_import", mapOf())
-            client.refused("start_url_import", mapOf("url" to "https://x.example/" + "a".repeat(2_048)))
             client.failure("get_import_status", mapOf("id" to "not-a-uuid"), "invalid-arguments").problems() shouldBe
                 listOf("id:invalid")
             client.failure("get_import_status", mapOf("id" to MISSING), "not-found")
@@ -234,14 +192,7 @@ class McpImportToolsContractTest : McpImportContractSupport() {
 
             val started = client.call("start_text_import", mapOf("text" to "$POSTING\nCall $FLAGGED_PHONE"))
             val done = client.untilDone(started["id"].asString())
-            val rejected =
-                client.failure(
-                    "start_url_import",
-                    mapOf("url" to "http://10.0.0.5/?q=$FLAGGED_PHONE"),
-                    "invalid-arguments",
-                )
-
-            listOf(started, done, rejected).forEach { it.toString() shouldNotContain "1234567" }
+            listOf(started, done).forEach { it.toString() shouldNotContain "1234567" }
             FAKE_AI.findAll(postRequestedFor(urlEqualTo(COMPLETIONS))).single().bodyAsString shouldNotContain "1234567"
         }
     }
@@ -250,7 +201,7 @@ class McpImportToolsContractTest : McpImportContractSupport() {
     fun `without a session no import tool can be called`() {
         val anonymous = Session().open()
 
-        listOf("start_text_import", "start_url_import", "get_import_status").forEach { tool ->
+        listOf("start_text_import", "get_import_status").forEach { tool ->
             val call = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"$tool","arguments":{}}}"""
             anonymous.send("POST", "/mcp", call).statusCode() shouldBe 401
         }
