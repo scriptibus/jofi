@@ -4,6 +4,8 @@
 package io.github.scriptibus.jofi.tasks.application
 
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
@@ -11,13 +13,17 @@ import io.github.scriptibus.jofi.shared.domain.ChangelogEntry
 import io.github.scriptibus.jofi.shared.domain.ChangelogLimit
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
 import io.github.scriptibus.jofi.shared.domain.EntityRef
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.FlaggedValue
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
@@ -43,6 +49,19 @@ class TaskFixtures {
     val entries = mutableListOf<ChangelogEntry>()
     var failingChangelog = false
     var failingStore = false
+
+    /** What the "never send to AI" source flags; `null` makes it unavailable. */
+    var flaggedValues: Set<FlaggedValue>? = emptySet()
+
+    val redaction =
+        RedactForAiUseCase(
+            object : AiVisibilityPort {
+                override fun rulesFor(sources: Set<ContentSource>) =
+                    flaggedValues
+                        ?.let { AiVisibilityResult.Known(NeverSendRules(emptyMap(), it)) }
+                        ?: AiVisibilityResult.Unavailable("test")
+            },
+        )
 
     /** A version another client stored between this use case's read and its write (the update race). */
     var concurrentVersion: Long? = null
@@ -90,7 +109,26 @@ class TaskFixtures {
                     else -> TaskStoreResult.Success(tasks.values.filter { it.state == state }.sortedBy { it.createdAt })
                 }
 
-            override fun listDone(query: DoneTaskQuery): TaskStoreResult<DoneTaskPage> {
+            override fun pageByStateNewestFirst(
+                state: TaskState,
+                request: PageRequest,
+            ): TaskStoreResult<Paged<Task>> =
+                when {
+                    failingStore -> {
+                        TaskStoreResult.StorageFailure("pageByStateNewestFirst")
+                    }
+
+                    else -> {
+                        val newestFirst =
+                            tasks.values
+                                .filter { it.state == state }
+                                .sortedBy { it.createdAt }
+                                .reversed()
+                        TaskStoreResult.Success(Paged.slice(newestFirst, request))
+                    }
+                }
+
+            override fun listDone(request: PageRequest): TaskStoreResult<Paged<Task>> {
                 if (failingStore) return TaskStoreResult.StorageFailure("listDone")
                 val done =
                     tasks.values
@@ -98,9 +136,7 @@ class TaskFixtures {
                         .sortedWith(
                             compareByDescending<Task> { it.completedAt }.thenByDescending { it.id.value.toString() },
                         )
-                return TaskStoreResult.Success(
-                    DoneTaskPage(done.drop(query.offset.toInt()).take(query.size), done.size.toLong()),
-                )
+                return TaskStoreResult.Success(Paged.slice(done, request))
             }
 
             override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> = error("Not used by these use cases")

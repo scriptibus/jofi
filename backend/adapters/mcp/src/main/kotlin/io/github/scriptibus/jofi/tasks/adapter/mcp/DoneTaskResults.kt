@@ -4,8 +4,7 @@
 package io.github.scriptibus.jofi.tasks.adapter.mcp
 
 import io.github.scriptibus.jofi.shared.adapter.mcp.Untrusted
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.Task
 import java.time.Instant
 import java.util.UUID
@@ -45,17 +44,22 @@ data class DoneTaskResult(
     }
 }
 
-/** One page of the done tasks, the newest completion first; [total] counts all done tasks. */
+/** One page of the done tasks, the newest completion first; ask for the next `page` while [hasMore] is true. */
 data class DoneTasksResult(
-    val total: Long,
     val page: Int,
     val size: Int,
+    val total: Int,
+    val hasMore: Boolean,
     val tasks: List<DoneTaskResult>,
 ) {
     companion object {
-        fun from(
-            done: DoneTaskPage,
-            query: DoneTaskQuery,
-        ) = DoneTasksResult(done.total, query.page, query.size, done.tasks.map(DoneTaskResult::from))
+        fun from(done: Paged<Task>) =
+            DoneTasksResult(
+                done.info.page,
+                done.info.size,
+                done.info.total,
+                done.info.hasMore,
+                done.items.map(DoneTaskResult::from),
+            )
     }
 }

@@ -9,12 +9,13 @@ import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.APPLICATION
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.COMPANY
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.CONTACT
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
 import io.github.scriptibus.jofi.tasks.domain.ContactRef
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
@@ -142,6 +143,67 @@ class TaskRepositoryTest {
     }
 
     @Test
+    fun `a page of suggestions is newest first with the total, and paging reaches every one exactly once`() {
+        val suggested =
+            (1..7).map { index ->
+                val origin = TaskOrigin.Suggested("follow-up", "application:$index")
+                Task.suggest(newId(), details(), origin, CREATED.plusSeconds(index.toLong()))
+            }
+        suggested.forEach { repository.add(it) }
+        repository.add(open(details()))
+
+        val pages = (0..2).map { page(it, 3) }
+
+        pages.map { it.info.total } shouldBe listOf(7, 7, 7)
+        pages.map { it.info.hasMore } shouldBe listOf(true, true, false)
+        pages.flatMap { it.items }.map { it.id } shouldBe suggested.reversed().map { it.id }
+        page(3, 3).items shouldBe emptyList()
+    }
+
+    @Test
+    fun `tasks created in the same instant keep one order over every page, by id`() {
+        val same =
+            (1..5).map { index ->
+                val origin = TaskOrigin.Suggested("follow-up", "application:$index")
+                Task.suggest(newId(), details(), origin, CREATED)
+            }
+        same.forEach { repository.add(it) }
+
+        val ids = (0..2).flatMap { page(it, 2).items }.map { it.id.value.toString() }
+
+        // PostgreSQL orders uuids bytewise, which is the order of their lower-case text (not of `UUID.compareTo`).
+        ids shouldBe same.map { it.id.value.toString() }.sortedDescending()
+    }
+
+    @Test
+    fun `a task added between two page reads can shift the next page, which the changed total shows`() {
+        val first =
+            (1..4).map {
+                Task.suggest(newId(), details(), TaskOrigin.Suggested("r", "k$it"), CREATED.plusSeconds(it.toLong()))
+            }
+        first.forEach { repository.add(it) }
+        val before = page(0, 2)
+
+        val newest = Task.suggest(newId(), details(), TaskOrigin.Suggested("r", "new"), LATER)
+        repository.add(newest)
+        val after = page(1, 2)
+
+        before.info.total shouldBe 4
+        after.info.total shouldBe 5
+        // The new one pushed the last item of page 0 onto page 1: a repeat, never a gap.
+        after.items.first().id shouldBe before.items.last().id
+    }
+
+    private fun page(
+        page: Int,
+        size: Int,
+    ): Paged<Task> =
+        repository
+            .pageByStateNewestFirst(TaskState.SUGGESTED, PageRequest(page, size))
+            .shouldBeInstanceOf<TaskStoreResult.Success<Paged<Task>>>()
+            .value
+
+    @Test
     fun `lists one page of the done tasks, the newest completion first, with the total and no other state`() {
         val completions = listOf(LATER, LATER.plusSeconds(60), LATER.plusSeconds(120), LATER.plusSeconds(180))
         val doneTasks = completions.map { doneAt(open(details()), it) }
@@ -152,24 +214,20 @@ class TaskRepositoryTest {
         // PostgreSQL orders uuids bytewise; java.util.UUID compares signed longs, so compare the text.
         val oldest = listOf(doneTasks.first(), sameInstant).sortedByDescending { it.id.value.toString() }
 
-        fun page(
-            page: Int,
-            size: Int,
-        ) = repository.listDone(DoneTaskQuery(page, size))
-
-        page(0, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(newestFirst.take(2), 5))
-        page(1, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(newestFirst.drop(2).take(1) + oldest.take(1), 5))
-        page(2, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(oldest.drop(1), 5))
-        page(3, 2) shouldBe TaskStoreResult.Success(DoneTaskPage(emptyList(), 5))
-        page(0, DoneTaskQuery.MAX_SIZE) shouldBe
-            TaskStoreResult.Success(DoneTaskPage(newestFirst.dropLast(1) + oldest, 5))
+        donePage(0, 2) shouldBe Paged(newestFirst.take(2), PageInfo(0, 2, 5, true))
+        donePage(1, 2) shouldBe Paged(newestFirst.drop(2).take(1) + oldest.take(1), PageInfo(1, 2, 5, true))
+        donePage(2, 2) shouldBe Paged(oldest.drop(1), PageInfo(2, 2, 5, false))
+        donePage(3, 2) shouldBe Paged(emptyList(), PageInfo(3, 2, 5, false))
+        donePage(0, PageRequest.MAX_SIZE) shouldBe
+            Paged(newestFirst.dropLast(1) + oldest, PageInfo(0, PageRequest.MAX_SIZE, 5, false))
     }
 
     @Test
     fun `without done tasks the page is empty with a total of zero`() {
         repository.add(open(details()))
 
-        repository.listDone(DoneTaskQuery()) shouldBe TaskStoreResult.Success(DoneTaskPage(emptyList(), 0))
+        donePage(0, PageRequest.DEFAULT_SIZE) shouldBe
+            Paged(emptyList(), PageInfo(0, PageRequest.DEFAULT_SIZE, 0, false))
     }
 
     @Test
@@ -196,13 +254,21 @@ class TaskRepositoryTest {
                 DSL.using(dsl.configuration().derive(DefaultExecuteListenerProvider(reopenAfterTheFirstSelect))),
             )
 
-        val page = racing.listDone(DoneTaskQuery(0, 10))
+        val page = racing.listDone(PageRequest(0, 10))
 
         reopened shouldBe true
-        page shouldBe TaskStoreResult.Success(DoneTaskPage(doneTasks.reversed(), 3))
-        repository.listDone(DoneTaskQuery(0, 10)) shouldBe
-            TaskStoreResult.Success(DoneTaskPage(doneTasks.drop(1).reversed(), 2))
+        page shouldBe TaskStoreResult.Success(Paged(doneTasks.reversed(), PageInfo(0, 10, 3, false)))
+        donePage(0, 10) shouldBe Paged(doneTasks.drop(1).reversed(), PageInfo(0, 10, 2, false))
     }
+
+    private fun donePage(
+        page: Int,
+        size: Int,
+    ): Paged<Task> =
+        repository
+            .listDone(PageRequest(page, size))
+            .shouldBeInstanceOf<TaskStoreResult.Success<Paged<Task>>>()
+            .value
 
     @Test
     fun `deleting needs the proof for exactly this task`() {

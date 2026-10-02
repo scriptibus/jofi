@@ -3,8 +3,10 @@
 
 package io.github.scriptibus.jofi.tasks.adapter.web
 
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
+import io.github.scriptibus.jofi.shared.adapter.web.InvalidParameterAdvice
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
 import io.github.scriptibus.jofi.tasks.domain.TaskId
@@ -32,7 +34,7 @@ import java.util.UUID
  */
 @WebMvcTest(DoneTaskController::class, properties = ["spring.mvc.problemdetails.enabled=true"])
 @AutoConfigureMockMvc(addFilters = false)
-@Import(TaskControllerTest.UseCases::class)
+@Import(TaskControllerTest.UseCases::class, InvalidParameterAdvice::class)
 class DoneTaskControllerTest(
     @param:Autowired private val mvc: MockMvcTester,
     @param:Autowired private val ports: TaskControllerTest.Ports,
@@ -46,8 +48,8 @@ class DoneTaskControllerTest(
     fun `answers the requested page of done tasks with the total, as the use case read it`() {
         val older = done("Older", Instant.parse("2026-09-01T09:00:00Z"))
         val newer = done("Newer", Instant.parse("2026-09-02T09:00:00Z"))
-        every { ports.tasks.listDone(DoneTaskQuery(1, 2)) } returns
-            TaskStoreResult.Success(DoneTaskPage(listOf(newer, older), 5))
+        every { ports.tasks.listDone(PageRequest(1, 2)) } returns
+            TaskStoreResult.Success(Paged(listOf(newer, older), PageInfo(1, 2, 5, true)))
 
         mvc
             .get()
@@ -57,7 +59,7 @@ class DoneTaskControllerTest(
             .bodyJson()
             .isLenientlyEqualTo(
                 """
-                {"page":1,"size":2,"total":5,
+                {"page":{"page":1,"size":2,"total":5,"hasMore":true},
                  "tasks":[{"id":"${newer.id.value}","title":"Newer","status":"DONE","version":1,
                            "completedAt":"2026-09-02T09:00:00Z"},
                           {"id":"${older.id.value}","title":"Older","status":"DONE","version":1,
@@ -68,7 +70,8 @@ class DoneTaskControllerTest(
 
     @Test
     fun `without parameters it is the first page of the default size`() {
-        every { ports.tasks.listDone(DoneTaskQuery()) } returns TaskStoreResult.Success(DoneTaskPage(emptyList(), 0))
+        every { ports.tasks.listDone(PageRequest.FIRST) } returns
+            TaskStoreResult.Success(Paged(emptyList(), PageInfo(0, PageRequest.DEFAULT_SIZE, 0, false)))
 
         mvc
             .get()
@@ -76,12 +79,14 @@ class DoneTaskControllerTest(
             .assertThat()
             .hasStatusOk()
             .bodyJson()
-            .isLenientlyEqualTo("""{"page":0,"size":${DoneTaskQuery.DEFAULT_SIZE},"total":0,"tasks":[]}""")
+            .isLenientlyEqualTo(
+                """{"page":{"page":0,"size":${PageRequest.DEFAULT_SIZE},"total":0,"hasMore":false},"tasks":[]}""",
+            )
     }
 
     @Test
     fun `a page or size out of range is a 400 naming it, and nothing is read`() {
-        listOf("page=-1", "size=0", "size=${DoneTaskQuery.MAX_SIZE + 1}").forEach { query ->
+        listOf("page=-1", "size=0", "size=${PageRequest.MAX_SIZE + 1}").forEach { query ->
             mvc
                 .get()
                 .uri("/api/tasks/done?$query")
@@ -115,7 +120,7 @@ class DoneTaskControllerTest(
             .hasStatus(400)
             .bodyJson()
             .isLenientlyEqualTo(
-                """{"type":"${TaskProblems.INVALID}","violations":[{"field":"page","problem":"INVALID"}]}""",
+                """{"violations":[{"field":"page","problem":"INVALID"}]}""",
             )
         mvc
             .get()

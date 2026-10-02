@@ -83,7 +83,7 @@ class McpDoneTaskToolsContractTest : McpToolContractSupport() {
             val rest = JsonMapper.builder().build().readTree(owner.send("GET", "/api/tasks/done").body())
 
             rest.ids() shouldBe client.call("list_done_tasks", mapOf()).ids()
-            rest["total"].asInt() shouldBe 1
+            rest["page"]["total"].asInt() shouldBe 1
             owner.send("POST", "/api/tasks/$id/reopen", """{"basedOnVersion":1}""").statusCode() shouldBe 200
             changelog("task", id).last() shouldBe ("Reopened task" to "USER")
             client.call("list_done_tasks", mapOf())["total"].asInt() shouldBe 0
@@ -132,16 +132,12 @@ class McpDoneTaskToolsContractTest : McpToolContractSupport() {
     }
 
     @Test
-    fun `list_done_tasks answers a page that is no int as page-invalid, as documented`() {
+    fun `a page beyond the schema's bound is refused before the tool runs`() {
         owner.mcpClient().use { client ->
             client.initialize()
 
-            client
-                .failure("list_done_tasks", mapOf("page" to 2_147_483_648L), "invalid-arguments")
-                .problems() shouldContainExactly listOf("page:invalid")
-            client
-                .failure("list_done_tasks", mapOf("page" to 1.0), "invalid-arguments")
-                .problems() shouldContainExactly listOf("page:invalid")
+            client.refused("list_done_tasks", mapOf("page" to 2_147_483_648L))
+            client.refused("list_done_tasks", mapOf("page" to 10_001))
         }
     }
 

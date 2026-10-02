@@ -6,7 +6,8 @@ import { api, choose, expectNoA11yViolations, mainNav, onStack, snapshot, unique
 
 // The tasks page against the real backend (spec §10.2, #110): the grouping runs on the server in the browser's
 // zone. Every browser project runs these in parallel on one stack and all tasks share one list, so each test
-// finds its own tasks by their unique titles and never relies on a group's count.
+// finds its own tasks by their unique titles and never relies on a group's count. The list loads 50 tasks at a time
+// (ADR-0056): a test that looks for its task loads every page first (`showAllTasks`).
 test.skip(!onStack, "Needs the full stack: run `pnpm e2e`.");
 
 interface Task {
@@ -23,6 +24,49 @@ async function createTask(page: Page, prefix: string, timing: Record<string, str
   const response = await request.post("/api/tasks", { data, headers });
   expect(response.status()).toBe(201);
   return (await response.json()) as Task;
+}
+
+const showMore = (page: Page) =>
+  page.getByRole("button", { name: /^(Show more tasks|Weitere Aufgaben anzeigen)$/ });
+
+/** Loads every page of the list, which the tests running in parallel share and which may exceed one page. */
+async function showAllTasks(page: Page) {
+  await expect(page.getByRole("checkbox").first()).toBeVisible();
+  while (await showMore(page).isVisible()) {
+    const loaded = await page.getByRole("checkbox").count();
+    await showMore(page).click();
+    await expect.poll(() => page.getByRole("checkbox").count()).toBeGreaterThan(loaded);
+  }
+}
+
+/** Creates `count` someday tasks through the API; the ids go back so the test can delete them. */
+async function createMany(page: Page, prefix: string, count: number): Promise<string[]> {
+  await page.goto("/tasks");
+  const { request, headers } = await api(page);
+  const timeZone = await browserZone(page);
+  const ids: string[] = [];
+  for (let from = 0; from < count; from += 10) {
+    const batch = Array.from({ length: Math.min(10, count - from) }, async (_, offset) => {
+      const data = { title: `${prefix} ${from + offset + 1}`, timing: { timeZone, bucket: "SOMEDAY" } };
+      const response = await request.post("/api/tasks", { data, headers });
+      expect(response.status()).toBe(201);
+      return ((await response.json()) as Task).id;
+    });
+    ids.push(...(await Promise.all(batch)));
+  }
+  return ids;
+}
+
+/** Deletes tasks through the API, with the server's two steps. */
+async function deleteTasks(page: Page, ids: string[]) {
+  const { request, headers } = await api(page);
+  for (const id of ids) {
+    const first = await request.delete(`/api/tasks/${id}`, { headers });
+    const { confirmationToken } = (await first.json()) as { confirmationToken: string };
+    await request.delete(`/api/tasks/${id}`, {
+      headers: { ...headers, "Jofi-Confirmation": confirmationToken },
+    });
+  }
 }
 
 /** The page's announcement of what just happened. */
@@ -96,6 +140,7 @@ test("add a task at an exact time, linked to an application; its chip opens the 
 test("complete a task and undo it; a completed task leaves the list", async ({ page }) => {
   const task = await createTask(page, "Call Anna", { bucket: "TODAY" });
   await page.goto("/tasks");
+  await showAllTasks(page);
   const box = page.getByRole("checkbox", { name: task.title });
   await expect(box).not.toBeChecked();
   await page.getByText(task.title, { exact: true }).click();
@@ -168,6 +213,7 @@ test("edit a task: the new title and bucket show in the list", async ({ page }) 
   const task = await createTask(page, "Research ACME", { bucket: "SOMEDAY" });
   const title = uniqueName("Research ACME properly");
   await page.goto("/tasks");
+  await showAllTasks(page);
   await page.getByRole("link", { name: `Edit task: ${task.title}` }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Edit task" })).toBeVisible();
   await expect(
@@ -187,6 +233,7 @@ test("edit a task: the new title and bucket show in the list", async ({ page }) 
 test("delete a task only after confirming", async ({ page }) => {
   const task = await createTask(page, "Cancel the gym", { bucket: "THIS_MONTH" });
   await page.goto("/tasks");
+  await showAllTasks(page);
   await page.getByRole("button", { name: `Delete task: ${task.title}` }).click();
   const dialog = page.getByRole("alertdialog", { name: "Delete this task?" });
   await expect(dialog).toContainText(`“${task.title}” will be deleted.`);
@@ -204,6 +251,48 @@ test("delete a task only after confirming", async ({ page }) => {
   expect((await request.get(`/api/tasks/${task.id}`)).status()).toBe(404);
 });
 
+test("more than 50 open tasks load a page at a time, and notes of any length stay readable", async ({
+  page,
+}) => {
+  const prefix = uniqueName("Paged task");
+  const ids = await createMany(page, prefix, 51);
+  const long = `Start of the notes ${"x".repeat(400)} the very end`;
+  const { request, headers } = await api(page);
+  const noted = await request.post("/api/tasks", {
+    data: {
+      title: `${prefix} noted`,
+      notes: long,
+      timing: { timeZone: await browserZone(page), bucket: "SOMEDAY" },
+    },
+    headers,
+  });
+  ids.push(((await noted.json()) as Task).id);
+  try {
+    await page.goto("/tasks");
+    await expect(page.getByRole("checkbox").first()).toBeVisible();
+    const shown = page.getByText(/^Showing \d+ of \d+ open tasks\.$/);
+    await expect(shown).toBeVisible();
+    await expect(page.getByRole("checkbox")).toHaveCount(50);
+    await expectNoA11yViolations(page);
+    await snapshot(page, "tasks-paged");
+
+    await showMore(page).click();
+    await expect.poll(() => page.getByRole("checkbox").count()).toBeGreaterThan(50);
+    await showAllTasks(page);
+    await expect(showMore(page)).toHaveCount(0);
+
+    const row = page.getByRole("listitem").filter({ hasText: `${prefix} noted` });
+    await row.getByRole("button", { name: "Notes" }).click();
+    await expect(row.getByText(/^Start of the notes x+…$/)).toBeVisible();
+    await row.getByRole("button", { name: "Show all notes" }).click();
+    await expect(row.getByText(long)).toBeVisible();
+    await expect(row.getByRole("button", { name: "Show all notes" })).toHaveCount(0);
+    await expectNoA11yViolations(page);
+  } finally {
+    await deleteTasks(page, ids);
+  }
+});
+
 test.describe("in German", () => {
   test.use({ locale: "de-DE" });
 
@@ -219,6 +308,21 @@ test.describe("in German", () => {
     await expect(group(page, "Heute").getByRole("checkbox", { name: title })).toBeVisible();
     await expectNoA11yViolations(page);
     await snapshot(page, "tasks-de");
+  });
+
+  test("more tasks are loaded on request in German", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop-light", "One run is enough: it creates 51 tasks.");
+    const ids = await createMany(page, uniqueName("Seitenaufgabe"), 51);
+    try {
+      await page.goto("/tasks");
+      await expect(page.getByRole("checkbox").first()).toBeVisible();
+      await expect(page.getByText(/^\d+ von \d+ offenen Aufgaben angezeigt\.$/)).toBeVisible();
+      await expect(showMore(page)).toHaveText("Weitere Aufgaben anzeigen");
+      await expectNoA11yViolations(page);
+      await snapshot(page, "tasks-paged-de");
+    } finally {
+      await deleteTasks(page, ids);
+    }
   });
 
   test("find a done task and reopen it in German", async ({ page }) => {

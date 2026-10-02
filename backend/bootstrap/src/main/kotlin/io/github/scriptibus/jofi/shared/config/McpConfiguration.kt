@@ -8,6 +8,7 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.JofiMcpServer
 import io.github.scriptibus.jofi.shared.adapter.mcp.McpTool
 import io.github.scriptibus.jofi.shared.adapter.mcp.McpToolSpecifications
 import io.github.scriptibus.jofi.shared.application.FilterToolResultUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
 import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.modelcontextprotocol.json.jackson3.JacksonMcpJsonMapper
 import org.springframework.beans.factory.ObjectProvider
@@ -31,6 +32,10 @@ class McpConfiguration {
     @Bean
     fun filterToolResultUseCase(visibility: AiVisibilityPort): FilterToolResultUseCase =
         FilterToolResultUseCase(visibility)
+
+    /** The flagged values out of whole notes before a list cuts its excerpts (ADR-0056). */
+    @Bean
+    fun redactForAiUseCase(visibility: AiVisibilityPort): RedactForAiUseCase = RedactForAiUseCase(visibility)
 
     /** How long a person has to answer a delete confirmation and how many may wait (`docs/mcp-tools.md`). */
     @Bean

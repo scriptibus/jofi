@@ -7,19 +7,22 @@ import io.github.scriptibus.jofi.shared.adapter.mcp.ArgumentProblem
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolAnswer
 import io.github.scriptibus.jofi.shared.adapter.mcp.ToolProblems
 import io.github.scriptibus.jofi.shared.adapter.mcp.Untrusted
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
 import io.github.scriptibus.jofi.tasks.domain.ContactRef
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskField
-import io.github.scriptibus.jofi.tasks.domain.TaskGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskGroupKind
+import io.github.scriptibus.jofi.tasks.domain.TaskGroupsPage
 import io.github.scriptibus.jofi.tasks.domain.TaskLink
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskState
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
+import io.github.scriptibus.jofi.tasks.domain.TaskSummaryGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.github.scriptibus.jofi.tasks.domain.TaskViolation
 import java.time.Instant
@@ -89,14 +92,14 @@ data class TaskDetailResult(
             )
         }
 
-        private fun originKind(origin: TaskOrigin) =
+        internal fun originKind(origin: TaskOrigin) =
             when (origin) {
                 TaskOrigin.Manual -> TaskOriginKind.MANUAL
                 TaskOrigin.Chat -> TaskOriginKind.CHAT
                 is TaskOrigin.Suggested -> TaskOriginKind.SUGGESTED
             }
 
-        private fun timingOf(timing: TaskTiming) =
+        internal fun timingOf(timing: TaskTiming) =
             when (timing) {
                 is TaskTiming.Exact -> {
                     TaskTimingResult(timing.dueAt, timing.localDue, timing.zone.id, null, null, null)
@@ -107,7 +110,7 @@ data class TaskDetailResult(
                 }
             }
 
-        private fun linkOf(link: TaskLink) =
+        internal fun linkOf(link: TaskLink) =
             when (link) {
                 is ApplicationRef -> TaskLinkResult(TaskLinkKind.APPLICATION, link.value)
                 is CompanyRef -> TaskLinkResult(TaskLinkKind.COMPANY, link.value)
@@ -116,24 +119,106 @@ data class TaskDetailResult(
     }
 }
 
-data class TaskGroupResult(
-    val group: TaskGroupKind,
-    val tasks: List<TaskDetailResult>,
+/**
+ * A title and the start of the notes, as a list shows them (ADR-0056). The keys differ from [TaskWords] (`title`,
+ * `notes`) on purpose: an excerpt is never the whole note, so a model cannot pass a list entry off as a read. The
+ * whole text comes from `get_task`.
+ */
+data class TaskExcerptWords(
+    val title: String,
+    val notesExcerpt: String?,
+    val notesTruncated: Boolean,
+)
+
+/** One task of a list: the fields of [TaskDetailResult] with an excerpt of the notes instead of the notes. */
+data class TaskSummaryResult(
+    val id: UUID,
+    val version: Long,
+    val status: TaskState,
+    val origin: TaskOriginKind,
+    val suggestionRule: String?,
+    val timing: TaskTimingResult,
+    val link: TaskLinkResult?,
+    val completedAt: Instant?,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    val task: Untrusted<TaskExcerptWords>,
 ) {
     companion object {
-        fun from(group: TaskGroup) = TaskGroupResult(group.kind, group.tasks.map(TaskDetailResult::from))
+        fun from(task: TaskSummary) =
+            TaskSummaryResult(
+                task.id.value,
+                task.version,
+                task.state,
+                TaskDetailResult.originKind(task.origin),
+                (task.origin as? TaskOrigin.Suggested)?.rule,
+                TaskDetailResult.timingOf(task.timing),
+                task.link?.let(TaskDetailResult::linkOf),
+                task.completedAt,
+                task.createdAt,
+                task.updatedAt,
+                Untrusted(
+                    TaskExcerptWords(
+                        task.title,
+                        task.notesExcerpt?.text,
+                        task.notesExcerpt?.truncated ?: false,
+                    ),
+                ),
+            )
     }
 }
 
-/** The open tasks by due group, every group present in its order, empty ones included. */
-data class TaskGroupsResult(
-    val groups: List<TaskGroupResult>,
-)
+data class TaskGroupResult(
+    val group: TaskGroupKind,
+    val tasks: List<TaskSummaryResult>,
+) {
+    companion object {
+        fun from(group: TaskSummaryGroup) = TaskGroupResult(group.kind, group.tasks.map(TaskSummaryResult::from))
+    }
+}
 
-/** The suggestions waiting for a yes, newest first. */
+/**
+ * One page of the open tasks by due group, every group present in its order, empty ones included. The tasks are
+ * numbered through the groups in that order: ask for the next `page` while [hasMore] is true.
+ */
+data class TaskGroupsResult(
+    val page: Int,
+    val size: Int,
+    val total: Int,
+    val hasMore: Boolean,
+    val groups: List<TaskGroupResult>,
+) {
+    companion object {
+        fun from(page: TaskGroupsPage) =
+            TaskGroupsResult(
+                page.info.page,
+                page.info.size,
+                page.info.total,
+                page.info.hasMore,
+                page.groups.map(TaskGroupResult::from),
+            )
+    }
+}
+
+/** One page of the suggestions waiting for a yes, newest first. */
 data class TaskSuggestionsResult(
-    val tasks: List<TaskDetailResult>,
-)
+    val page: Int,
+    val size: Int,
+    val total: Int,
+    val hasMore: Boolean,
+    val tasks: List<TaskSummaryResult>,
+) {
+    companion object {
+        fun from(page: Paged<TaskSummary>) =
+            TaskSuggestionsResult(
+                page.info.page,
+                page.info.size,
+                page.info.total,
+                page.info.hasMore,
+                page.items.map(TaskSummaryResult::from),
+            )
+    }
+}
 
 /** The tool errors of the tasks: stable codes, no stored content. */
 internal object TaskToolErrors {
@@ -208,5 +293,7 @@ internal object TaskToolErrors {
             TaskField.TIME_ZONE -> "timeZone"
             TaskField.LINK -> "link"
             TaskField.TARGET_DATE -> "targetDate"
+            TaskField.PAGE -> "page"
+            TaskField.SIZE -> "size"
         }
 }

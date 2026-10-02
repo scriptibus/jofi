@@ -4,17 +4,26 @@
 package io.github.scriptibus.jofi.tasks.adapter.persistence
 
 import io.github.scriptibus.jofi.shared.adapter.persistence.PostgresTestDatabase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
 import io.github.scriptibus.jofi.tasks.application.ListTaskGroupsUseCase
 import io.github.scriptibus.jofi.tasks.domain.BucketSpan
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDetails
-import io.github.scriptibus.jofi.tasks.domain.TaskGroup
 import io.github.scriptibus.jofi.tasks.domain.TaskGroupKind
+import io.github.scriptibus.jofi.tasks.domain.TaskGroupsPage
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.github.scriptibus.jofi.tasks.domain.TaskTransition
 import io.kotest.matchers.shouldBe
@@ -100,8 +109,10 @@ class TaskGroupsOnPostgresTest {
             )
         // Saturday 31 October 23:30 in UTC is Sunday 1 November 00:30 in Berlin.
         val lastNight = Instant.parse("2026-10-31T23:30:00Z")
-        groups(lastNight, BERLIN)[TaskGroupKind.OVERDUE] shouldBe listOf(week, nextWeek, october)
-        groups(lastNight, BERLIN)[TaskGroupKind.THIS_MONTH] shouldBe listOf(november)
+        groups(lastNight, BERLIN)[TaskGroupKind.OVERDUE] shouldBe
+            listOf(week, nextWeek, october).map { TaskSummary.of(it, it.details.notes) }
+        groups(lastNight, BERLIN)[TaskGroupKind.THIS_MONTH] shouldBe
+            listOf(november).map { TaskSummary.of(it, it.details.notes) }
     }
 
     @Test
@@ -133,17 +144,21 @@ class TaskGroupsOnPostgresTest {
     private fun groups(
         now: Instant,
         zone: ZoneId,
-    ): Map<TaskGroupKind, List<Task>> {
-        val result = ListTaskGroupsUseCase(repository, Clock.fixed(now, ZoneOffset.UTC)).execute(zone)
+    ): Map<TaskGroupKind, List<TaskSummary>> {
+        val result =
+            ListTaskGroupsUseCase(repository, Clock.fixed(now, ZoneOffset.UTC), UNFLAGGED)
+                .execute(zone, PageInput(0, PageRequest.MAX_SIZE), NotesAudience.USER)
         return result
-            .shouldBeInstanceOf<TaskResult.Success<List<TaskGroup>>>()
+            .shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
             .value
+            .groups
             .associate { it.kind to it.tasks }
     }
 
     /** Every group, empty but for [filled]. */
-    private fun expected(vararg filled: Pair<TaskGroupKind, List<Task>>): Map<TaskGroupKind, List<Task>> =
-        TaskGroupKind.entries.associateWith { emptyList<Task>() } + filled
+    private fun expected(vararg filled: Pair<TaskGroupKind, List<Task>>): Map<TaskGroupKind, List<TaskSummary>> =
+        TaskGroupKind.entries.associateWith { emptyList<TaskSummary>() } +
+            filled.map { (kind, tasks) -> kind to tasks.map { TaskSummary.of(it, it.details.notes) } }
 
     private fun add(timing: TaskTiming): Task =
         Task.create(newId(), details(timing), TaskOrigin.Manual, nextCreated()).also {
@@ -168,6 +183,13 @@ class TaskGroupsOnPostgresTest {
     private fun newId() = TaskId(UUID.randomUUID())
 
     private companion object {
+        val UNFLAGGED =
+            RedactForAiUseCase(
+                object : AiVisibilityPort {
+                    override fun rulesFor(sources: Set<ContentSource>) = AiVisibilityResult.Known(NeverSendRules.NONE)
+                },
+            )
+
         val BERLIN: ZoneId = ZoneId.of("Europe/Berlin")
         val CREATED: Instant = Instant.parse("2026-09-01T08:00:00Z")
 

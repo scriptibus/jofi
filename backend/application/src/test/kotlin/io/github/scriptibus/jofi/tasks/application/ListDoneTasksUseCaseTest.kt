@@ -4,18 +4,25 @@
 package io.github.scriptibus.jofi.tasks.application
 
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.CLOCK
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.NOW
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
+import io.github.scriptibus.jofi.tasks.domain.TaskField
 import io.github.scriptibus.jofi.tasks.domain.TaskGroup
+import io.github.scriptibus.jofi.tasks.domain.TaskGroupsPage
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
+import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskState
 import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskTransition
+import io.github.scriptibus.jofi.tasks.domain.TaskViolation
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -28,7 +35,7 @@ import java.util.UUID
 class ListDoneTasksUseCaseTest {
     private val fixtures = TaskFixtures()
     private val listDone = ListDoneTasksUseCase(fixtures.repository)
-    private val listOpen = ListTaskGroupsUseCase(fixtures.repository, CLOCK)
+    private val listOpen = ListTaskGroupsUseCase(fixtures.repository, CLOCK, fixtures.redaction)
     private val complete = CompleteTaskUseCase(fixtures.repository, fixtures.changelog, fixtures.transactions, CLOCK)
     private val reopen = ReopenTaskUseCase(fixtures.repository, fixtures.changelog, fixtures.transactions, CLOCK)
 
@@ -41,16 +48,15 @@ class ListDoneTasksUseCaseTest {
 
     private fun page(
         page: Int = 0,
-        size: Int = DoneTaskQuery.DEFAULT_SIZE,
-    ): DoneTaskPage =
-        listDone.execute(DoneTaskQuery(page, size)).shouldBeInstanceOf<TaskResult.Success<DoneTaskPage>>().value
+        size: Int = PageRequest.DEFAULT_SIZE,
+    ): Paged<Task> = listDone.execute(PageInput(page, size)).shouldBeInstanceOf<TaskResult.Success<Paged<Task>>>().value
 
     private fun openTasks(): List<Task> =
         listOpen
-            .execute(ZoneOffset.UTC)
-            .shouldBeInstanceOf<TaskResult.Success<List<TaskGroup>>>()
-            .value
-            .flatMap { it.tasks }
+            .execute(ZoneOffset.UTC, PageInput(), NotesAudience.USER)
+            .shouldBeInstanceOf<TaskResult.Success<TaskGroupsPage>>()
+            .value.groups
+            .flatMap { group -> group.tasks.map { fixtures.tasks.getValue(it.id) } }
 
     @Test
     fun `lists the done tasks newest completion first, one bounded page at a time`() {
@@ -58,10 +64,11 @@ class ListDoneTasksUseCaseTest {
         val second = doneAt(NOW.plusSeconds(20))
         val third = doneAt(NOW.plusSeconds(30))
 
-        page() shouldBe DoneTaskPage(listOf(third, second, first), 3)
-        page(0, 2) shouldBe DoneTaskPage(listOf(third, second), 3)
-        page(1, 2) shouldBe DoneTaskPage(listOf(first), 3)
-        page(2, 2) shouldBe DoneTaskPage(emptyList(), 3)
+        page().items shouldBe listOf(third, second, first)
+        page().info shouldBe PageInfo(0, PageRequest.DEFAULT_SIZE, 3, false)
+        page(0, 2) shouldBe Paged(listOf(third, second), PageInfo(0, 2, 3, true))
+        page(1, 2) shouldBe Paged(listOf(first), PageInfo(1, 2, 3, false))
+        page(2, 2) shouldBe Paged(emptyList(), PageInfo(2, 2, 3, false))
     }
 
     @Test
@@ -76,7 +83,8 @@ class ListDoneTasksUseCaseTest {
             )
         fixtures.tasks[suggested.id] = suggested
 
-        page() shouldBe DoneTaskPage(emptyList(), 0)
+        page().items.shouldBeEmpty()
+        page().info.total shouldBe 0
         fixtures.tasks.values.count { it.state == TaskState.DONE } shouldBe 0
     }
 
@@ -86,12 +94,13 @@ class ListDoneTasksUseCaseTest {
         complete.execute(task.id, 0, Actor.Ai)
         openTasks().shouldBeEmpty()
 
-        val found = page().tasks.single()
+        val found = page().items.single()
         found.id shouldBe task.id
         found.completedAt shouldBe NOW
         reopen.execute(found.id, found.version, Actor.User).shouldBeInstanceOf<TaskResult.Success<Task>>()
 
-        page() shouldBe DoneTaskPage(emptyList(), 0)
+        page().items.shouldBeEmpty()
+        page().info.total shouldBe 0
         openTasks().map { it.id } shouldBe listOf(task.id)
         fixtures.tasks.getValue(task.id).state shouldBe TaskState.OPEN
         fixtures.entries.map { it.change.description to it.actor } shouldBe
@@ -102,7 +111,20 @@ class ListDoneTasksUseCaseTest {
     fun `an unavailable store is a storage failure`() {
         fixtures.failingStore = true
 
-        listDone.execute(DoneTaskQuery()) shouldBe TaskResult.StorageFailure("listDone")
+        listDone.execute(PageInput()) shouldBe TaskResult.StorageFailure("listDone")
         fixtures.entries.shouldBeEmpty()
+    }
+
+    @Test
+    fun `a page or size out of range is invalid and names what is wrong, reading nothing`() {
+        fixtures.failingStore = true
+
+        listDone.execute(PageInput(-1, 51)) shouldBe
+            TaskResult.Invalid(
+                listOf(
+                    TaskViolation(TaskField.PAGE, TaskProblem.OUT_OF_RANGE),
+                    TaskViolation(TaskField.SIZE, TaskProblem.OUT_OF_RANGE),
+                ),
+            )
     }
 }

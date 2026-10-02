@@ -64,7 +64,7 @@ export function DoneTasks() {
   );
   const reopen = useReopenDoneTask();
 
-  const total = done.data?.total ?? 0;
+  const total = done.data?.page.total ?? 0;
   const pages = Math.ceil(total / DONE_PAGE_SIZE);
   // The last task of the last page was reopened: that page is gone, show the one before.
   useEffect(() => {
@@ -128,7 +128,7 @@ function DoneList({ data, failed, retrying, onRetry, page, pages, busy, onPage, 
       </Alert>
     );
   if (data === undefined) return <p role="status">{m.loading()}</p>;
-  if (data.total === 0)
+  if (data.page.total === 0)
     return <EmptyState title={m.tasks_done_empty_heading()}>{m.tasks_done_empty()}</EmptyState>;
   return (
     <>

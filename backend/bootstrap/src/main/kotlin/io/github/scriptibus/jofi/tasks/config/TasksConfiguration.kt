@@ -4,6 +4,7 @@
 package io.github.scriptibus.jofi.tasks.config
 
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.tasks.application.CompleteTaskUseCase
@@ -39,7 +40,8 @@ class TasksConfiguration {
     fun listTaskGroupsUseCase(
         tasks: TaskRepositoryPort,
         clock: Clock,
-    ): ListTaskGroupsUseCase = ListTaskGroupsUseCase(tasks, clock)
+        redaction: RedactForAiUseCase,
+    ): ListTaskGroupsUseCase = ListTaskGroupsUseCase(tasks, clock, redaction)
 
     @Bean
     fun listDoneTasksUseCase(tasks: TaskRepositoryPort): ListDoneTasksUseCase = ListDoneTasksUseCase(tasks)

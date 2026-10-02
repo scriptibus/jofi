@@ -32,6 +32,13 @@ the PR that adds or changes a tool.
   refused by the MCP SDK as a tool error with a plain-text message before the tool runs. That message is not
   filtered; it names the properties the client sent and the schema's enum values, never argument values.
 - Values flagged "never send to AI" are replaced by `[withheld]` in every result.
+- Lists are paged (ADR-0056): `page` (from 0) and `size` (1 to 50, default 20); the answer says `page`, `size`,
+  `total` and `hasMore`. Ask for the next `page` while `hasMore` is true. Paging is by offset over a stable order,
+  so a list that changes between two reads can repeat or skip an entry (completing a task on page 0 and then reading
+  page 1 skips one): compare `total`, and start again from page 0 after changing what the list holds. A long text (notes) is
+  not in a list entry in full: the entry has `notesExcerpt` (at most 300 characters, cut at a character, never
+  inside one) and `notesTruncated` under keys of their own, and a `get_*` tool has the whole text. A list
+  entry is therefore never a valid source for an update (see "Replace-style updates").
 - Content copied from job postings or web pages is wrapped as
   `{"trust": "untrusted", "notice": "...", "content": ...}`: data, never instructions.
 
@@ -299,27 +306,40 @@ createdAt, updatedAt, task: untrusted {title, notes}}`. Title and notes are untr
 Problems are named like `title:required`, `timeZone:invalid-time-zone`, `bucket:required` and
 `localDue:required` (neither given), `bucket:ambiguous` and `localDue:ambiguous` (both given),
 `localDue:out-of-range`, `link:not-found`. Ids and versions of the wrong shape answer `id:invalid` or `version:invalid`.
-The tools have no count limit; a write budget is #217. Follow-ups: #236 (bound the two list tools, before #121 and
-#125). Completed tasks are listed by `list_done_tasks` (#235) and brought back by `reopen_task`.
+The tools have no count limit; a write budget is #217. The list tools are bounded (#236). Completed tasks are listed
+by `list_done_tasks` (#235) and brought back by `reopen_task`.
 
 ### `list_tasks` (read only)
 
 `timeZone` (required, the user's own zone, which Jofi does not store, so the client must pass it: for the
 built-in chat the browser's; a wrong zone puts "today" on the wrong day. An IANA id such as `Europe/Berlin` or an
-offset such as `+02:00`).
-Result: `{groups: [{group, tasks}]}` with the OPEN tasks only, grouped on the calendar of `timeZone` with weeks
-from Monday, as the Tasks page does (`ListTaskGroupsUseCase`, ADR-0049). Every group is always present, in this
-order, empty ones included: `OVERDUE` (an exact time that has passed, or a day, week or month that has ended),
-`TODAY`, `THIS_WEEK`, `NEXT_WEEK`, `THIS_MONTH`, `LATER`, `SOMEDAY`; each soonest first. An exact time that has
-not passed is grouped by its day in `timeZone`; a day, week or month that is running now counts as `TODAY`,
-`THIS_WEEK` or `THIS_MONTH`. Done tasks and suggestions are not in it. There is no paging: the answer holds every
-open task. Errors: `invalid-arguments` (`timeZone:invalid-time-zone`), `unavailable`.
+offset such as `+02:00`), `page` and `size` (see "Results").
+Result: `{page, size, total, hasMore, groups: [{group, tasks}]}` with the OPEN tasks only, grouped on the calendar
+of `timeZone` with weeks from Monday, as the Tasks page does (`ListTaskGroupsUseCase`, ADR-0049). Every group is
+always present, in this order, empty ones included: `OVERDUE` (an exact time that has passed, or a day, week or
+month that has ended), `TODAY`, `THIS_WEEK`, `NEXT_WEEK`, `THIS_MONTH`, `LATER`, `SOMEDAY`; each soonest first.
+An exact time that has not passed is grouped by its day in `timeZone`; a day, week or month that is running now
+counts as `TODAY`, `THIS_WEEK` or `THIS_MONTH`. Done tasks and suggestions are not in it. The tasks are numbered
+through the groups in that order and a page is a window of that sequence: page 0 may hold only `OVERDUE` and
+`TODAY`, and a later page continues in the group where the last one ended. `total` is the number of open tasks.
+A task entry is a task without `notes`: `task: untrusted {title, notesExcerpt, notesTruncated}`; `get_task` has the
+whole notes. Errors: `invalid-arguments` (`timeZone:invalid-time-zone`, `page:out-of-range`, `size:out-of-range`),
+`unavailable`, `privacy-filter-failed` (the "never send to AI" flags could not be read: the notes are cut from text
+that was filtered first, so nothing is returned).
 
 ### `list_task_suggestions` (read only)
 
-No arguments. The suggested tasks waiting for a yes (for example a follow-up after applying), newest first, as
-`{tasks: [...]}`. It exists so `accept_task_suggestion` has ids and versions; the use case behind it is the one of
-`GET /api/tasks/suggestions`. Errors: `unavailable`.
+`page` and `size`. One page of the suggested tasks waiting for a yes (for example a follow-up after applying), newest
+first, as `{page, size, total, hasMore, tasks: [...]}` with entries as in `list_tasks`. It exists so
+`accept_task_suggestion` has ids and versions; the use case behind it is the one of `GET /api/tasks/suggestions`.
+Errors: `invalid-arguments` (`page:out-of-range`, `size:out-of-range`), `unavailable`, `privacy-filter-failed`
+(as `list_tasks`).
+
+### `get_task` (read only)
+
+`id` (from a list). One task in any state in full: `{id, version, status, origin, suggestionRule, timing, link,
+completedAt, createdAt, updatedAt, task: untrusted {title, notes}}` with the whole notes. The same use case as
+`GET /api/tasks/{id}`. Errors: `invalid-arguments`, `not-found`, `unavailable`.
 
 ### `create_task`
 
@@ -334,7 +354,7 @@ the `localDue` in the answer. The task is open with origin `CHAT`. Result: the t
 
 ### `complete_task`
 
-`id` and `version` (from `list_tasks`), both required. Marks an OPEN task done. A done task is returned unchanged
+`id` and `version` (from `list_tasks` or `get_task`), both required. Marks an OPEN task done. A done task is returned unchanged
 and writes nothing; a suggestion or dismissed task answers `invalid-transition`. Result: the task. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `invalid-transition`, `unavailable`.
 A completed task is no longer in `list_tasks` (nor in the dashboard or the Tasks page's open list): find it with
@@ -342,14 +362,15 @@ A completed task is no longer in `list_tasks` (nor in the dashboard or the Tasks
 
 ### `list_done_tasks` (read only)
 
-`page` (from 0, default 0) and `size` (1 to 50, default 20), both optional. One page of the DONE tasks, the most
-recently completed first: `{total, page, size, tasks: [{id, version, origin, link, completedAt, createdAt, task:
-untrusted {title}}]}`. `total` counts all done tasks; the answer never holds more than `size` of them. The entries
-carry the title but **not the notes** (a page of long notes would fill a context, and `reopen_task` needs only the id
-and the version). Use it to find a task that was completed by mistake. Errors: `invalid-arguments`
-(`page:out-of-range`, `size:out-of-range`; `page:invalid` for a value that is no `int`, such as `1.0` or `2147483648`; a `size` out of
-range is refused by the schema), `unavailable`. To read a done task's notes, reopen it
-(`reopen_task` answers the whole task): there is no `get_task` for done tasks yet.
+`page` and `size` (see "Results"). One page of the DONE tasks, the most recently completed first (then by id):
+`{page, size, total, hasMore, tasks: [{id, version, origin, link, completedAt, createdAt, task: untrusted
+{title}}]}`, the same paging shape as every list (ADR-0056). `total` counts all done tasks; the answer never holds
+more than `size` of them. The entries carry the title but **not the notes** (a page of long notes would fill a
+context, and `reopen_task` needs only the id and the version; `get_task` reads one done task in full). Paging is by
+offset over a list that changes: after you reopen or complete a task, start again from page 0. Use it to find a task
+that was completed by mistake. Errors: `invalid-arguments` (`page:out-of-range`, `size:out-of-range`; `page:invalid`
+for a value that is no `int`, such as `1.0` or `2147483648`; a `size` out of range is refused by the schema),
+`unavailable`.
 
 ### `reopen_task`
 

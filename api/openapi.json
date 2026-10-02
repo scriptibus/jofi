@@ -4079,6 +4079,26 @@
           "schema" : {
             "type" : "string"
           }
+        }, {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "maximum" : 10000,
+            "minimum" : 0,
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
+            "type" : "integer",
+            "format" : "int32"
+          }
         } ],
         "responses" : {
           "200" : {
@@ -4169,18 +4189,20 @@
           "name" : "page",
           "required" : false,
           "schema" : {
+            "maximum" : 10000,
+            "minimum" : 0,
             "type" : "integer",
-            "format" : "int32",
-            "default" : 0
+            "format" : "int32"
           }
         }, {
           "in" : "query",
           "name" : "size",
           "required" : false,
           "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
             "type" : "integer",
-            "format" : "int32",
-            "default" : 20
+            "format" : "int32"
           }
         } ],
         "responses" : {
@@ -4221,6 +4243,27 @@
     "/api/tasks/suggestions" : {
       "get" : {
         "operationId" : "listSuggestedTasks",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "maximum" : 10000,
+            "minimum" : 0,
+            "type" : "integer",
+            "format" : "int32"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "maximum" : 50,
+            "minimum" : 1,
+            "type" : "integer",
+            "format" : "int32"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -4231,6 +4274,16 @@
               }
             },
             "description" : "OK"
+          },
+          "400" : {
+            "content" : {
+              "application/problem+json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description" : "The input breaks the rules; `violations` names each field and problem"
           },
           "default" : {
             "content" : {
@@ -5965,26 +6018,17 @@
         }
       },
       "DoneTaskPageResponse" : {
-        "required" : [ "page", "size", "tasks", "total" ],
+        "required" : [ "page", "tasks" ],
         "type" : "object",
         "properties" : {
           "page" : {
-            "type" : "integer",
-            "format" : "int32"
-          },
-          "size" : {
-            "type" : "integer",
-            "format" : "int32"
+            "$ref" : "#/components/schemas/PageResponse"
           },
           "tasks" : {
             "type" : "array",
             "items" : {
               "$ref" : "#/components/schemas/TaskResponse"
             }
-          },
-          "total" : {
-            "type" : "integer",
-            "format" : "int64"
           }
         }
       },
@@ -6392,6 +6436,27 @@
             "type" : "integer",
             "format" : "int32",
             "nullable" : true
+          }
+        }
+      },
+      "PageResponse" : {
+        "required" : [ "hasMore", "page", "size", "total" ],
+        "type" : "object",
+        "properties" : {
+          "hasMore" : {
+            "type" : "boolean"
+          },
+          "page" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "size" : {
+            "type" : "integer",
+            "format" : "int32"
+          },
+          "total" : {
+            "type" : "integer",
+            "format" : "int32"
           }
         }
       },
@@ -6925,7 +6990,7 @@
         }
       },
       "TaskGroupListResponse" : {
-        "required" : [ "groups" ],
+        "required" : [ "groups", "page" ],
         "type" : "object",
         "properties" : {
           "groups" : {
@@ -6933,6 +6998,9 @@
             "items" : {
               "$ref" : "#/components/schemas/TaskGroupResponse"
             }
+          },
+          "page" : {
+            "$ref" : "#/components/schemas/PageResponse"
           }
         }
       },
@@ -6947,7 +7015,7 @@
           "tasks" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/TaskResponse"
+              "$ref" : "#/components/schemas/TaskSummaryResponse"
             }
           }
         }
@@ -6967,13 +7035,16 @@
         }
       },
       "TaskListResponse" : {
-        "required" : [ "tasks" ],
+        "required" : [ "page", "tasks" ],
         "type" : "object",
         "properties" : {
+          "page" : {
+            "$ref" : "#/components/schemas/PageResponse"
+          },
           "tasks" : {
             "type" : "array",
             "items" : {
-              "$ref" : "#/components/schemas/TaskResponse"
+              "$ref" : "#/components/schemas/TaskSummaryResponse"
             }
           }
         }
@@ -7026,6 +7097,64 @@
           "notes" : {
             "type" : "string",
             "nullable" : true
+          },
+          "origin" : {
+            "type" : "string",
+            "enum" : [ "MANUAL", "CHAT", "SUGGESTED" ]
+          },
+          "status" : {
+            "type" : "string",
+            "enum" : [ "SUGGESTED", "OPEN", "DONE", "DISMISSED" ]
+          },
+          "suggestionRule" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "timing" : {
+            "$ref" : "#/components/schemas/TaskTimingResponse"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "version" : {
+            "type" : "integer",
+            "format" : "int64"
+          }
+        }
+      },
+      "TaskSummaryResponse" : {
+        "required" : [ "createdAt", "id", "notesTruncated", "origin", "status", "timing", "title", "updatedAt", "version" ],
+        "type" : "object",
+        "properties" : {
+          "completedAt" : {
+            "type" : "string",
+            "format" : "date-time",
+            "nullable" : true
+          },
+          "createdAt" : {
+            "type" : "string",
+            "format" : "date-time"
+          },
+          "id" : {
+            "type" : "string",
+            "format" : "uuid"
+          },
+          "link" : {
+            "nullable" : true,
+            "allOf" : [ {
+              "$ref" : "#/components/schemas/TaskLinkDto"
+            } ]
+          },
+          "notesExcerpt" : {
+            "type" : "string",
+            "nullable" : true
+          },
+          "notesTruncated" : {
+            "type" : "boolean"
           },
           "origin" : {
             "type" : "string",

@@ -1,15 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Jofi contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { type QueryKey, useQueryClient } from "@tanstack/react-query";
-import { type SyntheticEvent, useState } from "react";
+import { type QueryKey, useIsMutating, useQueryClient } from "@tanstack/react-query";
+import { type SyntheticEvent, useEffect, useState } from "react";
 import {
-  getListTaskGroupsQueryKey,
-  type TaskGroupListResponse,
   type TaskGroupResponse,
   type TaskResponse,
+  type TaskSummaryResponse,
   useCreateTask,
-  useListTaskGroups,
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import {
@@ -45,6 +43,13 @@ import {
   taskTitle,
   viewerTimeZone,
 } from "./task";
+import {
+  listedTasks,
+  mergeGroups,
+  type TaskGroupPages,
+  taskGroupPagesKey,
+  useTaskGroupPages,
+} from "./taskPages";
 import { describeTaskError } from "./taskProblems";
 
 /**
@@ -65,11 +70,27 @@ type TasksView = "open" | "done";
  */
 export function TasksPage() {
   const [viewerZone] = useState(viewerTimeZone);
-  const params = { timeZone: viewerZone };
-  const listKey = getListTaskGroupsQueryKey(params);
-  const list = useListTaskGroups(params);
+  const listKey = taskGroupPagesKey(viewerZone);
+  const list = useTaskGroupPages(viewerZone);
   const [view, setView] = useState<TasksView>("open");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // A complete or reopen changes which tasks are open: the next page's offset no longer fits the loaded ones.
+  const queryClient = useQueryClient();
+  const [changed, setChanged] = useState(false);
+  const mutating = useIsMutating();
+  useEffect(
+    () =>
+      queryClient.getMutationCache().subscribe((event) => {
+        if (event.type === "updated" && (event.action.type === "success" || event.action.type === "error"))
+          setChanged(true);
+      }),
+    [queryClient],
+  );
+  const showMore = async () => {
+    const loaded = changed ? (await list.refetch()).data : list.data;
+    setChanged(false);
+    if (loaded?.pages.at(-1)?.page.hasMore) await list.fetchNextPage();
+  };
   const fail = (error: unknown) => setFeedback({ kind: "failure", failure: describeTaskError(error) });
 
   return (
@@ -107,7 +128,9 @@ export function TasksPage() {
             />
             {list.data ? (
               <TaskGroups
-                groups={list.data.groups}
+                pages={list}
+                onShowMore={() => void showMore()}
+                busy={mutating > 0 || list.isFetching}
                 listKey={listKey}
                 viewerZone={viewerZone}
                 onDone={(task) => setFeedback(task.status === "DONE" ? { kind: "done", task } : null)}
@@ -141,10 +164,9 @@ function FeedbackMessage({ feedback, listKey, onChange, onFailure }: FeedbackPro
 
   const undo = (task: TaskResponse) => {
     // The latest version (the server's answer to the complete), as the checkbox would use it.
-    const cached = queryClient
-      .getQueryData<TaskGroupListResponse>(listKey)
-      ?.groups.flatMap((group) => group.tasks)
-      .find((other) => other.id === task.id);
+    const cached = listedTasks(queryClient.getQueryData<TaskGroupPages>(listKey)).find(
+      (other) => other.id === task.id,
+    );
     reopen.mutate(
       { task: cached ?? task, done: false },
       { onSuccess: () => onChange({ kind: "reopened", title: taskTitle(task) }), onError: onFailure },
@@ -242,38 +264,74 @@ function QuickAdd({ viewerZone, onAdded }: { viewerZone: string; onAdded: (task:
 }
 
 interface TaskGroupsProps {
-  groups: TaskGroupResponse[];
+  pages: ReturnType<typeof useTaskGroupPages>;
+  onShowMore: () => void;
+  /** A change or a load is under way: the next page's offset is not known to fit yet. */
+  busy: boolean;
   listKey: QueryKey;
   viewerZone: string;
   onDone: (task: TaskResponse) => void;
-  onDeleted: (task: TaskResponse) => void;
+  onDeleted: (task: TaskSummaryResponse) => void;
   onFailure: (error: unknown) => void;
 }
 
-/** Each group with tasks as a section with its count; empty groups are left out. */
-function TaskGroups({ groups, ...rowProps }: TaskGroupsProps) {
+/**
+ * Each group with tasks as a section with its count; empty groups are left out. The tasks come a page at a time and
+ * run through the groups in order, so only the last group shown can have more tasks on the next page: its count says
+ * "50+" until they are loaded.
+ */
+function TaskGroups({ pages, onShowMore, busy, ...rowProps }: TaskGroupsProps) {
+  const groups = mergeGroups(pages.data?.pages ?? []);
   const shown = groups.filter((group) => group.tasks.length > 0);
   if (shown.length === 0) return <EmptyState title={m.tasks_empty_heading()}>{m.tasks_empty()}</EmptyState>;
+  const total = pages.data?.pages[0]?.page.total ?? 0;
+  const loaded = shown.reduce((sum, group) => sum + group.tasks.length, 0);
   return (
     <div className="flex flex-col gap-8">
-      {shown.map(({ group, tasks }) => {
-        const headingId = `task-group-${group.toLowerCase()}`;
-        const open = tasks.filter((task) => task.status !== "DONE").length;
-        const overdue = group === "OVERDUE";
-        return (
-          <section key={group} aria-labelledby={headingId} className="flex flex-col gap-3">
-            <h2 id={headingId} className={`flex items-center gap-2 text-h2 ${overdue ? "text-bad" : ""}`}>
-              {overdue ? <OverdueIcon className="size-5" aria-hidden="true" /> : null}
-              {m.task_group_heading({ group: groupLabels[group](), count: open })}
-            </h2>
-            <ul aria-labelledby={headingId} className="flex flex-col gap-3">
-              {tasks.map((task) => (
-                <TaskRow key={task.id} task={task} overdue={overdue} {...rowProps} />
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      {shown.map((group, index) => (
+        <TaskGroupSection
+          key={group.group}
+          group={group}
+          partial={pages.hasNextPage && index === shown.length - 1}
+          {...rowProps}
+        />
+      ))}
+      {pages.hasNextPage ? (
+        <div className="flex flex-wrap items-center gap-4">
+          <Button variant="secondary" onPress={onShowMore} isDisabled={busy}>
+            {m.tasks_show_more()}
+          </Button>
+          <span className="text-muted" role="status">
+            {m.tasks_shown({ shown: loaded, total })}
+          </span>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function TaskGroupSection({
+  group: { group, tasks },
+  partial,
+  ...rowProps
+}: { group: TaskGroupResponse; partial: boolean } & Omit<TaskGroupsProps, "pages" | "onShowMore" | "busy">) {
+  const headingId = `task-group-${group.toLowerCase()}`;
+  const open = tasks.filter((task) => task.status !== "DONE").length;
+  const overdue = group === "OVERDUE";
+  const label = groupLabels[group]();
+  return (
+    <section aria-labelledby={headingId} className="flex flex-col gap-3">
+      <h2 id={headingId} className={`flex items-center gap-2 text-h2 ${overdue ? "text-bad" : ""}`}>
+        {overdue ? <OverdueIcon className="size-5" aria-hidden="true" /> : null}
+        {partial
+          ? m.task_group_heading_partial({ group: label, count: open })
+          : m.task_group_heading({ group: label, count: open })}
+      </h2>
+      <ul aria-labelledby={headingId} className="flex flex-col gap-3">
+        {tasks.map((task) => (
+          <TaskRow key={task.id} task={task} overdue={overdue} {...rowProps} />
+        ))}
+      </ul>
+    </section>
   );
 }

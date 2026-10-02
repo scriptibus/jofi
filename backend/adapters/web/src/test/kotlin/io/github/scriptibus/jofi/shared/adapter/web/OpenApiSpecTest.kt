@@ -3,6 +3,7 @@
 
 package io.github.scriptibus.jofi.shared.adapter.web
 
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -11,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.http.HttpStatus
 import org.springframework.test.web.servlet.assertj.MockMvcTester
+import tools.jackson.databind.json.JsonMapper
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import kotlin.io.path.exists
@@ -43,6 +45,21 @@ class OpenApiSpecTest(
 ) {
     private val specFile: Path =
         Path.of(requireNotNull(System.getProperty("jofi.openapi.spec")) { "jofi.openapi.spec is not set" })
+
+    @Test
+    fun `the paged lists document the bounds of page and size, each its own`() {
+        val spec = JsonMapper().readTree(renderSpec())
+        val lists =
+            listOf("/api/tasks" to "get", "/api/tasks/suggestions" to "get", "/api/tasks/done" to "get")
+
+        lists.forEach { (path, method) ->
+            val parameters = spec["paths"][path][method]["parameters"].associateBy { it["name"].asString() }
+            val page = parameters.getValue("page")["schema"]
+            val size = parameters.getValue("size")["schema"]
+            listOf(page["minimum"].asInt(), page["maximum"].asInt()) shouldBe listOf(0, PageRequest.MAX_PAGE)
+            listOf(size["minimum"].asInt(), size["maximum"].asInt()) shouldBe listOf(1, PageRequest.MAX_SIZE)
+        }
+    }
 
     @Test
     fun `the committed spec matches the controllers`() {

@@ -3,7 +3,13 @@
 
 package io.github.scriptibus.jofi.tasks.application
 
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
+import io.github.scriptibus.jofi.shared.domain.ai.AiRedaction
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.PageValidation
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskField
@@ -12,6 +18,7 @@ import io.github.scriptibus.jofi.tasks.domain.TaskProblem
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskStateChange
 import io.github.scriptibus.jofi.tasks.domain.TaskStoreResult
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
 import io.github.scriptibus.jofi.tasks.domain.TaskTransition
 import io.github.scriptibus.jofi.tasks.domain.TaskValidation
 import io.github.scriptibus.jofi.tasks.domain.TaskViolation
@@ -35,6 +42,53 @@ internal inline fun <T, R> TaskResult<T>.then(next: (T) -> TaskResult<R>): TaskR
 /** Runs [work] in one transaction that commits only on [TaskResult.Success]. */
 internal fun <T> TransactionPort.inTaskTransaction(work: () -> TaskResult<T>): TaskResult<T> =
     inTransaction({ it is TaskResult.Success }, work)
+
+/** The page asked for, or the violations of the page and size that are out of range. */
+internal fun PageInput.toResult(): TaskResult<PageRequest> =
+    when (val validation = validate()) {
+        is PageValidation.Valid -> {
+            TaskResult.Success(validation.request)
+        }
+
+        is PageValidation.Invalid -> {
+            TaskResult.Invalid(
+                listOfNotNull(
+                    TaskViolation(TaskField.PAGE, TaskProblem.OUT_OF_RANGE).takeIf { validation.pageOutOfRange },
+                    TaskViolation(TaskField.SIZE, TaskProblem.OUT_OF_RANGE).takeIf { validation.sizeOutOfRange },
+                ),
+            )
+        }
+    }
+
+/**
+ * The list entries of [tasks] for [audience] (ADR-0056): the user's own notes are cut as they are; for an AI the
+ * "never send to AI" values go out of the whole notes first, so no excerpt ends inside one. Flags that cannot be read
+ * fail the list (nothing reaches an AI).
+ */
+internal fun summariesOf(
+    tasks: List<Task>,
+    audience: NotesAudience,
+    redaction: RedactForAiUseCase,
+): TaskResult<List<TaskSummary>> =
+    when (audience) {
+        NotesAudience.USER -> {
+            TaskResult.Success(tasks.map { TaskSummary.of(it, it.details.notes) })
+        }
+
+        NotesAudience.AI -> {
+            when (val redacted = redaction.execute(tasks.map { it.details.notes })) {
+                AiRedaction.Unavailable -> {
+                    TaskResult.StorageFailure("privacy flags")
+                }
+
+                is AiRedaction.Redacted -> {
+                    TaskResult.Success(
+                        tasks.zip(redacted.texts) { task, notes -> TaskSummary.of(task, notes) },
+                    )
+                }
+            }
+        }
+    }
 
 internal fun <T> TaskValidation<T>.toResult(): TaskResult<T> =
     when (this) {

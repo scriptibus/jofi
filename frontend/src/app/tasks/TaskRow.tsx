@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { type QueryClient, type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   completeTask,
   deleteTask,
@@ -10,8 +11,9 @@ import {
   getListDoneTasksQueryKey,
   getListTaskGroupsQueryKey,
   reopenTask,
-  type TaskGroupListResponse,
   type TaskResponse,
+  type TaskSummaryResponse,
+  useGetTask,
 } from "../../api/generated/jofi";
 import { m } from "../../paraglide/messages.js";
 import {
@@ -25,32 +27,18 @@ import {
   TextLink,
 } from "../../ui";
 import { useConfirmation } from "../useConfirmation";
-import { DELETE_OPERATION, describeTiming, taskTitle } from "./task";
+import { DELETE_OPERATION, describeTiming, summaryOf, taskTitle } from "./task";
 import { TaskLinkChip } from "./taskLinks";
+import { listedTasks, type TaskGroupPages, updateListed } from "./taskPages";
 import { isTaskVersionConflict } from "./taskProblems";
 
 /** Whether the cached grouped list holds the task with `id`. */
 function isListed(queryClient: QueryClient, key: QueryKey, id: string): boolean {
-  const list = queryClient.getQueryData<TaskGroupListResponse>(key);
-  return list?.groups.some((group) => group.tasks.some((task) => task.id === id)) ?? false;
-}
-
-/** Replaces `task` wherever it is in the cached grouped list (it keeps its place). */
-function patchList(queryClient: QueryClient, key: QueryKey, task: TaskResponse) {
-  queryClient.setQueryData<TaskGroupListResponse>(key, (list) =>
-    list
-      ? {
-          groups: list.groups.map((group) => ({
-            ...group,
-            tasks: group.tasks.map((other) => (other.id === task.id ? task : other)),
-          })),
-        }
-      : list,
-  );
+  return listedTasks(queryClient.getQueryData<TaskGroupPages>(key)).some((task) => task.id === id);
 }
 
 export interface DoneChange {
-  task: TaskResponse;
+  task: Pick<TaskResponse, "id" | "version">;
   done: boolean;
 }
 
@@ -67,8 +55,11 @@ export function useSetTaskDone(listKey: QueryKey) {
       (done ? completeTask : reopenTask)(task.id, { basedOnVersion: task.version }),
     onMutate: async ({ task, done }: DoneChange) => {
       await queryClient.cancelQueries({ queryKey: listKey });
-      const previous = queryClient.getQueryData<TaskGroupListResponse>(listKey);
-      patchList(queryClient, listKey, { ...task, status: done ? "DONE" : "OPEN" });
+      const previous = queryClient.getQueryData<TaskGroupPages>(listKey);
+      updateListed(queryClient, listKey, task.id, (listed) => ({
+        ...listed,
+        status: done ? "DONE" : "OPEN",
+      }));
       return { previous };
     },
     onError: (error, _change, context) => {
@@ -80,7 +71,7 @@ export function useSetTaskDone(listKey: QueryKey) {
       // A reload meanwhile drops a done task (the server lists open ones only): reopened, it must come back.
       if (!isListed(queryClient, listKey, saved.id))
         void queryClient.invalidateQueries({ queryKey: listKey });
-      else patchList(queryClient, listKey, saved);
+      else updateListed(queryClient, listKey, saved.id, (listed) => summaryOf(saved, listed));
       queryClient.setQueryData(getGetTaskQueryKey(saved.id), saved);
       // The done view lists what was just completed (or no longer lists what was reopened).
       void queryClient.invalidateQueries({ queryKey: getListDoneTasksQueryKey() });
@@ -90,13 +81,13 @@ export function useSetTaskDone(listKey: QueryKey) {
 }
 
 export interface TaskRowProps {
-  task: TaskResponse;
+  task: TaskSummaryResponse;
   listKey: QueryKey;
   overdue: boolean;
   viewerZone: string;
   /** Told of every successful complete or reopen, e.g. to offer an undo. */
   onDone: (task: TaskResponse) => void;
-  onDeleted: (task: TaskResponse) => void;
+  onDeleted: (task: TaskSummaryResponse) => void;
   onFailure: (error: unknown) => void;
 }
 
@@ -125,10 +116,10 @@ export function TaskRow({ task, listKey, overdue, viewerZone, onDone, onDeleted,
           <span>{describeTiming(task.timing, viewerZone)}</span>
           {task.link ? <TaskLinkChip link={task.link} /> : null}
         </div>
-        {task.notes ? (
+        {task.notesExcerpt ? (
           <div className="pl-8">
             <Disclosure label={m.task_notes()}>
-              <Markdown>{task.notes}</Markdown>
+              <TaskNotes task={task} />
             </Disclosure>
           </div>
         ) : null}
@@ -146,6 +137,32 @@ export function TaskRow({ task, listKey, overdue, viewerZone, onDone, onDeleted,
         <DeleteTask task={task} onDeleted={onDeleted} onFailure={onFailure} />
       </div>
     </li>
+  );
+}
+
+/**
+ * The notes of a list entry: the excerpt the list carries (ADR-0056), and when it was cut, a button that reads the
+ * whole task and shows its notes instead.
+ */
+function TaskNotes({ task }: { task: TaskSummaryResponse }) {
+  const [wantsAll, setWantsAll] = useState(false);
+  const read = useGetTask(task.id, { query: { enabled: wantsAll, meta: { errorHandledLocally: true } } });
+  const cut = task.notesTruncated && read.data === undefined;
+  return (
+    <div className="flex flex-col gap-3">
+      <Markdown>{read.data?.notes ?? `${task.notesExcerpt}${cut ? "…" : ""}`}</Markdown>
+      {cut ? (
+        <Button
+          variant="secondary"
+          className="self-start"
+          onPress={() => setWantsAll(true)}
+          isDisabled={read.isFetching}
+        >
+          {m.task_notes_show_all()}
+        </Button>
+      ) : null}
+      {read.isError ? <p role="alert">{m.task_notes_failed()}</p> : null}
+    </div>
   );
 }
 

@@ -31,6 +31,12 @@ enum class TaskField {
 
     /** A countdown's target date: within `TaskTiming.EARLIEST_DAY` and `TaskTiming.LATEST_DAY`. */
     TARGET_DATE,
+
+    /** The page of a list that is asked for: below 0 or beyond `PageRequest.MAX_PAGE`. */
+    PAGE,
+
+    /** The size of a page: not within 1 and `PageRequest.MAX_SIZE`. */
+    SIZE,
 }
 
 enum class TaskProblem {

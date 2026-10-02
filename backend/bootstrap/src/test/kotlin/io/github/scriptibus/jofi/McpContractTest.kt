@@ -305,6 +305,7 @@ class McpContractTest(
                 "get_import_status" to true,
                 "list_tasks" to true,
                 "list_task_suggestions" to true,
+                "get_task" to true,
                 "create_task" to false,
                 "complete_task" to false,
                 "accept_task_suggestion" to false,

@@ -4,17 +4,19 @@
 package io.github.scriptibus.jofi.tasks.application.port.inbound
 
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationRequester
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskDashboard
-import io.github.scriptibus.jofi.tasks.domain.TaskGroup
+import io.github.scriptibus.jofi.tasks.domain.TaskGroupsPage
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskInput
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
 import java.time.ZoneId
 
 // Inbound ports for tasks (#80, ADR-0049), implemented by the use cases of the same name (#93, #94, #95). An unknown
@@ -89,11 +91,19 @@ interface DeleteTaskPort {
 }
 
 /**
- * The open tasks grouped by when they are due (#94), as seen on the calendar of [zone] (the viewer's), weeks from
- * Monday: every group of `TaskGroupKind` in its order, empty ones included. Reads only.
+ * One page of the open tasks grouped by when they are due (#94, ADR-0056), as seen on the calendar of [zone] (the
+ * viewer's), weeks from Monday: every group of `TaskGroupKind` in its order, empty ones included, each with the tasks
+ * of the page. The tasks are numbered through the groups in that order, so every open task is on exactly one page.
+ * Entries carry an excerpt of the notes ([TaskSummary]); `GetTaskPort` has the whole task. A [page] out of range is
+ * `Invalid` (PAGE, SIZE). Reads only. The notes' excerpts are cut from the text [audience] may see: for an AI
+ * (every MCP client) with the "never send to AI" values taken out first, `StorageFailure` if those cannot be read.
  */
 interface ListTaskGroupsPort {
-    fun execute(zone: ZoneId): TaskResult<List<TaskGroup>>
+    fun execute(
+        zone: ZoneId,
+        page: PageInput,
+        audience: NotesAudience,
+    ): TaskResult<TaskGroupsPage>
 }
 
 /**
@@ -105,16 +115,23 @@ interface GetTaskDashboardPort {
 }
 
 /**
- * One page of the done tasks, the newest completion first (#235): the way back to a task that was completed, by the
- * user or by an AI client, since no other list shows it. Reopen it with [ReopenTaskPort]. Reads only.
+ * One page of the done tasks, the newest completion first (#235, ADR-0056): the way back to a task that was
+ * completed, by the user or by an AI client, since no other list shows it. Reopen it with [ReopenTaskPort]. A [page]
+ * out of range is `Invalid` (PAGE, SIZE). Reads only. Entries are whole [Task]s; the MCP tool leaves the notes out.
  */
 interface ListDoneTasksPort {
-    fun execute(query: DoneTaskQuery): TaskResult<DoneTaskPage>
+    fun execute(page: PageInput): TaskResult<Paged<Task>>
 }
 
-/** The suggestions waiting for one click (#95), newest first. Reads only. */
+/**
+ * One page of the suggestions waiting for one click (#95, ADR-0056), newest first, as [TaskSummary]s (an excerpt of
+ * the notes). A [page] out of range is `Invalid` (PAGE, SIZE). Reads only.
+ */
 interface ListSuggestedTasksPort {
-    fun execute(): TaskResult<List<Task>>
+    fun execute(
+        page: PageInput,
+        audience: NotesAudience,
+    ): TaskResult<Paged<TaskSummary>>
 }
 
 /**

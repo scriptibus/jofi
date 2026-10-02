@@ -6,12 +6,13 @@ package io.github.scriptibus.jofi.tasks.adapter.persistence
 import io.github.scriptibus.jofi.shared.adapter.persistence.jooq.Tables.TASK
 import io.github.scriptibus.jofi.shared.adapter.persistence.violatedConstraint
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationResult
+import io.github.scriptibus.jofi.shared.domain.paging.PageInfo
+import io.github.scriptibus.jofi.shared.domain.paging.PageRequest
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.application.port.TaskRepositoryPort
 import io.github.scriptibus.jofi.tasks.domain.ApplicationRef
 import io.github.scriptibus.jofi.tasks.domain.CompanyRef
 import io.github.scriptibus.jofi.tasks.domain.ContactRef
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskPage
-import io.github.scriptibus.jofi.tasks.domain.DoneTaskQuery
 import io.github.scriptibus.jofi.tasks.domain.Task
 import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskLink
@@ -67,12 +68,32 @@ class TaskRepository(
     override fun listByState(state: TaskState): TaskStoreResult<List<Task>> =
         storeCall("listByState") { TaskStoreResult.Success(list(TASK.STATE.eq(state.name))) }
 
+    override fun pageByStateNewestFirst(
+        state: TaskState,
+        request: PageRequest,
+    ): TaskStoreResult<Paged<Task>> =
+        storeCall("pageByStateNewestFirst") {
+            val inState = TASK.STATE.eq(state.name)
+            val total = dsl.fetchCount(TASK, inState)
+            val items =
+                dsl
+                    .selectFrom(TASK)
+                    .where(inState)
+                    .orderBy(TASK.CREATED_AT.desc(), TASK.ID.desc())
+                    .limit(request.size)
+                    .offset(request.offset)
+                    .fetch()
+                    .map(TaskRecords::toDomain)
+            TaskStoreResult.Success(Paged(items, PageInfo.of(request, total)))
+        }
+
     /**
-     * The page and the total come from one statement (`count(*) OVER ()`), so a task completed or reopened by someone
-     * else meanwhile cannot make the total smaller than the page. Only a page past the end has no row to carry the
-     * total; it is empty, so a count of its own cannot contradict it.
+     * One page of the done tasks, the newest completion first (then by id). The page and the total come from one
+     * statement (`count(*) OVER ()`), so a task completed or reopened by someone else meanwhile cannot make the total
+     * smaller than the page. Only a page past the end has no row to carry the total; it is empty, so a count of its
+     * own cannot contradict it.
      */
-    override fun listDone(query: DoneTaskQuery): TaskStoreResult<DoneTaskPage> =
+    override fun listDone(request: PageRequest): TaskStoreResult<Paged<Task>> =
         storeCall("listDone") {
             val done = TASK.STATE.eq(TaskState.DONE.name)
             val total = DSL.count().over().`as`("done_total")
@@ -82,11 +103,13 @@ class TaskRepository(
                     .from(TASK)
                     .where(done)
                     .orderBy(TASK.COMPLETED_AT.desc(), TASK.ID.desc())
-                    .limit(query.size)
-                    .offset(query.offset)
+                    .limit(request.size)
+                    .offset(request.offset)
                     .fetch()
-            val count = rows.firstOrNull()?.get(total)?.toLong() ?: dsl.fetchCount(TASK, done).toLong()
-            TaskStoreResult.Success(DoneTaskPage(rows.map { TaskRecords.toDomain(it.into(TASK)) }, count))
+            val count = rows.firstOrNull()?.get(total) ?: dsl.fetchCount(TASK, done)
+            TaskStoreResult.Success(
+                Paged(rows.map { TaskRecords.toDomain(it.into(TASK)) }, PageInfo.of(request, count)),
+            )
         }
 
     override fun listByLink(link: TaskLink): TaskStoreResult<List<Task>> =

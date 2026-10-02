@@ -38,6 +38,9 @@ Adding a tool:
   from it in the result (`readOnly`), documented as not sendable. Check `call.arguments.withheldPath()` first and
   refuse a `[withheld]` value, naming the nested argument. Create and log tools keep optionals optional, but every
   one of them refuses the marker too. Contract-test that leaving out each property is refused and stores nothing.
+- List tools (ADR-0056): take `page`/`size` with `PageArguments` and pass them to a use case that owns the limits; the
+  result says `page`, `size`, `total`, `hasMore`. Long text (notes) is an excerpt under keys of its own
+  (`notesExcerpt`, `notesTruncated`), never under the key of the full field, and a `get_*` tool returns the whole text.
 - Write the result as DTOs in the same package; never return domain objects.
 - Test the translation (real use case, mocked repository), and extend `McpContractTest` (bootstrap) to list
   and call the tool with the MCP SDK client. Add the tool to `docs/mcp-tools.md`.

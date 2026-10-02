@@ -6,6 +6,8 @@ package io.github.scriptibus.jofi.tasks.adapter.web
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemKind
 import io.github.scriptibus.jofi.shared.adapter.web.ProblemResponses
 import io.github.scriptibus.jofi.shared.domain.Actor
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
 import io.github.scriptibus.jofi.tasks.application.AcceptTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.DismissTaskSuggestionUseCase
 import io.github.scriptibus.jofi.tasks.application.ListSuggestedTasksUseCase
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
@@ -29,9 +32,17 @@ class TaskSuggestionController(
     private val acceptSuggestion: AcceptTaskSuggestionUseCase,
     private val dismissSuggestion: DismissTaskSuggestionUseCase,
 ) {
-    /** The suggestions waiting to be accepted or dismissed, newest first. */
+    /**
+     * One page of the suggestions waiting to be accepted or dismissed, newest first (ADR-0056): `page` from 0 and
+     * `size` of 1 to 50 (default 20), a 400 naming them when out of range; notes come as an excerpt.
+     */
     @GetMapping("/suggestions")
-    fun listSuggestedTasks(): TaskListResponse = TaskListResponse.from(listSuggestions.execute().orThrow())
+    @ProblemResponses(ProblemKind.INVALID_INPUT)
+    fun listSuggestedTasks(
+        @RequestParam(required = false) page: Int?,
+        @RequestParam(required = false) size: Int?,
+    ): TaskListResponse =
+        TaskListResponse.from(listSuggestions.execute(PageInput(page, size), NotesAudience.USER).orThrow())
 
     /**
      * Accepts a suggestion with one click: it becomes an open task. 409 `invalid-transition` for a done or dismissed

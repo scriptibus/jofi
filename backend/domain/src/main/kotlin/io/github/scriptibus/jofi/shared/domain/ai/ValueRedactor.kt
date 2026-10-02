@@ -41,7 +41,13 @@ internal class ValueRedactor(
         withheld: List<IntRange>,
         original: String,
     ): Redacted {
-        val ranges = merge(withheld + patterns.flatMap { pattern -> pattern.findAll(normalizedText).map { it.range } })
+        val matches = patterns.flatMap { pattern -> pattern.findAll(normalizedText).map { it.range } }
+        // A marker a value matches inside of (a value `held`) is one piece with it, not a marker to nest in a marker.
+        val touched =
+            MARKER.findAll(normalizedText).map { it.range }.filter { marker ->
+                matches.any { overlaps(marker, it) }
+            }
+        val ranges = merge(withheld + matches + touched)
         if (ranges.isEmpty()) return Redacted(original, 0)
         val result = StringBuilder()
         var next = 0
@@ -56,6 +62,13 @@ internal class ValueRedactor(
     companion object {
         /** Values shorter than this (without separators) only match as whole words. */
         const val SHORT_VALUE = 4
+
+        private val MARKER = Regex(Regex.escape(NeverSendFilter.REDACTION))
+
+        private fun overlaps(
+            a: IntRange,
+            b: IntRange,
+        ): Boolean = a.first <= b.last && b.first <= a.last
 
         private const val FORMAT = "\\p{Cf}*"
         private const val WORD_GAP = "[\\s\\p{Z}\\p{Cf}]+"

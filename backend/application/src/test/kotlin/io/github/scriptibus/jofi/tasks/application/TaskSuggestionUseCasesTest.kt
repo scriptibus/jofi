@@ -7,11 +7,14 @@ import io.github.scriptibus.jofi.applications.application.port.api.FindGhostedCa
 import io.github.scriptibus.jofi.shared.application.port.JobSchedulerPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.FieldChange
+import io.github.scriptibus.jofi.shared.domain.ai.NotesAudience
 import io.github.scriptibus.jofi.shared.domain.job.CronSchedule
 import io.github.scriptibus.jofi.shared.domain.job.JobId
 import io.github.scriptibus.jofi.shared.domain.job.JobRequest
 import io.github.scriptibus.jofi.shared.domain.job.JobResult
 import io.github.scriptibus.jofi.shared.domain.job.RecurringJobId
+import io.github.scriptibus.jofi.shared.domain.paging.PageInput
+import io.github.scriptibus.jofi.shared.domain.paging.Paged
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.CLOCK
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.CREATED
 import io.github.scriptibus.jofi.tasks.application.TaskFixtures.Companion.NOW
@@ -24,6 +27,7 @@ import io.github.scriptibus.jofi.tasks.domain.TaskId
 import io.github.scriptibus.jofi.tasks.domain.TaskOrigin
 import io.github.scriptibus.jofi.tasks.domain.TaskResult
 import io.github.scriptibus.jofi.tasks.domain.TaskState
+import io.github.scriptibus.jofi.tasks.domain.TaskSummary
 import io.github.scriptibus.jofi.tasks.domain.TaskTiming
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
@@ -63,7 +67,7 @@ class TaskSuggestionUseCasesTest {
         DismissTaskSuggestionUseCase(fixtures.repository, fixtures.changelog, fixtures.transactions, CLOCK)
     private val accept =
         AcceptTaskSuggestionUseCase(fixtures.repository, fixtures.changelog, fixtures.transactions, CLOCK)
-    private val list = ListSuggestedTasksUseCase(fixtures.repository)
+    private val list = ListSuggestedTasksUseCase(fixtures.repository, fixtures.redaction)
 
     private val application = UUID.fromString("00000000-0000-0000-0000-0000000000a1")
     private val silentSince = Instant.parse("2026-06-01T10:00:00.5Z")
@@ -175,7 +179,17 @@ class TaskSuggestionUseCasesTest {
         val newer = suggestion("interview-prep", created = CREATED.plusSeconds(60))
         fixtures.task()
 
-        list.execute() shouldBe TaskResult.Success(listOf(newer, older))
+        val page =
+            list
+                .execute(
+                    PageInput(),
+                    NotesAudience.USER,
+                ).shouldBeInstanceOf<TaskResult.Success<Paged<TaskSummary>>>()
+                .value
+
+        page.items shouldBe
+            listOf(TaskSummary.of(newer, newer.details.notes), TaskSummary.of(older, older.details.notes))
+        page.info.total shouldBe 2
     }
 
     @Test

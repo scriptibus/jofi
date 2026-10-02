@@ -89,6 +89,111 @@ describe("the grouped list", () => {
   });
 });
 
+describe("paging", () => {
+  const many = (count: number) =>
+    Array.from({ length: count }, (_, index) => aTask({ title: `Task ${index + 1}` }));
+
+  it("loads 50 at a time, counts the last group as partial and ends when everything is shown", async () => {
+    const { user, state } = start("/tasks", { tasks: many(120) });
+
+    expect(await group(/^This week \(50\+\)$/)).toBeVisible();
+    expect(await screen.findAllByRole("checkbox")).toHaveLength(50);
+    expect(screen.getByText("Showing 50 of 120 open tasks.")).toBeVisible();
+    expect(state.listPages).toEqual([{ page: 0, size: 50 }]);
+
+    await user.click(screen.getByRole("button", { name: "Show more tasks" }));
+    await waitFor(() => expect(screen.getAllByRole("checkbox")).toHaveLength(100));
+    expect(screen.getByText("Showing 100 of 120 open tasks.")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Show more tasks" }));
+    await waitFor(() => expect(screen.getAllByRole("checkbox")).toHaveLength(120));
+    expect(await group(/^This week \(120\)$/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show more tasks" })).toBeNull();
+    expect(state.listPages).toEqual([
+      { page: 0, size: 50 },
+      { page: 1, size: 50 },
+      { page: 2, size: 50 },
+    ]);
+  });
+
+  it("shows no button for a list that fits on one page", async () => {
+    start("/tasks", { tasks: many(3) });
+    expect(await group(/^This week \(3\)$/)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show more tasks" })).toBeNull();
+  });
+
+  it("loads the list again before the next page once a task was completed, so none is skipped", async () => {
+    const { user, state } = start("/tasks", { tasks: many(60) });
+    await screen.findAllByRole("checkbox");
+    await user.click(screen.getByRole("checkbox", { name: "Task 1" }));
+    await screen.findByText("“Task 1” is done.");
+
+    await user.click(screen.getByRole("button", { name: "Show more tasks" }));
+
+    // Task 1 left the open list, so task 51 moved up into the first 50 and the second page holds the rest.
+    expect(await screen.findByRole("checkbox", { name: "Task 60" })).toBeVisible();
+    expect(screen.getAllByRole("checkbox").map((box) => box.getAttribute("aria-label") ?? "")).not.toContain(
+      "Task 1",
+    );
+    expect(screen.getAllByRole("checkbox")).toHaveLength(59);
+    expect(state.listPages.at(-1)).toEqual({ page: 1, size: 50 });
+  });
+
+  it("keeps Show more disabled while a complete is under way, then loads the list again before the next page", async () => {
+    const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+    const { user, state } = start("/tasks", { tasks: many(60), completeGate: gate });
+    await screen.findAllByRole("checkbox");
+    const more = screen.getByRole("button", { name: "Show more tasks" });
+
+    await user.click(screen.getByRole("checkbox", { name: "Task 1" }));
+    await waitFor(() => expect(more).toBeDisabled());
+    release();
+    await screen.findByText("“Task 1” is done.");
+    await waitFor(() => expect(more).toBeEnabled());
+    await user.click(more);
+
+    expect(await screen.findByRole("checkbox", { name: "Task 60" })).toBeVisible();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(59);
+    expect(state.listPages.at(-1)).toEqual({ page: 1, size: 50 });
+  });
+
+  it("completes a task that came with a later page", async () => {
+    const { user, state } = start("/tasks", { tasks: many(60) });
+    await screen.findAllByRole("checkbox");
+    await user.click(screen.getByRole("button", { name: "Show more tasks" }));
+    const last = await screen.findByRole("checkbox", { name: "Task 60" });
+
+    await user.click(last);
+
+    expect(await screen.findByText("“Task 60” is done.")).toBeVisible();
+    expect(last).toBeChecked();
+    expect(state.stateChanges).toEqual([{ done: true, basedOnVersion: 0 }]);
+  });
+});
+
+describe("notes in the list", () => {
+  const long = `${"a".repeat(299)}é${"b".repeat(200)}`;
+
+  it("shows the excerpt of long notes and reads the whole task for the rest", async () => {
+    const { user } = start("/tasks", { tasks: [aTask({ title: "Call Anna", notes: long })] });
+    await user.click(await screen.findByRole("button", { name: "Notes" }));
+
+    expect(await screen.findByText(`${"a".repeat(299)}é…`)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Show all notes" }));
+
+    expect(await screen.findByText(long)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show all notes" })).toBeNull();
+  });
+
+  it("offers no button for notes that were not cut", async () => {
+    const { user } = start("/tasks", { tasks: [aTask({ notes: "Short **note**" })] });
+    await user.click(await screen.findByRole("button", { name: "Notes" }));
+
+    expect(await screen.findByText("note", { selector: "strong" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show all notes" })).toBeNull();
+  });
+});
+
 describe("quick add", () => {
   it("adds a task for this week by default, or in the chosen bucket", async () => {
     const { user, state } = start("/tasks");

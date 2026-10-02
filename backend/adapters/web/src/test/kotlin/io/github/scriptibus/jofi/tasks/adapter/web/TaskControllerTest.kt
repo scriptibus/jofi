@@ -5,11 +5,16 @@ package io.github.scriptibus.jofi.tasks.adapter.web
 
 import io.github.scriptibus.jofi.shared.adapter.web.Confirmations
 import io.github.scriptibus.jofi.shared.application.ConfirmActionUseCase
+import io.github.scriptibus.jofi.shared.application.RedactForAiUseCase
+import io.github.scriptibus.jofi.shared.application.port.AiVisibilityPort
 import io.github.scriptibus.jofi.shared.application.port.ChangelogPort
 import io.github.scriptibus.jofi.shared.application.port.ConfirmationStorePort
 import io.github.scriptibus.jofi.shared.application.port.TransactionPort
 import io.github.scriptibus.jofi.shared.domain.Actor
 import io.github.scriptibus.jofi.shared.domain.ChangelogResult
+import io.github.scriptibus.jofi.shared.domain.ai.AiVisibilityResult
+import io.github.scriptibus.jofi.shared.domain.ai.ContentSource
+import io.github.scriptibus.jofi.shared.domain.ai.NeverSendRules
 import io.github.scriptibus.jofi.shared.domain.confirmation.ConfirmationToken
 import io.github.scriptibus.jofi.shared.domain.confirmation.PendingConfirmation
 import io.github.scriptibus.jofi.tasks.application.AcceptTaskSuggestionUseCase
@@ -94,7 +99,7 @@ class TaskControllerTest(
         fun get(ports: Ports) = GetTaskUseCase(ports.tasks)
 
         @Bean
-        fun listGroups(ports: Ports) = ListTaskGroupsUseCase(ports.tasks, CLOCK)
+        fun listGroups(ports: Ports) = ListTaskGroupsUseCase(ports.tasks, CLOCK, REDACTION)
 
         @Bean
         fun update(ports: Ports) = UpdateTaskUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
@@ -109,7 +114,7 @@ class TaskControllerTest(
         fun listDone(ports: Ports) = ListDoneTasksUseCase(ports.tasks)
 
         @Bean
-        fun listSuggestions(ports: Ports) = ListSuggestedTasksUseCase(ports.tasks)
+        fun listSuggestions(ports: Ports) = ListSuggestedTasksUseCase(ports.tasks, REDACTION)
 
         @Bean
         fun accept(ports: Ports) = AcceptTaskSuggestionUseCase(ports.tasks, ports.changelog, ports.transactions, CLOCK)
@@ -338,7 +343,9 @@ class TaskControllerTest(
                 .assertThat()
                 .hasStatus(200)
                 .bodyJson()
-        utc.isLenientlyEqualTo("""{"groups":$groups}""")
+        utc.isLenientlyEqualTo(
+            """{"groups":$groups,"page":{"page":0,"size":20,"total":1,"hasMore":false}}""",
+        )
         utc.extractingPath("groups[1].tasks[0].id").isEqualTo(task.id.value.toString())
         utc.extractingPath("groups[2].tasks").asArray().isEmpty()
         val berlin =
@@ -414,6 +421,13 @@ class TaskControllerTest(
 
     private companion object {
         /** Wednesday 30 September 2026, noon in Berlin. */
+        val REDACTION =
+            RedactForAiUseCase(
+                object : AiVisibilityPort {
+                    override fun rulesFor(sources: Set<ContentSource>) = AiVisibilityResult.Known(NeverSendRules.NONE)
+                },
+            )
+
         val CLOCK: Clock = Clock.fixed(Instant.parse("2026-09-30T10:00:00Z"), ZoneOffset.UTC)
     }
 }
