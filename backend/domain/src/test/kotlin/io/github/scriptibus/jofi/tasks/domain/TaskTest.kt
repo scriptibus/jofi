@@ -75,6 +75,24 @@ class TaskTest {
     }
 
     @Test
+    fun `a task that never was a suggestion cannot be accepted or dismissed, in any state`() {
+        val done = (open.apply(TaskTransition.COMPLETE, later) as TaskStateChange.Changed).task
+
+        listOf(open, done).forEach { task ->
+            task.apply(TaskTransition.ACCEPT, later) shouldBe TaskStateChange.NotAllowed(task.state, TaskState.OPEN)
+            task.apply(TaskTransition.DISMISS, later) shouldBe
+                TaskStateChange.NotAllowed(task.state, TaskState.DISMISSED)
+        }
+    }
+
+    @Test
+    fun `an accepted suggestion accepted again is unchanged`() {
+        val accepted = (suggested.apply(TaskTransition.ACCEPT, later) as TaskStateChange.Changed).task
+
+        accepted.apply(TaskTransition.ACCEPT, later) shouldBe TaskStateChange.Unchanged
+    }
+
+    @Test
     fun `each transition starts from exactly one state, so no operation does another's job`() {
         val done = (open.apply(TaskTransition.COMPLETE, later) as TaskStateChange.Changed).task
 

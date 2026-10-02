@@ -22,9 +22,9 @@ class AcceptTaskSuggestionTool(
     override val readOnly = false
     override val description =
         "Accept a suggested task (list_task_suggestions) so it becomes an open task of the user. Give its `id` " +
-            "and the `version` you read; a stale version answers version-conflict and changes nothing. A task " +
-            "that is open already is returned unchanged; a done or dismissed one cannot be accepted " +
-            "(invalid-transition)."
+            "and the `version` you read; a stale version answers version-conflict and changes nothing. A " +
+            "suggestion that was accepted already is returned unchanged; a done or dismissed one, and any task " +
+            "that never was a suggestion, cannot be accepted (invalid-transition)."
     override val inputSchema = TASK_VERSION_SCHEMA
 
     override fun call(call: ToolCall): ToolAnswer {

@@ -118,8 +118,8 @@ interface ListSuggestedTasksPort {
 }
 
 /**
- * Accepts a suggestion (#95, `TaskTransition.ACCEPT`): it becomes an open task of the user. An open task is
- * unchanged; a done or dismissed one is `InvalidTransition`.
+ * Accepts a suggestion (#95, `TaskTransition.ACCEPT`): it becomes an open task of the user. An accepted suggestion is
+ * unchanged; a done or dismissed one, and a task that never was a suggestion, is `InvalidTransition` (#237).
  */
 interface AcceptTaskSuggestionPort {
     fun execute(

@@ -76,9 +76,10 @@ enum class TaskState {
 enum class TaskTransition(
     val from: TaskState,
     val to: TaskState,
+    val forSuggestionsOnly: Boolean = false,
 ) {
-    ACCEPT(TaskState.SUGGESTED, TaskState.OPEN),
-    DISMISS(TaskState.SUGGESTED, TaskState.DISMISSED),
+    ACCEPT(TaskState.SUGGESTED, TaskState.OPEN, forSuggestionsOnly = true),
+    DISMISS(TaskState.SUGGESTED, TaskState.DISMISSED, forSuggestionsOnly = true),
     COMPLETE(TaskState.OPEN, TaskState.DONE),
     REOPEN(TaskState.DONE, TaskState.OPEN),
 }
@@ -116,17 +117,31 @@ data class Task(
 
     /**
      * The task after [transition] [at]: [TaskStateChange.Unchanged] if it is in the target state already (e.g. a done
-     * task completed again), [TaskStateChange.NotAllowed] unless it is in the transition's source state. Callers
-     * check the client's version before.
+     * task completed again), [TaskStateChange.NotAllowed] unless it is in the transition's source state. Accepting
+     * and dismissing are for suggestions only: a task that never was one is [TaskStateChange.NotAllowed] even in the
+     * target state ("already open" is no answer for a task no rule suggested). Callers check the client's version
+     * before.
      */
     fun apply(
         transition: TaskTransition,
         at: Instant,
     ): TaskStateChange =
-        when (state) {
-            transition.to -> TaskStateChange.Unchanged
-            transition.from -> TaskStateChange.Changed(moved(transition.to, at))
-            else -> TaskStateChange.NotAllowed(state, transition.to)
+        when {
+            transition.forSuggestionsOnly && origin is TaskOrigin.Direct -> {
+                TaskStateChange.NotAllowed(state, transition.to)
+            }
+
+            state == transition.to -> {
+                TaskStateChange.Unchanged
+            }
+
+            state == transition.from -> {
+                TaskStateChange.Changed(moved(transition.to, at))
+            }
+
+            else -> {
+                TaskStateChange.NotAllowed(state, transition.to)
+            }
         }
 
     private fun moved(
