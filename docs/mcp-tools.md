@@ -187,6 +187,55 @@ changed here; an update that changes nothing stores nothing and logs nothing. An
 cannot be updated through this tool (the refusal protects the real value). Result: as `get_application`. Errors:
 `invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
 
+## Interviews (#118)
+
+Logging and editing need no confirmation (spec §9) and are logged with the AI as actor, the changelog naming the
+fields that changed, not the texts; deleting is `delete_interview`. A stale `version` (the interview's own, not the
+application's) answers `version-conflict`, a `[withheld]` value is refused (`withheld-value`, naming the argument
+such as `interview.notes`: an interview with a hidden value cannot be updated through this tool), and the notes come
+back untrusted. Problems are named like `timeZone:invalid-time-zone`, `localStart:out-of-range`,
+`localStart:invalid`, `participantIds:not-found`, `participantIds:too-many`. There is no write budget yet (#217).
+
+Interview result: `{id, applicationId, version, type, localStart, timeZone, participantIds, outcome,
+interview: untrusted {preparationNotes, notes}, readOnly: {startsAt, createdAt, updatedAt}}`. `localStart` is the
+agreed wall-clock time in `timeZone` (a local time a clock change skips is moved on: check it in the answer),
+`startsAt` the instant. Everything above `readOnly` goes back to `update_interview` under the same keys (the
+`content` of `interview` under its key); `readOnly` is not sent back.
+
+### `log_interview`
+
+`applicationId`, `type` (`PHONE_SCREEN`, `HR`, `TECHNICAL`, `CASE`, `ON_SITE`, `FINAL`, `OTHER`), `localStart`
+(`2026-10-05T10:00`) and `timeZone` (`Europe/Berlin` or `+02:00`), all required, and optional `participantIds`
+(contacts, at most 20), `interview` (`{preparationNotes, notes}`, Markdown), `outcome` (`PASSED`, `REJECTED`,
+`WITHDRAWN`, `CANCELLED`). A literal `[withheld]` is refused here too. Result: the interview. Errors:
+`invalid-arguments`, `not-found` (application), `unavailable`.
+
+### `update_interview`
+
+The arguments of `list_interviews`' entries without `readOnly`: `applicationId`, `id`, `version`, `type`,
+`localStart`, `timeZone`, `participantIds`, `outcome` and `interview` (`{preparationNotes, notes}`). **Every
+property is required** (the rule for replace-style updates above): leaving one out is refused and stores nothing,
+only an explicit `null` clears (`participantIds`: `null` or `[]` for none). The entries of
+`list_upcoming_interviews` are not enough (no version, notes or participants): read the interview with
+`list_interviews` first, in this session, and send what it returned: a model that writes the nulls itself and guesses
+the version can still blind-update and delete the notes (a `get_interview` tool is #236, a blocker before #121).
+Unchanged details store nothing and log nothing. Result: the interview. Errors:
+`invalid-arguments`, `not-found`, `version-conflict`, `unavailable`.
+
+### `list_interviews` (read only)
+
+`applicationId` (required). Result: `{total, interviews: [interview]}` in the order they start; at most 50 are
+returned, the **earliest** 50 (`total` says how many there are, later ones cannot be read through MCP yet).
+Bounding the list in the use case, notes as an excerpt and a `get_interview` tool are #236. Errors:
+`invalid-arguments` (`applicationId:invalid`), `not-found`, `unavailable`.
+
+### `list_upcoming_interviews` (read only)
+
+No arguments. The interviews still to come across all applications, soonest first (at most 100); cancelled ones and
+those of closed applications are left out. No notes, and not enough for `update_interview`:
+`{interviews: [{id, applicationId, type, startsAt, localStart, timeZone, outcome, application: untrusted {title}}]}`.
+Errors: `unavailable`.
+
 ## Tasks (#119)
 
 Like the companies and contacts above, the task tools create or change data without confirmation (spec §9) and
