@@ -107,6 +107,27 @@ class DoneTaskControllerTest(
     }
 
     @Test
+    fun `a page or size that is no number is the documented 400 naming it, not the framework's`() {
+        mvc
+            .get()
+            .uri("/api/tasks/done?page=abc&size=20")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo(
+                """{"type":"${TaskProblems.INVALID}","violations":[{"field":"page","problem":"INVALID"}]}""",
+            )
+        mvc
+            .get()
+            .uri("/api/tasks/done?size=99999999999")
+            .assertThat()
+            .hasStatus(400)
+            .bodyJson()
+            .isLenientlyEqualTo("""{"violations":[{"field":"size","problem":"INVALID"}]}""")
+        verify(exactly = 0) { ports.tasks.listDone(any()) }
+    }
+
+    @Test
     fun `an unavailable store is a 503`() {
         every { ports.tasks.listDone(any()) } returns TaskStoreResult.StorageFailure("listDone")
 

@@ -347,7 +347,9 @@ recently completed first: `{total, page, size, tasks: [{id, version, origin, lin
 untrusted {title}}]}`. `total` counts all done tasks; the answer never holds more than `size` of them. The entries
 carry the title but **not the notes** (a page of long notes would fill a context, and `reopen_task` needs only the id
 and the version). Use it to find a task that was completed by mistake. Errors: `invalid-arguments`
-(`page:out-of-range`, `size:out-of-range`), `unavailable`.
+(`page:out-of-range`, `size:out-of-range`; `page:invalid` for a value that is no `int`, such as `1.0` or `2147483648`; a `size` out of
+range is refused by the schema), `unavailable`. To read a done task's notes, reopen it
+(`reopen_task` answers the whole task): there is no `get_task` for done tasks yet.
 
 ### `reopen_task`
 

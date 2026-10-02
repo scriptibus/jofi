@@ -85,6 +85,10 @@ object TaskProblems {
             ),
         )
 
+    /** `page` or `size` of the done tasks is not a whole number (400 in the documented shape, naming it). */
+    fun notANumber(parameter: String): ErrorResponseException =
+        ValidationProblem.of(INVALID, listOf(FieldViolation(parameter, "INVALID")))
+
     /** The request field a violation belongs to, e.g. `timing.localDue`, so clients can show it there. */
     fun apiName(field: TaskField): String =
         when (field) {

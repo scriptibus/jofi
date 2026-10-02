@@ -57,7 +57,7 @@ data class TaskTimingResult(
 
 enum class TaskOriginKind { MANUAL, CHAT, SUGGESTED }
 
-/** One task; [version] is what `complete_task` and `accept_task_suggestion` need to be based on. */
+/** One task; [version] is what `complete_task`, `reopen_task` and `accept_task_suggestion` need to be based on. */
 data class TaskDetailResult(
     val id: UUID,
     val version: Long,

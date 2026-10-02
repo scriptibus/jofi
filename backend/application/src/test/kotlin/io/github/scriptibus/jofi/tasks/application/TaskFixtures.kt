@@ -95,7 +95,9 @@ class TaskFixtures {
                 val done =
                     tasks.values
                         .filter { it.state == TaskState.DONE }
-                        .sortedWith(compareByDescending<Task> { it.completedAt }.thenByDescending { it.id.value })
+                        .sortedWith(
+                            compareByDescending<Task> { it.completedAt }.thenByDescending { it.id.value.toString() },
+                        )
                 return TaskStoreResult.Success(
                     DoneTaskPage(done.drop(query.offset.toInt()).take(query.size), done.size.toLong()),
                 )
