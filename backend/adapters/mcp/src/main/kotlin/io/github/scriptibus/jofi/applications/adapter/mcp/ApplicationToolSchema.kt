@@ -75,7 +75,7 @@ internal object ApplicationToolSchema {
     private fun languageAndTone(update: Boolean) =
         """
         {
-          "type": "object",
+          "type": ${objectType(update)},
           "additionalProperties": false,
           ${required(update, listOf("postingLanguage", "applicationLanguage", "formOfAddress", "tone"))}
           "properties": {
@@ -129,7 +129,7 @@ internal object ApplicationToolSchema {
     private fun notes(update: Boolean) =
         """
         {
-          "type": "object",
+          "type": ${objectType(update)},
           "additionalProperties": false,
           ${required(update, listOf("portalNotes", "payEstimateBasis", "offer"))}
           "properties": {
@@ -191,6 +191,9 @@ internal object ApplicationToolSchema {
         "posting": ${posting(update)},
         "notes": ${notes(update)}
         """.trimIndent()
+
+    /** An object that an update always sends, and a create call may leave out or set to `null`. */
+    private fun objectType(update: Boolean) = if (update) "\"object\"" else "[\"object\", \"null\"]"
 
     private const val IDENTITY =
         """"id": {"type": "string", "format": "uuid"}, "version": {"type": "integer", "minimum": 0},"""
