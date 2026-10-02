@@ -4,7 +4,8 @@
 // An in-memory stand-in for the task endpoints (#93, #94, #95), as MSW handlers. It mirrors the backend's status
 // codes and problem types: 400 violations, 409 `version-conflict` for a stale `basedOnVersion`, 409
 // `invalid-transition` for accepting or dismissing what is no suggestion, a 428 before a delete, the grouped list
-// of open tasks only, and the suggestions (state `SUGGESTED`) newest first. The group of each task is given by the test (`groups`),
+// of open tasks only, the done tasks a page at a time, newest completion first (#235), and the suggestions (state
+// `SUGGESTED`) newest first. The group of each task is given by the test (`groups`),
 // or follows the bucket it was created with; the real calendar runs in the backend's tests and in e2e.
 
 import { HttpResponse, http } from "msw";
@@ -70,6 +71,10 @@ export interface FakeTaskState {
   decisions: { decision: "accept" | "dismiss"; id: string; basedOnVersion: number }[];
   /** While true, the suggestions list answers 503 `storage-unavailable`. */
   suggestionsUnavailable: boolean;
+  /** The `page` and `size` of every done-tasks request, in order. */
+  doneRequests: { page: number; size: number }[];
+  /** While true, the done tasks list answers 503 `storage-unavailable`. */
+  doneUnavailable: boolean;
   /** Delete calls seen: `first` without token, `confirmed` with it. */
   deleteCalls: ("first" | "confirmed")[];
   /** Held until resolved: lets a test look at the page while a complete is on its way. */
@@ -125,6 +130,8 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
     stateChanges: [],
     decisions: [],
     suggestionsUnavailable: false,
+    doneRequests: [],
+    doneUnavailable: false,
     deleteCalls: [],
     ...initial,
   };
@@ -170,11 +177,27 @@ export function fakeTaskBackend(initial: Partial<FakeTaskState> = {}) {
     };
 
   const handlers = [
-    // Before `/api/tasks/:id`, which would take "suggestions" for an id.
+    // Before `/api/tasks/:id`, which would take "suggestions" or "done" for an id.
     http.get(`${origin()}/api/tasks/suggestions`, () => {
       if (state.suggestionsUnavailable) return problem(503, "storage-unavailable");
       const suggested = state.tasks.filter((task) => task.status === "SUGGESTED");
       return HttpResponse.json({ tasks: suggested.toReversed() });
+    }),
+    http.get(`${origin()}/api/tasks/done`, ({ request }) => {
+      const query = new URL(request.url).searchParams;
+      const page = Number(query.get("page") ?? 0);
+      const size = Number(query.get("size") ?? 20);
+      state.doneRequests.push({ page, size });
+      if (state.doneUnavailable) return problem(503, "storage-unavailable");
+      const done = state.tasks
+        .filter((task) => task.status === "DONE")
+        .toSorted((a, b) => (b.completedAt ?? "").localeCompare(a.completedAt ?? ""));
+      return HttpResponse.json({
+        tasks: done.slice(page * size, (page + 1) * size),
+        page,
+        size,
+        total: done.length,
+      });
     }),
     http.post(`${origin()}/api/tasks/:id/accept`, decide("accept")),
     http.post(`${origin()}/api/tasks/:id/dismiss`, decide("dismiss")),
